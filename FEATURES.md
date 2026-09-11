@@ -17,12 +17,12 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Voice picker in Settings: every VOICEVOX speaker and style with icons, same
   preview sentence in any voice, choice persisted; Re-voice link in the player
   for islands made with another voice.
+- Continuous playback speed slider in the player, 0.5x to 1.5x in 0.05 steps,
+  pitch-corrected, replacing the four preset buttons.
 
 ## Next (approved, in order)
 
-1. Continuous playback speed slider in the player: a draggable dot instead of
-   the four preset buttons.
-2. Word-level highlighting: highlight whole words as spoken instead of single
+1. Word-level highlighting: highlight whole words as spoken instead of single
    kana, so word boundaries are clear.
 
 ## Ideas (not approved)

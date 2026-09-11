@@ -51,5 +51,6 @@ export const Fonts = Platform.select({
   default: { sans: 'normal', rounded: 'normal', mono: 'monospace' },
 }) as { sans: string; rounded: string; mono: string };
 
-/** Playback speeds offered in the player. Shadowing lives in the slow end. */
-export const SPEEDS = [0.5, 0.7, 0.85, 1.0] as const;
+/** Playback speed range for the player slider. Shadowing lives in the slow end. */
+export const SPEED_MIN = 0.5;
+export const SPEED_MAX = 1.5;

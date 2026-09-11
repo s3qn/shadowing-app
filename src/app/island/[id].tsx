@@ -1,3 +1,4 @@
+import Slider from '@react-native-community/slider';
 import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from 'expo-audio';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -11,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Radius, SPEEDS, Spacing } from '@/constants/theme';
+import { Radius, SPEED_MAX, SPEED_MIN, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
 import { getVoice } from '@/lib/settings';
@@ -208,35 +209,30 @@ export default function IslandScreen() {
         </View>
 
         <View style={styles.speedRow}>
-          {SPEEDS.map((s) => {
-            const on = s === speed;
-            return (
-              <Pressable
-                key={s}
-                onPress={() => setSpeed(s)}
-                style={[
-                  styles.speed,
-                  {
-                    backgroundColor: on ? palette.accent : palette.surface,
-                    borderColor: on ? palette.accent : palette.line,
-                  },
-                ]}>
-                <Text style={[styles.speedText, { color: on ? palette.accentInk : palette.ink }]}>
-                  {s}x
-                </Text>
-              </Pressable>
-            );
-          })}
+          <Text style={[styles.speedLabel, { color: palette.muted }]}>Speed</Text>
+          <Slider
+            style={styles.slider}
+            minimumValue={SPEED_MIN}
+            maximumValue={SPEED_MAX}
+            step={0.05}
+            value={speed}
+            onValueChange={(v) => setSpeed(Math.round(v * 20) / 20)}
+            minimumTrackTintColor={palette.accent}
+            maximumTrackTintColor={palette.line}
+            thumbTintColor={palette.accent}
+            accessibilityLabel="Playback speed"
+          />
+          <Text style={[styles.speedValue, { color: palette.ink }]}>{speed.toFixed(2)}x</Text>
           <Pressable
             onPress={() => setLoop((v) => !v)}
             style={[
-              styles.speed,
+              styles.loop,
               {
                 backgroundColor: loop ? palette.accent : palette.surface,
                 borderColor: loop ? palette.accent : palette.line,
               },
             ]}>
-            <Text style={[styles.speedText, { color: loop ? palette.accentInk : palette.ink }]}>
+            <Text style={[styles.loopText, { color: loop ? palette.accentInk : palette.ink }]}>
               Loop
             </Text>
           </Pressable>
@@ -294,14 +290,17 @@ const styles = StyleSheet.create({
   controls: { borderTopWidth: 1, padding: Spacing.lg, gap: Spacing.lg },
   track: { height: 4, borderRadius: 2, overflow: 'hidden' },
   trackFill: { height: 4, borderRadius: 2 },
-  speedRow: { flexDirection: 'row', gap: Spacing.sm, justifyContent: 'center' },
-  speed: {
+  speedRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  speedLabel: { fontSize: 13, fontWeight: '600' },
+  slider: { flex: 1, height: 40 },
+  speedValue: { fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'], minWidth: 52, textAlign: 'right' },
+  loop: {
     borderWidth: 1,
     borderRadius: Radius.pill,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
   },
-  speedText: { fontSize: 13, fontWeight: '700' },
+  loopText: { fontSize: 13, fontWeight: '700' },
   revoice: { alignItems: 'center', paddingVertical: Spacing.xs },
   revoiceText: { fontSize: 14, fontWeight: '600' },
   transport: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
