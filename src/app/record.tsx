@@ -15,6 +15,7 @@ import { LevelBars } from '@/components/level-bars';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
+import { DEFAULT_VOICE, getVoice } from '@/lib/settings';
 
 const MIN_SECONDS = 10;
 const MAX_SECONDS = 90;
@@ -58,6 +59,11 @@ export default function RecordScreen() {
   // The recorder's clock resets once it stops, so the length of the last take
   // is kept separately for the review screen.
   const [taken, setTaken] = useState(0);
+  const [voice, setVoice] = useState<number>(DEFAULT_VOICE);
+
+  useEffect(() => {
+    getVoice().then(setVoice);
+  }, []);
   const elapsed = phase === 'review' ? taken : (state.durationMillis ?? 0) / 1000;
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -97,7 +103,7 @@ export default function RecordScreen() {
     setPhase('building');
     setError('');
     try {
-      const { id } = await api.createIsland(uri, complexity);
+      const { id } = await api.createIsland(uri, complexity, voice);
       pollRef.current = setInterval(async () => {
         try {
           const island = await api.getIsland(id);

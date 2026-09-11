@@ -39,6 +39,38 @@ async def list_speakers() -> list[dict]:
         return r.json()
 
 
+_SPEAKER_INFO: dict[str, dict] = {}
+
+
+async def speaker_info(speaker_uuid: str) -> dict:
+    """Portrait, per-style icons and the credit policy for one speaker.
+
+    Fetched in url mode so the payload is small; the resource URLs point at the
+    engine itself (127.0.0.1), which only the backend can reach. Cached for the
+    life of the process, the engine's catalogue does not change while it runs.
+    """
+    cached = _SPEAKER_INFO.get(speaker_uuid)
+    if cached is not None:
+        return cached
+    async with httpx.AsyncClient(timeout=TIMEOUT_S) as client:
+        r = await client.get(
+            f"{VOICEVOX_URL}/speaker_info",
+            params={"speaker_uuid": speaker_uuid, "resource_format": "url"},
+        )
+        r.raise_for_status()
+    info = r.json()
+    _SPEAKER_INFO[speaker_uuid] = info
+    return info
+
+
+async def fetch_resource(url: str) -> bytes:
+    """Stream one engine-hosted resource (an icon) back to the caller."""
+    async with httpx.AsyncClient(timeout=TIMEOUT_S) as client:
+        r = await client.get(url)
+        r.raise_for_status()
+        return r.content
+
+
 async def audio_query(text: str, speaker: int) -> dict:
     async with httpx.AsyncClient(timeout=TIMEOUT_S) as client:
         r = await client.post(

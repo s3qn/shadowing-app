@@ -24,7 +24,7 @@ from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from dotenv import load_dotenv
 
@@ -82,20 +82,80 @@ def health() -> dict:
     return {"ok": True, "service": "shadow"}
 
 
+PREVIEW_TEXT = "はじめまして。今日はいい天気ですね。"
+PREVIEW_DIR = store.DATA_DIR / "previews"
+
+
+def _token_or_header(token: str, authorization: str | None) -> None:
+    """Media routes are fetched by players and Image views that cannot set a
+    header, so the token is accepted as a query parameter there as well."""
+    if token:
+        require_token(f"Bearer {token}")
+    else:
+        require_token(authorization)
+
+
 @app.get("/shadow/speakers")
 async def speakers(authorization: str | None = Header(None)) -> list[dict]:
+    """Every VOICEVOX speaker with its styles, icon URLs and credit policy."""
     require_token(authorization)
     try:
         raw = await voicevox.list_speakers()
+        out = []
+        for s in raw:
+            info = await voicevox.speaker_info(s["speaker_uuid"])
+            out.append(
+                {
+                    "uuid": s["speaker_uuid"],
+                    "name": s["name"],
+                    "policy": info.get("policy", ""),
+                    "styles": [
+                        {
+                            "id": st["id"],
+                            "name": st["name"],
+                            "icon": f"/shadow/speakers/{s['speaker_uuid']}/icon/{st['id']}",
+                        }
+                        for st in s["styles"]
+                    ],
+                }
+            )
     except Exception as exc:
         raise HTTPException(502, f"VOICEVOX unreachable: {exc}") from exc
-    return [
-        {
-            "name": s["name"],
-            "styles": [{"id": st["id"], "name": st["name"]} for st in s["styles"]],
-        }
-        for s in raw
-    ]
+    return out
+
+
+@app.get("/shadow/speakers/{speaker_uuid}/icon/{style_id}")
+async def speaker_icon(speaker_uuid: str, style_id: int, token: str = "",
+                       authorization: str | None = Header(None)) -> Response:
+    _token_or_header(token, authorization)
+    try:
+        info = await voicevox.speaker_info(speaker_uuid)
+        style = next((st for st in info["style_infos"] if st["id"] == style_id), None)
+        if style is None:
+            raise HTTPException(404, "no such style")
+        png = await voicevox.fetch_resource(style["icon"])
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(502, f"VOICEVOX unreachable: {exc}") from exc
+    return Response(content=png, media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/shadow/voices/{style_id}/preview")
+async def voice_preview(style_id: int, token: str = "",
+                        authorization: str | None = Header(None)) -> FileResponse:
+    """The same sentence in any voice, rendered once and kept on disk."""
+    _token_or_header(token, authorization)
+    PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
+    path = PREVIEW_DIR / f"{style_id}.wav"
+    if not path.exists():
+        try:
+            wav, _, _, _ = await voicevox.speak(PREVIEW_TEXT, style_id)
+        except voicevox.VoicevoxError as exc:
+            raise HTTPException(502, str(exc)) from exc
+        path.write_bytes(wav)
+    return FileResponse(path, media_type="audio/wav")
 
 
 def _to_wav(src: Path, dst: Path) -> bool:
@@ -262,6 +322,47 @@ async def regenerate(
         _build_island, island_id, wav, complexity, island["speaker"], count
     )
     return {"id": island_id, "status": "working", "complexity": complexity}
+
+
+async def _revoice(island_id: str, lines: list[dict], speaker: int, title: str) -> None:
+    try:
+        made = await _synthesize_lines(island_id, lines, speaker)
+        if made == 0:
+            store.set_failed(island_id, "The voice engine produced no audio.")
+            return
+        store.set_ready(island_id, title)
+    except Exception as exc:
+        log.exception("revoice %s failed", island_id)
+        store.set_failed(island_id, str(exc))
+
+
+@app.post("/shadow/islands/{island_id}/revoice")
+async def revoice(
+    island_id: str,
+    background: BackgroundTasks,
+    speaker: int = Form(...),
+    authorization: str | None = Header(None),
+) -> dict:
+    """Re-render an island's existing lines in another voice. Keeps the text,
+    so there is no transcription or generation: a few seconds of synthesis."""
+    require_token(authorization)
+    island = store.get_island(island_id)
+    if island is None:
+        raise HTTPException(404, "no such island")
+    if island["status"] != "ready":
+        raise HTTPException(409, "the island is still being built")
+    lines = [
+        {"ja": l["ja"], "kana": l["kana"], "romaji": l["romaji"], "en": l["en"]}
+        for l in island["lines"]
+    ]
+    if not lines:
+        raise HTTPException(409, "the island has no lines to re-voice")
+
+    store.set_speaker(island_id, speaker)
+    store.set_stage(island_id, "speaking")
+    store.clear_lines(island_id)
+    background.add_task(_revoice, island_id, lines, speaker, island["title"])
+    return {"id": island_id, "status": "working", "speaker": speaker}
 
 
 @app.delete("/shadow/islands/{island_id}")

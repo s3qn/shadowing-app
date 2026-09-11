@@ -15,6 +15,9 @@ import { File } from 'expo-file-system';
 
 const BASE = process.env.EXPO_PUBLIC_SHADOW_API_URL ?? '';
 const TOKEN = process.env.EXPO_PUBLIC_SHADOW_TOKEN ?? '';
+// Icon paths from the backend are absolute (/shadow/...), so they hang off the
+// origin rather than off BASE.
+const ORIGIN = BASE.replace(/\/shadow\/?$/, '');
 
 export type Complexity = 'simple' | 'complex';
 
@@ -36,6 +39,9 @@ export type Line = {
   duration: number;
   timeline: Mora[];
 };
+
+export type SpeakerStyle = { id: number; name: string; icon: string };
+export type Speaker = { uuid: string; name: string; policy: string; styles: SpeakerStyle[] };
 
 export type IslandSummary = {
   id: string;
@@ -98,11 +104,13 @@ export async function deleteIsland(id: string): Promise<void> {
 export async function createIsland(
   uri: string,
   complexity: Complexity,
+  speaker: number,
   count = 8,
 ): Promise<{ id: string }> {
   const form = new FormData();
   form.append('audio', new File(uri), 'recording.m4a');
   form.append('complexity', complexity);
+  form.append('speaker', String(speaker));
   form.append('count', String(count));
 
   return json<{ id: string }>(
@@ -118,6 +126,32 @@ export async function regenerate(id: string, complexity: Complexity): Promise<vo
     headers: headers(),
     body: form,
   });
+}
+
+export async function listSpeakers(): Promise<Speaker[]> {
+  return json<Speaker[]>(await fetch(`${BASE}/speakers`, { headers: headers() }));
+}
+
+/** Absolute URL for a style icon path returned by listSpeakers. */
+export function iconUrl(path: string): string {
+  return `${ORIGIN}${path}?token=${encodeURIComponent(TOKEN)}`;
+}
+
+/** The fixed preview sentence rendered in one voice. */
+export function voicePreviewUrl(styleId: number): string {
+  return `${BASE}/voices/${styleId}/preview?token=${encodeURIComponent(TOKEN)}`;
+}
+
+/** Re-render an island's lines in another voice. Poll getIsland until ready. */
+export async function revoice(id: string, speaker: number): Promise<void> {
+  const form = new FormData();
+  form.append('speaker', String(speaker));
+  const res = await expoFetch(`${BASE}/islands/${id}/revoice`, {
+    method: 'POST',
+    headers: headers(),
+    body: form,
+  });
+  await json<unknown>(res);
 }
 
 /**

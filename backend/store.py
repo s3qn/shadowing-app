@@ -96,6 +96,11 @@ def set_transcript(island_id: str, text: str) -> None:
         conn.execute("UPDATE islands SET transcript=? WHERE id=?", (text, island_id))
 
 
+def set_speaker(island_id: str, speaker: int) -> None:
+    with connect() as conn:
+        conn.execute("UPDATE islands SET speaker=? WHERE id=?", (speaker, island_id))
+
+
 def set_ready(island_id: str, title: str) -> None:
     with connect() as conn:
         conn.execute(

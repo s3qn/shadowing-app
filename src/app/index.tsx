@@ -1,4 +1,4 @@
-import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { Link, Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -71,6 +71,15 @@ export default function IslandsScreen() {
 
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: palette.bg }])}>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Pressable onPress={() => router.push('/settings')} hitSlop={12}>
+              <Text style={{ color: palette.accent, fontSize: 16, fontWeight: '600' }}>Settings</Text>
+            </Pressable>
+          ),
+        }}
+      />
       <FlatList
         data={islands}
         keyExtractor={(item) => item.id}

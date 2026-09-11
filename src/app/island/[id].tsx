@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Radius, SPEEDS, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
+import { getVoice } from '@/lib/settings';
 
 export default function IslandScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -25,6 +26,9 @@ export default function IslandScreen() {
   const [speed, setSpeed] = useState<number>(0.7);
   const [loop, setLoop] = useState(true);
   const [showEnglish, setShowEnglish] = useState(false);
+  const [voice, setVoice] = useState<number | null>(null);
+  const [voiceName, setVoiceName] = useState('');
+  const [revoicing, setRevoicing] = useState(false);
 
   const line = island?.lines[idx];
   const source = useMemo(
@@ -52,6 +56,58 @@ export default function IslandScreen() {
       alive = false;
     };
   }, [id]);
+
+  // The chosen voice, and its display name, so the re-voice offer can say
+  // which voice it would switch to.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const chosen = await getVoice();
+      if (!alive) return;
+      setVoice(chosen);
+      try {
+        const speakers = await api.listSpeakers();
+        for (const sp of speakers) {
+          const st = sp.styles.find((s) => s.id === chosen);
+          if (st) {
+            if (alive) setVoiceName(`${sp.name} ${st.name}`);
+            break;
+          }
+        }
+      } catch {
+        // Name is decorative; the button still works without it.
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  async function doRevoice() {
+    if (!island || voice === null || revoicing) return;
+    setRevoicing(true);
+    player.pause();
+    try {
+      await api.revoice(island.id, voice);
+      for (let i = 0; i < 60; i += 1) {
+        await new Promise((r) => setTimeout(r, 1000));
+        const data = await api.getIsland(island.id);
+        if (data.status === 'ready') {
+          setIsland(data);
+          setIdx(0);
+          break;
+        }
+        if (data.status === 'failed') {
+          setError(data.error || 'Re-voicing failed');
+          break;
+        }
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Re-voicing failed');
+    } finally {
+      setRevoicing(false);
+    }
+  }
 
   // Rate and loop are player properties, so they have to be pushed on every
   // change and again whenever the source swaps to a new line.
@@ -186,6 +242,14 @@ export default function IslandScreen() {
           </Pressable>
         </View>
 
+        {voice !== null && island.speaker !== voice ? (
+          <Pressable onPress={doRevoice} disabled={revoicing} style={styles.revoice}>
+            <Text style={[styles.revoiceText, { color: revoicing ? palette.muted : palette.accent }]}>
+              {revoicing ? 'Re-voicing…' : `Re-voice in ${voiceName || 'the chosen voice'}`}
+            </Text>
+          </Pressable>
+        ) : null}
+
         <View style={styles.transport}>
           <Pressable onPress={prev} disabled={idx === 0} style={styles.side}>
             <Text style={[styles.sideText, { color: idx === 0 ? palette.line : palette.ink }]}>
@@ -238,6 +302,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
   },
   speedText: { fontSize: 13, fontWeight: '700' },
+  revoice: { alignItems: 'center', paddingVertical: Spacing.xs },
+  revoiceText: { fontSize: 14, fontWeight: '600' },
   transport: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   side: { paddingVertical: Spacing.md, paddingHorizontal: Spacing.lg },
   sideText: { fontSize: 16, fontWeight: '600' },

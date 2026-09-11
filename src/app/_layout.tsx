@@ -21,6 +21,7 @@ export default function RootLayout() {
           options={{ title: 'New island', presentation: 'modal' }}
         />
         <Stack.Screen name="island/[id]" options={{ title: '' }} />
+        <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       </Stack>
     </>
   );
