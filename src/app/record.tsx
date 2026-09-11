@@ -10,12 +10,19 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { LevelBars } from '@/components/level-bars';
+
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
 
 const MIN_SECONDS = 10;
 const MAX_SECONDS = 90;
+// Metering is dBFS. Measured on Sean's iPhone: silence -160, speech -42 to -7
+// with a median near -19. Everything under the gate is drawn as silence so room
+// noise cannot move the bars; from the gate to the ceiling the height is linear.
+const GATE_DB = -45;
+const CEILING_DB = -10;
 
 type Phase = 'idle' | 'recording' | 'review' | 'building';
 
@@ -26,6 +33,12 @@ const STAGE_LABEL: Record<string, string> = {
   speaking: 'Recording the voice…',
 };
 
+/** dBFS to 0..1: flat below the gate, full height at the ceiling. */
+function normalise(db: number | undefined): number {
+  if (db === undefined || !Number.isFinite(db) || db < GATE_DB) return 0;
+  return Math.min(1, (db - GATE_DB) / (CEILING_DB - GATE_DB));
+}
+
 function clock(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -34,8 +47,8 @@ function clock(seconds: number): string {
 export default function RecordScreen() {
   const { palette } = useTheme();
   const router = useRouter();
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const state = useAudioRecorderState(recorder);
+  const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true });
+  const state = useAudioRecorderState(recorder, 50);
 
   const [phase, setPhase] = useState<Phase>('idle');
   const [complexity, setComplexity] = useState<api.Complexity>('simple');
@@ -138,6 +151,23 @@ export default function RecordScreen() {
               {clock(elapsed)}
             </Text>
 
+            <LevelBars
+              level={phase === 'recording' ? normalise(state.metering) : 0}
+              live={phase === 'recording'}
+            />
+
+            <View style={[styles.track, { backgroundColor: palette.surfaceAlt }]}>
+              <View
+                style={[
+                  styles.trackFill,
+                  {
+                    backgroundColor: palette.accent,
+                    width: `${Math.min(100, Math.round((elapsed / MAX_SECONDS) * 100))}%`,
+                  },
+                ]}
+              />
+            </View>
+
             {phase === 'review' ? (
               <View style={styles.pickerRow}>
                 {(['simple', 'complex'] as const).map((level) => {
@@ -234,6 +264,8 @@ const styles = StyleSheet.create({
   hint: { fontSize: 14, lineHeight: 21, textAlign: 'center' },
   stage: { fontSize: 18, fontWeight: '600' },
   timer: { fontSize: 56, fontWeight: '200', fontVariant: ['tabular-nums'], marginTop: Spacing.lg },
+  track: { height: 4, borderRadius: 2, overflow: 'hidden' },
+  trackFill: { height: 4, borderRadius: 2 },
   pickerRow: { gap: Spacing.md, marginTop: Spacing.sm },
   pick: { borderWidth: 1, borderRadius: Radius.md, padding: Spacing.lg, gap: Spacing.xs },
   pickTitle: { fontSize: 16, fontWeight: '600' },
