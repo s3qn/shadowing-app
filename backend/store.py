@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS lines (
   en          TEXT NOT NULL DEFAULT '',
   duration    REAL NOT NULL DEFAULT 0,
   timeline    TEXT NOT NULL DEFAULT '[]',
+  words       TEXT NOT NULL DEFAULT '[]',
   PRIMARY KEY (island_id, idx),
   FOREIGN KEY (island_id) REFERENCES islands(id) ON DELETE CASCADE
 );
@@ -62,6 +63,10 @@ def connect() -> sqlite3.Connection:
 def init() -> None:
     with connect() as conn:
         conn.executescript(SCHEMA)
+        # Databases created before word timings existed lack the column.
+        cols = {row["name"] for row in conn.execute("PRAGMA table_info(lines)")}
+        if "words" not in cols:
+            conn.execute("ALTER TABLE lines ADD COLUMN words TEXT NOT NULL DEFAULT '[]'")
 
 
 def create_island(complexity: str, speaker: int) -> str:
@@ -109,12 +114,13 @@ def set_ready(island_id: str, title: str) -> None:
         )
 
 
-def add_line(island_id: str, idx: int, line: dict, duration: float, timeline: list) -> None:
+def add_line(island_id: str, idx: int, line: dict, duration: float, timeline: list,
+             words: list | None = None) -> None:
     with connect() as conn:
         conn.execute(
             "INSERT OR REPLACE INTO lines"
-            " (island_id, idx, ja, kana, romaji, en, duration, timeline)"
-            " VALUES (?,?,?,?,?,?,?,?)",
+            " (island_id, idx, ja, kana, romaji, en, duration, timeline, words)"
+            " VALUES (?,?,?,?,?,?,?,?,?)",
             (
                 island_id,
                 idx,
@@ -124,7 +130,16 @@ def add_line(island_id: str, idx: int, line: dict, duration: float, timeline: li
                 line.get("en", ""),
                 duration,
                 json.dumps(timeline, ensure_ascii=False),
+                json.dumps(words or [], ensure_ascii=False),
             ),
+        )
+
+
+def set_words(island_id: str, idx: int, words: list) -> None:
+    with connect() as conn:
+        conn.execute(
+            "UPDATE lines SET words=? WHERE island_id=? AND idx=?",
+            (json.dumps(words, ensure_ascii=False), island_id, idx),
         )
 
 
@@ -143,7 +158,12 @@ def get_island(island_id: str) -> dict | None:
             "SELECT * FROM lines WHERE island_id=? ORDER BY idx", (island_id,)
         ).fetchall()
     island["lines"] = [
-        {**dict(line), "timeline": json.loads(line["timeline"])} for line in lines
+        {
+            **dict(line),
+            "timeline": json.loads(line["timeline"]),
+            "words": json.loads(line["words"] or "[]"),
+        }
+        for line in lines
     ]
     return island
 

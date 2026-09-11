@@ -1,7 +1,7 @@
 import Slider from '@react-native-community/slider';
 import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from 'expo-audio';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -36,8 +36,35 @@ export default function IslandScreen() {
     () => (island && line ? { uri: api.lineAudioUrl(island.id, line.idx) } : null),
     [island, line],
   );
-  const player = useAudioPlayer(source);
+  // Native status arrives every 50ms; particles can be shorter than that, so
+  // the position shown to the highlighter is interpolated between updates.
+  const player = useAudioPlayer(source, { updateInterval: 50 });
   const status = useAudioPlayerStatus(player);
+  const [position, setPosition] = useState(0);
+  const anchor = useRef({ time: 0, at: Date.now(), playing: false, rate: 1 });
+
+  useEffect(() => {
+    const a = anchor.current;
+    const now = Date.now();
+    const estimate = a.playing ? a.time + ((now - a.at) / 1000) * a.rate : a.time;
+    const native = status.currentTime;
+    // Native updates lag the estimate by a few ms. Snapping back for that
+    // would flash the previous word again at every boundary, so a small
+    // backward step is ignored; a large one is a seek or the loop restarting.
+    const time =
+      !status.playing || native > estimate || native < estimate - 0.4 ? native : estimate;
+    anchor.current = { time, at: now, playing: status.playing, rate: status.playbackRate || 1 };
+    setPosition(time);
+  }, [status.currentTime, status.playing, status.playbackRate]);
+
+  useEffect(() => {
+    const tick = setInterval(() => {
+      const a = anchor.current;
+      if (!a.playing) return;
+      setPosition(a.time + ((Date.now() - a.at) / 1000) * a.rate);
+    }, 30);
+    return () => clearInterval(tick);
+  }, []);
 
   useEffect(() => {
     void setAudioModeAsync({ playsInSilentMode: true });
@@ -158,10 +185,9 @@ export default function IslandScreen() {
   }
 
   // currentTime is a position in the source audio, not wall clock, so it maps
-  // straight onto the mora timeline no matter what the playback rate is.
-  const activeMora = line.timeline.findIndex(
-    (m) => status.currentTime >= m.start && status.currentTime < m.end,
-  );
+  // straight onto the word spans no matter what the playback rate is.
+  const activeWord = line.words.findIndex((w) => position >= w.start && position < w.end);
+  const reading = line.timeline.map((m) => m.kana).join('');
   const progress = status.duration > 0 ? status.currentTime / status.duration : 0;
 
   return (
@@ -173,23 +199,28 @@ export default function IslandScreen() {
           {idx + 1} of {island.lines.length}
         </Text>
 
-        <Text style={[styles.ja, { color: palette.ink }]}>{line.ja}</Text>
+        {line.words.length > 0 ? (
+          <View style={styles.words}>
+            {line.words.map((w, i) => (
+              <Text
+                key={i}
+                style={[
+                  styles.ja,
+                  styles.word,
+                  {
+                    color: i === activeWord ? palette.accentInk : palette.ink,
+                    backgroundColor: i === activeWord ? palette.accent : 'transparent',
+                  },
+                ]}>
+                {w.text}
+              </Text>
+            ))}
+          </View>
+        ) : (
+          <Text style={[styles.ja, { color: palette.ink }]}>{line.ja}</Text>
+        )}
 
-        <View style={styles.reading}>
-          {line.timeline.map((m, i) => (
-            <Text
-              key={i}
-              style={[
-                styles.mora,
-                {
-                  color: i === activeMora ? palette.accentInk : palette.muted,
-                  backgroundColor: i === activeMora ? palette.accent : 'transparent',
-                },
-              ]}>
-              {m.kana}
-            </Text>
-          ))}
-        </View>
+        <Text style={[styles.reading, { color: palette.muted }]}>{reading}</Text>
 
         <Pressable onPress={() => setShowEnglish((v) => !v)}>
           <Text style={[styles.en, { color: showEnglish ? palette.ink : palette.muted }]}>
@@ -283,8 +314,9 @@ const styles = StyleSheet.create({
   scroll: { padding: Spacing.xl, gap: Spacing.lg, flexGrow: 1, justifyContent: 'center' },
   counter: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
   ja: { fontSize: 32, lineHeight: 48, fontWeight: '600', textAlign: 'center' },
-  reading: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
-  mora: { fontSize: 20, lineHeight: 30, borderRadius: Radius.sm, overflow: 'hidden' },
+  words: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
+  word: { paddingHorizontal: 4, borderRadius: Radius.sm, overflow: 'hidden' },
+  reading: { fontSize: 20, lineHeight: 30, textAlign: 'center' },
   en: { fontSize: 15, lineHeight: 22, textAlign: 'center', marginTop: Spacing.sm },
   body: { fontSize: 15, lineHeight: 22, textAlign: 'center', padding: Spacing.xl },
   controls: { borderTopWidth: 1, padding: Spacing.lg, gap: Spacing.lg },

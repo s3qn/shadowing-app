@@ -33,6 +33,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import generate
+import segment
 import store
 import transcribe
 import voicevox
@@ -183,7 +184,8 @@ async def _synthesize_lines(island_id: str, lines: list[dict], speaker: int) -> 
             log.exception("synthesis failed for line %d of %s", idx, island_id)
             continue
         store.line_audio_path(island_id, idx).write_bytes(wav)
-        store.add_line(island_id, idx, line, duration, timeline)
+        words = segment.align(line["ja"], timeline)
+        store.add_line(island_id, idx, line, duration, timeline, words)
         done += 1
     return done
 
@@ -272,6 +274,11 @@ def get_island(island_id: str, authorization: str | None = Header(None)) -> dict
     island = store.get_island(island_id)
     if island is None:
         raise HTTPException(404, "no such island")
+    # Islands built before word timings existed get them on first read.
+    for line in island["lines"]:
+        if not line["words"] and line["timeline"]:
+            line["words"] = segment.align(line["ja"], line["timeline"])
+            store.set_words(island_id, line["idx"], line["words"])
     return island
 
 

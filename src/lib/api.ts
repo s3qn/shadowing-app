@@ -30,6 +30,9 @@ export type Mora = {
   phrase: number;
 };
 
+/** One word of a line with the span of audio it is spoken in. */
+export type Word = { text: string; start: number; end: number };
+
 export type Line = {
   idx: number;
   ja: string;
@@ -38,6 +41,7 @@ export type Line = {
   en: string;
   duration: number;
   timeline: Mora[];
+  words: Word[];
 };
 
 export type SpeakerStyle = { id: number; name: string; icon: string };

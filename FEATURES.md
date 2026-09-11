@@ -19,11 +19,13 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   for islands made with another voice.
 - Continuous playback speed slider in the player, 0.5x to 1.5x in 0.05 steps,
   pitch-corrected, replacing the four preset buttons.
+- Word-level highlighting: the Japanese sentence is split into words (janome,
+  particles separate) and each word lights up over its own span of the audio;
+  the reading line stays static. Smooth at any speed via interpolated position.
 
 ## Next (approved, in order)
 
-1. Word-level highlighting: highlight whole words as spoken instead of single
-   kana, so word boundaries are clear.
+(empty: pick from Ideas)
 
 ## Ideas (not approved)
 
