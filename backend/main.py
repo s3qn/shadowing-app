@@ -22,17 +22,20 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+
+from dotenv import load_dotenv
+
+# Before the local imports: store, voicevox and transcribe read their settings
+# from the environment at import time.
+load_dotenv()
 
 import generate
 import store
 import transcribe
 import voicevox
-
-load_dotenv()
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s"
