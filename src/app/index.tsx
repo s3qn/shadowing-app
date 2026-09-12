@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
+import { deleteTakes } from '@/lib/takes';
 
 export default function IslandsScreen() {
   const { palette } = useTheme();
@@ -41,6 +42,8 @@ export default function IslandsScreen() {
   async function remove(id: string) {
     try {
       await api.deleteIsland(id);
+      // Phone keeps the takes; the server never saw them.
+      deleteTakes(id);
       removed.current.add(id);
       setIslands((prev) => prev.filter((i) => i.id !== id));
     } catch (e) {

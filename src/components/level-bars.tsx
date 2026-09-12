@@ -9,6 +9,18 @@ const MIN_H = 4;
 const MAX_H = 56;
 const PUSH_MS = 80;
 
+// Metering is dBFS. Measured on Sean's iPhone: silence -160, speech -42 to -7
+// with a median near -19. Below the gate is drawn as silence so room noise
+// cannot move the bars; from the gate to the ceiling the height is linear.
+const GATE_DB = -45;
+const CEILING_DB = -10;
+
+/** dBFS to 0..1: flat below the gate, full height at the ceiling. */
+export function meterLevel(db: number | undefined): number {
+  if (db === undefined || !Number.isFinite(db) || db < GATE_DB) return 0;
+  return Math.min(1, (db - GATE_DB) / (CEILING_DB - GATE_DB));
+}
+
 type Props = {
   /** Current loudness, 0..1, already noise-gated by the caller. */
   level: number;

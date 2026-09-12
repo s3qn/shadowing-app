@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { LevelBars } from '@/components/level-bars';
+import { LevelBars, meterLevel } from '@/components/level-bars';
 
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -19,11 +19,6 @@ import { DEFAULT_VOICE, getVoice } from '@/lib/settings';
 
 const MIN_SECONDS = 10;
 const MAX_SECONDS = 90;
-// Metering is dBFS. Measured on Sean's iPhone: silence -160, speech -42 to -7
-// with a median near -19. Everything under the gate is drawn as silence so room
-// noise cannot move the bars; from the gate to the ceiling the height is linear.
-const GATE_DB = -45;
-const CEILING_DB = -10;
 
 type Phase = 'idle' | 'recording' | 'review' | 'building';
 
@@ -33,12 +28,6 @@ const STAGE_LABEL: Record<string, string> = {
   writing: 'Writing Japanese…',
   speaking: 'Recording the voice…',
 };
-
-/** dBFS to 0..1: flat below the gate, full height at the ceiling. */
-function normalise(db: number | undefined): number {
-  if (db === undefined || !Number.isFinite(db) || db < GATE_DB) return 0;
-  return Math.min(1, (db - GATE_DB) / (CEILING_DB - GATE_DB));
-}
 
 function clock(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
@@ -185,7 +174,7 @@ export default function RecordScreen() {
             </Text>
 
             <LevelBars
-              level={phase === 'recording' ? normalise(state.metering) : 0}
+              level={phase === 'recording' ? meterLevel(state.metering) : 0}
               live={phase === 'recording'}
             />
 

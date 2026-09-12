@@ -50,6 +50,10 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   a confirmation. A Regenerate link in the player rebuilds the island at the
   other complexity from the stored recording, shows the build stage while it
   runs, and starts over at line 1 when it lands.
+- Shadow takes: Record my take plays the line and records you speaking along,
+  stops itself a second after the line ends, and keeps one take per line on the
+  phone. Compare plays the original then your take; My take plays yours alone.
+  Takes go with the island when it is deleted or regenerated.
 
 ## Next (approved, in order)
 
@@ -57,8 +61,6 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 
 ## Ideas (not approved)
 
-- Cancel button on the record screen: a way to leave without recording or
-  building (today the screen has no exit once opened).
 - Import files as islands: an anime episode (video or audio) plus its SRT
   subtitle file; the subtitle lines become the island's lines with their own
   timings, and the word highlighting runs on top.
@@ -69,7 +71,6 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   SRT import).
 - Import existing audio or text as an island (was part of the original pitch:
   "generate good AI vocals or import existing content").
-- Record yourself shadowing a line and play it back against the original.
 - Pitch-accent marks over the reading, from VOICEVOX's accent phrases (the data
   is already in the timeline).
 - Furigana above kanji (ruby layout) instead of a separate reading line.

@@ -15,11 +15,14 @@ import { cancelAnimation, Easing, useSharedValue, withTiming } from 'react-nativ
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { RingButton, type RingMode } from '@/components/ring-button';
+import { TakeRow } from '@/components/take-row';
 import { POPOVER_WIDTH, WordPanel } from '@/components/word-panel';
 import { Radius, SPEED_MAX, SPEED_MIN, Spacing } from '@/constants/theme';
+import { useTake } from '@/hooks/use-take';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
 import { getVoice } from '@/lib/settings';
+import { deleteTakes } from '@/lib/takes';
 
 export default function IslandScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -57,6 +60,14 @@ export default function IslandScreen() {
     }
     setCountdown(null);
   }
+  // Anything that interrupts the line also drops a take in progress and any
+  // compare that was waiting for the line to end.
+  function dropTake() {
+    compareNext.current = false;
+    setComparing(false);
+    take.stopTake();
+    void take.cancel();
+  }
   const [showEnglish, setShowEnglish] = useState(false);
   const [voice, setVoice] = useState<number | null>(null);
   const [voiceName, setVoiceName] = useState('');
@@ -86,8 +97,18 @@ export default function IslandScreen() {
   );
   // Native status arrives every 50ms; particles can be shorter than that, so
   // the position shown to the highlighter is interpolated between updates.
-  const player = useAudioPlayer(source, { updateInterval: 50 });
+  // keepAudioSessionActive: a take's mic keeps running for a second after the
+  // line ends, and the session must not be torn down under it in that time.
+  const player = useAudioPlayer(source, { updateInterval: 50, keepAudioSessionActive: true });
   const status = useAudioPlayerStatus(player);
+  const take = useTake(island?.id, idx, generation);
+  // Set when Compare is waiting for the line to finish before it plays the
+  // take; cleared once that happens or the compare is dropped.
+  const compareNext = useRef(false);
+  // State, not a ref: the Compare pill has to re-render to read Stop for as
+  // long as either half of a compare run (the line, then the take) is playing.
+  const [comparing, setComparing] = useState(false);
+  const wasTakePlaying = useRef(false);
 
   // The tapped word has its own render and its own player, so hearing it never
   // moves the line's player or the highlight.
@@ -98,7 +119,10 @@ export default function IslandScreen() {
         : null,
     [island, line, selected],
   );
-  const wordPlayer = useAudioPlayer(wordSource);
+  // keepAudioSessionActive for the same reason as the line player: closePanel
+  // pauses this one just before a take starts, and a pause tears the audio
+  // session down 100ms later, which would land on the prepared recorder.
+  const wordPlayer = useAudioPlayer(wordSource, { keepAudioSessionActive: true });
   const wordStatus = useAudioPlayerStatus(wordPlayer);
   const autoPlayed = useRef<string | null>(null);
 
@@ -220,6 +244,7 @@ export default function IslandScreen() {
   async function doRevoice() {
     if (!island || voice === null || revoicing || regenerating) return;
     setRevoicing(true);
+    dropTake();
     player.pause();
     try {
       await api.revoice(island.id, voice);
@@ -258,6 +283,7 @@ export default function IslandScreen() {
     setBuildStage('transcribing');
     cancelGap();
     playWhenLoaded.current = false;
+    dropTake();
     player.pause();
     closePanel();
     try {
@@ -269,6 +295,7 @@ export default function IslandScreen() {
         setError(e instanceof Error ? e.message : 'Regenerating failed');
         return;
       }
+      deleteTakes(island.id);
       const data = await waitForIsland(island.id, 240, setBuildStage);
       cancelAnimation(ring);
       ring.value = 0;
@@ -372,6 +399,12 @@ export default function IslandScreen() {
     const now = Date.now();
     if (now - lastFinish.current < 800) return;
     lastFinish.current = now;
+    if (take.phase === 'recording') take.scheduleStop();
+    if (compareNext.current) {
+      compareNext.current = false;
+      take.playTake();
+      return;
+    }
     if (repeat === 'line') {
       startBreath(async () => {
         await player.seekTo(0);
@@ -402,6 +435,7 @@ export default function IslandScreen() {
     if (!line) return;
     cancelGap();
     playWhenLoaded.current = false;
+    dropTake();
     if (status.playing) player.pause();
     setSelected(i);
     setGlossData(null);
@@ -426,6 +460,7 @@ export default function IslandScreen() {
     if (clamped === idx) return;
     const wasActive = status.playing || countdown !== null;
     cancelGap();
+    dropTake();
     player.pause();
     cancelAnimation(ring);
     ring.value = 0;
@@ -446,9 +481,11 @@ export default function IslandScreen() {
     cancelGap();
     playWhenLoaded.current = false;
     if (active) {
+      dropTake();
       player.pause();
       return;
     }
+    dropTake();
     ringAimed.current = false;
     try {
       await player.seekTo(0);
@@ -457,6 +494,80 @@ export default function IslandScreen() {
     }
     player.play();
   }
+
+  // The take is only in phase 'recording' once startTake resolves, so the pill
+  // stays tappable through the permission and audio mode round trips. This
+  // holds the second tap off, which would otherwise prepare the recorder again
+  // and start the line twice.
+  const startingTake = useRef(false);
+
+  async function recordTake() {
+    if (!line || startingTake.current) return;
+    startingTake.current = true;
+    try {
+      cancelGap();
+      playWhenLoaded.current = false;
+      closePanel();
+      dropTake();
+      player.pause();
+      ringAimed.current = false;
+      try {
+        await player.seekTo(0);
+      } catch {
+        // A seek can fail while the item is still loading; play anyway.
+      }
+      // The line's duration is the watchdog's base: a take that is never ended
+      // by the line stops itself a few seconds past it.
+      if (!(await take.startTake(status.duration))) return;
+      player.play();
+    } finally {
+      startingTake.current = false;
+    }
+  }
+
+  function compare() {
+    if (compareNext.current || (take.takePlaying && comparing)) {
+      dropTake();
+      player.pause();
+      return;
+    }
+    cancelGap();
+    playWhenLoaded.current = false;
+    closePanel();
+    take.stopTake();
+    compareNext.current = true;
+    setComparing(true);
+    ringAimed.current = false;
+    void (async () => {
+      try {
+        await player.seekTo(0);
+      } catch {
+        // A seek can fail while the item is still loading; play anyway.
+      }
+      player.play();
+    })();
+  }
+
+  function hearTake() {
+    if (take.takePlaying) {
+      take.stopTake();
+      return;
+    }
+    cancelGap();
+    closePanel();
+    compareNext.current = false;
+    setComparing(false);
+    if (status.playing) player.pause();
+    take.playTake();
+  }
+
+  // A compare run covers both halves, the line then the take, so it only
+  // ends here when the take finishes playing on its own; the Compare pill
+  // stopping it early is handled in compare() and dropTake() above.
+  useEffect(() => {
+    if (wasTakePlaying.current && !take.takePlaying && comparing) setComparing(false);
+    wasTakePlaying.current = take.takePlaying;
+  }, [take.takePlaying, comparing]);
 
   if (error && !island) {
     return (
@@ -495,6 +606,7 @@ export default function IslandScreen() {
             onPress={async () => {
               try {
                 await api.regenerate(island.id, island.complexity);
+                deleteTakes(island.id);
                 setAttempt((n) => n + 1);
               } catch (e) {
                 setError(e instanceof Error ? e.message : 'Could not regenerate');
@@ -630,6 +742,17 @@ export default function IslandScreen() {
           </Pressable>
         </View>
 
+        <TakeRow
+          phase={take.phase}
+          level={take.level}
+          takePlaying={take.takePlaying}
+          comparing={comparing}
+          error={take.error}
+          onRecord={() => void recordTake()}
+          onCompare={compare}
+          onPlayTake={hearTake}
+        />
+
         {voice !== null && island.speaker !== voice ? (
           <Pressable
             onPress={doRevoice}
@@ -694,6 +817,7 @@ export default function IslandScreen() {
               // carry on at the new speed from the top instead of going silent.
               const wasActive = status.playing || countdown !== null;
               cancelGap();
+              dropTake();
               player.pause();
               cancelAnimation(ring);
               ring.value = 0;
