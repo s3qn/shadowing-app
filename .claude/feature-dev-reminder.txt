@@ -15,6 +15,11 @@ The flow (see .claude/skills/feature-dev/SKILL.md):
   5. Ask the user: Accept / Adjust / Delete.
      Accept -> bash .claude/skills/feature-dev/scripts/worktree-accept.sh "<name>" "feat: <subject>"
 
+TESTS: backend/run-tests.sh runs the pytest suite in backend/tests/ (segment,
+voicevox timeline, aec, store, generate). No VOICEVOX, no network, no real
+island data. Run it before any accept that touched backend/, alongside
+npx tsc --noEmit for client changes.
+
 worktree-accept.sh is the ONLY authorized commit point. Never git commit, merge
 to main, or push by hand. Kill a feature's tunnel when you stop working on it.
 

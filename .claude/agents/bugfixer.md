@@ -10,6 +10,6 @@ Rules:
 - Work only inside the worktree you were given. Never commit, never touch the main checkout, never restart the live backend on :8020 unless told the user is not testing.
 - Read AGENTS.md at the repo root first (writing style: no em dashes, no hype).
 - Find the root cause before editing; say what it was in one sentence.
-- After editing run `npx tsc --noEmit -p tsconfig.json` for client changes and `python3 -c "import ast; ast.parse(open('backend/<file>').read())"` for backend changes, and `node ~/.claude/skills/slop-check/scripts/scan.js`. All must be clean.
+- After editing run `npx tsc --noEmit -p tsconfig.json` for client changes and `backend/run-tests.sh` for backend changes, and `node ~/.claude/skills/slop-check/scripts/scan.js`. All must be clean. If the bug is in code the suite covers (segment, voicevox timeline, aec, store, generate), add the failing case to `backend/tests/` first and fix until it passes.
 - If backend code changed, say so: the caller decides when to restart it.
 - Report: root cause, files changed, verification output, and any doubt you have. If you could not find the cause with confidence, say exactly that so the caller can escalate.

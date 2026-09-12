@@ -14,6 +14,27 @@
 - Typecheck with `npx tsc --noEmit`. Read the exact versioned Expo docs at
   https://docs.expo.dev/versions/v57.0.0/ before writing native-facing code.
 
+# Tests
+
+The backend has a pytest suite in `backend/tests/`. It covers the pure logic
+that is expensive to check by hand: the word to mora alignment in `segment.py`,
+the VOICEVOX timeline maths, the bleed removal in `aec.py`, the sqlite store,
+and the JSON the generator gets back from the claude CLI.
+
+```bash
+backend/run-tests.sh          # the whole suite
+backend/run-tests.sh -k segment
+```
+
+It needs no VOICEVOX, no whisper model, no network and no live backend, and it
+never touches the real islands: `tests/conftest.py` points `SHADOW_DATA_DIR` at
+a throwaway directory before anything imports `store`. Keep it that way.
+
+Run it before finishing any change under `backend/`, next to
+`npx tsc --noEmit` for the client. A test that fails is a regression until
+proven otherwise: fix the code, do not loosen the test. Test dependencies live
+in `backend/requirements-dev.txt`.
+
 # Feature-dev tunnel hygiene
 
 - **Kill a feature's dev server as soon as we stop focusing on that feature.**
