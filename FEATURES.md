@@ -39,13 +39,15 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   Retry, and an island without lines offers Regenerate.
 - Record in Hebrew or English: whisper detects the language of the take, and
   the Japanese generator is told which it was. No setting to touch.
+- Ring player: one big circular Play/Stop whose ring fills as the line plays
+  (animated on the UI thread) and drains through the 2s breath with a
+  countdown inside; Repeat Off / Line / Island (island plays every line in
+  order with a breath between them and starts over); speed as a quiet slider.
+  Line switches and speed changes keep playing; a finish is handled once.
 
 ## Next (approved, in order)
 
-1. Ring player: one big circular Play/Stop with a progress ring that fills as
-   the line plays and drains through the 2s breath; Repeat modes Off / Line /
-   Island (island mode plays every line in order with the breath between them
-   and starts over); speed and repeat as quiet pills below.
+(empty: pick from Ideas)
 
 ## Ideas (not approved)
 

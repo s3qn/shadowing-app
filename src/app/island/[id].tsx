@@ -10,8 +10,10 @@ import {
   Text,
   View,
 } from 'react-native';
+import { cancelAnimation, Easing, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { RingButton, type RingMode } from '@/components/ring-button';
 import { POPOVER_WIDTH, WordPanel } from '@/components/word-panel';
 import { Radius, SPEED_MAX, SPEED_MIN, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -29,7 +31,13 @@ export default function IslandScreen() {
   // live so the label moves, and only a release re-renders the line.
   const [speed, setSpeed] = useState<number>(0.7);
   const [dragging, setDragging] = useState<number | null>(null);
-  const [loop, setLoop] = useState(true);
+  // Off: play once and stop. Line: repeat this line. Island: every line in
+  // order, then start over. Each repeat has a breath in front of it.
+  type Repeat = 'off' | 'line' | 'island';
+  const [repeat, setRepeat] = useState<Repeat>('line');
+  // Ring fill, 0..1, animated on the UI thread.
+  const ring = useSharedValue(0);
+  const breathStart = useRef(0);
   // Loop is done by hand rather than with the player's own loop, so there is
   // a moment to breathe before the sentence comes around again.
   const LOOP_GAP_MS = 2000;
@@ -37,9 +45,6 @@ export default function IslandScreen() {
   // Seconds left in the breath between repeats; null when not in a breath.
   const [countdown, setCountdown] = useState<number | null>(null);
   const tickTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  // True from the moment a looped line starts until Stop, so the UI can say
-  // "you are inside a loop" even during the quiet gap.
-  const [looping, setLooping] = useState(false);
   function cancelGap() {
     if (gapTimer.current) {
       clearTimeout(gapTimer.current);
@@ -218,25 +223,79 @@ export default function IslandScreen() {
 
   useEffect(() => cancelGap, []);
 
+  // The ring follows native playback with ONE linear animation to full over
+  // the remaining time, started when playback starts. Later status updates
+  // only re-aim it if it has clearly drifted; restarting it on every update
+  // is what made it stutter.
+  const ringAimed = useRef(false);
   useEffect(() => {
-    if (!status.didJustFinish) return;
-    if (loop) {
+    if (status.playing && status.duration > 0) {
+      const target = status.currentTime / status.duration;
+      const drifted = Math.abs(ring.value - target) > 0.08;
+      if (!ringAimed.current || drifted) {
+        ringAimed.current = true;
+        cancelAnimation(ring);
+        ring.value = target;
+        const remaining = Math.max(0, (status.duration - status.currentTime) * 1000);
+        ring.value = withTiming(1, { duration: remaining, easing: Easing.linear });
+      }
+    } else if (!status.playing) {
+      ringAimed.current = false;
+      if (countdown === null) {
+        cancelAnimation(ring);
+        ring.value = withTiming(0, { duration: 180 });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status.playing, status.currentTime, status.duration, countdown]);
+
+  // After a line switch that should keep playing, start the new source as
+  // soon as it is swapped in; the native player begins when the item is ready.
+  const playWhenLoaded = useRef(false);
+  useEffect(() => {
+    if (!playWhenLoaded.current || !source) return;
+    playWhenLoaded.current = false;
+    player.play();
+  }, [source, player]);
+
+  function startBreath(then: () => void) {
+    cancelGap();
+    breathStart.current = Date.now();
+    setCountdown(Math.round(LOOP_GAP_MS / 1000));
+    cancelAnimation(ring);
+    ring.value = 1;
+    ring.value = withTiming(0, { duration: LOOP_GAP_MS, easing: Easing.linear });
+    tickTimer.current = setInterval(() => {
+      const elapsed = Date.now() - breathStart.current;
+      setCountdown(Math.max(1, Math.ceil((LOOP_GAP_MS - elapsed) / 1000)));
+    }, 250);
+    gapTimer.current = setTimeout(() => {
       cancelGap();
-      setLooping(true);
-      let left = Math.round(LOOP_GAP_MS / 1000);
-      setCountdown(left);
-      tickTimer.current = setInterval(() => {
-        left -= 1;
-        setCountdown(left > 0 ? left : null);
-      }, 1000);
-      gapTimer.current = setTimeout(async () => {
-        cancelGap();
+      then();
+    }, LOOP_GAP_MS);
+  }
+
+  // The player can report "just finished" twice for one ending (once at the
+  // end, once more right after the loop seeks back to the top), which used
+  // to start two breaths. A finish is handled at most once per 800ms and
+  // never while a breath is already pending.
+  const lastFinish = useRef(0);
+  useEffect(() => {
+    if (!status.didJustFinish || !island || playWhenLoaded.current) return;
+    if (gapTimer.current) return;
+    const now = Date.now();
+    if (now - lastFinish.current < 800) return;
+    lastFinish.current = now;
+    if (repeat === 'line') {
+      startBreath(async () => {
         await player.seekTo(0);
         player.play();
-      }, LOOP_GAP_MS);
-    } else {
-      setLooping(false);
-      next();
+      });
+    } else if (repeat === 'island') {
+      startBreath(() => {
+        playWhenLoaded.current = true;
+        setIdx((i) => (i + 1) % island.lines.length);
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status.didJustFinish]);
@@ -256,7 +315,7 @@ export default function IslandScreen() {
   async function tapWord(i: number) {
     if (!line) return;
     cancelGap();
-    setLooping(false);
+    playWhenLoaded.current = false;
     if (status.playing) player.pause();
     setSelected(i);
     setGlossData(null);
@@ -273,11 +332,22 @@ export default function IslandScreen() {
     wordPlayer.play();
   }
 
+  // Switching lines: stop the old audio first, reset everything that belonged
+  // to it, and carry on playing on the new line if we were playing.
   function go(target: number) {
-    cancelGap();
-    setLooping(false);
     if (!island) return;
     const clamped = Math.max(0, Math.min(island.lines.length - 1, target));
+    if (clamped === idx) return;
+    const wasActive = status.playing || countdown !== null;
+    cancelGap();
+    player.pause();
+    cancelAnimation(ring);
+    ring.value = 0;
+    ringAimed.current = false;
+    anchor.current = { time: 0, at: Date.now(), playing: false, rate: 1 };
+    setPosition(0);
+    closePanel();
+    playWhenLoaded.current = wasActive;
     setIdx(clamped);
   }
   const next = () => go(idx + 1);
@@ -286,15 +356,19 @@ export default function IslandScreen() {
   // Lines are short, so Play always starts the sentence from the top. There is
   // no resuming from the middle: that is never what you want when shadowing.
   async function toggle() {
-    const active = status.playing || looping;
+    const active = status.playing || countdown !== null;
     cancelGap();
+    playWhenLoaded.current = false;
     if (active) {
       player.pause();
-      setLooping(false);
       return;
     }
-    setLooping(loop);
-    await player.seekTo(0);
+    ringAimed.current = false;
+    try {
+      await player.seekTo(0);
+    } catch {
+      // A seek can fail while the item is still loading; play anyway.
+    }
     player.play();
   }
 
@@ -360,6 +434,8 @@ export default function IslandScreen() {
     ? line.words.findIndex((w) => position >= w.start / speed && position < w.end / speed)
     : -1;
   const reading = line.timeline.map((m) => m.kana).join('');
+
+  const ringMode: RingMode = status.playing ? 'playing' : countdown !== null ? 'breath' : 'idle';
 
   // Popover under the tapped word, centred on it, kept inside the block.
   const box = selected !== null ? wordBoxes.current[selected] : undefined;
@@ -430,11 +506,6 @@ export default function IslandScreen() {
 
         <Text style={[styles.reading, { color: palette.muted }]}>{reading}</Text>
 
-        {countdown !== null ? (
-          <Text style={[styles.again, { color: palette.accentInk, backgroundColor: palette.accent }]}>
-            again in {countdown}
-          </Text>
-        ) : null}
 
         <Pressable onPress={() => setShowEnglish((v) => !v)}>
           <Text style={[styles.en, { color: showEnglish ? palette.ink : palette.muted }]}>
@@ -444,47 +515,19 @@ export default function IslandScreen() {
       </ScrollView>
 
       <View style={[styles.controls, { borderTopColor: palette.line }]}>
-        <View style={[styles.track, { backgroundColor: palette.surfaceAlt }]}>
-          <View
-            style={[
-              styles.trackFill,
-              { backgroundColor: palette.accent, width: `${Math.round(progress * 100)}%` },
-            ]}
-          />
-        </View>
-
-        <View style={styles.speedRow}>
-          <Text style={[styles.speedLabel, { color: palette.muted }]}>Speed</Text>
-          <Slider
-            style={styles.slider}
-            minimumValue={SPEED_MIN}
-            maximumValue={SPEED_MAX}
-            step={0.05}
-            value={speed}
-            onValueChange={(v) => setDragging(Math.round(v * 20) / 20)}
-            onSlidingComplete={(v) => {
-              setDragging(null);
-              setSpeed(Math.round(v * 20) / 20);
-            }}
-            minimumTrackTintColor={palette.accent}
-            maximumTrackTintColor={palette.line}
-            thumbTintColor={palette.accent}
-            accessibilityLabel="Playback speed"
-          />
-          <Text style={[styles.speedValue, { color: palette.ink }]}>
-            {(dragging ?? speed).toFixed(2)}x
-          </Text>
+        <View style={styles.ringRow}>
+          <Pressable onPress={prev} disabled={idx === 0} hitSlop={16} style={styles.side}>
+            <Text style={[styles.sideText, { color: idx === 0 ? palette.line : palette.ink }]}>‹</Text>
+          </Pressable>
+          <RingButton progress={ring} mode={ringMode} countdown={countdown} onPress={toggle} />
           <Pressable
-            onPress={() => setLoop((v) => !v)}
-            style={[
-              styles.loop,
-              {
-                backgroundColor: loop ? palette.accent : palette.surface,
-                borderColor: loop ? palette.accent : palette.line,
-              },
-            ]}>
-            <Text style={[styles.loopText, { color: loop ? palette.accentInk : palette.ink }]}>
-              Loop
+            onPress={next}
+            disabled={idx >= island.lines.length - 1}
+            hitSlop={16}
+            style={styles.side}>
+            <Text
+              style={[styles.sideText, { color: idx >= island.lines.length - 1 ? palette.line : palette.ink }]}>
+              ›
             </Text>
           </Pressable>
         </View>
@@ -497,31 +540,64 @@ export default function IslandScreen() {
           </Pressable>
         ) : null}
 
-        <View style={styles.transport}>
-          <Pressable onPress={prev} disabled={idx === 0} style={styles.side}>
-            <Text style={[styles.sideText, { color: idx === 0 ? palette.line : palette.ink }]}>
-              Back
-            </Text>
-          </Pressable>
+        <View style={styles.pillRow}>
+          <Text style={[styles.pillLabel, { color: palette.muted }]}>Repeat</Text>
+          {(['off', 'line', 'island'] as const).map((mode) => {
+            const on = repeat === mode;
+            return (
+              <Pressable
+                key={mode}
+                onPress={() => {
+                  setRepeat(mode);
+                  if (mode === 'off') cancelGap();
+                }}
+                style={[
+                  styles.pill,
+                  {
+                    backgroundColor: on ? palette.accent : palette.surface,
+                    borderColor: on ? palette.accent : palette.line,
+                  },
+                ]}>
+                <Text style={[styles.pillText, { color: on ? palette.accentInk : palette.ink }]}>
+                  {mode === 'off' ? 'Off' : mode === 'line' ? 'Line' : 'Island'}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
 
-          <Pressable onPress={toggle} style={[styles.play, { backgroundColor: palette.accent }]}>
-            <Text style={[styles.playText, { color: palette.accentInk }]}>
-              {status.playing || looping ? 'Stop' : 'Play'}
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={next}
-            disabled={idx >= island.lines.length - 1}
-            style={styles.side}>
-            <Text
-              style={[
-                styles.sideText,
-                { color: idx >= island.lines.length - 1 ? palette.line : palette.ink },
-              ]}>
-              Next
-            </Text>
-          </Pressable>
+        <View style={styles.speedRow}>
+          <Text style={[styles.pillLabel, { color: palette.muted }]}>Speed</Text>
+          <Slider
+            style={styles.slider}
+            minimumValue={SPEED_MIN}
+            maximumValue={SPEED_MAX}
+            step={0.05}
+            value={speed}
+            onValueChange={(v) => setDragging(Math.round(v * 20) / 20)}
+            onSlidingComplete={(v) => {
+              setDragging(null);
+              const next = Math.round(v * 20) / 20;
+              if (next === speed) return;
+              // The line is re-rendered at the new speed; if it was playing,
+              // carry on at the new speed from the top instead of going silent.
+              const wasActive = status.playing || countdown !== null;
+              cancelGap();
+              player.pause();
+              cancelAnimation(ring);
+              ring.value = 0;
+              ringAimed.current = false;
+              playWhenLoaded.current = wasActive;
+              setSpeed(next);
+            }}
+            minimumTrackTintColor={palette.accent}
+            maximumTrackTintColor={palette.line}
+            thumbTintColor={palette.accent}
+            accessibilityLabel="Playback speed"
+          />
+          <Text style={[styles.speedValue, { color: palette.ink }]}>
+            {(dragging ?? speed).toFixed(2)}x
+          </Text>
         </View>
       </View>
     </SafeAreaView>
@@ -553,31 +629,17 @@ const styles = StyleSheet.create({
   retry: { paddingVertical: Spacing.md, paddingHorizontal: Spacing.xxl, borderRadius: Radius.pill, marginTop: Spacing.md },
   secondaryBtn: { paddingVertical: Spacing.md, marginTop: Spacing.sm },
   retryText: { fontSize: 15, fontWeight: '700' },
-  controls: { borderTopWidth: 1, padding: Spacing.lg, gap: Spacing.lg },
-  track: { height: 4, borderRadius: 2, overflow: 'hidden' },
-  trackFill: { height: 4, borderRadius: 2 },
-  speedRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  speedLabel: { fontSize: 13, fontWeight: '600' },
-  slider: { flex: 1, height: 40 },
-  speedValue: { fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'], minWidth: 52, textAlign: 'right' },
-  loop: {
-    borderWidth: 1,
-    borderRadius: Radius.pill,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-  },
-  loopText: { fontSize: 13, fontWeight: '700' },
+  controls: { borderTopWidth: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.lg, gap: Spacing.md },
   revoice: { alignItems: 'center', paddingVertical: Spacing.xs },
   revoiceText: { fontSize: 14, fontWeight: '600' },
-  transport: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  side: { paddingVertical: Spacing.md, paddingHorizontal: Spacing.lg },
-  sideText: { fontSize: 16, fontWeight: '600' },
-  play: {
-    paddingVertical: Spacing.lg,
-    paddingHorizontal: Spacing.xxl,
-    borderRadius: Radius.pill,
-    minWidth: 140,
-    alignItems: 'center',
-  },
-  playText: { fontSize: 17, fontWeight: '700' },
+  ringRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xl },
+  side: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+  sideText: { fontSize: 40, lineHeight: 44, fontWeight: '300' },
+  pillRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, justifyContent: 'center' },
+  pillLabel: { fontSize: 13, fontWeight: '600', minWidth: 52 },
+  pill: { borderWidth: 1, borderRadius: Radius.pill, paddingVertical: Spacing.xs + 2, paddingHorizontal: Spacing.md },
+  pillText: { fontSize: 13, fontWeight: '700' },
+  speedRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  slider: { flex: 1, height: 36 },
+  speedValue: { fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'], minWidth: 52, textAlign: 'right' },
 });
