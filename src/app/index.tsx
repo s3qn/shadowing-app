@@ -1,7 +1,8 @@
-import { Link, Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -15,23 +16,20 @@ import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
 
-const STAGE_LABEL: Record<string, string> = {
-  queued: 'Queued…',
-  transcribing: 'Transcribing…',
-  writing: 'Writing Japanese…',
-  speaking: 'Recording the voice…',
-};
-
 export default function IslandsScreen() {
   const { palette } = useTheme();
   const router = useRouter();
   const [islands, setIslands] = useState<api.IslandSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // A list request that started before a delete can still answer with the
+  // deleted row, which would put it back on screen. Ids deleted here stay out.
+  const removed = useRef<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     try {
-      setIslands(await api.listIslands());
+      const rows = await api.listIslands();
+      setIslands(rows.filter((i) => !removed.current.has(i.id)));
       setError('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not reach the server');
@@ -39,6 +37,27 @@ export default function IslandsScreen() {
       setLoading(false);
     }
   }, []);
+
+  async function remove(id: string) {
+    try {
+      await api.deleteIsland(id);
+      removed.current.add(id);
+      setIslands((prev) => prev.filter((i) => i.id !== id));
+    } catch (e) {
+      Alert.alert('Could not delete', e instanceof Error ? e.message : 'The server did not answer.');
+    }
+  }
+
+  function confirmDelete(item: api.IslandSummary) {
+    Alert.alert(
+      `Delete "${item.title || 'Untitled island'}"?`,
+      'The recording, its lines and their audio are removed. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => void remove(item.id) },
+      ],
+    );
+  }
 
   // Re-poll whenever the screen comes back into focus, and keep polling while
   // anything is still building so the row flips to ready on its own.
@@ -103,28 +122,29 @@ export default function IslandsScreen() {
         renderItem={({ item }) => {
           const busy = item.status === 'pending' || item.status === 'working';
           return (
-            <Link href={{ pathname: '/island/[id]', params: { id: item.id } }} asChild>
-              <Pressable
-                disabled={busy}
-                style={StyleSheet.flatten([
-                  styles.card,
-                  { backgroundColor: palette.surface, borderColor: palette.line },
-                ])}>
-                <View style={styles.cardTop}>
-                  <Text numberOfLines={2} style={[styles.cardTitle, { color: palette.ink }]}>
-                    {item.title || 'Untitled island'}
-                  </Text>
-                  {busy ? <ActivityIndicator size="small" color={palette.accent} /> : null}
-                </View>
-                <Text style={[styles.cardMeta, { color: palette.muted }]}>
-                  {item.status === 'failed'
-                    ? 'Failed'
-                    : busy
-                      ? (STAGE_LABEL[item.stage] ?? 'Working…')
-                      : `${item.line_count} lines · ${item.complexity}`}
+            // Long press deletes, after a confirmation. Building islands are disabled, so they cannot be deleted until they land.
+            <Pressable
+              disabled={busy}
+              onPress={() => router.push({ pathname: '/island/[id]', params: { id: item.id } })}
+              onLongPress={() => confirmDelete(item)}
+              style={StyleSheet.flatten([
+                styles.card,
+                { backgroundColor: palette.surface, borderColor: palette.line },
+              ])}>
+              <View style={styles.cardTop}>
+                <Text numberOfLines={2} style={[styles.cardTitle, { color: palette.ink }]}>
+                  {item.title || 'Untitled island'}
                 </Text>
-              </Pressable>
-            </Link>
+                {busy ? <ActivityIndicator size="small" color={palette.accent} /> : null}
+              </View>
+              <Text style={[styles.cardMeta, { color: palette.muted }]}>
+                {item.status === 'failed'
+                  ? 'Failed'
+                  : busy
+                    ? (api.STAGE_LABEL[item.stage] ?? 'Working…')
+                    : `${item.line_count} lines · ${item.complexity}`}
+              </Text>
+            </Pressable>
           );
         }}
       />

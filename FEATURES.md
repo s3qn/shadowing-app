@@ -46,6 +46,10 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   Line switches and speed changes keep playing; a finish is handled once.
 - Cancel on the record screen: leave without recording or building, Discard
   on the review screen, and Close once an island is already building.
+- Island housekeeping: long press an island in the list to delete it, after
+  a confirmation. A Regenerate link in the player rebuilds the island at the
+  other complexity from the stored recording, shows the build stage while it
+  runs, and starts over at line 1 when it lands.
 
 ## Next (approved, in order)
 
@@ -65,9 +69,6 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   SRT import).
 - Import existing audio or text as an island (was part of the original pitch:
   "generate good AI vocals or import existing content").
-- Regenerate an island at the other complexity from the player (backend route
-  exists: `POST /shadow/islands/{id}/regenerate`).
-- Delete an island from the list (swipe or long press); backend route exists.
 - Record yourself shadowing a line and play it back against the original.
 - Pitch-accent marks over the reading, from VOICEVOX's accent phrases (the data
   is already in the timeline).

@@ -4,6 +4,7 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -60,6 +61,13 @@ export default function IslandScreen() {
   const [voice, setVoice] = useState<number | null>(null);
   const [voiceName, setVoiceName] = useState('');
   const [revoicing, setRevoicing] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  // Backend stage while a regenerate runs, for the label on the waiting screen.
+  const [buildStage, setBuildStage] = useState('');
+  // Bumped after each regenerate so the line audio URLs change. useAudioPlayer
+  // keys the native player on the serialized source: the same URL would keep
+  // the old wav loaded under the new text.
+  const [generation, setGeneration] = useState(0);
   // The tapped word, its dictionary result, and the timer that ends Hear it.
   const [selected, setSelected] = useState<number | null>(null);
   const [glossData, setGlossData] = useState<api.Gloss | null>(null);
@@ -72,9 +80,9 @@ export default function IslandScreen() {
   const source = useMemo(
     () =>
       island && line
-        ? { uri: api.lineAudioUrl(island.id, line.idx, island.speaker, speed) }
+        ? { uri: api.lineAudioUrl(island.id, line.idx, `${island.speaker}-${generation}`, speed) }
         : null,
-    [island, line, speed],
+    [island, line, speed, generation],
   );
   // Native status arrives every 50ms; particles can be shorter than that, so
   // the position shown to the highlighter is interpolated between updates.
@@ -136,6 +144,9 @@ export default function IslandScreen() {
   }, []);
 
   const [attempt, setAttempt] = useState(0);
+  // A message set just before a deliberate reload survives that reload. Every
+  // other error is cleared once the island loads.
+  const carryError = useRef('');
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -143,7 +154,8 @@ export default function IslandScreen() {
         const data = await api.getIsland(id);
         if (alive) {
           setIsland(data);
-          setError('');
+          setError(carryError.current);
+          carryError.current = '';
         }
       } catch (e) {
         if (alive) setError(e instanceof Error ? e.message : 'Could not load this island');
@@ -180,36 +192,110 @@ export default function IslandScreen() {
     };
   }, []);
 
+  // Polls until the island settles. Returns the ready island, throws with the
+  // island's error when it failed, returns null when maxSeconds pass first.
+  // A poll can fail while the server is briefly unreachable; that is not the
+  // island failing, so keep polling.
+  async function waitForIsland(
+    islandId: string,
+    maxSeconds: number,
+    onStage?: (stage: string) => void,
+    failedFallback = 'Building failed',
+  ): Promise<api.Island | null> {
+    for (let i = 0; i < maxSeconds; i += 1) {
+      await new Promise((r) => setTimeout(r, 1000));
+      let data: api.Island;
+      try {
+        data = await api.getIsland(islandId);
+      } catch {
+        continue;
+      }
+      onStage?.(data.stage);
+      if (data.status === 'ready') return data;
+      if (data.status === 'failed') throw new Error(data.error || failedFallback);
+    }
+    return null;
+  }
+
   async function doRevoice() {
-    if (!island || voice === null || revoicing) return;
+    if (!island || voice === null || revoicing || regenerating) return;
     setRevoicing(true);
     player.pause();
     try {
       await api.revoice(island.id, voice);
-      // A poll can fail while the server is briefly unreachable; that is not
-      // the island failing, so keep polling.
-      for (let i = 0; i < 60; i += 1) {
-        await new Promise((r) => setTimeout(r, 1000));
-        let data: api.Island;
-        try {
-          data = await api.getIsland(island.id);
-        } catch {
-          continue;
-        }
-        if (data.status === 'ready') {
-          setIsland(data);
-          setIdx(0);
-          break;
-        }
-        if (data.status === 'failed') {
-          setError(data.error || 'Re-voicing failed');
-          break;
-        }
+      const data = await waitForIsland(island.id, 60, undefined, 'Re-voicing failed');
+      if (data) {
+        setIsland(data);
+        setIdx(0);
+        setError('');
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Re-voicing failed');
     } finally {
       setRevoicing(false);
+    }
+  }
+
+  function confirmRegenerate() {
+    if (!island || revoicing || regenerating) return;
+    const target: api.Complexity = island.complexity === 'simple' ? 'complex' : 'simple';
+    Alert.alert(
+      target === 'complex' ? 'Regenerate with complex patterns?' : 'Regenerate one sentence at a time?',
+      'The current lines are replaced with new ones written from the same recording. This takes about a minute.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Regenerate', onPress: () => void doRegenerate(target) },
+      ],
+    );
+  }
+
+  // The backend drops the old lines as soon as the route runs and rebuilds
+  // from the stored recording: transcribe, write, speak. The screen shows the
+  // stage until the island is ready again, then starts over at line 0.
+  async function doRegenerate(target: api.Complexity) {
+    if (!island) return;
+    setRegenerating(true);
+    setBuildStage('transcribing');
+    cancelGap();
+    playWhenLoaded.current = false;
+    player.pause();
+    closePanel();
+    try {
+      try {
+        await api.regenerate(island.id, target);
+      } catch (e) {
+        // Nothing was started, so the island on the server still matches what
+        // is on screen. Say why and go back to it.
+        setError(e instanceof Error ? e.message : 'Regenerating failed');
+        return;
+      }
+      const data = await waitForIsland(island.id, 240, setBuildStage);
+      cancelAnimation(ring);
+      ring.value = 0;
+      ringAimed.current = false;
+      anchor.current = { time: 0, at: Date.now(), playing: false, rate: 1 };
+      setPosition(0);
+      setGeneration((g) => g + 1);
+      setIdx(0);
+      if (!data) {
+        // Each new line is written over the same audio path, so by now the
+        // server has already replaced the lines this screen is holding.
+        // Reload onto whatever it has rather than showing old text.
+        const message = 'Still building. This shows what the server has so far.';
+        carryError.current = message;
+        setError(message);
+        setAttempt((n) => n + 1);
+        return;
+      }
+      setIsland(data);
+      setError('');
+    } catch (e) {
+      // The server now holds a failed island with no lines. Reloading shows
+      // the failed screen, which already offers Regenerate.
+      setError(e instanceof Error ? e.message : 'Regenerating failed');
+      setAttempt((n) => n + 1);
+    } finally {
+      setRegenerating(false);
     }
   }
 
@@ -426,6 +512,18 @@ export default function IslandScreen() {
     );
   }
 
+  if (regenerating) {
+    return (
+      <SafeAreaView style={StyleSheet.flatten([styles.fill, styles.center, { backgroundColor: palette.bg }])}>
+        <Stack.Screen options={{ title: island.title || 'Island' }} />
+        <ActivityIndicator color={palette.accent} />
+        <Text style={[styles.body, { color: palette.muted }]}>
+          {api.STAGE_LABEL[buildStage] ?? 'Rebuilding this island…'}
+        </Text>
+      </SafeAreaView>
+    );
+  }
+
   // currentTime is a position in the source audio, not wall clock, so it maps
   // straight onto the word spans no matter what the playback rate is.
   // Word spans are stored for speed 1.0; the rendered audio is 1/speed as long.
@@ -533,12 +631,25 @@ export default function IslandScreen() {
         </View>
 
         {voice !== null && island.speaker !== voice ? (
-          <Pressable onPress={doRevoice} disabled={revoicing} style={styles.revoice}>
-            <Text style={[styles.revoiceText, { color: revoicing ? palette.muted : palette.accent }]}>
+          <Pressable
+            onPress={doRevoice}
+            disabled={revoicing || regenerating}
+            style={styles.action}>
+            <Text style={[styles.actionText, { color: revoicing || regenerating ? palette.muted : palette.accent }]}>
               {revoicing ? 'Re-voicing…' : `Re-voice in ${voiceName || 'the chosen voice'}`}
             </Text>
           </Pressable>
         ) : null}
+
+        <Pressable onPress={confirmRegenerate} disabled={revoicing || regenerating} style={styles.action}>
+          <Text style={[styles.actionText, { color: revoicing || regenerating ? palette.muted : palette.accent }]}>
+            {regenerating
+              ? 'Regenerating…'
+              : island.complexity === 'simple'
+                ? 'Regenerate with complex patterns'
+                : 'Regenerate one sentence at a time'}
+          </Text>
+        </Pressable>
 
         <View style={styles.pillRow}>
           <Text style={[styles.pillLabel, { color: palette.muted }]}>Repeat</Text>
@@ -630,8 +741,8 @@ const styles = StyleSheet.create({
   secondaryBtn: { paddingVertical: Spacing.md, marginTop: Spacing.sm },
   retryText: { fontSize: 15, fontWeight: '700' },
   controls: { borderTopWidth: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.lg, gap: Spacing.md },
-  revoice: { alignItems: 'center', paddingVertical: Spacing.xs },
-  revoiceText: { fontSize: 14, fontWeight: '600' },
+  action: { alignItems: 'center', paddingVertical: Spacing.xs },
+  actionText: { fontSize: 14, fontWeight: '600' },
   ringRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xl },
   side: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
   sideText: { fontSize: 40, lineHeight: 44, fontWeight: '300' },

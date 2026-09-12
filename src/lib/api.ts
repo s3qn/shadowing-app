@@ -57,6 +57,14 @@ export type IslandSummary = {
   line_count: number;
 };
 
+/** What each backend build stage means to the person waiting for it. */
+export const STAGE_LABEL: Record<string, string> = {
+  queued: 'Queued…',
+  transcribing: 'Transcribing…',
+  writing: 'Writing Japanese…',
+  speaking: 'Recording the voice…',
+};
+
 export type Island = IslandSummary & {
   error: string;
   speaker: number;
@@ -104,8 +112,9 @@ export async function getIsland(id: string): Promise<Island> {
   return json<Island>(await fetch(`${BASE}/islands/${id}`, { headers: headers() }));
 }
 
+/** Remove an island, its lines and its audio. There is no undo. */
 export async function deleteIsland(id: string): Promise<void> {
-  await fetch(`${BASE}/islands/${id}`, { method: 'DELETE', headers: headers() });
+  await json<unknown>(await fetch(`${BASE}/islands/${id}`, { method: 'DELETE', headers: headers() }));
 }
 
 /**
@@ -129,14 +138,16 @@ export async function createIsland(
   );
 }
 
+/** Rewrite and re-voice an island at the given complexity from its stored recording. Poll getIsland until ready. */
 export async function regenerate(id: string, complexity: Complexity): Promise<void> {
   const form = new FormData();
   form.append('complexity', complexity);
-  await expoFetch(`${BASE}/islands/${id}/regenerate`, {
+  const res = await expoFetch(`${BASE}/islands/${id}/regenerate`, {
     method: 'POST',
     headers: headers(),
     body: form,
   });
+  await json<unknown>(res);
 }
 
 export async function listSpeakers(): Promise<Speaker[]> {
@@ -196,7 +207,7 @@ export function lineAudioUrl(
   version: number | string = 0,
   speed = 1,
 ): string {
-  // `v` changes with the voice so a re-voiced line is never served from cache.
+  // `v` changes with the voice and with every regeneration so a replaced line is never served from cache.
   // `speed` asks the backend for a natively slower or faster render.
   const s = speed.toFixed(2);
   return `${BASE}/islands/${islandId}/lines/${idx}/audio?token=${encodeURIComponent(TOKEN)}&v=${version}&speed=${s}`;
