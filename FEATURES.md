@@ -44,6 +44,8 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   countdown inside; Repeat Off / Line / Island (island plays every line in
   order with a breath between them and starts over); speed as a quiet slider.
   Line switches and speed changes keep playing; a finish is handled once.
+- Cancel on the record screen: leave without recording or building, Discard
+  on the review screen, and Close once an island is already building.
 
 ## Next (approved, in order)
 

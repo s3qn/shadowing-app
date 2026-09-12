@@ -5,7 +5,7 @@ import {
   useAudioRecorder,
   useAudioRecorderState,
 } from 'expo-audio';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -65,6 +65,21 @@ export default function RecordScreen() {
     getVoice().then(setVoice);
   }, []);
   const elapsed = phase === 'review' ? taken : (state.durationMillis ?? 0) / 1000;
+
+  // Leave without building anything. A take in progress is stopped and
+  // dropped; an island already building keeps building on the server and
+  // shows up in the list when it is done.
+  async function cancel() {
+    if (pollRef.current) clearInterval(pollRef.current);
+    if (phase === 'recording') {
+      try {
+        await recorder.stop();
+      } catch {
+        // Nothing to keep either way.
+      }
+    }
+    router.back();
+  }
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => () => {
@@ -130,6 +145,17 @@ export default function RecordScreen() {
 
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: palette.bg }])}>
+      <Stack.Screen
+        options={{
+          headerLeft: () => (
+            <Pressable onPress={cancel} hitSlop={12}>
+              <Text style={{ color: palette.accent, fontSize: 16, fontWeight: '600' }}>
+                {phase === 'building' ? 'Close' : 'Cancel'}
+              </Text>
+            </Pressable>
+          ),
+        }}
+      />
       <View style={styles.body}>
         {phase === 'building' ? (
           <View style={styles.center}>
@@ -138,7 +164,8 @@ export default function RecordScreen() {
               {STAGE_LABEL[stage] ?? 'Working…'}
             </Text>
             <Text style={[styles.hint, { color: palette.muted }]}>
-              This takes about a minute. You can leave this screen, the island keeps building.
+              This takes about a minute. Close this screen if you like, the island keeps
+              building and appears in the list when it is ready.
             </Text>
           </View>
         ) : (
@@ -252,6 +279,11 @@ export default function RecordScreen() {
               <Pressable onPress={start} style={styles.secondary}>
                 <Text style={[styles.secondaryText, { color: palette.muted }]}>
                   Record again
+                </Text>
+              </Pressable>
+              <Pressable onPress={cancel} style={styles.secondary}>
+                <Text style={[styles.secondaryText, { color: palette.danger }]}>
+                  Discard
                 </Text>
               </Pressable>
             </>
