@@ -1,5 +1,7 @@
 import {
+  AudioQuality,
   getRecordingPermissionsAsync,
+  IOSOutputFormat,
   requestRecordingPermissionsAsync,
   RecordingPresets,
   setAudioModeAsync,
@@ -7,11 +9,14 @@ import {
   useAudioPlayerStatus,
   useAudioRecorder,
   useAudioRecorderState,
+  type RecordingOptions,
 } from 'expo-audio';
+import { File } from 'expo-file-system';
 import { useEffect, useRef, useState } from 'react';
 
 import { meterLevel } from '@/components/level-bars';
-import { findTake, saveTake, type Take } from '@/lib/takes';
+import { cleanTakeUrl, uploadTake } from '@/lib/api';
+import { cleanTakeFile, findTake, saveTake, type Take } from '@/lib/takes';
 
 const TAIL_MS = 1000;
 // Nothing but the line's own finish event stops a take, and that event does
@@ -25,6 +30,47 @@ const WATCHDOG_FALLBACK_MS = 30000;
 
 export type TakePhase = 'idle' | 'recording' | 'ready';
 
+/** What mode a recording in progress, or the most recent one, was made in. */
+export type TakeMode = 'take' | 'calibrate';
+
+/**
+ * Status of the backend echo cleanup for the current take, or for a speaker
+ * calibration run. `note` carries backend text: for a calibration `done` it
+ * is what saved the profile ("Speaker profile saved"), which is how the row
+ * tells a calibration result apart from a take result at the same state.
+ */
+export type CleanStatus = {
+  state: 'idle' | 'working' | 'done' | 'skipped' | 'failed';
+  erleDb: number | null;
+  note: string;
+};
+
+const IDLE_CLEAN: CleanStatus = { state: 'idle', erleDb: null, note: '' };
+
+// Takes are recorded as 24 kHz mono 16 bit LPCM wav so the backend cleaner
+// gets the phone mic at the same rate as the cached line reference and never
+// resamples either side. AAC (the HIGH_QUALITY preset) hides its own
+// quantisation noise right where the cleaned signal needs to sit. If a real
+// iOS device ever refuses 24000 for LPCM, the documented fallback is 44100
+// with the backend resampling the take before cleaning; not needed so far.
+const WAV_RECORDING_OPTIONS: RecordingOptions = {
+  extension: '.wav',
+  sampleRate: 24000,
+  numberOfChannels: 1,
+  bitRate: 384000,
+  isMeteringEnabled: true,
+  ios: {
+    outputFormat: IOSOutputFormat.LINEARPCM,
+    audioQuality: AudioQuality.MAX,
+    linearPCMBitDepth: 16,
+    linearPCMIsBigEndian: false,
+    linearPCMIsFloat: false,
+  },
+  android: RecordingPresets.HIGH_QUALITY.android,
+  // The app never records on web; kept only because RecordingOptions requires it.
+  web: RecordingPresets.HIGH_QUALITY.web,
+};
+
 /**
  * Records the learner's own voice over one line and plays it back. A take is
  * one shot: it starts with the line, keeps recording for a second after the
@@ -34,25 +80,39 @@ export type TakePhase = 'idle' | 'recording' | 'ready';
  * to the bottom speaker and drops the stereo mix. The mode is switched back
  * to plain playback as soon as a take stops or is dropped, so every other
  * screen keeps its normal loudness and speaker routing.
+ *
+ * Every take is also sent to the backend, which removes the played line from
+ * the recording by subtracting it with a path learned from a speaker
+ * calibration. The raw take is what plays, and is all that ever plays if the
+ * cleanup fails, until a cleaned file comes back and takes over.
  */
 export function useTake(islandId: string | undefined, idx: number, generation: number) {
-  const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true });
+  const recorder = useAudioRecorder(WAV_RECORDING_OPTIONS);
   const recorderState = useAudioRecorderState(recorder, 50);
 
   const [recording, setRecording] = useState(false);
   const [take, setTake] = useState<Take | null>(null);
   const [error, setError] = useState('');
+  const [clean, setClean] = useState<CleanStatus>(IDLE_CLEAN);
+  const [mode, setMode] = useState<TakeMode>('take');
 
   // keepAudioSessionActive: pausing a player tears the audio session down
   // 100ms later, and that check only looks at players, never at recorders. The
   // take player is paused right before a take starts, so without this the
   // teardown lands on the recorder that has just been prepared.
-  const takePlayer = useAudioPlayer(take ? { uri: take.uri } : null, { keepAudioSessionActive: true });
+  //
+  // Plays take.cleanUri once cleanTake has set it; until then, or if cleanup
+  // never succeeds, this plays the raw take, which is what the source falls
+  // back to.
+  const takePlayer = useAudioPlayer(take ? { uri: take.cleanUri ?? take.uri } : null, {
+    keepAudioSessionActive: true,
+  });
   const takeStatus = useAudioPlayerStatus(takePlayer);
 
-  // The take a recording in progress belongs to, kept in a ref because the
-  // tail runs after the line (and possibly the current idx) has moved on.
-  const target = useRef<{ islandId: string; idx: number } | null>(null);
+  // The take (or calibration) a recording in progress belongs to, kept in a
+  // ref because the tail runs after the line (and possibly the current idx,
+  // and the speed slider) has moved on.
+  const target = useRef<{ islandId: string; idx: number; mode: TakeMode; speed: number } | null>(null);
   const tail = useRef<ReturnType<typeof setTimeout> | null>(null);
   const watchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Current props, read from finish() after the tail delay so it can tell
@@ -62,8 +122,10 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
 
   useEffect(() => {
     setTake(islandId ? findTake(islandId, idx) : null);
-    // An error belongs to the line it happened on; a new line starts clean.
+    // An error, and a clean result, belong to the line they happened on; a
+    // new line starts clean.
     setError('');
+    setClean(IDLE_CLEAN);
   }, [islandId, idx, generation]);
 
   function clearTimers() {
@@ -77,6 +139,37 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
     }
   }
 
+  /**
+   * Uploads a saved take for echo cleanup and, if the backend found and
+   * removed an echo, downloads the cleaned file and switches the take on
+   * screen over to it. Never touches the raw take: on any failure, or when
+   * the backend reports nothing to clean, the raw take is left exactly as
+   * it was and keeps playing.
+   */
+  async function cleanTake(targetIslandId: string, targetIdx: number, saved: Take, speed: number) {
+    setClean({ state: 'working', erleDb: null, note: '' });
+    try {
+      const result = await uploadTake(targetIslandId, targetIdx, saved.uri, speed);
+      if (!result.cleaned) {
+        setClean({ state: 'skipped', erleDb: result.erleDb, note: result.note });
+        return;
+      }
+      const downloaded = await File.downloadFileAsync(
+        cleanTakeUrl(targetIslandId, targetIdx, saved.recordedAt),
+        cleanTakeFile(targetIslandId, targetIdx, saved.recordedAt),
+      );
+      // Only adopt the cleaned file if the take on screen is still this one:
+      // a new take, or a line switch and back, must not resurrect a stale
+      // clean result landing after the fact.
+      setTake((onScreen) =>
+        onScreen && onScreen.recordedAt === saved.recordedAt ? { ...onScreen, cleanUri: downloaded.uri } : onScreen,
+      );
+      setClean({ state: 'done', erleDb: result.erleDb, note: result.note });
+    } catch (e) {
+      setClean({ state: 'failed', erleDb: null, note: e instanceof Error ? e.message : '' });
+    }
+  }
+
   async function finish() {
     clearTimers();
     const savedFor = target.current;
@@ -85,15 +178,25 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
       await recorder.stop();
       const uri = recorder.uri;
       if (savedFor && uri) {
-        try {
-          const saved = await saveTake(savedFor.islandId, savedFor.idx, uri);
-          if (savedFor.islandId === current.current.islandId && savedFor.idx === current.current.idx) {
-            setTake(saved);
+        if (savedFor.mode === 'calibrate') {
+          try {
+            const result = await uploadTake(savedFor.islandId, savedFor.idx, uri, savedFor.speed, true);
+            setClean({ state: 'done', erleDb: result.erleDb, note: result.note });
+          } catch (e) {
+            setClean({ state: 'failed', erleDb: null, note: e instanceof Error ? e.message : '' });
           }
-        } catch (e) {
-          // The previous take, if any, is untouched: saveTake only replaces
-          // it after the move into place succeeds.
-          setError(e instanceof Error ? e.message : 'Could not save the take.');
+        } else {
+          try {
+            const saved = await saveTake(savedFor.islandId, savedFor.idx, uri);
+            if (savedFor.islandId === current.current.islandId && savedFor.idx === current.current.idx) {
+              setTake(saved);
+            }
+            void cleanTake(savedFor.islandId, savedFor.idx, saved, savedFor.speed);
+          } catch (e) {
+            // The previous take, if any, is untouched: saveTake only replaces
+            // it after the move into place succeeds.
+            setError(e instanceof Error ? e.message : 'Could not save the take.');
+          }
         }
       }
     } catch (e) {
@@ -109,10 +212,13 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
   }
 
   /**
-   * Opens the microphone for a take. `lineSeconds` is the line's own duration,
+   * Opens the microphone for a take, or for a speaker calibration recording
+   * when `mode` is `'calibrate'`. `lineSeconds` is the line's own duration,
    * used only for the watchdog that ends a take the line never ends itself.
+   * `speed` is carried through to `finish` in a ref, because the speed
+   * slider can still move during the one second tail.
    */
-  async function startTake(lineSeconds?: number): Promise<boolean> {
+  async function startTake(lineSeconds: number | undefined, speed: number, mode: TakeMode): Promise<boolean> {
     if (!islandId) return false;
     setError('');
     let perm = await getRecordingPermissionsAsync();
@@ -125,7 +231,8 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
       await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
-      target.current = { islandId, idx };
+      target.current = { islandId, idx, mode, speed };
+      setMode(mode);
       // Nothing else should be pending here, but a leftover timer would end
       // this take early.
       clearTimers();
@@ -199,10 +306,12 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
 
   return {
     phase,
+    mode,
     level: recording ? meterLevel(recorderState.metering) : 0,
     take,
     takePlaying: takeStatus.playing,
     error,
+    clean,
     startTake,
     scheduleStop,
     cancel,

@@ -212,3 +212,49 @@ export function lineAudioUrl(
   const s = speed.toFixed(2);
   return `${BASE}/islands/${islandId}/lines/${idx}/audio?token=${encodeURIComponent(TOKEN)}&v=${version}&speed=${s}`;
 }
+
+/** Result of an echo cancellation pass on an uploaded take, or a calibration recording. */
+export type TakeClean = {
+  cleaned: boolean;
+  erleDb: number | null;
+  delayMs: number | null;
+  driftSamples: number | null;
+  note: string;
+};
+
+/**
+ * Upload a take (or a calibration recording, when `calibrate` is true) and run
+ * the echo canceller against the line's reference audio. For a calibration
+ * upload this replaces the stored speaker profile instead of cleaning a take.
+ * `cleaned` is false when no echo was found (earphones) or no profile exists
+ * yet; then there is nothing to fetch from cleanTakeUrl.
+ */
+export async function uploadTake(
+  islandId: string,
+  idx: number,
+  uri: string,
+  speed: number,
+  calibrate = false,
+): Promise<TakeClean> {
+  const form = new FormData();
+  form.append('take', new File(uri), 'take.wav');
+  form.append('speed', speed.toFixed(2));
+  form.append('calibrate', calibrate ? '1' : '0');
+
+  return json<TakeClean>(
+    await expoFetch(`${BASE}/islands/${islandId}/lines/${idx}/take`, {
+      method: 'POST',
+      headers: headers(),
+      body: form,
+    }),
+  );
+}
+
+/**
+ * URL for the cleaned version of a take. The token rides as a query
+ * parameter for the same reason it does on lineAudioUrl, and `version` (the
+ * take's recordedAt) keeps the player from ever loading a stale cached file.
+ */
+export function cleanTakeUrl(islandId: string, idx: number, version: number): string {
+  return `${BASE}/islands/${islandId}/lines/${idx}/take/clean?token=${encodeURIComponent(TOKEN)}&v=${version}`;
+}

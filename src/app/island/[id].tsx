@@ -18,7 +18,7 @@ import { RingButton, type RingMode } from '@/components/ring-button';
 import { TakeRow } from '@/components/take-row';
 import { POPOVER_WIDTH, WordPanel } from '@/components/word-panel';
 import { Radius, SPEED_MAX, SPEED_MIN, Spacing } from '@/constants/theme';
-import { useTake } from '@/hooks/use-take';
+import { useTake, type TakeMode } from '@/hooks/use-take';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
 import { getVoice } from '@/lib/settings';
@@ -501,7 +501,10 @@ export default function IslandScreen() {
   // and start the line twice.
   const startingTake = useRef(false);
 
-  async function recordTake() {
+  // Shared by recordTake and calibrateSpeaker: only the recording mode
+  // differs between a take and a speaker calibration, so both go through the
+  // same cancel, close, drop, seek and play sequence and cannot drift apart.
+  async function beginRecording(mode: TakeMode) {
     if (!line || startingTake.current) return;
     startingTake.current = true;
     try {
@@ -518,11 +521,19 @@ export default function IslandScreen() {
       }
       // The line's duration is the watchdog's base: a take that is never ended
       // by the line stops itself a few seconds past it.
-      if (!(await take.startTake(status.duration))) return;
+      if (!(await take.startTake(status.duration, speed, mode))) return;
       player.play();
     } finally {
       startingTake.current = false;
     }
+  }
+
+  async function recordTake() {
+    await beginRecording('take');
+  }
+
+  async function calibrateSpeaker() {
+    await beginRecording('calibrate');
   }
 
   function compare() {
@@ -748,9 +759,12 @@ export default function IslandScreen() {
           takePlaying={take.takePlaying}
           comparing={comparing}
           error={take.error}
+          clean={take.clean}
+          calibrating={take.mode === 'calibrate' && take.phase === 'recording'}
           onRecord={() => void recordTake()}
           onCompare={compare}
           onPlayTake={hearTake}
+          onCalibrate={() => void calibrateSpeaker()}
         />
 
         {voice !== null && island.speaker !== voice ? (

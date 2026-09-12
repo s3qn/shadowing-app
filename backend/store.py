@@ -18,6 +18,8 @@ from pathlib import Path
 DATA_DIR = Path(os.getenv("SHADOW_DATA_DIR", Path(__file__).parent / "data"))
 DB_PATH = DATA_DIR / "islands.db"
 AUDIO_DIR = DATA_DIR / "audio"
+TAKES_DIR = DATA_DIR / "takes"
+AEC_DIR = DATA_DIR / "aec"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS islands (
@@ -54,6 +56,8 @@ def _now() -> str:
 def connect() -> sqlite3.Connection:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+    TAKES_DIR.mkdir(parents=True, exist_ok=True)
+    AEC_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
@@ -185,7 +189,17 @@ def delete_island(island_id: str) -> None:
     with connect() as conn:
         conn.execute("DELETE FROM islands WHERE id=?", (island_id,))
     shutil.rmtree(AUDIO_DIR / island_id, ignore_errors=True)
+    shutil.rmtree(TAKES_DIR / island_id, ignore_errors=True)
 
 
 def line_audio_path(island_id: str, idx: int) -> Path:
     return AUDIO_DIR / island_id / f"{idx}.wav"
+
+
+def take_paths(island_id: str, idx: int) -> tuple[Path, Path]:
+    """Where a line's take pair lives: the untouched upload and the version
+    with the echo removed. The per-island folder is created on first use,
+    since islands built before this feature predate it."""
+    folder = TAKES_DIR / island_id
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder / f"{idx}.raw.wav", folder / f"{idx}.clean.wav"

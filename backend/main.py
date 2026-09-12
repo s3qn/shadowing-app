@@ -22,6 +22,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, UploadFile
@@ -210,6 +211,10 @@ async def _synthesize_lines(island_id: str, lines: list[dict], speaker: int) -> 
         base = stale.stem.split("@")[0]
         if base.isdigit() and (int(base) >= len(lines) or "@" in stale.stem):
             stale.unlink(missing_ok=True)
+    # A take was cleaned against the line that used to be at this index. A
+    # regenerate or revoice replaces that line, so the old take (and its
+    # cleaned copy) no longer matches anything and would be misleading.
+    shutil.rmtree(store.TAKES_DIR / island_id, ignore_errors=True)
     return done
 
 
@@ -311,6 +316,33 @@ def get_island(island_id: str, authorization: str | None = Header(None)) -> dict
 
 SPEED_MIN, SPEED_MAX = 0.5, 1.5
 
+# One shared calibration profile for the phone's speaker-to-mic path (see the
+# take-bleed plan). It is not scoped to an island: the room and the phone are
+# what it models, not any one recording.
+TAKE_PROFILE = "default"
+
+
+async def _resolve_line_audio(island: dict, idx: int, speed: float) -> Path:
+    """Path to a line's rendered wav at the given speed, rendering and caching
+    it first if it is not already on disk. Shared by the line audio route and
+    the take cleaner, which needs the exact reference the phone played."""
+    speed = round(min(SPEED_MAX, max(SPEED_MIN, speed)) * 20) / 20
+    path = store.line_audio_path(island["id"], idx)
+    if speed != 1.0:
+        path = path.with_name(f"{idx}@{speed:.2f}.wav")
+        if not path.exists():
+            line = next((l for l in island.get("lines", []) if l["idx"] == idx), None)
+            if line is None:
+                raise HTTPException(404, "no such line")
+            try:
+                wav, _, _, _ = await voicevox.speak(line["ja"], island["speaker"], speed)
+            except voicevox.VoicevoxError as exc:
+                raise HTTPException(502, str(exc)) from exc
+            tmp = path.with_suffix(".tmp")
+            tmp.write_bytes(wav)
+            os.replace(tmp, path)
+    return path
+
 
 @app.get("/shadow/islands/{island_id}/lines/{idx}/audio")
 async def line_audio(island_id: str, idx: int, token: str = "", speed: float = 1.0,
@@ -321,25 +353,152 @@ async def line_audio(island_id: str, idx: int, token: str = "", speed: float = 1
     # Audio is fetched by the player, which cannot always set a header, so a
     # token query parameter is accepted here as well as the usual header.
     _token_or_header(token, authorization)
-    speed = round(min(SPEED_MAX, max(SPEED_MIN, speed)) * 20) / 20
-    path = store.line_audio_path(island_id, idx)
-    if speed != 1.0:
-        path = path.with_name(f"{idx}@{speed:.2f}.wav")
-        if not path.exists():
-            island = store.get_island(island_id)
-            line = next((l for l in (island or {}).get("lines", []) if l["idx"] == idx), None)
-            if line is None:
-                raise HTTPException(404, "no such line")
-            try:
-                wav, _, _, _ = await voicevox.speak(line["ja"], island["speaker"], speed)
-            except voicevox.VoicevoxError as exc:
-                raise HTTPException(502, str(exc)) from exc
-            tmp = path.with_suffix(".tmp")
-            tmp.write_bytes(wav)
-            os.replace(tmp, path)
+    island = store.get_island(island_id)
+    if island is None:
+        raise HTTPException(404, "no such island")
+    path = await _resolve_line_audio(island, idx, speed)
     if not path.exists():
         raise HTTPException(404, "no audio for that line")
     return FileResponse(path, media_type="audio/wav")
+
+
+def _round(value: float | None, places: int = 1) -> float | None:
+    return None if value is None else round(float(value), places)
+
+
+def _run_calibration(src: Path, ref_path: Path) -> dict:
+    """Learn the phone's speaker-to-mic path from a silent recording and store
+    it. Blocking: two ffmpeg decodes and several passes of the filter, so it
+    is called in a thread."""
+    import aec
+
+    profile = aec.calibrate(aec.decode(ref_path), aec.decode(src))
+    aec.save_profile(TAKE_PROFILE, profile)
+    return {
+        "cleaned": True,
+        "erleDb": _round(profile.erle_db),
+        "delayMs": _round(profile.delay * 1000.0 / aec.SR),
+        "driftSamples": None,
+        "frozenBlocks": None,
+        "note": "Speaker profile saved",
+    }
+
+
+def _run_clean(src: Path, ref_path: Path, profile, island_id: str, idx: int) -> dict:
+    """Take the played line back out of a take and store both versions.
+    Blocking, for the same reasons as _run_calibration."""
+    import aec
+
+    mic = aec.decode(src)
+    result = aec.clean(aec.decode(ref_path), mic, profile)
+
+    raw_path, clean_path = store.take_paths(island_id, idx)
+    aec.encode(raw_path, mic)
+    if result.cleaned:
+        aec.encode(clean_path, result.output)
+    else:
+        # This line may have had a cleanable take before. Leaving that file
+        # behind would let /take/clean serve the previous take's audio as if
+        # it belonged to the one just uploaded.
+        clean_path.unlink(missing_ok=True)
+
+    return {
+        "cleaned": result.cleaned,
+        "erleDb": _round(result.erle_db),
+        "delayMs": _round(result.delay_ms),
+        "driftSamples": result.drift_samples,
+        "frozenBlocks": result.frozen_blocks,
+        "note": result.note,
+    }
+
+
+@app.post("/shadow/islands/{island_id}/lines/{idx}/take")
+async def upload_take(
+    island_id: str,
+    idx: int,
+    take: UploadFile = File(...),
+    speed: float = Form(1.0),
+    calibrate: str = Form("0"),
+    authorization: str | None = Header(None),
+) -> dict:
+    """Clean a shadow take against the line that was playing while it was
+    recorded, or (calibrate=1) learn the phone's speaker-to-mic path from a
+    silent recording of that same line.
+
+    Calibration has to happen once per phone before any take can be cleaned,
+    which is why a take without a stored profile is refused with a 409 rather
+    than quietly kept as recorded: the difference matters to the caller. See
+    aec.py for how the path is learned and applied."""
+    require_token(authorization)
+    start = time.monotonic()
+    is_calibration = calibrate == "1"
+
+    island = store.get_island(island_id)
+    if island is None:
+        raise HTTPException(404, "no such island")
+    line = next((l for l in island["lines"] if l["idx"] == idx), None)
+    if line is None:
+        raise HTTPException(404, "no such line")
+
+    try:
+        # Imported lazily so the app still starts if this module is broken
+        # or, since it is being written in parallel, does not exist yet.
+        import aec
+    except Exception as exc:
+        log.exception("aec module unavailable")
+        raise HTTPException(503, "the take cleaner is not available") from exc
+
+    profile = None
+    if not is_calibration:
+        profile = aec.load_profile(TAKE_PROFILE)
+        if profile is None:
+            raise HTTPException(409, "calibrate first")
+
+    raw = await take.read()
+    if not raw:
+        raise HTTPException(400, "empty upload")
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "take too large")
+
+    tmp_dir = Path(tempfile.mkdtemp(prefix=f"take-{island_id}-{idx}-"))
+    try:
+        suffix = Path(take.filename or "take.wav").suffix or ".wav"
+        src = tmp_dir / f"upload{suffix}"
+        src.write_bytes(raw)
+        ref_path = await _resolve_line_audio(island, idx, speed)
+
+        # ffmpeg and the filter are seconds of blocking CPU. On the event loop
+        # they would stall every other request for the duration, including the
+        # island list the phone polls while it waits for this one.
+        if is_calibration:
+            response = await asyncio.to_thread(_run_calibration, src, ref_path)
+        else:
+            response = await asyncio.to_thread(
+                _run_clean, src, ref_path, profile, island_id, idx
+            )
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        log.info(
+            "take island=%s idx=%d calibrate=%s took %.2fs",
+            island_id, idx, is_calibration, time.monotonic() - start,
+        )
+    return response
+
+
+@app.get("/shadow/islands/{island_id}/lines/{idx}/take/clean")
+async def take_clean(island_id: str, idx: int, token: str = "", v: str = "",
+                     authorization: str | None = Header(None)) -> FileResponse:
+    """The cleaned copy of a take. `v` is the take's recordedAt, accepted so
+    the player's cache key changes with each new take; the file is served
+    with no-store regardless, since the same URL can point at a different
+    take between calls."""
+    _token_or_header(token, authorization)
+    _, clean_path = store.take_paths(island_id, idx)
+    if not clean_path.exists():
+        raise HTTPException(404, "no cleaned take for that line")
+    return FileResponse(
+        clean_path, media_type="audio/wav", headers={"Cache-Control": "no-store"}
+    )
 
 
 @app.post("/shadow/islands/{island_id}/regenerate")

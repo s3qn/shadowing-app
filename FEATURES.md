@@ -54,6 +54,11 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   stops itself a second after the line ends, and keeps one take per line on the
   phone. Compare plays the original then your take; My take plays yours alone.
   Takes go with the island when it is deleted or regenerated.
+- Take bleed removed: a take recorded on the speaker has the line itself in it.
+  Calibrate speaker records the line once with you silent, learning the path
+  from the phone's speaker to its own microphone; every take after that has the
+  line subtracted and only your voice left. A take through headphones has no
+  bleed to remove, and is detected and kept exactly as recorded.
 
 ## Next (approved, in order)
 
