@@ -17,6 +17,7 @@ import asyncio
 import logging
 import os
 import secrets
+import os
 import shutil
 import subprocess
 import tempfile
@@ -183,10 +184,20 @@ async def _synthesize_lines(island_id: str, lines: list[dict], speaker: int) -> 
         except voicevox.VoicevoxError:
             log.exception("synthesis failed for line %d of %s", idx, island_id)
             continue
-        store.line_audio_path(island_id, idx).write_bytes(wav)
-        words = segment.align(line["ja"], timeline)
+        # Write beside the target and swap, so a player streaming the old file
+        # never reads a half-written one.
+        target = store.line_audio_path(island_id, idx)
+        tmp = target.with_suffix(".tmp")
+        tmp.write_bytes(wav)
+        os.replace(tmp, target)
+        words = await asyncio.to_thread(segment.align, line["ja"], timeline)
         store.add_line(island_id, idx, line, duration, timeline, words)
         done += 1
+    # A re-voice or regenerate with fewer lines must not leave old wavs behind.
+    for stale in (store.AUDIO_DIR / island_id).glob("*.wav"):
+        base = stale.stem.split("@")[0]
+        if base.isdigit() and (int(base) >= len(lines) or "@" in stale.stem):
+            stale.unlink(missing_ok=True)
     return done
 
 
@@ -278,20 +289,41 @@ def get_island(island_id: str, authorization: str | None = Header(None)) -> dict
     for line in island["lines"]:
         if not line["words"] and line["timeline"]:
             line["words"] = segment.align(line["ja"], line["timeline"])
-            store.set_words(island_id, line["idx"], line["words"])
+            # A whole-line fallback is not worth persisting; a later read may
+            # do better once whatever failed is fixed.
+            if not segment.is_fallback(line["ja"], line["words"]):
+                store.set_words(island_id, line["idx"], line["words"])
     return island
 
 
+SPEED_MIN, SPEED_MAX = 0.5, 1.5
+
+
 @app.get("/shadow/islands/{island_id}/lines/{idx}/audio")
-def line_audio(island_id: str, idx: int, token: str = "",
-               authorization: str | None = Header(None)) -> FileResponse:
+async def line_audio(island_id: str, idx: int, token: str = "", speed: float = 1.0,
+                     authorization: str | None = Header(None)) -> FileResponse:
+    """One line's wav. With `speed` other than 1, the line is re-synthesized
+    at that speedScale (rounded to 0.05) and cached beside the original, so
+    slow playback is natural speech rather than a stretched recording."""
     # Audio is fetched by the player, which cannot always set a header, so a
     # token query parameter is accepted here as well as the usual header.
-    if token:
-        require_token(f"Bearer {token}")
-    else:
-        require_token(authorization)
+    _token_or_header(token, authorization)
+    speed = round(min(SPEED_MAX, max(SPEED_MIN, speed)) * 20) / 20
     path = store.line_audio_path(island_id, idx)
+    if speed != 1.0:
+        path = path.with_name(f"{idx}@{speed:.2f}.wav")
+        if not path.exists():
+            island = store.get_island(island_id)
+            line = next((l for l in (island or {}).get("lines", []) if l["idx"] == idx), None)
+            if line is None:
+                raise HTTPException(404, "no such line")
+            try:
+                wav, _, _, _ = await voicevox.speak(line["ja"], island["speaker"], speed)
+            except voicevox.VoicevoxError as exc:
+                raise HTTPException(502, str(exc)) from exc
+            tmp = path.with_suffix(".tmp")
+            tmp.write_bytes(wav)
+            os.replace(tmp, path)
     if not path.exists():
         raise HTTPException(404, "no audio for that line")
     return FileResponse(path, media_type="audio/wav")

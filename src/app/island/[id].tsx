@@ -24,7 +24,10 @@ export default function IslandScreen() {
   const [island, setIsland] = useState<api.Island | null>(null);
   const [error, setError] = useState('');
   const [idx, setIdx] = useState(0);
+  // `speed` is what the audio was rendered at; `dragging` follows the thumb
+  // live so the label moves, and only a release re-renders the line.
   const [speed, setSpeed] = useState<number>(0.7);
+  const [dragging, setDragging] = useState<number | null>(null);
   const [loop, setLoop] = useState(true);
   const [showEnglish, setShowEnglish] = useState(false);
   const [voice, setVoice] = useState<number | null>(null);
@@ -33,8 +36,11 @@ export default function IslandScreen() {
 
   const line = island?.lines[idx];
   const source = useMemo(
-    () => (island && line ? { uri: api.lineAudioUrl(island.id, line.idx) } : null),
-    [island, line],
+    () =>
+      island && line
+        ? { uri: api.lineAudioUrl(island.id, line.idx, island.speaker, speed) }
+        : null,
+    [island, line, speed],
   );
   // Native status arrives every 50ms; particles can be shorter than that, so
   // the position shown to the highlighter is interpolated between updates.
@@ -51,8 +57,12 @@ export default function IslandScreen() {
     // Native updates lag the estimate by a few ms. Snapping back for that
     // would flash the previous word again at every boundary, so a small
     // backward step is ignored; a large one is a seek or the loop restarting.
+    // The estimate may also run ahead while the stream buffers, so it is
+    // capped a little past the last native position.
     const time =
-      !status.playing || native > estimate || native < estimate - 0.4 ? native : estimate;
+      !status.playing || native > estimate || native < estimate - 0.4
+        ? native
+        : Math.min(estimate, native + 0.15);
     anchor.current = { time, at: now, playing: status.playing, rate: status.playbackRate || 1 };
     setPosition(time);
   }, [status.currentTime, status.playing, status.playbackRate]);
@@ -137,13 +147,13 @@ export default function IslandScreen() {
     }
   }
 
-  // Rate and loop are player properties, so they have to be pushed on every
-  // change and again whenever the source swaps to a new line.
+  // Speed is baked into the audio by VOICEVOX, so the player always runs at
+  // 1.0. Loop is a player property and has to be pushed again whenever the
+  // source swaps to a new line or speed.
   useEffect(() => {
-    player.shouldCorrectPitch = true;
-    player.setPlaybackRate(speed, 'high');
+    player.setPlaybackRate(1, 'high');
     player.loop = loop;
-  }, [player, speed, loop, idx]);
+  }, [player, loop, idx, speed]);
 
   useEffect(() => {
     if (status.didJustFinish && !loop) next();
@@ -186,7 +196,10 @@ export default function IslandScreen() {
 
   // currentTime is a position in the source audio, not wall clock, so it maps
   // straight onto the word spans no matter what the playback rate is.
-  const activeWord = line.words.findIndex((w) => position >= w.start && position < w.end);
+  // Word spans are stored for speed 1.0; the rendered audio is 1/speed as long.
+  const activeWord = line.words.findIndex(
+    (w) => position >= w.start / speed && position < w.end / speed,
+  );
   const reading = line.timeline.map((m) => m.kana).join('');
   const progress = status.duration > 0 ? status.currentTime / status.duration : 0;
 
@@ -247,13 +260,19 @@ export default function IslandScreen() {
             maximumValue={SPEED_MAX}
             step={0.05}
             value={speed}
-            onValueChange={(v) => setSpeed(Math.round(v * 20) / 20)}
+            onValueChange={(v) => setDragging(Math.round(v * 20) / 20)}
+            onSlidingComplete={(v) => {
+              setDragging(null);
+              setSpeed(Math.round(v * 20) / 20);
+            }}
             minimumTrackTintColor={palette.accent}
             maximumTrackTintColor={palette.line}
             thumbTintColor={palette.accent}
             accessibilityLabel="Playback speed"
           />
-          <Text style={[styles.speedValue, { color: palette.ink }]}>{speed.toFixed(2)}x</Text>
+          <Text style={[styles.speedValue, { color: palette.ink }]}>
+            {(dragging ?? speed).toFixed(2)}x
+          </Text>
           <Pressable
             onPress={() => setLoop((v) => !v)}
             style={[

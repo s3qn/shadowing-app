@@ -22,13 +22,32 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Word-level highlighting: the Japanese sentence is split into words (janome,
   particles separate) and each word lights up over its own span of the audio;
   the reading line stays static. Smooth at any speed via interpolated position.
+  Alignment anchors each word to the moras VOICEVOX actually spoke, so digits,
+  names and counters land correctly.
+- Natural slow playback: the slider speed is rendered by VOICEVOX itself
+  (speedScale, cached per line and speed) instead of stretching the audio on
+  the phone, so 0.5x sounds like slow speech rather than a chopped recording.
 
 ## Next (approved, in order)
 
-(empty: pick from Ideas)
+1. Tap a word to replay just that word (seek to its span, pause at its end).
+2. Loop the whole island: a loop mode that plays every line in sequence and
+   starts over, to drill several sentences together instead of one.
+3. Per-word dictionary gloss: tap and hold a word to see its meaning
+   (needs a dictionary such as JMdict on the backend, plus janome base forms).
 
 ## Ideas (not approved)
 
+- Cancel button on the record screen: a way to leave without recording or
+  building (today the screen has no exit once opened).
+- Import files as islands: an anime episode (video or audio) plus its SRT
+  subtitle file; the subtitle lines become the island's lines with their own
+  timings, and the word highlighting runs on top.
+- Shadow a YouTube video: paste a link, the audio is transcribed to Japanese
+  automatically (whisper), and you shadow it with the words highlighted while
+  the video plays. Timings would come from whisper's word timestamps rather
+  than VOICEVOX, so the aligner needs a second input path (shared with the
+  SRT import).
 - Import existing audio or text as an island (was part of the original pitch:
   "generate good AI vocals or import existing content").
 - Regenerate an island at the other complexity from the player (backend route

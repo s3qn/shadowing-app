@@ -162,6 +162,14 @@ export async function revoice(id: string, speaker: number): Promise<void> {
  * Audio URL for one line. The token rides as a query parameter because the
  * audio player fetches this itself and cannot attach the auth header.
  */
-export function lineAudioUrl(islandId: string, idx: number): string {
-  return `${BASE}/islands/${islandId}/lines/${idx}/audio?token=${encodeURIComponent(TOKEN)}`;
+export function lineAudioUrl(
+  islandId: string,
+  idx: number,
+  version: number | string = 0,
+  speed = 1,
+): string {
+  // `v` changes with the voice so a re-voiced line is never served from cache.
+  // `speed` asks the backend for a natively slower or faster render.
+  const s = speed.toFixed(2);
+  return `${BASE}/islands/${islandId}/lines/${idx}/audio?token=${encodeURIComponent(TOKEN)}&v=${version}&speed=${s}`;
 }

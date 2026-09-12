@@ -144,8 +144,13 @@ def total_duration(query: dict, timeline: list[dict]) -> float:
     return round(end + float(query.get("postPhonemeLength", 0.0)), 4)
 
 
-async def speak(text: str, speaker: int | None = None) -> tuple[bytes, list[dict], float, str]:
+async def speak(text: str, speaker: int | None = None,
+                speed: float = 1.0) -> tuple[bytes, list[dict], float, str]:
     """Render one line. Returns (wav bytes, mora timeline, duration, kana reading).
+
+    `speed` is VOICEVOX's speedScale: slower speech is synthesized natively,
+    which sounds far better than time-stretching the 1.0 render on the phone.
+    The timeline returned is always for speed 1.0; callers divide by `speed`.
 
     Raises VoicevoxError if the engine is down, so the caller can mark the
     island failed rather than storing a silent line.
@@ -153,7 +158,11 @@ async def speak(text: str, speaker: int | None = None) -> tuple[bytes, list[dict
     sid = DEFAULT_SPEAKER if speaker is None else speaker
     try:
         query = await audio_query(text, sid)
+        if speed != 1.0:
+            query["speedScale"] = speed
         wav = await synthesis(query, sid)
+        if speed != 1.0:
+            query["speedScale"] = 1.0
     except httpx.HTTPError as exc:
         raise VoicevoxError(f"VOICEVOX request failed for {text!r}: {exc}") from exc
 
