@@ -37,6 +37,8 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Robustness: interrupted islands are healed on backend startup, revoice
   replaces lines one by one, gateway errors read as a short message with
   Retry, and an island without lines offers Regenerate.
+- Record in Hebrew or English: whisper detects the language of the take, and
+  the Japanese generator is told which it was. No setting to touch.
 
 ## Next (approved, in order)
 

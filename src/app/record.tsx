@@ -149,8 +149,8 @@ export default function RecordScreen() {
                 : 'Talk about your day for 30 seconds or so.'}
             </Text>
             <Text style={[styles.hint, { color: palette.muted }]}>
-              Speak English. What you say becomes Japanese sentences about your own life, so
-              use real names and real places.
+              Speak Hebrew or English, whichever comes naturally. What you say becomes
+              Japanese sentences about your own life, so use real names and real places.
             </Text>
 
             <Text style={[styles.timer, { color: phase === 'recording' ? palette.accent : palette.muted }]}>

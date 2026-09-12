@@ -49,16 +49,20 @@ def _get_model():
     return _MODEL
 
 
-def transcribe(audio_path: Path, language: str | None = "en") -> dict:
+def transcribe(audio_path: Path, language: str | None = None) -> dict:
     """Transcribe a local audio file.
 
-    Returns {"text": str, "segments": [{"start","end","text"}, ...]}.
+    With language=None whisper detects the language itself, so Sean can talk
+    about his day in Hebrew or English without telling the app which. The
+    detected language is returned so the generator can be told.
+
+    Returns {"text": str, "language": str, "segments": [{"start","end","text"}, ...]}.
     Returns empty values on any failure, never raises.
     """
     try:
         if not audio_path.exists():
             log.warning("transcribe: missing file %s", audio_path)
-            return {"text": "", "segments": []}
+            return {"text": "", "language": "", "segments": []}
 
         model = _get_model()
         start = time.monotonic()
@@ -77,7 +81,7 @@ def transcribe(audio_path: Path, language: str | None = "en") -> dict:
             len(text),
             len(seg_list),
         )
-        return {"text": text, "segments": seg_list}
+        return {"text": text, "language": getattr(info, "language", "") or "", "segments": seg_list}
     except Exception:
         log.exception("transcribe failed for %s", audio_path)
-        return {"text": "", "segments": []}
+        return {"text": "", "language": "", "segments": []}

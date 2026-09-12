@@ -220,15 +220,16 @@ async def _build_island(island_id: str, audio_path: Path, complexity: str,
         store.set_stage(island_id, "transcribing")
         result = await asyncio.to_thread(transcribe.transcribe, audio_path)
         text = result.get("text", "")
+        language = result.get("language", "")
         if not text:
             store.set_failed(island_id, "Nothing could be transcribed from that recording.")
             return
         store.set_transcript(island_id, text)
-        log.info("island %s transcript: %d chars", island_id, len(text))
+        log.info("island %s transcript: %d chars, language=%s", island_id, len(text), language)
 
         store.set_stage(island_id, "writing")
         generated = await asyncio.to_thread(
-            generate.generate_lines, text, complexity, count
+            generate.generate_lines, text, complexity, count, language
         )
         lines = generated.get("lines") or []
         if not lines:
