@@ -43,3 +43,6 @@ example
 /android
 
 .env
+
+# agent plan files stay local
+.claude/plans/
