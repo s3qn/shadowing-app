@@ -14,6 +14,7 @@ is the intended way in.
 """
 
 import asyncio
+import hashlib
 import logging
 import os
 import secrets
@@ -34,6 +35,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import generate
+import gloss as glossary
 import segment
 import store
 import transcribe
@@ -76,6 +78,16 @@ def require_token(authorization: str | None) -> None:
 def _startup() -> None:
     store.init()
     log.info("store ready at %s", store.DB_PATH)
+    # Background work dies with the process. Anything still marked as working
+    # was interrupted, and must not sit in that state forever.
+    for island in store.list_islands():
+        if island["status"] in ("pending", "working"):
+            if island["line_count"] > 0:
+                store.set_ready(island["id"], island["title"] or "Untitled island")
+                log.warning("island %s was interrupted; kept its %d lines", island["id"], island["line_count"])
+            else:
+                store.set_failed(island["id"], "Building was interrupted. Regenerate to try again.")
+                log.warning("island %s was interrupted with no lines", island["id"])
 
 
 @app.get("/health")
@@ -399,9 +411,44 @@ async def revoice(
 
     store.set_speaker(island_id, speaker)
     store.set_stage(island_id, "speaking")
-    store.clear_lines(island_id)
+    # Lines are replaced one at a time as they render (INSERT OR REPLACE), so
+    # an interruption leaves a mix of voices rather than an empty island.
     background.add_task(_revoice, island_id, lines, speaker, island["title"])
     return {"id": island_id, "status": "working", "speaker": speaker}
+
+
+WORD_STRIP = "、。！？!?…「」『』（）() "
+
+
+@app.get("/shadow/word-audio")
+async def word_audio(text: str, speaker: int = voicevox.DEFAULT_SPEAKER, token: str = "",
+                     authorization: str | None = Header(None)) -> FileResponse:
+    """One word rendered on its own, so hearing it again is a complete,
+    natural utterance rather than a slice cut out of the line. Cached per
+    voice and text."""
+    _token_or_header(token, authorization)
+    clean = text.strip(WORD_STRIP)
+    if not clean:
+        raise HTTPException(400, "empty word")
+    folder = store.DATA_DIR / "words" / str(speaker)
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"{hashlib.sha1(clean.encode()).hexdigest()[:16]}.wav"
+    if not path.exists():
+        try:
+            wav, _, _, _ = await voicevox.speak(clean, speaker)
+        except voicevox.VoicevoxError as exc:
+            raise HTTPException(502, str(exc)) from exc
+        tmp = path.with_suffix(".tmp")
+        tmp.write_bytes(wav)
+        os.replace(tmp, path)
+    return FileResponse(path, media_type="audio/wav")
+
+
+@app.get("/shadow/gloss")
+async def word_gloss(word: str, authorization: str | None = Header(None)) -> dict:
+    """Base form, reading and dictionary senses for one word from a line."""
+    require_token(authorization)
+    return await asyncio.to_thread(glossary.gloss, word)
 
 
 @app.delete("/shadow/islands/{island_id}")

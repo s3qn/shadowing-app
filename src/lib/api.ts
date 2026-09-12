@@ -68,10 +68,17 @@ function headers(): Record<string, string> {
   return { Authorization: `Bearer ${TOKEN}` };
 }
 
+/** Turns any failed response into a short, readable message. Gateway errors
+ * (the tunnel could not reach the server) come back as full HTML pages, which
+ * are useless on a phone screen. */
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      throw new Error('The server is not reachable right now. Try again in a moment.');
+    }
     const body = await res.text().catch(() => '');
-    throw new Error(`${res.status} ${body.slice(0, 200)}`);
+    const looksLikeHtml = body.trimStart().startsWith('<');
+    throw new Error(looksLikeHtml ? `Request failed (${res.status})` : `${res.status} ${body.slice(0, 160)}`);
   }
   return (await res.json()) as T;
 }
@@ -156,6 +163,27 @@ export async function revoice(id: string, speaker: number): Promise<void> {
     body: form,
   });
   await json<unknown>(res);
+}
+
+export type GlossSense = { pos: string[]; glosses: string[] };
+export type GlossEntry = { kanji: string[]; kana: string[]; senses: GlossSense[] };
+export type Gloss = { word: string; base: string; reading: string; entries: GlossEntry[]; found: boolean };
+
+const glossCache = new Map<string, Gloss>();
+
+export async function gloss(word: string): Promise<Gloss> {
+  const hit = glossCache.get(word);
+  if (hit) return hit;
+  const out = await json<Gloss>(
+    await fetch(`${BASE}/gloss?word=${encodeURIComponent(word)}`, { headers: headers() }),
+  );
+  glossCache.set(word, out);
+  return out;
+}
+
+/** One word rendered on its own in the given voice. */
+export function wordAudioUrl(text: string, speaker: number): string {
+  return `${BASE}/word-audio?text=${encodeURIComponent(text)}&speaker=${speaker}&token=${encodeURIComponent(TOKEN)}`;
 }
 
 /**

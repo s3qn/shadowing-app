@@ -27,14 +27,23 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Natural slow playback: the slider speed is rendered by VOICEVOX itself
   (speedScale, cached per line and speed) instead of stretching the audio on
   the phone, so 0.5x sounds like slow speech rather than a chopped recording.
+- Tap a word: a Yomitan-style popover under the word with reading, base form
+  and JMdict meanings (offline; particles get a grammar note). The word plays
+  once on open as its own VOICEVOX render, Hear again repeats it; the line's
+  player and highlight are never touched.
+- Player rules: Play always starts the sentence from the top; the highlight
+  shows only while the line is playing; Loop leaves a 2s breath with an
+  "again in" countdown and the button reads Stop while a loop runs.
+- Robustness: interrupted islands are healed on backend startup, revoice
+  replaces lines one by one, gateway errors read as a short message with
+  Retry, and an island without lines offers Regenerate.
 
 ## Next (approved, in order)
 
-1. Tap a word to replay just that word (seek to its span, pause at its end).
-2. Loop the whole island: a loop mode that plays every line in sequence and
-   starts over, to drill several sentences together instead of one.
-3. Per-word dictionary gloss: tap and hold a word to see its meaning
-   (needs a dictionary such as JMdict on the backend, plus janome base forms).
+1. Ring player: one big circular Play/Stop with a progress ring that fills as
+   the line plays and drains through the 2s breath; Repeat modes Off / Line /
+   Island (island mode plays every line in order with the breath between them
+   and starts over); speed and repeat as quiet pills below.
 
 ## Ideas (not approved)
 

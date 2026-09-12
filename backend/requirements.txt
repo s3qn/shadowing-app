@@ -5,3 +5,5 @@ faster-whisper==1.2.1
 httpx==0.28.1
 python-dotenv==1.0.1
 janome==0.5.0
+jamdict
+jamdict-data
