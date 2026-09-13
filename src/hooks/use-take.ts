@@ -73,8 +73,9 @@ const WAV_RECORDING_OPTIONS: RecordingOptions = {
 
 /**
  * Records the learner's own voice over one line and plays it back. A take is
- * one shot: it starts with the line, keeps recording for a second after the
- * line ends, then saves. There is never more than one recording in flight.
+ * one shot: it starts with the line, keeps recording for a second, plus the
+ * lag, after the line ends, then saves. There is never more than one
+ * recording in flight.
  *
  * Recording needs the `.playAndRecord` audio category, which routes playback
  * to the bottom speaker and drops the stereo mix. The mode is switched back
@@ -111,8 +112,10 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
 
   // The take (or calibration) a recording in progress belongs to, kept in a
   // ref because the tail runs after the line (and possibly the current idx,
-  // and the speed slider) has moved on.
-  const target = useRef<{ islandId: string; idx: number; mode: TakeMode; speed: number } | null>(null);
+  // the speed slider, and the lag setting) has moved on.
+  const target = useRef<{ islandId: string; idx: number; mode: TakeMode; speed: number; lagMs: number } | null>(
+    null,
+  );
   const tail = useRef<ReturnType<typeof setTimeout> | null>(null);
   const watchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Current props, read from finish() after the tail delay so it can tell
@@ -216,9 +219,16 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
    * when `mode` is `'calibrate'`. `lineSeconds` is the line's own duration,
    * used only for the watchdog that ends a take the line never ends itself.
    * `speed` is carried through to `finish` in a ref, because the speed
-   * slider can still move during the one second tail.
+   * slider can still move during the one second tail. `lagMs` is the
+   * shadowing lag, added to the one second tail so a take is not cut while
+   * the speaker is still a beat behind the line.
    */
-  async function startTake(lineSeconds: number | undefined, speed: number, mode: TakeMode): Promise<boolean> {
+  async function startTake(
+    lineSeconds: number | undefined,
+    speed: number,
+    mode: TakeMode,
+    lagMs = 0,
+  ): Promise<boolean> {
     if (!islandId) return false;
     setError('');
     let perm = await getRecordingPermissionsAsync();
@@ -231,7 +241,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
       await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
-      target.current = { islandId, idx, mode, speed };
+      target.current = { islandId, idx, mode, speed, lagMs };
       setMode(mode);
       // Nothing else should be pending here, but a leftover timer would end
       // this take early.
@@ -243,7 +253,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
       watchdog.current = setTimeout(() => {
         watchdog.current = null;
         void finish();
-      }, lineMs + TAIL_MS + WATCHDOG_SLACK_MS);
+      }, lineMs + TAIL_MS + lagMs + WATCHDOG_SLACK_MS);
       setRecording(true);
       return true;
     } catch (e) {
@@ -259,7 +269,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
 
   function scheduleStop() {
     if (!recording || tail.current) return;
-    tail.current = setTimeout(finish, TAIL_MS);
+    tail.current = setTimeout(finish, TAIL_MS + (target.current?.lagMs ?? 0));
   }
 
   async function cancel() {

@@ -59,6 +59,12 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   from the phone's speaker to its own microphone; every take after that has the
   line subtracted and only your voice left. A take through headphones has no
   bleed to remove, and is detected and kept exactly as recorded.
+- Blind mode and lag: a Blind pill hides the Japanese, the reading and the
+  English so you shadow by ear, with a Tap to peek placeholder that shows the
+  text for the current line only. A Lag setting (Off, 0.3s, 0.5s, 1s) lengthens
+  the Record my take tail and the loop breath by that much, so speaking a beat
+  behind the voice is not cut off or talked over. Both are remembered on the
+  phone. The highlight and Compare are not shifted.
 
 ## Next (approved, in order)
 

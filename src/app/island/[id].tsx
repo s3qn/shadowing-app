@@ -21,7 +21,7 @@ import { Radius, SPEED_MAX, SPEED_MIN, Spacing } from '@/constants/theme';
 import { useTake, type TakeMode } from '@/hooks/use-take';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
-import { getVoice } from '@/lib/settings';
+import { getSettings, setBlind as persistBlind, setLagMs as persistLagMs, LAG_OPTIONS, type LagMs } from '@/lib/settings';
 import { deleteTakes } from '@/lib/takes';
 
 export default function IslandScreen() {
@@ -43,7 +43,8 @@ export default function IslandScreen() {
   const ring = useSharedValue(0);
   const breathStart = useRef(0);
   // Loop is done by hand rather than with the player's own loop, so there is
-  // a moment to breathe before the sentence comes around again.
+  // a moment to breathe before the sentence comes around again. The breath is
+  // this plus the lag.
   const LOOP_GAP_MS = 2000;
   const gapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Seconds left in the breath between repeats; null when not in a breath.
@@ -69,6 +70,13 @@ export default function IslandScreen() {
     void take.cancel();
   }
   const [showEnglish, setShowEnglish] = useState(false);
+  const [blind, setBlind] = useState(false);
+  // Shadowing lag: lengthens the take tail and the loop breath, nothing else.
+  const [lagMs, setLagMs] = useState<LagMs>(0);
+  // Set once the user taps Blind or a Lag pill, so a slow settings load does
+  // not overwrite the choice.
+  const blindTouched = useRef(false);
+  const lagTouched = useRef(false);
   const [voice, setVoice] = useState<number | null>(null);
   const [voiceName, setVoiceName] = useState('');
   const [revoicing, setRevoicing] = useState(false);
@@ -79,6 +87,12 @@ export default function IslandScreen() {
   // keys the native player on the serialized source: the same URL would keep
   // the old wav loaded under the new text.
   const [generation, setGeneration] = useState(0);
+  // The line whose hidden text was revealed. Keyed on generation and idx, so
+  // a new line (or a regenerate landing) is hidden in the same render that
+  // shows it, with no frame of text in between.
+  const lineKey = `${generation}:${idx}`;
+  const [peekKey, setPeekKey] = useState<string | null>(null);
+  const hidden = blind && peekKey !== lineKey;
   // The tapped word, its dictionary result, and the timer that ends Hear it.
   const [selected, setSelected] = useState<number | null>(null);
   const [glossData, setGlossData] = useState<api.Gloss | null>(null);
@@ -191,17 +205,25 @@ export default function IslandScreen() {
   }, [id, attempt]);
 
   // The chosen voice, and its display name, so the re-voice offer can say
-  // which voice it would switch to.
+  // which voice it would switch to. Also loads blind mode and the lag, which
+  // live in the same settings file.
   useEffect(() => {
     let alive = true;
     (async () => {
-      const chosen = await getVoice();
+      const settings = await getSettings();
       if (!alive) return;
-      setVoice(chosen);
+      setVoice(settings.voice);
+      // Settings can land after the user already tapped Blind or a Lag pill;
+      // what they tapped wins.
+      if (!blindTouched.current) {
+        setBlind(settings.blind);
+        if (settings.blind) closePanel();
+      }
+      if (!lagTouched.current) setLagMs(settings.lagMs);
       try {
         const speakers = await api.listSpeakers();
         for (const sp of speakers) {
-          const st = sp.styles.find((s) => s.id === chosen);
+          const st = sp.styles.find((s) => s.id === settings.voice);
           if (st) {
             if (alive) setVoiceName(`${sp.name} ${st.name}`);
             break;
@@ -373,19 +395,20 @@ export default function IslandScreen() {
 
   function startBreath(then: () => void) {
     cancelGap();
+    const gap = LOOP_GAP_MS + lagMs;
     breathStart.current = Date.now();
-    setCountdown(Math.round(LOOP_GAP_MS / 1000));
+    setCountdown(Math.ceil(gap / 1000));
     cancelAnimation(ring);
     ring.value = 1;
-    ring.value = withTiming(0, { duration: LOOP_GAP_MS, easing: Easing.linear });
+    ring.value = withTiming(0, { duration: gap, easing: Easing.linear });
     tickTimer.current = setInterval(() => {
       const elapsed = Date.now() - breathStart.current;
-      setCountdown(Math.max(1, Math.ceil((LOOP_GAP_MS - elapsed) / 1000)));
+      setCountdown(Math.max(1, Math.ceil((gap - elapsed) / 1000)));
     }, 250);
     gapTimer.current = setTimeout(() => {
       cancelGap();
       then();
-    }, LOOP_GAP_MS);
+    }, gap);
   }
 
   // The player can report "just finished" twice for one ending (once at the
@@ -413,6 +436,9 @@ export default function IslandScreen() {
     } else if (repeat === 'island') {
       startBreath(() => {
         playWhenLoaded.current = true;
+        // On a one-line island idx does not change, so hide the text again
+        // for the next loop explicitly.
+        setPeekKey(null);
         setIdx((i) => (i + 1) % island.lines.length);
       });
     }
@@ -433,6 +459,7 @@ export default function IslandScreen() {
 
   async function tapWord(i: number) {
     if (!line) return;
+    if (hidden) return;
     cancelGap();
     playWhenLoaded.current = false;
     dropTake();
@@ -469,6 +496,8 @@ export default function IslandScreen() {
     setPosition(0);
     closePanel();
     playWhenLoaded.current = wasActive;
+    // Coming back to a line that was peeked at hides it again.
+    setPeekKey(null);
     setIdx(clamped);
   }
   const next = () => go(idx + 1);
@@ -493,6 +522,23 @@ export default function IslandScreen() {
       // A seek can fail while the item is still loading; play anyway.
     }
     player.play();
+  }
+
+  function toggleBlind() {
+    const next = !blind;
+    blindTouched.current = true;
+    setBlind(next);
+    setPeekKey(null);
+    if (next) closePanel();
+    // The pill already shows the new value; a failed save only means it is
+    // not remembered next time.
+    persistBlind(next).catch(() => {});
+  }
+
+  function pickLag(ms: LagMs) {
+    lagTouched.current = true;
+    setLagMs(ms);
+    persistLagMs(ms).catch(() => {});
   }
 
   // The take is only in phase 'recording' once startTake resolves, so the pill
@@ -521,7 +567,7 @@ export default function IslandScreen() {
       }
       // The line's duration is the watchdog's base: a take that is never ended
       // by the line stops itself a few seconds past it.
-      if (!(await take.startTake(status.duration, speed, mode))) return;
+      if (!(await take.startTake(status.duration, speed, mode, lagMs))) return;
       player.play();
     } finally {
       startingTake.current = false;
@@ -680,59 +726,66 @@ export default function IslandScreen() {
           </Pressable>
         ) : null}
 
-        {line.words.length > 0 ? (
-          <View
-            style={styles.block}
-            onLayout={(e) => setBlockWidth(e.nativeEvent.layout.width)}>
-          <View style={styles.words}>
-            {line.words.map((w, i) => (
-              <Text
-                key={i}
-                onPress={() => tapWord(i)}
-                onLayout={(e) => {
-                  wordBoxes.current[i] = e.nativeEvent.layout;
-                }}
-                style={[
-                  styles.ja,
-                  styles.word,
-                  {
-                    color: i === activeWord ? palette.accentInk : palette.ink,
-                    backgroundColor:
-                      i === activeWord
-                        ? palette.accent
-                        : i === selected
-                          ? palette.surfaceAlt
-                          : 'transparent',
-                    textDecorationLine: i === selected ? 'underline' : 'none',
-                  },
-                ]}>
-                {w.text}
-              </Text>
-            ))}
-          </View>
-          {selected !== null && line.words[selected] ? (
-            <WordPanel
-              word={line.words[selected]!.text}
-              gloss={glossData}
-              left={popLeft}
-              top={popTop}
-              onHear={() => hearWord()}
-              onClose={closePanel}
-            />
-          ) : null}
-          </View>
+        {hidden ? (
+          <Pressable onPress={() => setPeekKey(lineKey)} style={styles.peek} accessibilityRole="button">
+            <Text style={[styles.en, { color: palette.muted }]}>Tap to peek</Text>
+          </Pressable>
         ) : (
-          <Text style={[styles.ja, { color: palette.ink }]}>{line.ja}</Text>
+          <>
+            {line.words.length > 0 ? (
+              <View
+                style={styles.block}
+                onLayout={(e) => setBlockWidth(e.nativeEvent.layout.width)}>
+              <View style={styles.words}>
+                {line.words.map((w, i) => (
+                  <Text
+                    key={i}
+                    onPress={() => tapWord(i)}
+                    onLayout={(e) => {
+                      wordBoxes.current[i] = e.nativeEvent.layout;
+                    }}
+                    style={[
+                      styles.ja,
+                      styles.word,
+                      {
+                        color: i === activeWord ? palette.accentInk : palette.ink,
+                        backgroundColor:
+                          i === activeWord
+                            ? palette.accent
+                            : i === selected
+                              ? palette.surfaceAlt
+                              : 'transparent',
+                        textDecorationLine: i === selected ? 'underline' : 'none',
+                      },
+                    ]}>
+                    {w.text}
+                  </Text>
+                ))}
+              </View>
+              {selected !== null && line.words[selected] ? (
+                <WordPanel
+                  word={line.words[selected]!.text}
+                  gloss={glossData}
+                  left={popLeft}
+                  top={popTop}
+                  onHear={() => hearWord()}
+                  onClose={closePanel}
+                />
+              ) : null}
+              </View>
+            ) : (
+              <Text style={[styles.ja, { color: palette.ink }]}>{line.ja}</Text>
+            )}
+
+            <Text style={[styles.reading, { color: palette.muted }]}>{reading}</Text>
+
+            <Pressable onPress={() => setShowEnglish((v) => !v)}>
+              <Text style={[styles.en, { color: showEnglish ? palette.ink : palette.muted }]}>
+                {showEnglish ? line.en : 'Tap to show the English'}
+              </Text>
+            </Pressable>
+          </>
         )}
-
-        <Text style={[styles.reading, { color: palette.muted }]}>{reading}</Text>
-
-
-        <Pressable onPress={() => setShowEnglish((v) => !v)}>
-          <Text style={[styles.en, { color: showEnglish ? palette.ink : palette.muted }]}>
-            {showEnglish ? line.en : 'Tap to show the English'}
-          </Text>
-        </Pressable>
       </ScrollView>
 
       <View style={[styles.controls, { borderTopColor: palette.line }]}>
@@ -814,6 +867,40 @@ export default function IslandScreen() {
           })}
         </View>
 
+        <View style={styles.shadowRow}>
+          <Pressable
+            onPress={toggleBlind}
+            style={[
+              styles.pill,
+              {
+                backgroundColor: blind ? palette.accent : palette.surface,
+                borderColor: blind ? palette.accent : palette.line,
+              },
+            ]}>
+            <Text style={[styles.pillText, { color: blind ? palette.accentInk : palette.ink }]}>Blind</Text>
+          </Pressable>
+          <Text style={[styles.pillLabel, styles.lagLabel, { color: palette.muted }]}>Lag</Text>
+          {LAG_OPTIONS.map((ms) => {
+            const on = lagMs === ms;
+            return (
+              <Pressable
+                key={ms}
+                onPress={() => pickLag(ms)}
+                style={[
+                  styles.pill,
+                  {
+                    backgroundColor: on ? palette.accent : palette.surface,
+                    borderColor: on ? palette.accent : palette.line,
+                  },
+                ]}>
+                <Text style={[styles.pillText, { color: on ? palette.accentInk : palette.ink }]}>
+                  {ms === 0 ? 'Off' : `${ms / 1000}s`}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
         <View style={styles.speedRow}>
           <Text style={[styles.pillLabel, { color: palette.muted }]}>Speed</Text>
           <Slider
@@ -888,6 +975,15 @@ const styles = StyleSheet.create({
   pillLabel: { fontSize: 13, fontWeight: '600', minWidth: 52 },
   pill: { borderWidth: 1, borderRadius: Radius.pill, paddingVertical: Spacing.xs + 2, paddingHorizontal: Spacing.md },
   pillText: { fontSize: 13, fontWeight: '700' },
+  shadowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    flexWrap: 'wrap',
+  },
+  lagLabel: { minWidth: 0, marginLeft: Spacing.sm },
+  peek: { minHeight: 160, alignItems: 'center', justifyContent: 'center' },
   speedRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   slider: { flex: 1, height: 36 },
   speedValue: { fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'], minWidth: 52, textAlign: 'right' },
