@@ -7,6 +7,9 @@ actually returns: accent_phrases -> moras (consonant_length/vowel_length) and
 an optional pause_mora, plus prePhonemeLength/postPhonemeLength/speedScale.
 """
 
+import io
+import wave
+
 import voicevox
 
 
@@ -146,3 +149,60 @@ def test_total_duration_covers_last_mora_plus_post_phoneme_length():
 def test_total_duration_with_empty_timeline_is_just_post_phoneme_length():
     query = {"postPhonemeLength": 0.2}
     assert voicevox.total_duration(query, []) == 0.2
+
+
+# ---------------------------------------------------------------------------
+# pad_wav
+# ---------------------------------------------------------------------------
+
+def _make_wav(framerate: int, nchannels: int, sampwidth: int, duration_ms: int) -> bytes:
+    nframes = round(framerate * duration_ms / 1000)
+    # A non-zero pattern, so "the original frames are a prefix" is a real check
+    # and not just a run of the same byte silence would also produce.
+    frame = bytes((i % 250) + 1 for i in range(sampwidth * nchannels))
+    out = io.BytesIO()
+    with wave.open(out, "wb") as w:
+        w.setnchannels(nchannels)
+        w.setsampwidth(sampwidth)
+        w.setframerate(framerate)
+        w.writeframes(frame * nframes)
+    return out.getvalue()
+
+
+def test_pad_wav_appends_silence_frames():
+    wav = _make_wav(24000, 1, 2, 100)
+    with wave.open(io.BytesIO(wav)) as src:
+        original_params = src.getparams()
+        original_frames = src.readframes(src.getnframes())
+
+    padded = voicevox.pad_wav(wav, 2000)
+
+    with wave.open(io.BytesIO(padded)) as out:
+        assert out.getnframes() == original_params.nframes + 48000
+        params = out.getparams()
+        assert params.nchannels == original_params.nchannels
+        assert params.sampwidth == original_params.sampwidth
+        assert params.framerate == original_params.framerate
+        frames = out.readframes(out.getnframes())
+
+    assert frames[: len(original_frames)] == original_frames
+    added = frames[len(original_frames):]
+    assert added == b"\x00" * len(added)
+
+
+def test_pad_wav_zero_or_negative_returns_input_unchanged():
+    wav = _make_wav(24000, 1, 2, 100)
+    assert voicevox.pad_wav(wav, 0) == wav
+    assert voicevox.pad_wav(wav, -5) == wav
+
+
+def test_pad_wav_keeps_stereo_and_other_rates():
+    wav = _make_wav(44100, 2, 2, 500)
+    with wave.open(io.BytesIO(wav)) as src:
+        original_nframes = src.getnframes()
+
+    padded = voicevox.pad_wav(wav, 500)
+
+    with wave.open(io.BytesIO(padded)) as out:
+        assert out.getnframes() == original_nframes + 22050
+        assert out.getnchannels() == 2

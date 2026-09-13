@@ -346,10 +346,14 @@ async def _resolve_line_audio(island: dict, idx: int, speed: float) -> Path:
 
 @app.get("/shadow/islands/{island_id}/lines/{idx}/audio")
 async def line_audio(island_id: str, idx: int, token: str = "", speed: float = 1.0,
+                     pad: int = 0,
                      authorization: str | None = Header(None)) -> FileResponse:
     """One line's wav. With `speed` other than 1, the line is re-synthesized
     at that speedScale (rounded to 0.05) and cached beside the original, so
-    slow playback is natural speech rather than a stretched recording."""
+    slow playback is natural speech rather than a stretched recording. With
+    `pad` above 0, `pad` ms of silence is appended, cached beside the render,
+    so the player can loop natively with the breath baked in rather than
+    timing it in JS."""
     # Audio is fetched by the player, which cannot always set a header, so a
     # token query parameter is accepted here as well as the usual header.
     _token_or_header(token, authorization)
@@ -359,6 +363,18 @@ async def line_audio(island_id: str, idx: int, token: str = "", speed: float = 1
     path = await _resolve_line_audio(island, idx, speed)
     if not path.exists():
         raise HTTPException(404, "no audio for that line")
+    pad = max(0, min(5000, pad))
+    if pad > 0:
+        speed_r = round(min(SPEED_MAX, max(SPEED_MIN, speed)) * 20) / 20
+        # The "@" is what the stale sweep in _synthesize_lines (line 210) keys
+        # on, so a padded file is removed along with the render it came from.
+        padded = path.with_name(f"{idx}@{speed_r:.2f}+{pad}.wav")
+        if not padded.exists():
+            padded_bytes = voicevox.pad_wav(path.read_bytes(), pad)
+            tmp = padded.with_suffix(".tmp")
+            tmp.write_bytes(padded_bytes)
+            os.replace(tmp, padded)
+        path = padded
     return FileResponse(path, media_type="audio/wav")
 
 

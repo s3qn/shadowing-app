@@ -4,7 +4,6 @@ import {
   IOSOutputFormat,
   requestRecordingPermissionsAsync,
   RecordingPresets,
-  setAudioModeAsync,
   useAudioPlayer,
   useAudioPlayerStatus,
   useAudioRecorder,
@@ -16,6 +15,14 @@ import { useEffect, useRef, useState } from 'react';
 
 import { meterLevel } from '@/components/level-bars';
 import { cleanTakeUrl, uploadTake } from '@/lib/api';
+import {
+  applyPlaybackMode,
+  applyRecordingMode,
+  releaseAudioSession,
+  startPlayback,
+  stopPlayback,
+  useSessionPlayer,
+} from '@/lib/audio-mode';
 import { cleanTakeFile, findTake, saveTake, type Take } from '@/lib/takes';
 
 const TAIL_MS = 1000;
@@ -78,9 +85,10 @@ const WAV_RECORDING_OPTIONS: RecordingOptions = {
  * recording in flight.
  *
  * Recording needs the `.playAndRecord` audio category, which routes playback
- * to the bottom speaker and drops the stereo mix. The mode is switched back
- * to plain playback as soon as a take stops or is dropped, so every other
- * screen keeps its normal loudness and speaker routing.
+ * to the bottom speaker and drops the stereo mix. The `audio-mode` helpers
+ * switch the mode back to plain playback as soon as a take stops or is
+ * dropped, so every other screen keeps its normal loudness and speaker
+ * routing, and on iOS hand the volume back to other apps once the take ends.
  *
  * Every take is also sent to the backend, which removes the played line from
  * the recording by subtracting it with a path learned from a speaker
@@ -109,6 +117,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
     keepAudioSessionActive: true,
   });
   const takeStatus = useAudioPlayerStatus(takePlayer);
+  useSessionPlayer(takePlayer);
 
   // The take (or calibration) a recording in progress belongs to, kept in a
   // ref because the tail runs after the line (and possibly the current idx,
@@ -207,7 +216,8 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
     } finally {
       setRecording(false);
       try {
-        await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false });
+        await applyPlaybackMode();
+        await releaseAudioSession();
       } catch {
         // Best effort: the next take attempt or the next screen mount fixes it.
       }
@@ -238,7 +248,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
       return false;
     }
     try {
-      await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
+      await applyRecordingMode();
       await recorder.prepareToRecordAsync();
       recorder.record();
       target.current = { islandId, idx, mode, speed, lagMs };
@@ -259,7 +269,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not start recording.');
       try {
-        await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false });
+        await applyPlaybackMode();
       } catch {
         // Best effort: the mode is already broken, nothing more to try here.
       }
@@ -283,7 +293,8 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
     target.current = null;
     setRecording(false);
     try {
-      await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false });
+      await applyPlaybackMode();
+      await releaseAudioSession();
     } catch {
       // Best effort: the next take attempt or the next screen mount fixes it.
     }
@@ -292,11 +303,13 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
   function playTake() {
     if (!take) return;
     void takePlayer.seekTo(0);
-    takePlayer.play();
+    startPlayback(takePlayer);
   }
 
+  // Safe on a take player its hook already released (a take saved or a line
+  // switched just before), so callers can go on to pause the line after it.
   function stopTake() {
-    takePlayer.pause();
+    stopPlayback(takePlayer);
   }
 
   // The unmount cleanup below keeps the closure from the render that mounted

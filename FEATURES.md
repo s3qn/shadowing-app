@@ -65,12 +65,16 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   the Record my take tail and the loop breath by that much, so speaking a beat
   behind the voice is not cut off or talked over. Both are remembered on the
   phone. The highlight and Compare are not shifted.
+- Background audio: the island player keeps playing with the screen locked or
+  the app in the background (Expo Go, iOS and Android). Other apps' audio
+  dips under a line and comes back. The breath between repeats is silence
+  appended by the backend, so loops and Repeat Island survive a locked phone.
+  A take or recording stops on background. Lock-screen metadata is set, but
+  with ducking iOS keeps the music app's card, and Android needs a dev build.
 
 ## Next (approved, in order)
 
-1. Background audio and lock-screen controls (expo-audio supports it; needs
-   `UIBackgroundModes` in app.json).
-2. Furigana above kanji (ruby layout) instead of a separate reading line.
+1. Furigana above kanji (ruby layout) instead of a separate reading line.
 
 ## Ideas (not approved)
 

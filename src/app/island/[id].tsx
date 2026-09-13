@@ -1,10 +1,13 @@
 import Slider from '@react-native-community/slider';
-import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from 'expo-audio';
+import { isRunningInExpoGo } from 'expo';
+import { type AudioMetadata, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -21,8 +24,23 @@ import { Radius, SPEED_MAX, SPEED_MIN, Spacing } from '@/constants/theme';
 import { useTake, type TakeMode } from '@/hooks/use-take';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
+import {
+  applyPlaybackMode,
+  releaseAudioSession,
+  startPlayback,
+  stopPlayback,
+  useSessionPlayer,
+} from '@/lib/audio-mode';
 import { getSettings, setBlind as persistBlind, setLagMs as persistLagMs, LAG_OPTIONS, type LagMs } from '@/lib/settings';
 import { deleteTakes } from '@/lib/takes';
+
+// Expo Go on Android does not ship the AudioControlsService, and activating
+// the lock screen there logs a service binding error; a dev build has it
+// through the expo-audio config plugin. With the app's `duckOthers` mode iOS
+// never hands Now Playing to a mixable session, so on iOS this shows nothing
+// until the mode is `doNotMix`; the calls below stay in place because that
+// switch is then a one-line change in audio-mode.ts.
+const lockScreen = Platform.OS === 'ios' || !isRunningInExpoGo();
 
 export default function IslandScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -41,26 +59,16 @@ export default function IslandScreen() {
   const [repeat, setRepeat] = useState<Repeat>('line');
   // Ring fill, 0..1, animated on the UI thread.
   const ring = useSharedValue(0);
-  const breathStart = useRef(0);
-  // Loop is done by hand rather than with the player's own loop, so there is
-  // a moment to breathe before the sentence comes around again. The breath is
-  // this plus the lag.
+  // The breath between repeats is silence the backend appends to the line's
+  // own audio (the `pad` query param), so Repeat Line is the player's own
+  // loop and Repeat Island advances on the native finish event. There are no
+  // timers in the loop on purpose: Android stops JS timers while the screen
+  // is locked, and the native `status` (every 50ms) keeps arriving in the
+  // background on both platforms, so the ring, the countdown, the take tail
+  // and Compare all key off it instead. The requested breath is this plus the
+  // shadowing lag. Other apps' audio stays ducked for the whole loop, breaths
+  // included, and comes back at a stop point (see `releaseAudioSession`).
   const LOOP_GAP_MS = 2000;
-  const gapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Seconds left in the breath between repeats; null when not in a breath.
-  const [countdown, setCountdown] = useState<number | null>(null);
-  const tickTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  function cancelGap() {
-    if (gapTimer.current) {
-      clearTimeout(gapTimer.current);
-      gapTimer.current = null;
-    }
-    if (tickTimer.current) {
-      clearInterval(tickTimer.current);
-      tickTimer.current = null;
-    }
-    setCountdown(null);
-  }
   // Anything that interrupts the line also drops a take in progress and any
   // compare that was waiting for the line to end.
   function dropTake() {
@@ -102,12 +110,17 @@ export default function IslandScreen() {
   const [blockWidth, setBlockWidth] = useState(0);
 
   const line = island?.lines[idx];
+  // The pad requested from the backend: always the breath plus the lag,
+  // whatever the Repeat pill says, so tapping Repeat never restarts the line.
+  const breathMs = LOOP_GAP_MS + lagMs;
   const source = useMemo(
     () =>
       island && line
-        ? { uri: api.lineAudioUrl(island.id, line.idx, `${island.speaker}-${generation}`, speed) }
+        ? { uri: api.lineAudioUrl(island.id, line.idx, `${island.speaker}-${generation}`, speed, breathMs) }
         : null,
-    [island, line, speed, generation],
+    // A lag change re-creates the player (new pad, new source URL), so a
+    // playing line restarts from the top, exactly like a speed change does.
+    [island, line, speed, generation, lagMs],
   );
   // Native status arrives every 50ms; particles can be shorter than that, so
   // the position shown to the highlighter is interpolated between updates.
@@ -115,6 +128,10 @@ export default function IslandScreen() {
   // line ends, and the session must not be torn down under it in that time.
   const player = useAudioPlayer(source, { updateInterval: 50, keepAudioSessionActive: true });
   const status = useAudioPlayerStatus(player);
+  useSessionPlayer(player);
+  const breathSec = breathMs / 1000;
+  // status.duration includes the pad. Below the breath length the item is not loaded yet.
+  const lineEnd = status.duration > breathSec ? status.duration - breathSec : 0;
   const take = useTake(island?.id, idx, generation);
   // Set when Compare is waiting for the line to finish before it plays the
   // take; cleared once that happens or the compare is dropped.
@@ -122,6 +139,13 @@ export default function IslandScreen() {
   // State, not a ref: the Compare pill has to re-render to read Stop for as
   // long as either half of a compare run (the line, then the take) is playing.
   const [comparing, setComparing] = useState(false);
+  // Repeat Off, a take and a Compare all stop the line where the pad begins
+  // (the crossing effect below), so no breath follows. The pause lands a
+  // status or two after the crossing, and without this the draining ring and
+  // the countdown would flash for that moment.
+  const stopsAtLineEnd = repeat === 'off' || take.phase === 'recording' || comparing;
+  const inBreath = status.playing && lineEnd > 0 && status.currentTime >= lineEnd && !stopsAtLineEnd;
+  const countdown = inBreath ? Math.max(1, Math.ceil(status.duration - status.currentTime)) : null;
   const wasTakePlaying = useRef(false);
 
   // The tapped word has its own render and its own player, so hearing it never
@@ -138,6 +162,7 @@ export default function IslandScreen() {
   // session down 100ms later, which would land on the prepared recorder.
   const wordPlayer = useAudioPlayer(wordSource, { keepAudioSessionActive: true });
   const wordStatus = useAudioPlayerStatus(wordPlayer);
+  useSessionPlayer(wordPlayer);
   const autoPlayed = useRef<string | null>(null);
 
   // Play the word once as soon as its audio is ready, for each new selection.
@@ -145,7 +170,7 @@ export default function IslandScreen() {
     const key = wordSource?.uri ?? null;
     if (!key || !wordStatus.isLoaded || autoPlayed.current === key) return;
     autoPlayed.current = key;
-    wordPlayer.play();
+    startPlayback(wordPlayer);
   }, [wordSource, wordStatus.isLoaded, wordPlayer]);
   const [position, setPosition] = useState(0);
   const anchor = useRef({ time: 0, at: Date.now(), playing: false, rate: 1 });
@@ -178,7 +203,10 @@ export default function IslandScreen() {
   }, []);
 
   useEffect(() => {
-    void setAudioModeAsync({ playsInSilentMode: true });
+    void applyPlaybackMode();
+    return () => {
+      void releaseAudioSession();
+    };
   }, []);
 
   const [attempt, setAttempt] = useState(0);
@@ -267,7 +295,7 @@ export default function IslandScreen() {
     if (!island || voice === null || revoicing || regenerating) return;
     setRevoicing(true);
     dropTake();
-    player.pause();
+    stopPlayback(player);
     try {
       await api.revoice(island.id, voice);
       const data = await waitForIsland(island.id, 60, undefined, 'Re-voicing failed');
@@ -303,10 +331,9 @@ export default function IslandScreen() {
     if (!island) return;
     setRegenerating(true);
     setBuildStage('transcribing');
-    cancelGap();
     playWhenLoaded.current = false;
     dropTake();
-    player.pause();
+    stopPlayback(player);
     closePanel();
     try {
       try {
@@ -321,7 +348,7 @@ export default function IslandScreen() {
       const data = await waitForIsland(island.id, 240, setBuildStage);
       cancelAnimation(ring);
       ring.value = 0;
-      ringAimed.current = false;
+      ringPhase.current = 'idle';
       anchor.current = { time: 0, at: Date.now(), playing: false, rate: 1 };
       setPosition(0);
       setGeneration((g) => g + 1);
@@ -349,40 +376,50 @@ export default function IslandScreen() {
   }
 
   // Speed is baked into the audio by VOICEVOX, so the player always runs at
-  // 1.0. Loop is a player property and has to be pushed again whenever the
-  // source swaps to a new line or speed.
+  // 1.0. Loop is a player property, driven by the Repeat pill: Line loops the
+  // native player (the pad's silence becomes the breath, with no gap at the
+  // wrap), Off and Island advance by hand from the crossing and finish
+  // effects below. Pushed again whenever the source swaps to a new line or
+  // speed, since the player identity changes with them.
   useEffect(() => {
     player.setPlaybackRate(1, 'high');
-    player.loop = false;
-  }, [player, idx, speed]);
+    player.loop = repeat === 'line';
+  }, [player, repeat]);
 
-  useEffect(() => cancelGap, []);
-
-  // The ring follows native playback with ONE linear animation to full over
-  // the remaining time, started when playback starts. Later status updates
-  // only re-aim it if it has clearly drifted; restarting it on every update
-  // is what made it stutter.
-  const ringAimed = useRef(false);
+  // The ring follows native playback with ONE linear animation per phase,
+  // aimed to full over the remaining spoken time, then to empty over the
+  // remaining breath. Later status updates only re-aim it if it has clearly
+  // drifted; restarting it on every update is what made it stutter.
+  const ringPhase = useRef<'idle' | 'line' | 'breath'>('idle');
   useEffect(() => {
-    if (status.playing && status.duration > 0) {
-      const target = status.currentTime / status.duration;
+    if (status.playing && lineEnd > 0 && !inBreath) {
+      // Past lineEnd only for the moment before a stop at the line's end lands.
+      const target = Math.min(1, status.currentTime / lineEnd);
       const drifted = Math.abs(ring.value - target) > 0.08;
-      if (!ringAimed.current || drifted) {
-        ringAimed.current = true;
+      if (ringPhase.current !== 'line' || drifted) {
+        ringPhase.current = 'line';
+        cancelAnimation(ring);
+        ring.value = target;
+        const remaining = Math.max(0, (lineEnd - status.currentTime) * 1000);
+        ring.value = withTiming(1, { duration: remaining, easing: Easing.linear });
+      }
+    } else if (inBreath) {
+      const target = (status.duration - status.currentTime) / breathSec;
+      const drifted = Math.abs(ring.value - target) > 0.08;
+      if (ringPhase.current !== 'breath' || drifted) {
+        ringPhase.current = 'breath';
         cancelAnimation(ring);
         ring.value = target;
         const remaining = Math.max(0, (status.duration - status.currentTime) * 1000);
-        ring.value = withTiming(1, { duration: remaining, easing: Easing.linear });
+        ring.value = withTiming(0, { duration: remaining, easing: Easing.linear });
       }
     } else if (!status.playing) {
-      ringAimed.current = false;
-      if (countdown === null) {
-        cancelAnimation(ring);
-        ring.value = withTiming(0, { duration: 180 });
-      }
+      ringPhase.current = 'idle';
+      cancelAnimation(ring);
+      ring.value = withTiming(0, { duration: 180 });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status.playing, status.currentTime, status.duration, countdown]);
+  }, [status.playing, status.currentTime, status.duration, lineEnd]);
 
   // After a line switch that should keep playing, start the new source as
   // soon as it is swapped in; the native player begins when the item is ready.
@@ -390,63 +427,134 @@ export default function IslandScreen() {
   useEffect(() => {
     if (!playWhenLoaded.current || !source) return;
     playWhenLoaded.current = false;
-    player.play();
+    startPlayback(player);
   }, [source, player]);
 
-  function startBreath(then: () => void) {
-    cancelGap();
-    const gap = LOOP_GAP_MS + lagMs;
-    breathStart.current = Date.now();
-    setCountdown(Math.ceil(gap / 1000));
-    cancelAnimation(ring);
-    ring.value = 1;
-    ring.value = withTiming(0, { duration: gap, easing: Easing.linear });
-    tickTimer.current = setInterval(() => {
-      const elapsed = Date.now() - breathStart.current;
-      setCountdown(Math.max(1, Math.ceil((gap - elapsed) / 1000)));
-    }, 250);
-    gapTimer.current = setTimeout(() => {
-      cancelGap();
-      then();
-    }, gap);
+  // Lock screen / notification text. Blind mode never shows the Japanese.
+  function lockMeta(): AudioMetadata {
+    const pos = `Line ${idx + 1} of ${island!.lines.length}`;
+    const artist = island!.title || 'Island';
+    return blind ? { title: pos, artist } : { title: line!.ja, artist, albumTitle: pos };
   }
 
-  // The player can report "just finished" twice for one ending (once at the
-  // end, once more right after the loop seeks back to the top), which used
-  // to start two breaths. A finish is handled at most once per 800ms and
-  // never while a breath is already pending.
-  const lastFinish = useRef(0);
+  // The line player is the lock screen / notification's active player.
+  // useAudioPlayer swaps in a new native player per source, and releasing the
+  // old one (which happens before this effect runs, in the same commit)
+  // already clears the lock screen on both platforms, so there is no
+  // explicit clear anywhere here.
   useEffect(() => {
-    if (!status.didJustFinish || !island || playWhenLoaded.current) return;
-    if (gapTimer.current) return;
-    const now = Date.now();
-    if (now - lastFinish.current < 800) return;
-    lastFinish.current = now;
-    if (take.phase === 'recording') take.scheduleStop();
+    if (!lockScreen || !island || !line) return;
+    player.setActiveForLockScreen(true, lockMeta(), { showSeekForward: false, showSeekBackward: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [player, lockScreen, island?.id, generation]);
+
+  useEffect(() => {
+    if (!lockScreen || !island || !line) return;
+    player.updateLockScreenMetadata(lockMeta());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blind, idx, island?.title, island?.lines.length, line?.ja]);
+
+  // A take made with the phone in a pocket is not a take, and the microphone
+  // must never run in the background: dropped as soon as the app backgrounds.
+  // The line stops with it; nothing else about playback changes here. The
+  // listener is subscribed once, so everything it calls is read through the
+  // ref: the first render's dropTake would close over a take whose cancel()
+  // still sees `recording` as false and leaves the microphone running.
+  const backgroundRef = useRef({ take, player, dropTake });
+  backgroundRef.current = { take, player, dropTake };
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'background') return;
+      const { take: t, player: p, dropTake: drop } = backgroundRef.current;
+      if (t.phase === 'recording') {
+        // The line first: stopPlayback never throws, and neither does the
+        // take player's pause inside drop().
+        stopPlayback(p);
+        void p.seekTo(0);
+        drop();
+      }
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The moment the spoken line ends and the pad's silence begins is the "line
+  // finished" moment for a take, a Compare and Repeat Off. `status.currentTime`
+  // is native and keeps arriving with the app in the background; the
+  // interpolated `position` runs on a JS interval that Android stops when the
+  // screen locks, so it must not be used here. `crossed` resets on a wrap (the
+  // native loop) or a seek, and whenever the player identity changes.
+  const crossed = useRef(false);
+  useEffect(() => {
+    crossed.current = false;
+  }, [player]);
+  useEffect(() => {
+    if (!status.playing || lineEnd <= 0) return;
+    if (status.currentTime < lineEnd) {
+      crossed.current = false;
+      return;
+    }
+    if (crossed.current) return;
+    crossed.current = true;
+    if (take.phase === 'recording') {
+      stopPlayback(player);
+      void player.seekTo(0);
+      take.scheduleStop();
+      return;
+    }
     if (compareNext.current) {
       compareNext.current = false;
+      stopPlayback(player);
+      void player.seekTo(0);
       take.playTake();
       return;
     }
-    if (repeat === 'line') {
-      startBreath(async () => {
-        await player.seekTo(0);
-        player.play();
-      });
-    } else if (repeat === 'island') {
-      startBreath(() => {
-        playWhenLoaded.current = true;
-        // On a one-line island idx does not change, so hide the text again
-        // for the next loop explicitly.
-        setPeekKey(null);
-        setIdx((i) => (i + 1) % island.lines.length);
-      });
+    if (repeat === 'off') {
+      stopPlayback(player);
+      void player.seekTo(0);
+      void releaseAudioSession();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status.currentTime, status.playing, lineEnd]);
+
+  // Repeat Line is the native loop and never reaches this. A finish can also
+  // arrive late, after a status already crossed lineEnd, so a stray one while
+  // Off has already parked the player at 0 is harmless. The 800ms once-guard
+  // and the playWhenLoaded bail-out keep a finish from firing twice for one
+  // ending (once at the end, once more right after a loop wraps).
+  const lastFinish = useRef(0);
+  useEffect(() => {
+    if (!status.didJustFinish || !island || playWhenLoaded.current) return;
+    const now = Date.now();
+    if (now - lastFinish.current < 800) return;
+    lastFinish.current = now;
+    if (repeat !== 'island') {
+      if (repeat === 'off') {
+        void player.seekTo(0);
+        void releaseAudioSession();
+      }
+      return;
+    }
+    if (island.lines.length === 1) {
+      // idx would not change, so the source stays the same and the
+      // playWhenLoaded effect never fires: seek and play by hand instead.
+      // Hide the text again for the next loop explicitly, since a new lineKey
+      // never arrives to do it.
+      setPeekKey(null);
+      void (async () => {
+        await player.seekTo(0);
+        startPlayback(player);
+      })();
+      return;
+    }
+    playWhenLoaded.current = true;
+    setPeekKey(null);
+    setIdx((i) => (i + 1) % island.lines.length);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status.didJustFinish]);
 
   function closePanel() {
-    wordPlayer.pause();
+    stopPlayback(wordPlayer);
     setSelected(null);
     setGlossData(null);
   }
@@ -460,10 +568,9 @@ export default function IslandScreen() {
   async function tapWord(i: number) {
     if (!line) return;
     if (hidden) return;
-    cancelGap();
     playWhenLoaded.current = false;
     dropTake();
-    if (status.playing) player.pause();
+    if (status.playing) stopPlayback(player);
     setSelected(i);
     setGlossData(null);
     try {
@@ -476,7 +583,7 @@ export default function IslandScreen() {
 
   async function hearWord() {
     await wordPlayer.seekTo(0);
-    wordPlayer.play();
+    startPlayback(wordPlayer);
   }
 
   // Switching lines: stop the old audio first, reset everything that belonged
@@ -485,13 +592,12 @@ export default function IslandScreen() {
     if (!island) return;
     const clamped = Math.max(0, Math.min(island.lines.length - 1, target));
     if (clamped === idx) return;
-    const wasActive = status.playing || countdown !== null;
-    cancelGap();
+    const wasActive = status.playing;
     dropTake();
-    player.pause();
+    stopPlayback(player);
     cancelAnimation(ring);
     ring.value = 0;
-    ringAimed.current = false;
+    ringPhase.current = 'idle';
     anchor.current = { time: 0, at: Date.now(), playing: false, rate: 1 };
     setPosition(0);
     closePanel();
@@ -506,22 +612,22 @@ export default function IslandScreen() {
   // Lines are short, so Play always starts the sentence from the top. There is
   // no resuming from the middle: that is never what you want when shadowing.
   async function toggle() {
-    const active = status.playing || countdown !== null;
-    cancelGap();
+    const active = status.playing;
     playWhenLoaded.current = false;
     if (active) {
       dropTake();
-      player.pause();
+      stopPlayback(player);
+      void releaseAudioSession();
       return;
     }
     dropTake();
-    ringAimed.current = false;
+    ringPhase.current = 'idle';
     try {
       await player.seekTo(0);
     } catch {
       // A seek can fail while the item is still loading; play anyway.
     }
-    player.play();
+    startPlayback(player);
   }
 
   function toggleBlind() {
@@ -537,8 +643,19 @@ export default function IslandScreen() {
 
   function pickLag(ms: LagMs) {
     lagTouched.current = true;
-    setLagMs(ms);
     persistLagMs(ms).catch(() => {});
+    if (ms === lagMs) return;
+    // The lag is part of the line's pad, so the source (and the player)
+    // changes with it. Same reset as a speed change: a take and a pending
+    // Compare are dropped, and a playing line carries on from the top.
+    const wasActive = status.playing;
+    dropTake();
+    stopPlayback(player);
+    cancelAnimation(ring);
+    ring.value = 0;
+    ringPhase.current = 'idle';
+    playWhenLoaded.current = wasActive;
+    setLagMs(ms);
   }
 
   // The take is only in phase 'recording' once startTake resolves, so the pill
@@ -554,21 +671,26 @@ export default function IslandScreen() {
     if (!line || startingTake.current) return;
     startingTake.current = true;
     try {
-      cancelGap();
       playWhenLoaded.current = false;
       closePanel();
-      dropTake();
-      player.pause();
-      ringAimed.current = false;
+      // dropTake(), but waiting for the cancel: it stops a take still
+      // recording and releases the session, and that must be done before the
+      // new recorder is prepared rather than land under it.
+      compareNext.current = false;
+      setComparing(false);
+      take.stopTake();
+      stopPlayback(player);
+      await take.cancel();
+      ringPhase.current = 'idle';
       try {
         await player.seekTo(0);
       } catch {
         // A seek can fail while the item is still loading; play anyway.
       }
-      // The line's duration is the watchdog's base: a take that is never ended
-      // by the line stops itself a few seconds past it.
-      if (!(await take.startTake(status.duration, speed, mode, lagMs))) return;
-      player.play();
+      // The spoken line's length (without the pad) is the watchdog's base: a
+      // take that is never ended by the line stops itself a few seconds past it.
+      if (!(await take.startTake(lineEnd || undefined, speed, mode, lagMs))) return;
+      startPlayback(player);
     } finally {
       startingTake.current = false;
     }
@@ -585,23 +707,22 @@ export default function IslandScreen() {
   function compare() {
     if (compareNext.current || (take.takePlaying && comparing)) {
       dropTake();
-      player.pause();
+      stopPlayback(player);
       return;
     }
-    cancelGap();
     playWhenLoaded.current = false;
     closePanel();
     take.stopTake();
     compareNext.current = true;
     setComparing(true);
-    ringAimed.current = false;
+    ringPhase.current = 'idle';
     void (async () => {
       try {
         await player.seekTo(0);
       } catch {
         // A seek can fail while the item is still loading; play anyway.
       }
-      player.play();
+      startPlayback(player);
     })();
   }
 
@@ -610,21 +731,35 @@ export default function IslandScreen() {
       take.stopTake();
       return;
     }
-    cancelGap();
     closePanel();
     compareNext.current = false;
     setComparing(false);
-    if (status.playing) player.pause();
+    if (status.playing) stopPlayback(player);
     take.playTake();
   }
 
   // A compare run covers both halves, the line then the take, so it only
   // ends here when the take finishes playing on its own; the Compare pill
-  // stopping it early is handled in compare() and dropTake() above.
+  // stopping it early is handled in compare() and dropTake() above. This also
+  // covers My take finishing on its own. Android gives audio focus back by
+  // itself when the take player stops; on iOS the duck lasts as long as the
+  // session is active, so releaseAudioSession() hands the volume back here.
   useEffect(() => {
-    if (wasTakePlaying.current && !take.takePlaying && comparing) setComparing(false);
+    if (wasTakePlaying.current && !take.takePlaying && !status.playing) {
+      if (comparing) setComparing(false);
+      void releaseAudioSession();
+    }
     wasTakePlaying.current = take.takePlaying;
-  }, [take.takePlaying, comparing]);
+  }, [take.takePlaying, comparing, status.playing]);
+
+  // The word player finishing on its own is also a stop point: Hear it never
+  // loops, so once it stops (and the line is not playing) nothing of ours
+  // should still be making sound.
+  const wasWordPlaying = useRef(false);
+  useEffect(() => {
+    if (wasWordPlaying.current && !wordStatus.playing && !status.playing) void releaseAudioSession();
+    wasWordPlaying.current = wordStatus.playing;
+  }, [wordStatus.playing, status.playing]);
 
   if (error && !island) {
     return (
@@ -702,7 +837,7 @@ export default function IslandScreen() {
     : -1;
   const reading = line.timeline.map((m) => m.kana).join('');
 
-  const ringMode: RingMode = status.playing ? 'playing' : countdown !== null ? 'breath' : 'idle';
+  const ringMode: RingMode = status.playing ? (inBreath ? 'breath' : 'playing') : 'idle';
 
   // Popover under the tapped word, centred on it, kept inside the block.
   const box = selected !== null ? wordBoxes.current[selected] : undefined;
@@ -848,10 +983,7 @@ export default function IslandScreen() {
             return (
               <Pressable
                 key={mode}
-                onPress={() => {
-                  setRepeat(mode);
-                  if (mode === 'off') cancelGap();
-                }}
+                onPress={() => setRepeat(mode)}
                 style={[
                   styles.pill,
                   {
@@ -916,13 +1048,12 @@ export default function IslandScreen() {
               if (next === speed) return;
               // The line is re-rendered at the new speed; if it was playing,
               // carry on at the new speed from the top instead of going silent.
-              const wasActive = status.playing || countdown !== null;
-              cancelGap();
+              const wasActive = status.playing;
               dropTake();
-              player.pause();
+              stopPlayback(player);
               cancelAnimation(ring);
               ring.value = 0;
-              ringAimed.current = false;
+              ringPhase.current = 'idle';
               playWhenLoaded.current = wasActive;
               setSpeed(next);
             }}

@@ -10,7 +10,8 @@
     "ios": {
       "icon": "./assets/expo.icon",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Shadowing records your voice so it can build a language island from what you say."
+        "NSMicrophoneUsageDescription": "Shadowing records your voice so it can build a language island from what you say.",
+        "UIBackgroundModes": ["audio"]
       }
     },
     "android": {
@@ -42,7 +43,8 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Shadowing records your voice so it can build a language island from what you say."
+          "microphonePermission": "Shadowing records your voice so it can build a language island from what you say.",
+          "enableBackgroundPlayback": true
         }
       ]
     ],

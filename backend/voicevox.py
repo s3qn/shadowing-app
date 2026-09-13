@@ -16,8 +16,10 @@ its own pitch-corrected rate control and divides these timings by that rate,
 which avoids a round trip every time the user moves the speed slider.
 """
 
+import io
 import logging
 import os
+import wave
 
 import httpx
 
@@ -142,6 +144,25 @@ def build_timeline(query: dict) -> list[dict]:
 def total_duration(query: dict, timeline: list[dict]) -> float:
     end = timeline[-1]["end"] if timeline else 0.0
     return round(end + float(query.get("postPhonemeLength", 0.0)), 4)
+
+
+def pad_wav(wav: bytes, pad_ms: int) -> bytes:
+    """The same wav with `pad_ms` of silence appended, as PCM in the file's own
+    format. Zero or negative padding returns the input unchanged."""
+    if pad_ms <= 0:
+        return wav
+    with wave.open(io.BytesIO(wav)) as src:
+        params = src.getparams()
+        frames = src.readframes(src.getnframes())
+
+    frames_to_add = round(params.framerate * pad_ms / 1000)
+    silence = b"\x00" * (frames_to_add * params.sampwidth * params.nchannels)
+
+    out = io.BytesIO()
+    with wave.open(out, "wb") as dst:
+        dst.setparams(params)
+        dst.writeframes(frames + silence)
+    return out.getvalue()
 
 
 async def speak(text: str, speaker: int | None = None,

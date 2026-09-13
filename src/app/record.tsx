@@ -1,13 +1,12 @@
 import {
   RecordingPresets,
   requestRecordingPermissionsAsync,
-  setAudioModeAsync,
   useAudioRecorder,
   useAudioRecorderState,
 } from 'expo-audio';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LevelBars, meterLevel } from '@/components/level-bars';
@@ -15,6 +14,7 @@ import { LevelBars, meterLevel } from '@/components/level-bars';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
+import { applyPlaybackMode, applyRecordingMode, releaseAudioSession } from '@/lib/audio-mode';
 import { DEFAULT_VOICE, getVoice } from '@/lib/settings';
 
 const MIN_SECONDS = 10;
@@ -66,6 +66,14 @@ export default function RecordScreen() {
       } catch {
         // Nothing to keep either way.
       }
+      // Separate from the stop: a recorder that failed to stop must not leave
+      // the app in recording mode.
+      try {
+        await applyPlaybackMode();
+        await releaseAudioSession();
+      } catch {
+        // Best effort: the next recording attempt fixes the mode.
+      }
     }
     router.back();
   }
@@ -82,6 +90,36 @@ export default function RecordScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, elapsed]);
 
+  // The microphone never runs in the background: a recording caught by the
+  // app going to the background either becomes the take (if it is already
+  // long enough) or is dropped back to idle with a message.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next !== 'background' || phase !== 'recording') return;
+      if (elapsed >= MIN_SECONDS) {
+        void stop();
+        return;
+      }
+      void (async () => {
+        try {
+          await recorder.stop();
+        } catch {
+          // Nothing to keep either way.
+        }
+        try {
+          await applyPlaybackMode();
+          await releaseAudioSession();
+        } catch {
+          // Best effort: the next recording attempt fixes the mode.
+        }
+        setPhase('idle');
+        setError('Recording stopped when the app went to the background.');
+      })();
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, elapsed]);
+
   async function start() {
     setError('');
     const perm = await requestRecordingPermissionsAsync();
@@ -89,7 +127,7 @@ export default function RecordScreen() {
       setError('Microphone access is off. Turn it on in Settings and try again.');
       return;
     }
-    await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
+    await applyRecordingMode();
     await recorder.prepareToRecordAsync();
     recorder.record();
     setPhase('recording');
@@ -98,6 +136,12 @@ export default function RecordScreen() {
   async function stop() {
     setTaken((state.durationMillis ?? 0) / 1000);
     await recorder.stop();
+    try {
+      await applyPlaybackMode();
+      await releaseAudioSession();
+    } catch {
+      // Best effort: the next recording attempt fixes the mode.
+    }
     setUri(recorder.uri);
     setPhase('review');
   }

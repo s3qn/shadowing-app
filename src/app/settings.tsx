@@ -1,6 +1,6 @@
-import { useAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
+import { applyPlaybackMode, releaseAudioSession, startPlayback, useSessionPlayer } from '@/lib/audio-mode';
 import { getVoice, setVoice } from '@/lib/settings';
 
 export default function SettingsScreen() {
@@ -23,10 +24,21 @@ export default function SettingsScreen() {
   const [chosen, setChosen] = useState<number | null>(null);
   const [error, setError] = useState('');
   const player = useAudioPlayer(null);
+  const status = useAudioPlayerStatus(player);
+  useSessionPlayer(player);
 
   useEffect(() => {
-    void setAudioModeAsync({ playsInSilentMode: true });
+    void applyPlaybackMode();
   }, []);
+
+  // A voice preview also gives the music back once it finishes. The release
+  // is skipped while any other mounted player (a loop on the island screen
+  // underneath) is playing or starting, see `releaseAudioSession`.
+  const wasPlaying = useRef(false);
+  useEffect(() => {
+    if (wasPlaying.current && !status.playing) void releaseAudioSession();
+    wasPlaying.current = status.playing;
+  }, [status.playing]);
 
   useFocusEffect(
     useCallback(() => {
@@ -52,7 +64,7 @@ export default function SettingsScreen() {
     setChosen(styleId);
     await setVoice(styleId);
     player.replace({ uri: api.voicePreviewUrl(styleId) });
-    player.play();
+    startPlayback(player);
   }
 
   const chosenSpeaker = speakers.find((sp) => sp.styles.some((st) => st.id === chosen));

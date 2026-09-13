@@ -206,11 +206,14 @@ export function lineAudioUrl(
   idx: number,
   version: number | string = 0,
   speed = 1,
+  padMs = 0,
 ): string {
   // `v` changes with the voice and with every regeneration so a replaced line is never served from cache.
   // `speed` asks the backend for a natively slower or faster render.
+  // `padMs`, when positive, is silence the backend appends so the player can loop natively with a breath.
   const s = speed.toFixed(2);
-  return `${BASE}/islands/${islandId}/lines/${idx}/audio?token=${encodeURIComponent(TOKEN)}&v=${version}&speed=${s}`;
+  const pad = padMs > 0 ? `&pad=${Math.round(padMs)}` : '';
+  return `${BASE}/islands/${islandId}/lines/${idx}/audio?token=${encodeURIComponent(TOKEN)}&v=${version}&speed=${s}${pad}`;
 }
 
 /** Result of an echo cancellation pass on an uploaded take, or a calibration recording. */
