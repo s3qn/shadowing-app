@@ -68,7 +68,9 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 
 ## Next (approved, in order)
 
-(empty: pick from Ideas)
+1. Background audio and lock-screen controls (expo-audio supports it; needs
+   `UIBackgroundModes` in app.json).
+2. Furigana above kanji (ruby layout) instead of a separate reading line.
 
 ## Ideas (not approved)
 
@@ -84,10 +86,9 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   "generate good AI vocals or import existing content").
 - Pitch-accent marks over the reading, from VOICEVOX's accent phrases (the data
   is already in the timeline).
-- Furigana above kanji (ruby layout) instead of a separate reading line.
 - Romaji toggle in the player.
-- Background audio and lock-screen controls (expo-audio supports it; needs
-  `UIBackgroundModes` in app.json).
+- Phrase loop: tap a start word and an end word to loop only that span of a
+  line, using the word timings the highlight already has.
 - Spaced repetition: resurface islands on a schedule.
 - Export an island as one audio file.
 - Operations: autostart VOICEVOX, backend, cloudflared and the dashboard on
