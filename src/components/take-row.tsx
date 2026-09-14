@@ -1,8 +1,9 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { LevelBars } from '@/components/level-bars';
-import { Radius, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { PressScale } from '@/components/press-scale';
+import { fonts } from '@/constants/fonts';
+import { Radius, Spacing, tide } from '@/constants/theme';
 import type { CleanStatus, TakePhase } from '@/hooks/use-take';
 import type { TakeScore } from '@/lib/api';
 
@@ -41,12 +42,16 @@ function cleanStatusText(clean: CleanStatus): string | null {
   }
 }
 
-/** Summary line for a take's timing score: counts of early, late and dropped
- * words, "All words in time" when there are none, and how far behind or
- * ahead of the voice the take ran when that is more than a quarter second.
- * Null when there is no score yet, and when it exists but scored no words,
- * `score.note` explains why. */
-function scoreText(score: TakeScore | null): string | null {
+type ScoreSpan = { text: string; color: string };
+
+/** Summary line for a take's timing score, as colored spans to render in
+ * sequence: counts of early, late and dropped words (each in the mark
+ * color `RubyWord` uses for that category), "All words in time" when there
+ * are none, and how far behind or ahead of the voice the take ran when
+ * that is more than a quarter second. Null when there is no score yet, and
+ * when it exists but scored no words, `score.note` explains why as a
+ * single dim span. */
+function scoreText(score: TakeScore | null): ScoreSpan[] | null {
   if (!score) return null;
   let early = 0;
   let late = 0;
@@ -60,18 +65,19 @@ function scoreText(score: TakeScore | null): string | null {
     else if (w === 'dropped') dropped++;
   }
   if (scored === 0) {
-    return score.note ? `Timing not scored: ${score.note}.` : null;
+    return score.note ? [{ text: `Timing not scored: ${score.note}.`, color: tide.textDim }] : null;
   }
-  const parts: string[] = [];
-  if (early) parts.push(`Early ${early}`);
-  if (late) parts.push(`Late ${late}`);
-  if (dropped) parts.push(`Dropped ${dropped}`);
-  let text = parts.length ? parts.join(' · ') : 'All words in time';
+  const spans: ScoreSpan[] = [];
+  if (early) spans.push({ text: `Early ${early}`, color: tide.listen });
+  if (late) spans.push({ text: `Late ${late}`, color: tide.turn });
+  if (dropped) spans.push({ text: `Dropped ${dropped}`, color: tide.record });
+  if (!spans.length) spans.push({ text: 'All words in time', color: tide.textDim });
   if (score.behindMs !== null && Math.abs(score.behindMs) > 250) {
     const secs = (Math.abs(score.behindMs) / 1000).toFixed(1);
-    text += score.behindMs > 0 ? ` · Behind the voice by ${secs}s` : ` · Ahead of the voice by ${secs}s`;
+    const text = score.behindMs > 0 ? `Behind the voice by ${secs}s` : `Ahead of the voice by ${secs}s`;
+    spans.push({ text, color: tide.textDim });
   }
-  return text;
+  return spans;
 }
 
 /**
@@ -93,7 +99,6 @@ export function TakeRow({
   onPlayTake,
   onCalibrate,
 }: Props) {
-  const { palette } = useTheme();
   const myTakeOn = takePlaying && !comparing;
   const statusText = cleanStatusText(clean);
   const scoreLine = phase === 'ready' ? scoreText(score) : null;
@@ -101,81 +106,60 @@ export function TakeRow({
   return (
     <View>
       <View style={styles.row}>
-        <Text style={[styles.label, { color: palette.muted }]}>Take</Text>
+        <Text style={styles.label}>Take</Text>
         {phase === 'recording' ? (
           <LevelBars level={level} live />
         ) : phase === 'idle' ? (
           <>
-            <Pressable
-              onPress={onRecord}
-              style={[styles.pill, { backgroundColor: palette.surface, borderColor: palette.line }]}>
-              <Text style={[styles.pillText, { color: palette.ink }]}>Record my take</Text>
-            </Pressable>
-            <Pressable
-              onPress={onCalibrate}
-              style={[styles.pill, { backgroundColor: palette.surface, borderColor: palette.line }]}>
-              <Text style={[styles.pillText, { color: palette.ink }]}>Calibrate speaker</Text>
-            </Pressable>
+            <PressScale onPress={onRecord} style={styles.pill}>
+              <Text style={styles.pillText}>Record my take</Text>
+            </PressScale>
+            <PressScale onPress={onCalibrate} style={styles.pill}>
+              <Text style={styles.pillText}>Calibrate speaker</Text>
+            </PressScale>
           </>
         ) : (
           <>
-            <Pressable
-              onPress={onCompare}
-              style={[
-                styles.pill,
-                {
-                  backgroundColor: comparing ? palette.accent : palette.surface,
-                  borderColor: comparing ? palette.accent : palette.line,
-                },
-              ]}>
-              <Text style={[styles.pillText, { color: comparing ? palette.accentInk : palette.ink }]}>
-                {comparing ? 'Stop' : 'Compare'}
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={onPlayTake}
-              style={[
-                styles.pill,
-                {
-                  backgroundColor: myTakeOn ? palette.accent : palette.surface,
-                  borderColor: myTakeOn ? palette.accent : palette.line,
-                },
-              ]}>
-              <Text style={[styles.pillText, { color: myTakeOn ? palette.accentInk : palette.ink }]}>
-                {myTakeOn ? 'Stop' : 'My take'}
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={onRecord}
-              style={[styles.pill, { backgroundColor: palette.surface, borderColor: palette.line }]}>
-              <Text style={[styles.pillText, { color: palette.ink }]}>Again</Text>
-            </Pressable>
-            <Pressable
-              onPress={onCalibrate}
-              style={[styles.pill, { backgroundColor: palette.surface, borderColor: palette.line }]}>
-              <Text style={[styles.pillText, { color: palette.ink }]}>Calibrate speaker</Text>
-            </Pressable>
+            <PressScale onPress={onCompare} style={[styles.pill, comparing && styles.pillActive]}>
+              <Text style={[styles.pillText, comparing && styles.pillTextActive]}>{comparing ? 'Stop' : 'Compare'}</Text>
+            </PressScale>
+            <PressScale onPress={onPlayTake} style={[styles.pill, myTakeOn && styles.pillActive]}>
+              <Text style={[styles.pillText, myTakeOn && styles.pillTextActive]}>{myTakeOn ? 'Stop' : 'My take'}</Text>
+            </PressScale>
+            <PressScale onPress={onRecord} style={styles.pill}>
+              <Text style={styles.pillText}>Again</Text>
+            </PressScale>
+            <PressScale onPress={onCalibrate} style={styles.pill}>
+              <Text style={styles.pillText}>Calibrate speaker</Text>
+            </PressScale>
           </>
         )}
       </View>
 
       {phase === 'idle' ? (
-        <Text style={[styles.hint, { color: palette.muted }]}>
-          The line plays and you speak along. Earphones keep the original out of your take.
-        </Text>
+        <Text style={styles.hint}>The line plays and you speak along. Earphones keep the original out of your take.</Text>
       ) : phase === 'recording' ? (
-        <Text style={[styles.hint, { color: palette.muted }]}>
+        <Text style={styles.hint}>
           {calibrating
             ? 'Stay quiet. The line plays and the phone learns its own speaker.'
             : 'Speak along. It stops on its own after the line.'}
         </Text>
       ) : null}
 
-      {statusText ? <Text style={[styles.status, { color: palette.muted }]}>{statusText}</Text> : null}
+      {statusText ? <Text style={styles.status}>{statusText}</Text> : null}
 
-      {scoreLine ? <Text style={[styles.status, { color: palette.muted }]}>{scoreLine}</Text> : null}
+      {scoreLine ? (
+        <Text style={styles.status}>
+          {scoreLine.map((span, i) => (
+            <Text key={i} style={{ color: span.color }}>
+              {i > 0 ? ' · ' : ''}
+              {span.text}
+            </Text>
+          ))}
+        </Text>
+      ) : null}
 
-      {error ? <Text style={[styles.error, { color: palette.danger }]}>{error}</Text> : null}
+      {error ? <Text style={styles.error}>{error}</Text> : null}
     </View>
   );
 }
@@ -189,15 +173,19 @@ const styles = StyleSheet.create({
     minHeight: 56,
     flexWrap: 'wrap',
   },
-  label: { fontSize: 13, fontWeight: '600', minWidth: 52 },
+  label: { fontSize: 13, fontFamily: fonts.ui, color: tide.textDim, minWidth: 52 },
   pill: {
     borderWidth: 1,
     borderRadius: Radius.pill,
     paddingVertical: Spacing.xs + 2,
     paddingHorizontal: Spacing.md,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
-  pillText: { fontSize: 13, fontWeight: '700' },
-  hint: { fontSize: 12, lineHeight: 17, textAlign: 'center', marginTop: Spacing.xs },
-  status: { fontSize: 12, lineHeight: 16, textAlign: 'center', marginTop: Spacing.xs },
-  error: { fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: Spacing.xs },
+  pillActive: { backgroundColor: tide.record, borderColor: tide.record },
+  pillText: { fontSize: 13, fontFamily: fonts.uiMedium, color: tide.textDim },
+  pillTextActive: { color: tide.sky[0] },
+  hint: { fontSize: 12, lineHeight: 17, textAlign: 'center', marginTop: Spacing.xs, fontFamily: fonts.ui, color: tide.textDim },
+  status: { fontSize: 12, lineHeight: 16, textAlign: 'center', marginTop: Spacing.xs, fontFamily: fonts.ui, color: tide.textDim },
+  error: { fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: Spacing.xs, fontFamily: fonts.ui, color: tide.record },
 });

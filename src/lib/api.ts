@@ -35,9 +35,14 @@ export type Mora = {
 /** One run of a word's text with the reading shown above it; rt is empty for kana, digits and punctuation. */
 export type RubySegment = { text: string; rt: string };
 
+/** Coarse part of speech group used to colour a word's underline. Keep the
+ * five names in sync with `_POS_GROUP`/`_pos_group` in `backend/segment.py`. */
+export type PosGroup = 'noun' | 'verb' | 'adjective' | 'particle' | 'other';
+
 /** One word of a line with the span of audio it is spoken in. `ruby` is
- * missing only on lines served by a backend older than furigana. */
-export type Word = { text: string; start: number; end: number; ruby?: RubySegment[] };
+ * missing only on lines served by a backend older than furigana. `pos` is
+ * missing on lines from a backend older than the pos underline. */
+export type Word = { text: string; start: number; end: number; ruby?: RubySegment[]; pos?: PosGroup };
 
 /** A stretch of a line's rendered audio, in milliseconds at the requested speed. */
 export type AudioSpan = { startMs: number; endMs: number };

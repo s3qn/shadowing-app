@@ -1,7 +1,8 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { Radius, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { PressScale } from '@/components/press-scale';
+import { fonts } from '@/constants/fonts';
+import { Radius, Spacing, tide } from '@/constants/theme';
 import type { Gloss } from '@/lib/api';
 import { kanaToRomaji } from '@/lib/romaji';
 
@@ -34,51 +35,46 @@ function toRomajiReading(gloss: Gloss): string {
  * It never touches playback itself; the screen decides what Hear it does.
  */
 export function WordPanel({ word, gloss, left, top, romaji = false, onHear, onClose }: Props) {
-  const { palette } = useTheme();
   const shownReading = gloss ? (romaji ? toRomajiReading(gloss) : gloss.reading) : '';
   return (
-    <View
-      style={[
-        styles.pop,
-        { left, top, backgroundColor: palette.surface, borderColor: palette.line, shadowColor: '#000' },
-      ]}>
+    <View style={[styles.pop, { left, top, backgroundColor: tide.water, borderColor: tide.waterline, shadowColor: '#000' }]}>
       <View style={styles.head}>
         <View style={styles.headText}>
-          <Text style={[styles.word, { color: palette.ink }]} numberOfLines={1}>
+          <Text style={styles.word} numberOfLines={1}>
             {word}
           </Text>
           {gloss?.reading ? (
-            <Text style={[styles.reading, { color: palette.muted }]} numberOfLines={1}>
+            <Text style={styles.reading} numberOfLines={1}>
               {shownReading}
               {gloss.base && gloss.base !== word.replace(/[、。！？]/g, '') ? `  ·  ${gloss.base}` : ''}
             </Text>
           ) : null}
         </View>
-        <Pressable onPress={onClose} hitSlop={12}>
-          <Text style={[styles.close, { color: palette.muted }]}>×</Text>
-        </Pressable>
+        <PressScale onPress={onClose} hitSlop={12}>
+          <Text style={styles.close}>×</Text>
+        </PressScale>
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={{ gap: 4 }} nestedScrollEnabled>
         {gloss === null ? (
-          <Text style={[styles.meaning, { color: palette.muted }]}>Looking up…</Text>
+          <Text style={styles.meaning}>Looking up…</Text>
         ) : !gloss.found ? (
-          <Text style={[styles.meaning, { color: palette.muted }]}>No dictionary entry.</Text>
+          <Text style={styles.meaning}>No dictionary entry.</Text>
         ) : (
           gloss.entries.slice(0, 2).map((entry, i) =>
             entry.senses.slice(0, 3).map((sense, j) => (
-              <Text key={`${i}-${j}`} style={[styles.meaning, { color: palette.ink }]}>
+              <Text key={`${i}-${j}`} style={styles.meaning}>
                 {sense.glosses.join('; ')}
-                {sense.pos.length ? <Text style={{ color: palette.muted }}>  {sense.pos[0]}</Text> : null}
+                {sense.pos.length ? <Text style={{ color: tide.textDim }}>  {sense.pos[0]}</Text> : null}
               </Text>
             )),
           )
         )}
       </ScrollView>
 
-      <Pressable onPress={onHear} style={[styles.hear, { backgroundColor: palette.accent }]}>
-        <Text style={[styles.hearText, { color: palette.accentInk }]}>Hear again</Text>
-      </Pressable>
+      <PressScale onPress={onHear} style={styles.hear}>
+        <Text style={styles.hearText}>Hear again</Text>
+      </PressScale>
     </View>
   );
 }
@@ -99,11 +95,11 @@ const styles = StyleSheet.create({
   },
   head: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
   headText: { flex: 1 },
-  word: { fontSize: 20, fontWeight: '700' },
-  reading: { fontSize: 13 },
-  close: { fontSize: 22, lineHeight: 24, fontWeight: '600', paddingHorizontal: 4 },
+  word: { fontSize: 20, fontWeight: '700', fontFamily: fonts.serifJp, color: tide.text },
+  reading: { fontSize: 13, fontFamily: fonts.serifJp, color: tide.textDim },
+  close: { fontSize: 22, lineHeight: 24, fontWeight: '600', paddingHorizontal: 4, fontFamily: fonts.ui, color: tide.textDim },
   body: { flexGrow: 0, maxHeight: 96 },
-  meaning: { fontSize: 14, lineHeight: 20 },
-  hear: { paddingVertical: Spacing.sm, borderRadius: Radius.pill, alignItems: 'center' },
-  hearText: { fontSize: 14, fontWeight: '700' },
+  meaning: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui, color: tide.text },
+  hear: { paddingVertical: Spacing.sm, borderRadius: Radius.pill, alignItems: 'center', backgroundColor: tide.lang.ja },
+  hearText: { fontSize: 14, fontFamily: fonts.uiMedium, color: tide.sky[0] },
 });

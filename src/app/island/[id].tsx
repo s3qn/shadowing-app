@@ -1,39 +1,41 @@
-import Slider from '@react-native-community/slider';
 import { isRunningInExpoGo } from 'expo';
 import { type AudioMetadata, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  AppState,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Alert, AppState, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector, ScrollView } from 'react-native-gesture-handler';
 import { cancelAnimation, Easing, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomRow } from '@/components/tide/bottom-row';
+import { IslandMenuSheet } from '@/components/tide/island-menu-sheet';
 import { PlayerTitle } from '@/components/tide/player-title';
 import { TideScene } from '@/components/tide/tide-scene';
-import { ExportLink } from '@/components/export-link';
+import { Toolbar, type ToolbarItem } from '@/components/tide/toolbar';
+import { BlindIcon, LagIcon, ReadingIcon, RepeatIcon, SpeedIcon } from '@/components/tide/toolbar-icons';
+import {
+  BlindSheet,
+  LagSheet,
+  READING_LABEL,
+  REPEAT_LABEL,
+  ReadingSheet,
+  RepeatSheet,
+  SpeedSheet,
+  lagLabel,
+  type RepeatMode,
+} from '@/components/tide/toolbar-sheets';
 import { PressScale } from '@/components/press-scale';
 import { PhraseBar } from '@/components/phrase-bar';
 import { PitchReading } from '@/components/pitch-reading';
-import { ReadingPills } from '@/components/reading-pills';
 import { type RingMode } from '@/components/ring-button';
 import { RubyWord } from '@/components/ruby-word';
 import { SELECTION_POPUP_WIDTH, SelectionPopup } from '@/components/selection-popup';
 import { TakeRow } from '@/components/take-row';
 import { POPOVER_WIDTH, WordPanel } from '@/components/word-panel';
 import { fonts } from '@/constants/fonts';
-import { Radius, SPEED_MAX, SPEED_MIN, Spacing, tide } from '@/constants/theme';
+import { Radius, Spacing, tide } from '@/constants/theme';
+import { useIslandExport } from '@/hooks/use-island-export';
 import { usePhrase, type PhraseSpan } from '@/hooks/use-phrase';
 import { usePracticeClock } from '@/hooks/use-practice-clock';
 import { useTake, type TakeMode } from '@/hooks/use-take';
@@ -55,7 +57,6 @@ import {
   setLagMs as persistLagMs,
   setPitch as persistPitch,
   setReading as persistReading,
-  LAG_OPTIONS,
   type LagMs,
   type ReadingMode,
 } from '@/lib/settings';
@@ -76,17 +77,27 @@ export default function IslandScreen() {
   const [island, setIsland] = useState<api.Island | null>(null);
   const [error, setError] = useState('');
   const [idx, setIdx] = useState(0);
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [draftTitle, setDraftTitle] = useState('');
-  const editingTitleRef = useRef(false);
-  // `speed` is what the audio was rendered at; `dragging` follows the thumb
-  // live so the label moves, and only a release re-renders the line.
+  // `speed` is what the audio was rendered at; the Speed sheet shows the
+  // live drag position, and only a release re-renders the line.
   const [speed, setSpeed] = useState<number>(0.7);
-  const [dragging, setDragging] = useState<number | null>(null);
   // Off: play once and stop. Line: repeat this line. Island: every line in
   // order, then start over. Each repeat has a breath in front of it.
-  type Repeat = 'off' | 'line' | 'island';
-  const [repeat, setRepeat] = useState<Repeat>('line');
+  const [repeat, setRepeat] = useState<RepeatMode>('line');
+  // Which toolbar or header sheet is open, if any: one at a time.
+  const [sheet, setSheet] = useState<'speed' | 'repeat' | 'reading' | 'blind' | 'lag' | 'island' | null>(null);
+  // An action a sheet's row picked, run once the sheet has fully closed (an
+  // Alert or a share sheet shown while the Modal is dismissing can vanish on
+  // iOS otherwise).
+  const afterSheet = useRef<(() => void) | null>(null);
+  function closeSheetThen(fn: () => void) {
+    afterSheet.current = fn;
+    setSheet(null);
+  }
+  function runAfterSheet() {
+    const fn = afterSheet.current;
+    afterSheet.current = null;
+    if (fn) fn();
+  }
   // Ring fill, 0..1, animated on the UI thread.
   const ring = useSharedValue(0);
   // The breath between repeats is silence the backend appends to the line's
@@ -163,6 +174,13 @@ export default function IslandScreen() {
   // The pad requested from the backend: always the breath plus the lag,
   // whatever the Repeat pill says, so tapping Repeat never restarts the line.
   const breathMs = LOOP_GAP_MS + lagMs;
+  const { exportNow, working: exporting } = useIslandExport({
+    islandId: island?.id ?? '',
+    title: island?.title ?? '',
+    speed,
+    gapMs: breathMs,
+    onError: setError,
+  });
   const phrase = usePhrase(lineKey, line, speed);
   const source = useMemo(
     () =>
@@ -382,16 +400,13 @@ export default function IslandScreen() {
 
   async function renameTitle(title: string) {
     if (!island) return;
-    // A single-line TextInput fires onSubmitEditing then onBlur for one
-    // return press (submitBehavior defaults to 'blurAndSubmit'). The ref
-    // closes that window synchronously so the second call is a no-op.
-    if (!editingTitleRef.current) return;
-    editingTitleRef.current = false;
     const finalTitle = title.trim() || 'Untitled island';
-    setEditingTitle(false);
     try {
       await api.renameIsland(island.id, finalTitle);
-      setIsland({ ...island, title: finalTitle });
+      // Functional update: this runs after the sheet's exit animation
+      // (`onDismissed`), so `island` closed over at call time may already be
+      // stale if a build or revoice updated it in the meantime.
+      setIsland((cur) => cur && { ...cur, title: finalTitle });
     } catch (e) {
       Alert.alert('Could not rename', e instanceof Error ? e.message : 'The server did not answer.');
     }
@@ -916,6 +931,21 @@ export default function IslandScreen() {
     persistPitch(next).catch(() => {});
   }
 
+  // The Speed sheet's slider release: the line is re-rendered at the new
+  // speed, and if it was playing, carries on at the new speed from the top
+  // instead of going silent.
+  function commitSpeed(next: number) {
+    if (next === speed) return;
+    const wasActive = status.playing;
+    dropTake();
+    stopPlayback(player);
+    cancelAnimation(ring);
+    ring.value = 0;
+    ringPhase.current = 'idle';
+    playWhenLoaded.current = wasActive;
+    setSpeed(next);
+  }
+
   // The take is only in phase 'recording' once startTake resolves, so the pill
   // stays tappable through the permission and audio mode round trips. This
   // holds the second tap off, which would otherwise prepare the recorder again
@@ -1055,11 +1085,43 @@ export default function IslandScreen() {
     wasWordPlaying.current = wordStatus.playing;
   }, [wordStatus.playing, status.playing]);
 
-  // ROUND C: opens the Island menu sheet.
-  function openIslandMenu() {}
+  function openIslandMenu() {
+    // The header `…` only renders in the main return below, but
+    // `Stack.Screen` options that omit `headerRight` merge onto whatever the
+    // last render set, so the button (and this handler) can still be live
+    // when a re-render drops into the failed/building or regenerating
+    // return, none of which render a sheet. Without this guard, a tap there
+    // sets `sheet` to 'island' and the menu pops open once the screen is
+    // back on the main return.
+    if (!line || regenerating) return;
+    setSheet('island');
+  }
 
-  // ROUND C: opens the Practice sheet.
-  function openPractice() {}
+  function confirmDelete() {
+    if (!island) return;
+    Alert.alert(
+      `Delete "${island.title || 'Untitled island'}"?`,
+      'Its lines, audio and takes are removed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => void removeIsland() },
+      ],
+    );
+  }
+
+  async function removeIsland() {
+    if (!island) return;
+    dropTake();
+    stopPlayback(player);
+    try {
+      await api.deleteIsland(island.id);
+      deleteTakes(island.id);
+      void releaseAudioSession();
+      router.back();
+    } catch (e) {
+      Alert.alert('Could not delete', e instanceof Error ? e.message : 'The server did not answer.');
+    }
+  }
 
   if (error && !island) {
     return (
@@ -1264,6 +1326,7 @@ export default function IslandScreen() {
           selected={false}
           mark={null}
           onLayout={() => {}}
+          showPosAndRomaji={false}
         />
       ))}
     </View>
@@ -1284,176 +1347,46 @@ export default function IslandScreen() {
     </>
   );
 
-  // ROUND C: remove this section once the sheets exist.
-  const tempSection = (
-    <View style={[styles.temp, { backgroundColor: palette.bg, borderTopColor: palette.line }]}>
-      <Text style={[styles.tempNote, { color: palette.muted }]}>
-        Temporary controls. Round C moves these into the Practice and Island sheets.
-      </Text>
-
-      <View style={styles.pillRow}>
-        <Text style={[styles.pillLabel, { color: palette.muted }]}>Repeat</Text>
-        {(['off', 'line', 'island'] as const).map((mode) => {
-          const on = repeat === mode;
-          return (
-            <Pressable
-              key={mode}
-              onPress={() => setRepeat(mode)}
-              style={[
-                styles.pill,
-                {
-                  backgroundColor: on ? palette.accent : palette.surface,
-                  borderColor: on ? palette.accent : palette.line,
-                },
-              ]}>
-              <Text style={[styles.pillText, { color: on ? palette.accentInk : palette.ink }]}>
-                {mode === 'off' ? 'Off' : mode === 'line' ? 'Line' : 'Island'}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <ReadingPills value={readingMode} onChange={pickReading} pitch={pitch} onTogglePitch={togglePitch} />
-
-      <View style={styles.shadowRow}>
-        <Pressable
-          onPress={toggleBlind}
-          style={[
-            styles.pill,
-            {
-              backgroundColor: blind ? palette.accent : palette.surface,
-              borderColor: blind ? palette.accent : palette.line,
-            },
-          ]}>
-          <Text style={[styles.pillText, { color: blind ? palette.accentInk : palette.ink }]}>Blind</Text>
-        </Pressable>
-        <Pressable
-          onPress={toggleHideEnglish}
-          style={[
-            styles.pill,
-            {
-              backgroundColor: hideEnglish ? palette.accent : palette.surface,
-              borderColor: hideEnglish ? palette.accent : palette.line,
-            },
-          ]}>
-          <Text style={[styles.pillText, { color: hideEnglish ? palette.accentInk : palette.ink }]}>Hide EN</Text>
-        </Pressable>
-        <Text style={[styles.pillLabel, styles.lagLabel, { color: palette.muted }]}>Lag</Text>
-        {LAG_OPTIONS.map((ms) => {
-          const on = lagMs === ms;
-          return (
-            <Pressable
-              key={ms}
-              onPress={() => pickLag(ms)}
-              style={[
-                styles.pill,
-                {
-                  backgroundColor: on ? palette.accent : palette.surface,
-                  borderColor: on ? palette.accent : palette.line,
-                },
-              ]}>
-              <Text style={[styles.pillText, { color: on ? palette.accentInk : palette.ink }]}>
-                {ms === 0 ? 'Off' : `${ms / 1000}s`}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <View style={styles.speedRow}>
-        <Text style={[styles.pillLabel, { color: palette.muted }]}>Speed</Text>
-        <Slider
-          style={styles.slider}
-          minimumValue={SPEED_MIN}
-          maximumValue={SPEED_MAX}
-          step={0.05}
-          value={speed}
-          onValueChange={(v) => setDragging(Math.round(v * 20) / 20)}
-          onSlidingComplete={(v) => {
-            setDragging(null);
-            const next = Math.round(v * 20) / 20;
-            if (next === speed) return;
-            // The line is re-rendered at the new speed; if it was playing,
-            // carry on at the new speed from the top instead of going silent.
-            const wasActive = status.playing;
-            dropTake();
-            stopPlayback(player);
-            cancelAnimation(ring);
-            ring.value = 0;
-            ringPhase.current = 'idle';
-            playWhenLoaded.current = wasActive;
-            setSpeed(next);
-          }}
-          minimumTrackTintColor={palette.accent}
-          maximumTrackTintColor={palette.line}
-          thumbTintColor={palette.accent}
-          accessibilityLabel="Playback speed"
-        />
-        <Text style={[styles.speedValue, { color: palette.ink }]}>
-          {(dragging ?? speed).toFixed(2)}x
-        </Text>
-      </View>
-
-      {voice !== null && island.speaker !== voice ? (
-        <Pressable
-          onPress={doRevoice}
-          disabled={revoicing || regenerating}
-          style={styles.action}>
-          <Text style={[styles.actionText, { color: revoicing || regenerating ? palette.muted : palette.accent }]}>
-            {revoicing ? 'Re-voicing…' : `Re-voice in ${voiceName || 'the chosen voice'}`}
-          </Text>
-        </Pressable>
-      ) : null}
-
-      {editingTitle ? (
-        <TextInput
-          autoFocus
-          value={draftTitle}
-          onChangeText={setDraftTitle}
-          onSubmitEditing={() => void renameTitle(draftTitle)}
-          onBlur={() => void renameTitle(draftTitle)}
-          style={[styles.titleInput, { color: palette.ink, borderColor: palette.line }]}
-        />
-      ) : (
-        <Pressable
-          onPress={() => {
-            setDraftTitle(island.title);
-            setEditingTitle(true);
-            editingTitleRef.current = true;
-          }}
-          style={styles.action}>
-          <Text style={[styles.actionText, { color: palette.accent }]}>
-            {island.title || 'Untitled island'}
-          </Text>
-        </Pressable>
-      )}
-
-      <ExportLink
-        islandId={island.id}
-        title={island.title}
-        speed={speed}
-        gapMs={breathMs}
-        disabled={revoicing || regenerating}
-      />
-
-      <Pressable onPress={confirmRegenerate} disabled={revoicing || regenerating} style={styles.action}>
-        <Text style={[styles.actionText, { color: revoicing || regenerating ? palette.muted : palette.accent }]}>
-          {regenerating
-            ? 'Regenerating…'
-            : island.complexity === 'simple'
-              ? 'Regenerate with complex patterns'
-              : 'Regenerate one sentence at a time'}
-        </Text>
-      </Pressable>
-
-      <Pressable onPress={() => void calibrateSpeaker()} disabled={take.phase === 'recording'} style={styles.action}>
-        <Text style={[styles.actionText, { color: take.phase === 'recording' ? palette.muted : palette.accent }]}>
-          Calibrate speaker
-        </Text>
-      </Pressable>
-    </View>
-  );
+  // Above the dock: Speed, Repeat, Reading, Blind, Lag, each opening its own
+  // sheet. Opening a sheet never touches playback.
+  const toolbarItems: ToolbarItem[] = [
+    {
+      key: 'speed',
+      icon: <SpeedIcon color={tide.textDim} size={22} />,
+      label: 'Speed',
+      value: `${speed.toFixed(2)}x`,
+      onPress: () => setSheet('speed'),
+    },
+    {
+      key: 'repeat',
+      icon: <RepeatIcon color={tide.textDim} size={22} />,
+      label: 'Repeat',
+      value: REPEAT_LABEL[repeat],
+      onPress: () => setSheet('repeat'),
+    },
+    {
+      key: 'reading',
+      icon: <ReadingIcon color={tide.textDim} size={22} />,
+      label: 'Reading',
+      value: READING_LABEL[readingMode],
+      onPress: () => setSheet('reading'),
+    },
+    {
+      key: 'blind',
+      icon: <BlindIcon color={blind ? tide.lang.ja : tide.textDim} size={22} />,
+      label: 'Blind',
+      value: blind ? 'On' : 'Off',
+      active: blind,
+      onPress: () => setSheet('blind'),
+    },
+    {
+      key: 'lag',
+      icon: <LagIcon color={tide.textDim} size={22} />,
+      label: 'Lag',
+      value: lagLabel(lagMs),
+      onPress: () => setSheet('lag'),
+    },
+  ];
 
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
@@ -1492,6 +1425,7 @@ export default function IslandScreen() {
           />
 
           <View style={styles.dock}>
+            <Toolbar items={toolbarItems} />
             {take.phase !== 'idle' || take.error ? (
               <TakeRow
                 phase={take.phase}
@@ -1518,13 +1452,49 @@ export default function IslandScreen() {
               nextDisabled={idx >= island.lines.length - 1}
               recording={take.phase === 'recording'}
               onRecord={() => void (take.phase === 'recording' ? toggle() : recordTake())}
-              onPractice={openPractice}
             />
           </View>
         </View>
-
-        {tempSection}
       </ScrollView>
+
+      <SpeedSheet open={sheet === 'speed'} onClose={() => setSheet(null)} onDismissed={runAfterSheet} speed={speed} onCommit={commitSpeed} />
+      <RepeatSheet open={sheet === 'repeat'} onClose={() => setSheet(null)} onDismissed={runAfterSheet} value={repeat} onChange={setRepeat} />
+      <ReadingSheet
+        open={sheet === 'reading'}
+        onClose={() => setSheet(null)}
+        onDismissed={runAfterSheet}
+        value={readingMode}
+        onChange={pickReading}
+        pitch={pitch}
+        onTogglePitch={togglePitch}
+      />
+      <BlindSheet
+        open={sheet === 'blind'}
+        onClose={() => setSheet(null)}
+        onDismissed={runAfterSheet}
+        blind={blind}
+        onToggleBlind={toggleBlind}
+        hideEnglish={hideEnglish}
+        onToggleHideEnglish={toggleHideEnglish}
+      />
+      <LagSheet open={sheet === 'lag'} onClose={() => setSheet(null)} onDismissed={runAfterSheet} value={lagMs} onChange={pickLag} />
+      <IslandMenuSheet
+        open={sheet === 'island'}
+        onClose={() => setSheet(null)}
+        onDismissed={runAfterSheet}
+        title={island.title}
+        complexity={island.complexity}
+        busy={revoicing || regenerating}
+        recording={take.phase === 'recording'}
+        exporting={exporting}
+        revoiceName={voice !== null && island.speaker !== voice ? voiceName || 'the chosen voice' : null}
+        onRename={(t) => closeSheetThen(() => void renameTitle(t))}
+        onExport={() => closeSheetThen(() => void exportNow())}
+        onRevoice={() => closeSheetThen(() => void doRevoice())}
+        onRegenerate={() => closeSheetThen(confirmRegenerate)}
+        onCalibrate={() => closeSheetThen(() => void calibrateSpeaker())}
+        onDelete={() => closeSheetThen(confirmDelete)}
+      />
     </SafeAreaView>
   );
 }
@@ -1547,30 +1517,4 @@ const styles = StyleSheet.create({
   retry: { paddingVertical: Spacing.md, paddingHorizontal: Spacing.xxl, borderRadius: Radius.pill, marginTop: Spacing.md },
   secondaryBtn: { paddingVertical: Spacing.md, marginTop: Spacing.sm },
   retryText: { fontSize: 15, fontWeight: '700' },
-  action: { alignItems: 'center', paddingVertical: Spacing.xs },
-  actionText: { fontSize: 14, fontWeight: '600' },
-  titleInput: {
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
-    paddingVertical: Spacing.xs,
-    borderBottomWidth: 1,
-  },
-  pillRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, justifyContent: 'center' },
-  pillLabel: { fontSize: 13, fontWeight: '600', minWidth: 52 },
-  pill: { borderWidth: 1, borderRadius: Radius.pill, paddingVertical: Spacing.xs + 2, paddingHorizontal: Spacing.md },
-  pillText: { fontSize: 13, fontWeight: '700' },
-  shadowRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    flexWrap: 'wrap',
-  },
-  lagLabel: { minWidth: 0, marginLeft: Spacing.sm },
-  speedRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  slider: { flex: 1, height: 36 },
-  speedValue: { fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'], minWidth: 52, textAlign: 'right' },
-  temp: { borderTopWidth: 1, padding: Spacing.lg, gap: Spacing.md },
-  tempNote: { fontSize: 13, lineHeight: 18 },
 });

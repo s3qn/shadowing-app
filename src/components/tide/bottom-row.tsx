@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 
 import { fonts } from '@/constants/fonts';
@@ -16,13 +16,12 @@ type Props = {
   nextDisabled: boolean;
   recording: boolean;
   onRecord: () => void;
-  onPractice: () => void;
 };
 
 /**
- * The player's dock: prev/next, the ring (play/stop), the round record
- * button and a Practice pill. One row, always in the same place at the
- * bottom of the fold.
+ * The player's dock: prev/next, the ring (play/stop) and the round record
+ * button. One row, always in the same place at the bottom of the fold, with
+ * the toolbar above it.
  */
 export function BottomRow({
   ring,
@@ -34,7 +33,6 @@ export function BottomRow({
   nextDisabled,
   recording,
   onRecord,
-  onPractice,
 }: Props) {
   return (
     <View style={styles.row}>
@@ -47,9 +45,6 @@ export function BottomRow({
         accessibilityLabel={recording ? 'Stop recording' : 'Record my take'}
         style={[styles.round, recording && styles.recordActive]}>
         <View style={[styles.recordDot, recording && styles.recordDotActive]} />
-      </PressScale>
-      <PressScale onPress={onPractice} accessibilityRole="button" accessibilityLabel="Practice" style={styles.practice}>
-        <Text style={styles.practiceText}>Practice</Text>
       </PressScale>
     </View>
   );
@@ -93,15 +88,4 @@ const styles = StyleSheet.create({
   recordActive: { backgroundColor: tide.record },
   recordDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: tide.record },
   recordDotActive: { backgroundColor: tide.sky[0] },
-  practice: {
-    height: 44,
-    borderRadius: 999,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  practiceText: { fontFamily: fonts.uiMedium, fontSize: 13, color: tide.text },
 });

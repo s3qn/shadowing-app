@@ -44,12 +44,27 @@ def test_particle_stays_its_own_chunk():
     assert [c["text"] for c in chunks] == ["今日", "は", "学校", "に", "行きます。"]
 
 
+def test_tokenize_tags_pos_group():
+    chunks = segment.tokenize("今日は学校に行きます。")
+    by_text = {c["text"]: c["pos"] for c in chunks}
+    assert by_text["今日"] == "noun"
+    assert by_text["は"] == "particle"
+    assert by_text["学校"] == "noun"
+    assert by_text["行きます。"] == "verb"
+
+
 def test_auxiliary_chain_folds_into_the_verb_before_it():
     # 飲んでいます: 飲ん(verb) + で(conn. particle) + い(non-independent verb)
     # + ます(auxiliary) all fold into one chunk, not four.
     chunks = segment.tokenize("十時に飲んでいます。")
     texts = [c["text"] for c in chunks]
     assert "飲んでいます。" in texts
+
+
+def test_auxiliary_chain_keeps_the_anchor_verbs_pos():
+    chunks = segment.tokenize("十時に飲んでいます。")
+    chunk = next(c for c in chunks if c["text"] == "飲んでいます。")
+    assert chunk["pos"] == "verb"
 
 
 def test_counter_folds_into_the_number_before_it():
@@ -191,6 +206,17 @@ def test_align_words_carry_ruby():
     assert words[0]["ruby"] == [{"text": "今日", "rt": "きょう"}]
     particle_word = next(w for w in words if w["text"] == "は")
     assert particle_word["ruby"] == [{"text": "は", "rt": ""}]
+
+
+def test_align_words_carry_pos():
+    text = "今日は学校に行きます。"
+    chunks = segment.tokenize(text)
+    timeline = _fake_timeline(chunks)
+
+    words = segment.align(text, timeline)
+
+    for w in words:
+        assert w["pos"] in {"noun", "verb", "adjective", "particle", "other"}
 
 
 def test_align_fallback_carries_ruby():

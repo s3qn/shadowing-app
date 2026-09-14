@@ -1,17 +1,14 @@
 import * as Sharing from 'expo-sharing';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
 
-import { Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
 
-type Props = {
+type Params = {
   islandId: string;
   title: string;
   speed: number;
   gapMs: number;
-  disabled?: boolean;
+  onError: (message: string) => void;
 };
 
 // Each line twice, breath in between. The server accepts 1 to 4.
@@ -22,7 +19,7 @@ const WHITESPACE = /\s+/g;
 
 /** Mirrors the backend's `file_name` so the client and the server agree on
  * what the shared file is called. */
-function exportFileName(title: string, speed: number): string {
+export function exportFileName(title: string, speed: number): string {
   let safe = title.replace(UNSAFE_CHARS, ' ').replace(WHITESPACE, ' ').trim();
   safe = safe.slice(0, 60).trim();
   if (!safe) safe = 'Island';
@@ -35,12 +32,12 @@ const GENERIC_ERROR = 'Could not export this island. Try again.';
 /** The native download error carries only the HTTP status, worded per
  * platform ("response has status: 409" on Android, "response has status 409"
  * or "server returned HTTP 409" on iOS). Returns null when there is none. */
-function statusFromError(message: string): number | null {
+export function statusFromError(message: string): number | null {
   const match = /(?:status|HTTP)\s*:?\s*(\d{3})\b/i.exec(message);
   return match ? Number(match[1]) : null;
 }
 
-function exportErrorText(e: unknown): string {
+export function exportErrorText(e: unknown): string {
   const message = e instanceof Error ? e.message : '';
   if (message === SHARING_UNAVAILABLE) return message;
   switch (statusFromError(message)) {
@@ -54,15 +51,13 @@ function exportErrorText(e: unknown): string {
 }
 
 /**
- * A link that downloads the island as one m4a and hands it to the phone's
- * share sheet, so it can be saved to Files, Drive or a player app for
- * listening outside the app.
+ * Downloads the island as one m4a and hands it to the phone's share sheet,
+ * so it can be saved to Files, Drive or a player app for listening outside
+ * the app. Errors go through `onError` (the screen's own banner) instead of
+ * an inline line, since the Island menu sheet has no room for one.
  */
-export function ExportLink({ islandId, title, speed, gapMs, disabled }: Props) {
-  const { palette } = useTheme();
+export function useIslandExport({ islandId, title, speed, gapMs, onError }: Params) {
   const [working, setWorking] = useState(false);
-  const [error, setError] = useState('');
-
   // A ref, not the state: two taps in the same frame both see working false.
   const busy = useRef(false);
   const mounted = useRef(true);
@@ -73,11 +68,10 @@ export function ExportLink({ islandId, title, speed, gapMs, disabled }: Props) {
     };
   }, []);
 
-  const onPress = async () => {
-    if (disabled || busy.current) return;
+  async function exportNow() {
+    if (busy.current) return;
     busy.current = true;
     setWorking(true);
-    setError('');
     try {
       if (!(await Sharing.isAvailableAsync())) {
         throw new Error(SHARING_UNAVAILABLE);
@@ -92,31 +86,12 @@ export function ExportLink({ islandId, title, speed, gapMs, disabled }: Props) {
         dialogTitle: title || 'Island',
       });
     } catch (e) {
-      if (mounted.current) setError(exportErrorText(e));
+      if (mounted.current) onError(exportErrorText(e));
     } finally {
       busy.current = false;
       if (mounted.current) setWorking(false);
     }
-  };
+  }
 
-  return (
-    <>
-      <Pressable onPress={onPress} disabled={disabled || working} style={styles.action}>
-        <Text style={[styles.actionText, { color: disabled || working ? palette.muted : palette.accent }]}>
-          {working ? 'Exporting…' : 'Export as audio'}
-        </Text>
-      </Pressable>
-      {error ? (
-        <Pressable onPress={() => setError('')}>
-          <Text style={[styles.inlineError, { color: palette.danger }]}>{error}</Text>
-        </Pressable>
-      ) : null}
-    </>
-  );
+  return { exportNow, working };
 }
-
-const styles = StyleSheet.create({
-  action: { alignItems: 'center', paddingVertical: Spacing.xs },
-  actionText: { fontSize: 14, fontWeight: '600' },
-  inlineError: { fontSize: 13, lineHeight: 18, textAlign: 'center' },
-});

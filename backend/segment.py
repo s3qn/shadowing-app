@@ -32,6 +32,11 @@ _SMALL = set("ャュョァィゥェォヮ")
 _ATTACH_TOP = ("助動詞", "記号", "補助記号")
 _ATTACH_SUB = ("接尾", "非自立", "接続助詞")
 _PUNCT = set("、。！？!?…「」『』（）()・")
+_POS_GROUP = {"名詞": "noun", "動詞": "verb", "形容詞": "adjective", "形状詞": "adjective"}
+
+
+def _pos_group(top: str, is_particle: bool) -> str:
+    return _POS_GROUP.get(top, "particle" if is_particle else "other")
 
 # Vowel of each katakana mora, used to normalise long vowels: janome writes
 # セイ and トウ, VOICEVOX speaks セエ and トオ, and ー becomes the vowel before it.
@@ -121,13 +126,13 @@ def tokenize(text: str) -> list[dict]:
             # Digits, Latin letters, unknown names: VOICEVOX will say something
             # here, we just do not know how many moras. Keep the text and let
             # the alignment hand it the gap before the next matched word.
-            chunks.append({"text": pending + tok.surface, "moras": [], "unknown": True})
+            chunks.append({"text": pending + tok.surface, "moras": [], "unknown": True, "pos": _pos_group(top, is_particle)})
             pending = ""
             continue
         if is_punct and not chunks:
             pending += tok.surface
             continue
-        chunks.append({"text": pending + tok.surface, "moras": moras, "unknown": False})
+        chunks.append({"text": pending + tok.surface, "moras": moras, "unknown": False, "pos": _pos_group(top, is_particle)})
         pending = ""
     if pending and chunks:
         chunks[-1]["text"] += pending
@@ -308,7 +313,7 @@ def align(text: str, timeline: list[dict]) -> list[dict]:
                 if first > last:
                     words[-1]["text"] += chunk["text"]
                     continue
-            words.append({"text": chunk["text"], "_first": first, "_last": last})
+            words.append({"text": chunk["text"], "_first": first, "_last": last, "pos": chunk["pos"]})
         if not words:
             return whole
         # Close the gaps so spans are contiguous, then stretch to the edges.
@@ -324,6 +329,7 @@ def align(text: str, timeline: list[dict]) -> list[dict]:
                 "ruby": checked_ruby(
                     w["text"], [m["text"] for m in timeline[w["_first"]:w["_last"] + 1]]
                 ),
+                "pos": w["pos"],
             }
             for w in words
         ]

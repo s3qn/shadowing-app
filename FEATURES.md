@@ -106,6 +106,13 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   up or down to change or replay the line.
 - Press feedback: round buttons spring and give a light haptic tap when
   pressed.
+- Toolbar sheets: Speed, Repeat, Reading, Blind and Lag each open a small
+  bottom sheet; the Island menu (rename, export, re-voice, regenerate,
+  calibrate, delete) is a sheet too
+- Take row and word panel restyled to Tide, with early, late and dropped
+  counts coloured
+- Part-of-speech underline under each word, with small romaji below in
+  Furigana mode
 
 ## Next (approved, in order)
 

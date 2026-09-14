@@ -60,6 +60,13 @@ export const tide = {
   record: '#FF8F7A',   // :root --coral
   text: '#ECE8F4',     // :root --ink
   textDim: '#B7B1C6',  // :root --ink2
+  pos: {
+    noun: '#6FB6E8',
+    verb: '#5FD9A6',
+    adjective: '#E6A6D9',
+    particle: '#C9B458',
+    other: '#B7B1C6',
+  },
 } as const;
 
 export const Fonts = Platform.select({
