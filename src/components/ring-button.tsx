@@ -1,8 +1,9 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedProps, type SharedValue } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 
-import { useTheme } from '@/hooks/use-theme';
+import { PressScale } from '@/components/press-scale';
+import { tide } from '@/constants/theme';
 
 export type RingMode = 'idle' | 'playing' | 'breath';
 
@@ -14,20 +15,18 @@ type Props = {
    * drains during the breath. */
   progress: SharedValue<number>;
   mode: RingMode;
-  /** Seconds left in the breath, shown in the middle. */
-  countdown?: number | null;
   onPress: () => void;
 };
 
 /**
  * The one big control. A ring around a Play/Stop button carries the state:
- * empty at rest, filling while the line plays, draining through the breath
- * with the countdown in the middle. The arc is driven by a shared value so it
- * moves at the display's frame rate without touching JavaScript.
+ * empty at rest, filling while the line plays, draining through the breath.
+ * The scene shows the breath's countdown; this button only fills and drains.
+ * The arc is driven by a shared value so it moves at the display's frame
+ * rate without touching JavaScript.
  */
-export function RingButton({ size = 176, progress, mode, countdown = null, onPress }: Props) {
-  const { palette } = useTheme();
-  const stroke = 8;
+export function RingButton({ size = 84, progress, mode, onPress }: Props) {
+  const stroke = 4;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const active = mode !== 'idle';
@@ -37,18 +36,18 @@ export function RingButton({ size = 176, progress, mode, countdown = null, onPre
   }));
 
   return (
-    <Pressable
+    <PressScale
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={active ? 'Stop' : 'Play'}
       style={[styles.wrap, { width: size, height: size }]}>
       <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
-        <Circle cx={size / 2} cy={size / 2} r={r} stroke={palette.line} strokeWidth={stroke} fill="none" />
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(255,255,255,0.15)" strokeWidth={stroke} fill="none" />
         <AnimatedCircle
           cx={size / 2}
           cy={size / 2}
           r={r}
-          stroke={palette.accent}
+          stroke={tide.lang.ja}
           strokeWidth={stroke}
           strokeLinecap="round"
           fill="none"
@@ -58,32 +57,26 @@ export function RingButton({ size = 176, progress, mode, countdown = null, onPre
           origin={`${size / 2}, ${size / 2}`}
         />
       </Svg>
-      <View style={[styles.core, { backgroundColor: active ? palette.accent : palette.surfaceAlt }]}>
-        {mode === 'breath' && countdown !== null ? (
-          <Text style={[styles.count, { color: palette.accentInk }]}>{countdown}</Text>
-        ) : active ? (
-          <View style={[styles.stop, { backgroundColor: palette.accentInk }]} />
-        ) : (
-          <View style={[styles.play, { borderLeftColor: palette.ink }]} />
-        )}
+      <View style={[styles.core, { backgroundColor: active ? tide.lang.ja : 'rgba(255,255,255,0.1)' }]}>
+        {active ? <View style={styles.stop} /> : <View style={styles.play} />}
       </View>
-    </Pressable>
+    </PressScale>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center' },
   core: { width: '72%', height: '72%', borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  count: { fontSize: 40, fontWeight: '300', fontVariant: ['tabular-nums'] },
-  stop: { width: 30, height: 30, borderRadius: 6 },
+  stop: { width: 18, height: 18, borderRadius: 2, backgroundColor: tide.sky[0] },
   play: {
     width: 0,
     height: 0,
-    marginLeft: 8,
-    borderTopWidth: 20,
-    borderBottomWidth: 20,
-    borderLeftWidth: 34,
+    marginLeft: 5,
+    borderTopWidth: 13,
+    borderBottomWidth: 13,
+    borderLeftWidth: 22,
     borderTopColor: 'transparent',
     borderBottomColor: 'transparent',
+    borderLeftColor: tide.text,
   },
 });

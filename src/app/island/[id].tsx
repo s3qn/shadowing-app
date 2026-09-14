@@ -2,6 +2,7 @@ import Slider from '@react-native-community/slider';
 import { isRunningInExpoGo } from 'expo';
 import { type AudioMetadata, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { Stack, useLocalSearchParams } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -9,26 +10,30 @@ import {
   AppState,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, ScrollView } from 'react-native-gesture-handler';
 import { cancelAnimation, Easing, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BottomRow } from '@/components/tide/bottom-row';
+import { PlayerTitle } from '@/components/tide/player-title';
+import { TideScene } from '@/components/tide/tide-scene';
 import { ExportLink } from '@/components/export-link';
+import { PressScale } from '@/components/press-scale';
 import { PhraseBar } from '@/components/phrase-bar';
 import { PitchReading } from '@/components/pitch-reading';
 import { ReadingPills } from '@/components/reading-pills';
-import { RingButton, type RingMode } from '@/components/ring-button';
+import { type RingMode } from '@/components/ring-button';
 import { RubyWord } from '@/components/ruby-word';
 import { SELECTION_POPUP_WIDTH, SelectionPopup } from '@/components/selection-popup';
 import { TakeRow } from '@/components/take-row';
 import { POPOVER_WIDTH, WordPanel } from '@/components/word-panel';
-import { Radius, SPEED_MAX, SPEED_MIN, Spacing } from '@/constants/theme';
+import { fonts } from '@/constants/fonts';
+import { Radius, SPEED_MAX, SPEED_MIN, Spacing, tide } from '@/constants/theme';
 import { usePhrase, type PhraseSpan } from '@/hooks/use-phrase';
 import { usePracticeClock } from '@/hooks/use-practice-clock';
 import { useTake, type TakeMode } from '@/hooks/use-take';
@@ -142,6 +147,10 @@ export default function IslandScreen() {
   // gesture below can hit-test a touch point to a word.
   const wordBoxes = useRef<Record<number, { x: number; y: number; width: number; height: number }>>({});
   const [blockWidth, setBlockWidth] = useState(0);
+  // The height of the scroll viewport itself (not its content): the scene and
+  // dock fill exactly one screen, and the temporary section is reached below it.
+  const [viewportH, setViewportH] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
   // The run of words a drag has selected. Set on the pan gesture's start and
   // update, left alone on end: that is what shows the Repeat popup.
   const [dragSpan, setDragSpan] = useState<PhraseSpan | null>(null);
@@ -746,7 +755,25 @@ export default function IslandScreen() {
       const i = hitTest(e.x, e.y);
       if (i !== null) void tapWord(i);
     });
-  const sentenceGesture = Gesture.Exclusive(pan, tap);
+  // A quick vertical drag reads as a swipe instead of the phrase-selection
+  // pan: the pan only activates after a 450ms hold, so a fast flick falls
+  // through to this before that timer fires. blocksExternalGesture holds the
+  // outer scroll view off until the swipe fails, so a horizontal or slow drag
+  // still reaches it.
+  const swipe = Gesture.Pan()
+    .runOnJS(true)
+    .activeOffsetY([-16, 16])
+    .failOffsetX([-24, 24])
+    .blocksExternalGesture(scrollRef)
+    .onEnd((e) => {
+      if (e.translationY < -40 || e.velocityY < -500) next();
+      else if (e.translationY > 40 || e.velocityY > 500) {
+        playWhenLoaded.current = false;
+        setDragSpan(null);
+        void playFromTop();
+      }
+    });
+  const sentenceGesture = Gesture.Exclusive(pan, swipe, tap);
 
   // The drag selection's popup Repeat button: same follow-up as picking a
   // phrase used to run, then the selection (and its popup) is done.
@@ -805,6 +832,21 @@ export default function IslandScreen() {
   const next = () => go(idx + 1);
   const prev = () => go(idx - 1);
 
+  // Starts the line fresh from the top, whether or not it was already
+  // playing: shared by the ring's Play tap and a swipe down on the sentence.
+  async function playFromTop() {
+    dropTake();
+    ringPhase.current = 'idle';
+    try {
+      await player.seekTo(0);
+    } catch {
+      // A seek can fail while the item is still loading; play anyway.
+    }
+    // A short phrase can reach lineEnd before a status below it resets this.
+    crossed.current = false;
+    startPlayback(player);
+  }
+
   // Lines are short, so Play always starts the sentence from the top. There is
   // no resuming from the middle: that is never what you want when shadowing.
   async function toggle() {
@@ -817,16 +859,7 @@ export default function IslandScreen() {
       void releaseAudioSession();
       return;
     }
-    dropTake();
-    ringPhase.current = 'idle';
-    try {
-      await player.seekTo(0);
-    } catch {
-      // A seek can fail while the item is still loading; play anyway.
-    }
-    // A short phrase can reach lineEnd before a status below it resets this.
-    crossed.current = false;
-    startPlayback(player);
+    await playFromTop();
   }
 
   function toggleBlind() {
@@ -1022,9 +1055,15 @@ export default function IslandScreen() {
     wasWordPlaying.current = wordStatus.playing;
   }, [wordStatus.playing, status.playing]);
 
+  // ROUND C: opens the Island menu sheet.
+  function openIslandMenu() {}
+
+  // ROUND C: opens the Practice sheet.
+  function openPractice() {}
+
   if (error && !island) {
     return (
-      <SafeAreaView style={StyleSheet.flatten([styles.fill, styles.center, { backgroundColor: palette.bg }])}>
+      <SafeAreaView style={StyleSheet.flatten([styles.fill, styles.center, { backgroundColor: tide.sky[0] }])}>
         <Text style={[styles.body, { color: palette.danger }]}>{error}</Text>
         <Pressable
           onPress={() => setAttempt((n) => n + 1)}
@@ -1036,7 +1075,7 @@ export default function IslandScreen() {
   }
   if (!island) {
     return (
-      <SafeAreaView style={StyleSheet.flatten([styles.fill, styles.center, { backgroundColor: palette.bg }])}>
+      <SafeAreaView style={StyleSheet.flatten([styles.fill, styles.center, { backgroundColor: tide.sky[0] }])}>
         <ActivityIndicator color={palette.accent} />
       </SafeAreaView>
     );
@@ -1046,10 +1085,10 @@ export default function IslandScreen() {
     // silent spinner. Offer the way out.
     const busy = island.status === 'pending' || island.status === 'working';
     return (
-      <SafeAreaView style={StyleSheet.flatten([styles.fill, styles.center, { backgroundColor: palette.bg }])}>
+      <SafeAreaView style={StyleSheet.flatten([styles.fill, styles.center, { backgroundColor: tide.sky[0] }])}>
         <Stack.Screen options={{ title: island.title || 'Island' }} />
         {busy ? <ActivityIndicator color={palette.accent} /> : null}
-        <Text style={[styles.body, { color: busy ? palette.muted : palette.danger }]}>
+        <Text style={[styles.body, { color: busy ? tide.textDim : palette.danger }]}>
           {busy
             ? 'Still building this island…'
             : island.error || 'This island has no lines.'}
@@ -1070,7 +1109,7 @@ export default function IslandScreen() {
           </Pressable>
         ) : (
           <Pressable onPress={() => setAttempt((n) => n + 1)} style={styles.secondaryBtn}>
-            <Text style={[styles.retryText, { color: palette.muted }]}>Refresh</Text>
+            <Text style={[styles.retryText, { color: tide.textDim }]}>Refresh</Text>
           </Pressable>
         )}
       </SafeAreaView>
@@ -1079,10 +1118,10 @@ export default function IslandScreen() {
 
   if (regenerating) {
     return (
-      <SafeAreaView style={StyleSheet.flatten([styles.fill, styles.center, { backgroundColor: palette.bg }])}>
+      <SafeAreaView style={StyleSheet.flatten([styles.fill, styles.center, { backgroundColor: tide.sky[0] }])}>
         <Stack.Screen options={{ title: island.title || 'Island' }} />
         <ActivityIndicator color={palette.accent} />
-        <Text style={[styles.body, { color: palette.muted }]}>
+        <Text style={[styles.body, { color: tide.textDim }]}>
           {api.STAGE_LABEL[buildStage] ?? 'Rebuilding this island…'}
         </Text>
       </SafeAreaView>
@@ -1156,274 +1195,336 @@ export default function IslandScreen() {
   const dragPopTop = dragUnion ? dragUnion.bottom + 6 : 0;
   const progress = status.duration > 0 ? status.currentTime / status.duration : 0;
 
-  return (
-    <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: palette.bg }])}>
-      <Stack.Screen options={{ title: island.title || 'Island' }} />
-
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={[styles.counter, { color: palette.muted }]}>
-          {idx + 1} of {island.lines.length}
-        </Text>
-        {error ? (
-          <Pressable onPress={() => setError('')}>
-            <Text style={[styles.inlineError, { color: palette.danger }]}>{error}</Text>
-          </Pressable>
-        ) : null}
-
-        {hidden ? (
-          <Pressable onPress={() => setPeekKey(lineKey)} style={styles.peek} accessibilityRole="button">
-            <Text style={[styles.en, { color: palette.muted }]}>Tap to peek</Text>
-          </Pressable>
-        ) : (
-          <>
-            {line.words.length > 0 ? (
-              <View
-                style={styles.block}
-                onLayout={(e) => setBlockWidth(e.nativeEvent.layout.width)}>
-              <GestureDetector gesture={sentenceGesture}>
-                <View style={styles.words}>
-                  {line.words.map((w, i) => (
-                    <RubyWord
-                      key={i}
-                      word={w}
-                      showRuby={readingMode === 'furigana'}
-                      active={i === activeWord}
-                      selected={i === selected || (!!dragSpan && i >= dragSpan.from && i <= dragSpan.to)}
-                      dimmed={!!phrase.span && (i < phrase.span.from || i > phrase.span.to)}
-                      mark={marks && marks[i] !== 'ok' && marks[i] !== 'none' ? marks[i] : null}
-                      onLayout={(e) => {
-                        wordBoxes.current[i] = e.nativeEvent.layout;
-                      }}
-                    />
-                  ))}
-                </View>
-              </GestureDetector>
-              {selected !== null && line.words[selected] ? (
-                <WordPanel
-                  word={line.words[selected]!.text}
-                  gloss={glossData}
-                  left={popLeft}
-                  top={popTop}
-                  romaji={readingMode === 'romaji'}
-                  onHear={() => hearWord()}
-                  onClose={closePanel}
+  // The sentence sits on the waterline: the tappable block when words are
+  // known, the fallback line when they are not, then the reading and pitch
+  // rows. Blind swaps the whole slot for the peek prompt.
+  const sentence = hidden ? (
+    <Pressable onPress={() => setPeekKey(lineKey)} style={styles.peek} accessibilityRole="button">
+      <Text style={styles.peekText}>Tap to peek</Text>
+    </Pressable>
+  ) : (
+    <>
+      {line.words.length > 0 ? (
+        <View style={styles.block} onLayout={(e) => setBlockWidth(e.nativeEvent.layout.width)}>
+          <GestureDetector gesture={sentenceGesture}>
+            <View style={styles.words}>
+              {line.words.map((w, i) => (
+                <RubyWord
+                  key={i}
+                  word={w}
+                  showRuby={readingMode === 'furigana'}
+                  active={i === activeWord}
+                  selected={i === selected || (!!dragSpan && i >= dragSpan.from && i <= dragSpan.to)}
+                  dimmed={!!phrase.span && (i < phrase.span.from || i > phrase.span.to)}
+                  mark={marks && marks[i] !== 'ok' && marks[i] !== 'none' ? marks[i] : null}
+                  onLayout={(e) => {
+                    wordBoxes.current[i] = e.nativeEvent.layout;
+                  }}
                 />
-              ) : null}
-              {dragSpan && dragUnion ? (
-                <SelectionPopup left={dragPopLeft} top={dragPopTop} onRepeat={repeatSelection} />
-              ) : null}
-              </View>
-            ) : (
-              <Text style={[styles.ja, { color: palette.ink }]}>{line.ja}</Text>
-            )}
-
-            {modeLine !== null && !(readingMode === 'kana' && cells) ? (
-              <Text style={[styles.reading, { color: palette.muted }]}>{modeLine}</Text>
-            ) : null}
-            {cells ? <PitchReading cells={cells} /> : null}
-
-            {!hideEnglish ? (
-              <Pressable onPress={() => setShowEnglish((v) => !v)}>
-                <Text style={[styles.en, { color: showEnglish ? palette.ink : palette.muted }]}>
-                  {showEnglish ? line.en : 'Tap to show the English'}
-                </Text>
-              </Pressable>
-            ) : null}
-          </>
-        )}
-
-        <PhraseBar label={phrase.label} hidden={hidden} onClear={clearPhrase} />
-      </ScrollView>
-
-      <View style={[styles.controls, { borderTopColor: palette.line }]}>
-        <View style={styles.ringRow}>
-          <Pressable onPress={prev} disabled={idx === 0} hitSlop={16} style={styles.side}>
-            <Text style={[styles.sideText, { color: idx === 0 ? palette.line : palette.ink }]}>‹</Text>
-          </Pressable>
-          <RingButton progress={ring} mode={ringMode} countdown={countdown} onPress={toggle} />
-          <Pressable
-            onPress={next}
-            disabled={idx >= island.lines.length - 1}
-            hitSlop={16}
-            style={styles.side}>
-            <Text
-              style={[styles.sideText, { color: idx >= island.lines.length - 1 ? palette.line : palette.ink }]}>
-              ›
-            </Text>
-          </Pressable>
+              ))}
+            </View>
+          </GestureDetector>
+          {selected !== null && line.words[selected] ? (
+            <WordPanel
+              word={line.words[selected]!.text}
+              gloss={glossData}
+              left={popLeft}
+              top={popTop}
+              romaji={readingMode === 'romaji'}
+              onHear={() => hearWord()}
+              onClose={closePanel}
+            />
+          ) : null}
+          {dragSpan && dragUnion ? (
+            <SelectionPopup left={dragPopLeft} top={dragPopTop} onRepeat={repeatSelection} />
+          ) : null}
         </View>
+      ) : (
+        <Text style={styles.ja}>{line.ja}</Text>
+      )}
 
-        <TakeRow
-          phase={take.phase}
-          level={take.level}
-          takePlaying={take.takePlaying}
-          comparing={comparing}
-          error={take.error}
-          clean={take.clean}
-          score={take.take?.score ?? null}
-          calibrating={take.mode === 'calibrate' && take.phase === 'recording'}
-          onRecord={() => void recordTake()}
-          onCompare={compare}
-          onPlayTake={hearTake}
-          onCalibrate={() => void calibrateSpeaker()}
+      {modeLine !== null && !(readingMode === 'kana' && cells) ? (
+        <Text style={styles.reading}>{modeLine}</Text>
+      ) : null}
+      {cells ? <PitchReading cells={cells} /> : null}
+    </>
+  );
+
+  // The same words again, drawn upside down under the waterline by the
+  // scene itself; never tappable, so no panel, no popup, no marks.
+  const reflection = hidden ? null : line.words.length > 0 ? (
+    <View style={styles.words}>
+      {line.words.map((w, i) => (
+        <RubyWord
+          key={i}
+          word={w}
+          showRuby={readingMode === 'furigana'}
+          active={i === activeWord}
+          dimmed={!!phrase.span && (i < phrase.span.from || i > phrase.span.to)}
+          selected={false}
+          mark={null}
+          onLayout={() => {}}
         />
+      ))}
+    </View>
+  ) : (
+    <Text style={styles.ja}>{line.ja}</Text>
+  );
 
-        {voice !== null && island.speaker !== voice ? (
-          <Pressable
-            onPress={doRevoice}
-            disabled={revoicing || regenerating}
-            style={styles.action}>
-            <Text style={[styles.actionText, { color: revoicing || regenerating ? palette.muted : palette.accent }]}>
-              {revoicing ? 'Re-voicing…' : `Re-voice in ${voiceName || 'the chosen voice'}`}
-            </Text>
-          </Pressable>
-        ) : null}
-
-        {editingTitle ? (
-          <TextInput
-            autoFocus
-            value={draftTitle}
-            onChangeText={setDraftTitle}
-            onSubmitEditing={() => void renameTitle(draftTitle)}
-            onBlur={() => void renameTitle(draftTitle)}
-            style={[styles.titleInput, { color: palette.ink, borderColor: palette.line }]}
-          />
-        ) : (
-          <Pressable
-            onPress={() => {
-              setDraftTitle(island.title);
-              setEditingTitle(true);
-              editingTitleRef.current = true;
-            }}
-            style={styles.action}>
-            <Text style={[styles.actionText, { color: palette.accent }]}>
-              {island.title || 'Untitled island'}
-            </Text>
-          </Pressable>
-        )}
-
-        <ExportLink
-          islandId={island.id}
-          title={island.title}
-          speed={speed}
-          gapMs={breathMs}
-          disabled={revoicing || regenerating}
-        />
-
-        <Pressable onPress={confirmRegenerate} disabled={revoicing || regenerating} style={styles.action}>
-          <Text style={[styles.actionText, { color: revoicing || regenerating ? palette.muted : palette.accent }]}>
-            {regenerating
-              ? 'Regenerating…'
-              : island.complexity === 'simple'
-                ? 'Regenerate with complex patterns'
-                : 'Regenerate one sentence at a time'}
+  const below = (
+    <>
+      {!hideEnglish && !hidden ? (
+        <Pressable onPress={() => setShowEnglish((v) => !v)}>
+          <Text style={[styles.en, { color: showEnglish ? tide.text : tide.textDim }]}>
+            {showEnglish ? line.en : 'Tap to show the English'}
           </Text>
         </Pressable>
+      ) : null}
+      <PhraseBar label={phrase.label} hidden={hidden} onClear={clearPhrase} />
+    </>
+  );
 
-        <View style={styles.pillRow}>
-          <Text style={[styles.pillLabel, { color: palette.muted }]}>Repeat</Text>
-          {(['off', 'line', 'island'] as const).map((mode) => {
-            const on = repeat === mode;
-            return (
-              <Pressable
-                key={mode}
-                onPress={() => setRepeat(mode)}
-                style={[
-                  styles.pill,
-                  {
-                    backgroundColor: on ? palette.accent : palette.surface,
-                    borderColor: on ? palette.accent : palette.line,
-                  },
-                ]}>
-                <Text style={[styles.pillText, { color: on ? palette.accentInk : palette.ink }]}>
-                  {mode === 'off' ? 'Off' : mode === 'line' ? 'Line' : 'Island'}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+  // ROUND C: remove this section once the sheets exist.
+  const tempSection = (
+    <View style={[styles.temp, { backgroundColor: palette.bg, borderTopColor: palette.line }]}>
+      <Text style={[styles.tempNote, { color: palette.muted }]}>
+        Temporary controls. Round C moves these into the Practice and Island sheets.
+      </Text>
 
-        <ReadingPills value={readingMode} onChange={pickReading} pitch={pitch} onTogglePitch={togglePitch} />
-
-        <View style={styles.shadowRow}>
-          <Pressable
-            onPress={toggleBlind}
-            style={[
-              styles.pill,
-              {
-                backgroundColor: blind ? palette.accent : palette.surface,
-                borderColor: blind ? palette.accent : palette.line,
-              },
-            ]}>
-            <Text style={[styles.pillText, { color: blind ? palette.accentInk : palette.ink }]}>Blind</Text>
-          </Pressable>
-          <Pressable
-            onPress={toggleHideEnglish}
-            style={[
-              styles.pill,
-              {
-                backgroundColor: hideEnglish ? palette.accent : palette.surface,
-                borderColor: hideEnglish ? palette.accent : palette.line,
-              },
-            ]}>
-            <Text style={[styles.pillText, { color: hideEnglish ? palette.accentInk : palette.ink }]}>Hide EN</Text>
-          </Pressable>
-          <Text style={[styles.pillLabel, styles.lagLabel, { color: palette.muted }]}>Lag</Text>
-          {LAG_OPTIONS.map((ms) => {
-            const on = lagMs === ms;
-            return (
-              <Pressable
-                key={ms}
-                onPress={() => pickLag(ms)}
-                style={[
-                  styles.pill,
-                  {
-                    backgroundColor: on ? palette.accent : palette.surface,
-                    borderColor: on ? palette.accent : palette.line,
-                  },
-                ]}>
-                <Text style={[styles.pillText, { color: on ? palette.accentInk : palette.ink }]}>
-                  {ms === 0 ? 'Off' : `${ms / 1000}s`}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <View style={styles.speedRow}>
-          <Text style={[styles.pillLabel, { color: palette.muted }]}>Speed</Text>
-          <Slider
-            style={styles.slider}
-            minimumValue={SPEED_MIN}
-            maximumValue={SPEED_MAX}
-            step={0.05}
-            value={speed}
-            onValueChange={(v) => setDragging(Math.round(v * 20) / 20)}
-            onSlidingComplete={(v) => {
-              setDragging(null);
-              const next = Math.round(v * 20) / 20;
-              if (next === speed) return;
-              // The line is re-rendered at the new speed; if it was playing,
-              // carry on at the new speed from the top instead of going silent.
-              const wasActive = status.playing;
-              dropTake();
-              stopPlayback(player);
-              cancelAnimation(ring);
-              ring.value = 0;
-              ringPhase.current = 'idle';
-              playWhenLoaded.current = wasActive;
-              setSpeed(next);
-            }}
-            minimumTrackTintColor={palette.accent}
-            maximumTrackTintColor={palette.line}
-            thumbTintColor={palette.accent}
-            accessibilityLabel="Playback speed"
-          />
-          <Text style={[styles.speedValue, { color: palette.ink }]}>
-            {(dragging ?? speed).toFixed(2)}x
-          </Text>
-        </View>
+      <View style={styles.pillRow}>
+        <Text style={[styles.pillLabel, { color: palette.muted }]}>Repeat</Text>
+        {(['off', 'line', 'island'] as const).map((mode) => {
+          const on = repeat === mode;
+          return (
+            <Pressable
+              key={mode}
+              onPress={() => setRepeat(mode)}
+              style={[
+                styles.pill,
+                {
+                  backgroundColor: on ? palette.accent : palette.surface,
+                  borderColor: on ? palette.accent : palette.line,
+                },
+              ]}>
+              <Text style={[styles.pillText, { color: on ? palette.accentInk : palette.ink }]}>
+                {mode === 'off' ? 'Off' : mode === 'line' ? 'Line' : 'Island'}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
+
+      <ReadingPills value={readingMode} onChange={pickReading} pitch={pitch} onTogglePitch={togglePitch} />
+
+      <View style={styles.shadowRow}>
+        <Pressable
+          onPress={toggleBlind}
+          style={[
+            styles.pill,
+            {
+              backgroundColor: blind ? palette.accent : palette.surface,
+              borderColor: blind ? palette.accent : palette.line,
+            },
+          ]}>
+          <Text style={[styles.pillText, { color: blind ? palette.accentInk : palette.ink }]}>Blind</Text>
+        </Pressable>
+        <Pressable
+          onPress={toggleHideEnglish}
+          style={[
+            styles.pill,
+            {
+              backgroundColor: hideEnglish ? palette.accent : palette.surface,
+              borderColor: hideEnglish ? palette.accent : palette.line,
+            },
+          ]}>
+          <Text style={[styles.pillText, { color: hideEnglish ? palette.accentInk : palette.ink }]}>Hide EN</Text>
+        </Pressable>
+        <Text style={[styles.pillLabel, styles.lagLabel, { color: palette.muted }]}>Lag</Text>
+        {LAG_OPTIONS.map((ms) => {
+          const on = lagMs === ms;
+          return (
+            <Pressable
+              key={ms}
+              onPress={() => pickLag(ms)}
+              style={[
+                styles.pill,
+                {
+                  backgroundColor: on ? palette.accent : palette.surface,
+                  borderColor: on ? palette.accent : palette.line,
+                },
+              ]}>
+              <Text style={[styles.pillText, { color: on ? palette.accentInk : palette.ink }]}>
+                {ms === 0 ? 'Off' : `${ms / 1000}s`}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View style={styles.speedRow}>
+        <Text style={[styles.pillLabel, { color: palette.muted }]}>Speed</Text>
+        <Slider
+          style={styles.slider}
+          minimumValue={SPEED_MIN}
+          maximumValue={SPEED_MAX}
+          step={0.05}
+          value={speed}
+          onValueChange={(v) => setDragging(Math.round(v * 20) / 20)}
+          onSlidingComplete={(v) => {
+            setDragging(null);
+            const next = Math.round(v * 20) / 20;
+            if (next === speed) return;
+            // The line is re-rendered at the new speed; if it was playing,
+            // carry on at the new speed from the top instead of going silent.
+            const wasActive = status.playing;
+            dropTake();
+            stopPlayback(player);
+            cancelAnimation(ring);
+            ring.value = 0;
+            ringPhase.current = 'idle';
+            playWhenLoaded.current = wasActive;
+            setSpeed(next);
+          }}
+          minimumTrackTintColor={palette.accent}
+          maximumTrackTintColor={palette.line}
+          thumbTintColor={palette.accent}
+          accessibilityLabel="Playback speed"
+        />
+        <Text style={[styles.speedValue, { color: palette.ink }]}>
+          {(dragging ?? speed).toFixed(2)}x
+        </Text>
+      </View>
+
+      {voice !== null && island.speaker !== voice ? (
+        <Pressable
+          onPress={doRevoice}
+          disabled={revoicing || regenerating}
+          style={styles.action}>
+          <Text style={[styles.actionText, { color: revoicing || regenerating ? palette.muted : palette.accent }]}>
+            {revoicing ? 'Re-voicing…' : `Re-voice in ${voiceName || 'the chosen voice'}`}
+          </Text>
+        </Pressable>
+      ) : null}
+
+      {editingTitle ? (
+        <TextInput
+          autoFocus
+          value={draftTitle}
+          onChangeText={setDraftTitle}
+          onSubmitEditing={() => void renameTitle(draftTitle)}
+          onBlur={() => void renameTitle(draftTitle)}
+          style={[styles.titleInput, { color: palette.ink, borderColor: palette.line }]}
+        />
+      ) : (
+        <Pressable
+          onPress={() => {
+            setDraftTitle(island.title);
+            setEditingTitle(true);
+            editingTitleRef.current = true;
+          }}
+          style={styles.action}>
+          <Text style={[styles.actionText, { color: palette.accent }]}>
+            {island.title || 'Untitled island'}
+          </Text>
+        </Pressable>
+      )}
+
+      <ExportLink
+        islandId={island.id}
+        title={island.title}
+        speed={speed}
+        gapMs={breathMs}
+        disabled={revoicing || regenerating}
+      />
+
+      <Pressable onPress={confirmRegenerate} disabled={revoicing || regenerating} style={styles.action}>
+        <Text style={[styles.actionText, { color: revoicing || regenerating ? palette.muted : palette.accent }]}>
+          {regenerating
+            ? 'Regenerating…'
+            : island.complexity === 'simple'
+              ? 'Regenerate with complex patterns'
+              : 'Regenerate one sentence at a time'}
+        </Text>
+      </Pressable>
+
+      <Pressable onPress={() => void calibrateSpeaker()} disabled={take.phase === 'recording'} style={styles.action}>
+        <Text style={[styles.actionText, { color: take.phase === 'recording' ? palette.muted : palette.accent }]}>
+          Calibrate speaker
+        </Text>
+      </Pressable>
+    </View>
+  );
+
+  return (
+    <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
+      <StatusBar style="light" />
+      <Stack.Screen
+        options={{
+          headerStyle: { backgroundColor: tide.sky[0] },
+          headerTintColor: tide.text,
+          headerShadowVisible: false,
+          headerTitleAlign: 'center',
+          headerTitle: () => <PlayerTitle title={island.title || 'Island'} lineIndex={idx} lineCount={island.lines.length} />,
+          headerRight: () => (
+            <PressScale onPress={openIslandMenu} hitSlop={12} accessibilityLabel="Island menu">
+              <Text style={styles.menuGlyph}>…</Text>
+            </PressScale>
+          ),
+        }}
+      />
+
+      <ScrollView ref={scrollRef} onLayout={(e) => setViewportH(e.nativeEvent.layout.height)} bounces={false}>
+        <View style={{ height: viewportH }}>
+          <TideScene
+            lineIndex={idx}
+            lineCount={island.lines.length}
+            countdown={countdown}
+            banner={
+              error ? (
+                <Pressable onPress={() => setError('')}>
+                  <Text style={[styles.inlineError, { color: palette.danger }]}>{error}</Text>
+                </Pressable>
+              ) : undefined
+            }
+            sentence={sentence}
+            reflection={reflection}
+            below={below}
+          />
+
+          <View style={styles.dock}>
+            {take.phase !== 'idle' || take.error ? (
+              <TakeRow
+                phase={take.phase}
+                level={take.level}
+                takePlaying={take.takePlaying}
+                comparing={comparing}
+                error={take.error}
+                clean={take.clean}
+                score={take.take?.score ?? null}
+                calibrating={take.mode === 'calibrate' && take.phase === 'recording'}
+                onRecord={() => void recordTake()}
+                onCompare={compare}
+                onPlayTake={hearTake}
+                onCalibrate={() => void calibrateSpeaker()}
+              />
+            ) : null}
+            <BottomRow
+              ring={ring}
+              ringMode={ringMode}
+              onToggle={toggle}
+              onPrev={prev}
+              onNext={next}
+              prevDisabled={idx === 0}
+              nextDisabled={idx >= island.lines.length - 1}
+              recording={take.phase === 'recording'}
+              onRecord={() => void (take.phase === 'recording' ? toggle() : recordTake())}
+              onPractice={openPractice}
+            />
+          </View>
+        </View>
+
+        {tempSection}
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -1432,27 +1533,20 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   center: { alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: Spacing.xl, gap: Spacing.lg, flexGrow: 1, justifyContent: 'center' },
-  counter: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
-  ja: { fontSize: 32, lineHeight: 48, fontWeight: '600', textAlign: 'center' },
+  ja: { fontFamily: fonts.serifJp, fontSize: 26, lineHeight: 38, textAlign: 'center', color: tide.text },
   block: { position: 'relative', zIndex: 5 },
   words: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
-  reading: { fontSize: 20, lineHeight: 30, textAlign: 'center' },
-  en: { fontSize: 15, lineHeight: 22, textAlign: 'center', marginTop: Spacing.sm },
-  again: {
-    alignSelf: 'center',
-    fontSize: 13,
-    fontWeight: '700',
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    borderRadius: Radius.pill,
-    overflow: 'hidden',
-  },
+  reading: { fontFamily: fonts.serifJp, fontSize: 16, lineHeight: 24, textAlign: 'center', color: tide.textDim },
+  en: { fontFamily: fonts.ui, fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: Spacing.sm },
+  peek: { minHeight: 80, alignItems: 'center', justifyContent: 'center' },
+  peekText: { fontFamily: fonts.ui, fontSize: 15, color: tide.textDim },
+  menuGlyph: { fontFamily: fonts.ui, fontSize: 22, color: tide.text },
+  dock: {},
   body: { fontSize: 15, lineHeight: 22, textAlign: 'center', padding: Spacing.xl },
   inlineError: { fontSize: 13, lineHeight: 18, textAlign: 'center' },
   retry: { paddingVertical: Spacing.md, paddingHorizontal: Spacing.xxl, borderRadius: Radius.pill, marginTop: Spacing.md },
   secondaryBtn: { paddingVertical: Spacing.md, marginTop: Spacing.sm },
   retryText: { fontSize: 15, fontWeight: '700' },
-  controls: { borderTopWidth: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.lg, gap: Spacing.md },
   action: { alignItems: 'center', paddingVertical: Spacing.xs },
   actionText: { fontSize: 14, fontWeight: '600' },
   titleInput: {
@@ -1462,9 +1556,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xs,
     borderBottomWidth: 1,
   },
-  ringRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xl },
-  side: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
-  sideText: { fontSize: 40, lineHeight: 44, fontWeight: '300' },
   pillRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, justifyContent: 'center' },
   pillLabel: { fontSize: 13, fontWeight: '600', minWidth: 52 },
   pill: { borderWidth: 1, borderRadius: Radius.pill, paddingVertical: Spacing.xs + 2, paddingHorizontal: Spacing.md },
@@ -1477,8 +1568,9 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   lagLabel: { minWidth: 0, marginLeft: Spacing.sm },
-  peek: { minHeight: 160, alignItems: 'center', justifyContent: 'center' },
   speedRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   slider: { flex: 1, height: 36 },
   speedValue: { fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'], minWidth: 52, textAlign: 'right' },
+  temp: { borderTopWidth: 1, padding: Spacing.lg, gap: Spacing.md },
+  tempNote: { fontSize: 13, lineHeight: 18 },
 });

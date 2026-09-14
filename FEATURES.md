@@ -100,6 +100,12 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   delete, the practice card and a round record button restyled.
 - App icon: the cat artwork, with a navy background on Android and the splash
   (visible in a real build, not Expo Go).
+- Tide player scene: the sentence on a waterline with a word-by-word
+  reflection, tide marks for position in the island, a large countdown
+  between repeats, round previous, play, next and record buttons, and flick
+  up or down to change or replay the line.
+- Press feedback: round buttons spring and give a light haptic tap when
+  pressed.
 
 ## Next (approved, in order)
 

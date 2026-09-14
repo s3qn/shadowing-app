@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PracticeCard } from '@/components/practice-card';
+import { PressScale } from '@/components/press-scale';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
@@ -277,11 +278,11 @@ export default function IslandsScreen() {
           );
         }}
       />
-      <Pressable
+      <PressScale
         onPress={() => router.push('/record')}
         style={[styles.fab, { backgroundColor: tide.lang.ja }]}>
         <Text style={[styles.fabText, { color: tide.sky[0] }]}>+</Text>
-      </Pressable>
+      </PressScale>
     </SafeAreaView>
   );
 }

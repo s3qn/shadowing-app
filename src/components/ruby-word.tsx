@@ -1,7 +1,7 @@
 import { type LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
 
-import { Radius } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { fonts } from '@/constants/fonts';
+import { Radius, tide } from '@/constants/theme';
 import type { Word } from '@/lib/api';
 
 type Props = {
@@ -30,13 +30,12 @@ type Props = {
  * calls the tap or drag handlers itself.
  */
 export function RubyWord({ word, showRuby, active, selected, dimmed, mark, onLayout }: Props) {
-  const { palette } = useTheme();
   const segments = showRuby && word.ruby?.some((s) => s.rt) ? word.ruby : null;
-  const ink = active ? palette.accentInk : dimmed ? palette.muted : palette.ink;
-  const rubyInk = active ? palette.accentInk : palette.muted;
+  const ink = active ? tide.sky[0] : dimmed ? tide.textDim : tide.text;
+  const rubyInk = active ? tide.sky[0] : tide.textDim;
   const baseStyle = [styles.base, { color: ink, textDecorationLine: selected ? 'underline' : 'none' } as const];
   const markColor =
-    mark === 'early' ? palette.info : mark === 'late' ? palette.warn : mark === 'dropped' ? palette.danger : 'transparent';
+    mark === 'early' ? tide.listen : mark === 'late' ? tide.turn : mark === 'dropped' ? tide.record : 'transparent';
   return (
     <View
       onLayout={onLayout}
@@ -44,7 +43,7 @@ export function RubyWord({ word, showRuby, active, selected, dimmed, mark, onLay
         styles.word,
         segments ? styles.rubyRow : styles.plain,
         {
-          backgroundColor: active ? palette.accent : selected ? palette.surfaceAlt : 'transparent',
+          backgroundColor: active ? tide.lang.ja : selected ? 'rgba(255,255,255,0.12)' : 'transparent',
           borderBottomWidth: 3,
           borderBottomColor: markColor,
         },
@@ -76,6 +75,6 @@ const styles = StyleSheet.create({
   rubyRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end' },
   plain: { flexDirection: 'column', justifyContent: 'flex-end' },
   segment: { alignItems: 'center', flexShrink: 1, maxWidth: '100%' },
-  rt: { fontSize: 13, lineHeight: 16, includeFontPadding: false },
-  base: { fontSize: 32, lineHeight: 40, fontWeight: '600', includeFontPadding: false },
+  rt: { fontFamily: fonts.serifJp, fontSize: 12, lineHeight: 15, includeFontPadding: false },
+  base: { fontFamily: fonts.serifJp, fontSize: 26, lineHeight: 38, includeFontPadding: false },
 });
