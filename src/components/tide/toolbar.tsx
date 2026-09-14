@@ -41,7 +41,7 @@ export function Toolbar({ items }: { items: ToolbarItem[] }) {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 12, paddingHorizontal: 6 },
-  item: { minWidth: 60, alignItems: 'center', gap: 3 },
+  item: { flex: 1, alignItems: 'center', gap: 3 },
   label: { fontFamily: fonts.uiMedium, fontSize: 11, color: tide.textDim },
   value: { fontFamily: fonts.ui, fontSize: 11, color: tide.text },
   active: { color: tide.lang.ja },

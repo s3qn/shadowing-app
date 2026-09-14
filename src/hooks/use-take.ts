@@ -118,6 +118,13 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
   });
   const takeStatus = useAudioPlayerStatus(takePlayer);
   useSessionPlayer(takePlayer);
+  // A short local file can finish loading before the status listener above
+  // subscribes to a new take player, and then no status ever reports it. One
+  // re-render here lets `takeLoaded` read the player's own flag.
+  const [, setLoadedTick] = useState(0);
+  useEffect(() => {
+    if (takePlayer.isLoaded) setLoadedTick((n) => n + 1);
+  }, [takePlayer]);
 
   // The take (or calibration) a recording in progress belongs to, kept in a
   // ref because the tail runs after the line (and possibly the current idx,
@@ -138,6 +145,10 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
   // whether the recorded line is still the one on screen.
   const current = useRef({ islandId, idx });
   current.current = { islandId, idx };
+  // Bumped each time a recording is about to open. A finish() still saving
+  // an older take compares against it, so it never switches the session back
+  // to playback, or clears `recording`, under a take started after it.
+  const takeSeq = useRef(0);
 
   useEffect(() => {
     setTake(islandId ? findTake(islandId, idx) : null);
@@ -177,7 +188,11 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
     span: AudioSpan | null,
     lagMs: number,
     lineStartMs: number | null,
+    seq: number,
   ) {
+    // The clean status only describes the latest take: a newer take already
+    // recording, or saved, owns it.
+    const latest = () => seq === takeSeq.current;
     setClean({ state: 'working', erleDb: null, note: '' });
     try {
       const result = await uploadTake(targetIslandId, targetIdx, saved.uri, speed, false, span, lagMs, lineStartMs);
@@ -193,7 +208,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
         setTake((onScreen) => (onScreen && onScreen.recordedAt === saved.recordedAt ? { ...onScreen, score } : onScreen));
       }
       if (!result.cleaned) {
-        setClean({ state: 'skipped', erleDb: result.erleDb, note: result.note });
+        if (latest()) setClean({ state: 'skipped', erleDb: result.erleDb, note: result.note });
         return;
       }
       const downloaded = await File.downloadFileAsync(
@@ -206,9 +221,9 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
       setTake((onScreen) =>
         onScreen && onScreen.recordedAt === saved.recordedAt ? { ...onScreen, cleanUri: downloaded.uri } : onScreen,
       );
-      setClean({ state: 'done', erleDb: result.erleDb, note: result.note });
+      if (latest()) setClean({ state: 'done', erleDb: result.erleDb, note: result.note });
     } catch (e) {
-      setClean({ state: 'failed', erleDb: null, note: e instanceof Error ? e.message : '' });
+      if (latest()) setClean({ state: 'failed', erleDb: null, note: e instanceof Error ? e.message : '' });
     }
   }
 
@@ -216,6 +231,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
     clearTimers();
     const savedFor = target.current;
     target.current = null;
+    const seq = takeSeq.current;
     try {
       await recorder.stop();
       const uri = recorder.uri;
@@ -241,6 +257,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
               savedFor.span,
               savedFor.lagMs,
               savedFor.lineStartMs,
+              seq,
             );
           } catch (e) {
             // The previous take, if any, is untouched: saveTake only replaces
@@ -252,14 +269,34 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Recording stopped unexpectedly.');
     } finally {
-      setRecording(false);
-      try {
-        await applyPlaybackMode();
-        await releaseAudioSession();
-      } catch {
-        // Best effort: the next take attempt or the next screen mount fixes it.
+      // A take started while this one was still saving (Auto Echo's Retry)
+      // owns the session and `recording` now; leave both to it.
+      if (seq === takeSeq.current) {
+        try {
+          await applyPlaybackMode();
+          await releaseAudioSession();
+        } catch {
+          // Best effort: the next take attempt or the next screen mount fixes it.
+        }
+        // Set after the session is back in playback mode, so a caller watching
+        // phase turn to 'ready' (Auto Echo's Play step) never starts the take
+        // player while the session is still routed for recording. Checked
+        // again because a newer take can start during the awaits above.
+        if (seq === takeSeq.current) setRecording(false);
       }
     }
+  }
+
+  /**
+   * Ends a take immediately, skipping the tail delay. Used when the learner
+   * taps Stop by hand (Auto Echo's Speak step): the recording is kept and
+   * saved exactly as `finish()` would after the tail, just without the wait.
+   */
+  function finishNow() {
+    // No target means finish() already runs (the tail fired, or Stop was
+    // tapped twice): stopping the recorder again would race its save.
+    if (!recording || !target.current) return;
+    void finish();
   }
 
   /**
@@ -288,6 +325,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
       setError('Microphone access is off. Turn it on in Settings and try again.');
       return false;
     }
+    takeSeq.current += 1;
     try {
       await applyRecordingMode();
       await recorder.prepareToRecordAsync();
@@ -345,7 +383,9 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
 
   async function cancel() {
     clearTimers();
-    if (!recording) return;
+    // A target means a recording is open even when this closure is from a
+    // render before startTake resolved, where `recording` still reads false.
+    if (!recording && !target.current) return;
     try {
       await recorder.stop();
     } catch {
@@ -406,12 +446,17 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
     level: recording ? meterLevel(recorderState.metering) : 0,
     take,
     takePlaying: takeStatus.playing,
+    // useAudioPlayerStatus keeps the previous player's last status until the
+    // new player (a new take, or its cleaned file) sends one, so the player's
+    // own flag is checked as well.
+    takeLoaded: takePlayer.isLoaded && takeStatus.isLoaded,
     error,
     clean,
     startTake,
     scheduleStop,
     markLineStart,
     cancel,
+    finishNow,
     playTake,
     stopTake,
     discardTake,

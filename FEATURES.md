@@ -113,6 +113,9 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   counts coloured
 - Part-of-speech underline under each word, with small romaji below in
   Furigana mode
+- Scrolling transcript on the waterline with auto-scroll, and a moving
+  outline on the active word
+- Auto Echo: Listen, Echo, Speak and Play as one loop in a sheet
 
 ## Next (approved, in order)
 

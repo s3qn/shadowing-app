@@ -8,12 +8,13 @@ import { Gesture, GestureDetector, ScrollView } from 'react-native-gesture-handl
 import { cancelAnimation, Easing, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AutoEchoSheet, type EchoStep } from '@/components/tide/auto-echo-sheet';
 import { BottomRow } from '@/components/tide/bottom-row';
 import { IslandMenuSheet } from '@/components/tide/island-menu-sheet';
 import { PlayerTitle } from '@/components/tide/player-title';
 import { TideScene } from '@/components/tide/tide-scene';
 import { Toolbar, type ToolbarItem } from '@/components/tide/toolbar';
-import { BlindIcon, LagIcon, ReadingIcon, RepeatIcon, SpeedIcon } from '@/components/tide/toolbar-icons';
+import { BlindIcon, EchoIcon, LagIcon, ReadingIcon, RepeatIcon, SpeedIcon } from '@/components/tide/toolbar-icons';
 import {
   BlindSheet,
   LagSheet,
@@ -32,6 +33,7 @@ import { type RingMode } from '@/components/ring-button';
 import { RubyWord } from '@/components/ruby-word';
 import { SELECTION_POPUP_WIDTH, SelectionPopup } from '@/components/selection-popup';
 import { TakeRow } from '@/components/take-row';
+import { WordOutline } from '@/components/word-outline';
 import { POPOVER_WIDTH, WordPanel } from '@/components/word-panel';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
@@ -52,6 +54,8 @@ import { pitchCells } from '@/lib/pitch';
 import { lineRomaji } from '@/lib/romaji';
 import {
   getSettings,
+  setAutoEcho as persistAutoEcho,
+  setAutoRecord as persistAutoRecord,
   setBlind as persistBlind,
   setHideEnglish as persistHideEnglish,
   setLagMs as persistLagMs,
@@ -84,7 +88,9 @@ export default function IslandScreen() {
   // order, then start over. Each repeat has a breath in front of it.
   const [repeat, setRepeat] = useState<RepeatMode>('line');
   // Which toolbar or header sheet is open, if any: one at a time.
-  const [sheet, setSheet] = useState<'speed' | 'repeat' | 'reading' | 'blind' | 'lag' | 'island' | null>(null);
+  const [sheet, setSheet] = useState<'speed' | 'repeat' | 'reading' | 'blind' | 'lag' | 'echo' | 'island' | null>(
+    null,
+  );
   // An action a sheet's row picked, run once the sheet has fully closed (an
   // Alert or a share sheet shown while the Modal is dismissing can vanish on
   // iOS otherwise).
@@ -158,9 +164,6 @@ export default function IslandScreen() {
   // gesture below can hit-test a touch point to a word.
   const wordBoxes = useRef<Record<number, { x: number; y: number; width: number; height: number }>>({});
   const [blockWidth, setBlockWidth] = useState(0);
-  // The height of the scroll viewport itself (not its content): the scene and
-  // dock fill exactly one screen, and the temporary section is reached below it.
-  const [viewportH, setViewportH] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
   // The run of words a drag has selected. Set on the pan gesture's start and
   // update, left alone on end: that is what shows the Repeat popup.
@@ -168,6 +171,9 @@ export default function IslandScreen() {
   const anchorWord = useRef(0);
 
   const line = island?.lines[idx];
+  // The transcript's Japanese text, one entry per line: stable across the
+  // 50ms position ticks so TideScene's dim lines never see a new array.
+  const lines = useMemo(() => island?.lines.map((l) => l.ja) ?? [], [island]);
   // Per line, not per render: the position ticks every 50ms while playing.
   const lineRomajiText = useMemo(() => (line ? lineRomaji(line) : ''), [line]);
   const linePitchCells = useMemo(() => (line ? pitchCells(line.timeline) : null), [line]);
@@ -220,11 +226,31 @@ export default function IslandScreen() {
   // State, not a ref: the Compare pill has to re-render to read Stop for as
   // long as either half of a compare run (the line, then the take) is playing.
   const [comparing, setComparing] = useState(false);
+  // Auto Echo's own step, and a ref mirror so the effects and listeners below
+  // (some subscribed once, some reading state a render behind) always see the
+  // current step rather than the one closed over when they were set up.
+  const [echoStep, setEchoStep] = useState<EchoStep>('idle');
+  const echoRef = useRef<EchoStep>('idle');
+  echoRef.current = echoStep;
+  const [autoEcho, setAutoEchoState] = useState(true);
+  const [autoRecord, setAutoRecordState] = useState(true);
+  const autoEchoTouched = useRef(false);
+  const autoRecordTouched = useRef(false);
+  // When the Speak take was started, so the take-saved effect below only
+  // reacts to a take recorded during this pass (see that effect's comment).
+  const speakStartedAt = useRef(0);
+  // Stop was tapped on this Speak take: the take is saving, so Stop and Retry
+  // are hidden until the next Speak starts.
+  const [speakStopped, setSpeakStopped] = useState(false);
+  const wasEchoTakePlaying = useRef(false);
+  const echoActive = sheet === 'echo' && echoStep !== 'idle' && echoStep !== 'done';
   // Repeat Off, a take and a Compare all stop the line where the pad begins
   // (the crossing effect below), so no breath follows. The pause lands a
   // status or two after the crossing, and without this the draining ring and
-  // the countdown would flash for that moment.
-  const stopsAtLineEnd = repeat === 'off' || take.phase === 'recording' || comparing;
+  // the countdown would flash for that moment. Auto Echo's own Listen step
+  // needs the same early stop when Repeat is Off, since the loop advances
+  // itself rather than the line looping.
+  const stopsAtLineEnd = take.phase === 'recording' || comparing || (repeat === 'off' && !echoActive);
   const inBreath = status.playing && lineEnd > 0 && status.currentTime >= lineEnd && !stopsAtLineEnd;
   const countdown = inBreath ? Math.max(1, Math.ceil(status.duration - status.currentTime)) : null;
   const wasTakePlaying = useRef(false);
@@ -333,6 +359,8 @@ export default function IslandScreen() {
       }
       if (!hideEnglishTouched.current) setHideEnglish(settings.hideEnglish);
       if (!lagTouched.current) setLagMs(settings.lagMs);
+      if (!autoEchoTouched.current) setAutoEchoState(settings.autoEcho);
+      if (!autoRecordTouched.current) setAutoRecordState(settings.autoRecord);
       if (!readingTouched.current) setReadingMode(settings.reading);
       if (!pitchTouched.current) setPitchOn(settings.pitch);
       try {
@@ -485,8 +513,11 @@ export default function IslandScreen() {
   // speed, since the player identity changes with them.
   useEffect(() => {
     player.setPlaybackRate(1, 'high');
-    player.loop = repeat === 'line';
-  }, [player, repeat]);
+    // Auto Echo advances by hand between its own steps (Listen, then a
+    // recorded Speak, then Play), so the native loop must stay off for the
+    // whole pass even when Repeat is Line.
+    player.loop = repeat === 'line' && !echoActive;
+  }, [player, repeat, echoActive]);
 
   // The ring follows native playback with ONE linear animation per phase,
   // aimed to full over the remaining spoken time, then to empty over the
@@ -562,12 +593,18 @@ export default function IslandScreen() {
   // listener is subscribed once, so everything it calls is read through the
   // ref: the first render's dropTake would close over a take whose cancel()
   // still sees `recording` as false and leaves the microphone running.
-  const backgroundRef = useRef({ take, player, dropTake });
-  backgroundRef.current = { take, player, dropTake };
+  const backgroundRef = useRef({ take, player, dropTake, stopEcho, echoRef });
+  backgroundRef.current = { take, player, dropTake, stopEcho, echoRef };
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state !== 'background') return;
-      const { take: t, player: p, dropTake: drop } = backgroundRef.current;
+      const { take: t, player: p, dropTake: drop, stopEcho: stopE, echoRef } = backgroundRef.current;
+      // Auto Echo stops the whole pass on backgrounding, not just a take in
+      // progress: the sheet stays open showing Start.
+      if (echoRef.current !== 'idle') {
+        stopE();
+        return;
+      }
       if (t.phase === 'recording') {
         // The line first: stopPlayback never throws, and neither does the
         // take player's pause inside drop().
@@ -611,7 +648,14 @@ export default function IslandScreen() {
       take.playTake();
       return;
     }
-    if (repeat === 'off') {
+    if (echoRef.current === 'listen') {
+      // The line itself keeps playing into the pad's silence, which is the
+      // Echo step's pause (the breath plus Lag); the countdown already reads
+      // off that silence, so nothing else needs to start here.
+      setEchoStep('echo');
+      return;
+    }
+    if (repeat === 'off' && (echoRef.current === 'idle' || echoRef.current === 'done')) {
       stopPlayback(player);
       void player.seekTo(0);
       void releaseAudioSession();
@@ -630,6 +674,18 @@ export default function IslandScreen() {
     const now = Date.now();
     if (now - lastFinish.current < 800) return;
     lastFinish.current = now;
+    if (echoRef.current === 'echo') {
+      // The line's own finish, at the end of the pad, is the Echo step's own
+      // end: Auto Record on opens the mic at once, off arms the Record
+      // button and gives the audio session back while it waits.
+      if (autoRecord) {
+        void startSpeak();
+      } else {
+        setEchoStep('armed');
+        void releaseAudioSession();
+      }
+      return;
+    }
     if (repeat !== 'island') {
       if (repeat === 'off') {
         void player.seekTo(0);
@@ -781,7 +837,7 @@ export default function IslandScreen() {
     .failOffsetX([-24, 24])
     .blocksExternalGesture(scrollRef)
     .onEnd((e) => {
-      if (e.translationY < -40 || e.velocityY < -500) next();
+      if (e.translationY < -40 || e.velocityY < -500) go(idx + 1);
       else if (e.translationY > 40 || e.velocityY > 500) {
         playWhenLoaded.current = false;
         setDragSpan(null);
@@ -931,6 +987,22 @@ export default function IslandScreen() {
     persistPitch(next).catch(() => {});
   }
 
+  // Both apply at the next transition, never interrupting the step running
+  // when they are flipped.
+  function toggleAutoEcho() {
+    const next = !autoEcho;
+    autoEchoTouched.current = true;
+    setAutoEchoState(next);
+    persistAutoEcho(next).catch(() => {});
+  }
+
+  function toggleAutoRecord() {
+    const next = !autoRecord;
+    autoRecordTouched.current = true;
+    setAutoRecordState(next);
+    persistAutoRecord(next).catch(() => {});
+  }
+
   // The Speed sheet's slider release: the line is re-rendered at the new
   // speed, and if it was playing, carries on at the new speed from the top
   // instead of going silent.
@@ -955,8 +1027,8 @@ export default function IslandScreen() {
   // Shared by recordTake and calibrateSpeaker: only the recording mode
   // differs between a take and a speaker calibration, so both go through the
   // same cancel, close, drop, seek and play sequence and cannot drift apart.
-  async function beginRecording(mode: TakeMode) {
-    if (!line || startingTake.current) return;
+  async function beginRecording(mode: TakeMode): Promise<boolean> {
+    if (!line || startingTake.current) return false;
     startingTake.current = true;
     try {
       playWhenLoaded.current = false;
@@ -982,9 +1054,10 @@ export default function IslandScreen() {
       // phrase first): the speaker profile is global and a slice is too short
       // to learn it from.
       const span = mode === 'calibrate' ? null : phrase.audio;
-      if (!(await take.startTake(lineEnd || undefined, speed, mode, lagMs, span))) return;
+      if (!(await take.startTake(lineEnd || undefined, speed, mode, lagMs, span))) return false;
       crossed.current = false;
       startPlayback(player);
+      return true;
     } finally {
       startingTake.current = false;
     }
@@ -1025,6 +1098,73 @@ export default function IslandScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source, player]);
 
+  // The Speak step's take: opens the mic with the line playing under it,
+  // exactly like Record my take, so the recording is scored and cleaned the
+  // same way. `speakStartedAt` marks the moment so the take-saved effect
+  // below only reacts to a take from this pass, not a stale or cancelled one.
+  async function startSpeak() {
+    // A second tap while the mic is still opening: the first start carries
+    // on, and beginRecording would refuse this one anyway.
+    if (startingTake.current) return;
+    speakStartedAt.current = Date.now();
+    setSpeakStopped(false);
+    setEchoStep('speak');
+    const ok = await beginRecording('take');
+    if (!ok) {
+      setEchoStep('idle');
+      return;
+    }
+    // The sheet closed (or the app went to the background) while the mic was
+    // opening: stopEcho found nothing to cancel yet, so drop this take now.
+    if (echoRef.current !== 'speak') {
+      stopPlayback(player);
+      void take.cancel();
+    }
+  }
+
+  // Moves the loop on to the next line (or restarts the only line an island
+  // has) after a Play step finishes, and starts its Listen step.
+  async function advanceEcho() {
+    if (!island) return;
+    if (island.lines.length === 1) {
+      setPeekKey(null);
+      await player.seekTo(0);
+      // The sheet closed during the seek.
+      if (echoRef.current !== 'play') return;
+      crossed.current = false;
+      setEchoStep('listen');
+      startPlayback(player);
+      return;
+    }
+    go((idx + 1) % island.lines.length);
+    // go() reads status.playing, which is false here (the take was the thing
+    // playing), so the line has to be told to play once the new one loads.
+    playWhenLoaded.current = true;
+    setEchoStep('listen');
+  }
+
+  // Starts (or restarts) the loop on the current line.
+  function startEcho() {
+    setEchoStep('listen');
+    void playFromTop();
+  }
+
+  function openEcho() {
+    setSheet('echo');
+    startEcho();
+  }
+
+  // Ends the loop: called when the sheet closes and when the app backgrounds
+  // mid-pass. Drops any take in progress and any that just finished recording.
+  function stopEcho() {
+    setEchoStep('idle');
+    playWhenLoaded.current = false;
+    dropTake();
+    stopPlayback(player);
+    void player.seekTo(0);
+    void releaseAudioSession();
+  }
+
   function compare() {
     if (compareNext.current || (take.takePlaying && comparing)) {
       dropTake();
@@ -1062,6 +1202,28 @@ export default function IslandScreen() {
     take.playTake();
   }
 
+  // The Speak step's take, once saved and its player loaded, starts the Play
+  // step. `recordedAt` has to be newer than when this pass's Speak began: a
+  // Retry's cancel flickers `phase` back to 'ready' with the take it is about
+  // to replace, and a line switched away and back still carries its own old
+  // take, and neither should be mistaken for the one just recorded. It also
+  // waits out the echo cleanup: the cleaned file landing swaps the take
+  // player, which would cut a take already playing off mid-word.
+  useEffect(() => {
+    if (
+      echoRef.current === 'speak' &&
+      take.phase === 'ready' &&
+      take.clean.state !== 'working' &&
+      take.takeLoaded &&
+      take.take &&
+      take.take.recordedAt > speakStartedAt.current
+    ) {
+      setEchoStep('play');
+      take.playTake();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [take.phase, take.take?.recordedAt, take.takeLoaded, take.clean.state]);
+
   // A compare run covers both halves, the line then the take, so it only
   // ends here when the take finishes playing on its own; the Compare pill
   // stopping it early is handled in compare() and dropTake() above. This also
@@ -1075,6 +1237,18 @@ export default function IslandScreen() {
     }
     wasTakePlaying.current = take.takePlaying;
   }, [take.takePlaying, comparing, status.playing]);
+
+  // The Play step's take finishing on its own moves the loop on: Auto Echo on
+  // advances to the next line (wrapping like Repeat Island), off ends the
+  // pass at Pass complete.
+  useEffect(() => {
+    if (wasEchoTakePlaying.current && !take.takePlaying && echoRef.current === 'play') {
+      if (autoEcho) void advanceEcho();
+      else setEchoStep('done');
+    }
+    wasEchoTakePlaying.current = take.takePlaying;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [take.takePlaying]);
 
   // The word player finishing on its own is also a stop point: Hear it never
   // loops, so once it stops (and the line is not playing) nothing of ours
@@ -1257,6 +1431,13 @@ export default function IslandScreen() {
   const dragPopTop = dragUnion ? dragUnion.bottom + 6 : 0;
   const progress = status.duration > 0 ? status.currentTime / status.duration : 0;
 
+  // A tapped transcript line jumps there and plays it, even from a paused
+  // state (go alone would leave a paused line paused).
+  function jumpToLine(i: number) {
+    go(i);
+    playWhenLoaded.current = true;
+  }
+
   // The sentence sits on the waterline: the tappable block when words are
   // known, the fallback line when they are not, then the reading and pitch
   // rows. Blind swaps the whole slot for the peek prompt.
@@ -1286,6 +1467,7 @@ export default function IslandScreen() {
               ))}
             </View>
           </GestureDetector>
+          <WordOutline box={activeWord >= 0 ? wordBoxes.current[activeWord] ?? null : null} />
           {selected !== null && line.words[selected] ? (
             <WordPanel
               word={line.words[selected]!.text}
@@ -1386,6 +1568,12 @@ export default function IslandScreen() {
       value: lagLabel(lagMs),
       onPress: () => setSheet('lag'),
     },
+    {
+      key: 'echo',
+      icon: <EchoIcon color={tide.textDim} size={22} />,
+      label: 'Echo',
+      onPress: openEcho,
+    },
   ];
 
   return (
@@ -1406,56 +1594,58 @@ export default function IslandScreen() {
         }}
       />
 
-      <ScrollView ref={scrollRef} onLayout={(e) => setViewportH(e.nativeEvent.layout.height)} bounces={false}>
-        <View style={{ height: viewportH }}>
-          <TideScene
-            lineIndex={idx}
-            lineCount={island.lines.length}
-            countdown={countdown}
-            banner={
-              error ? (
-                <Pressable onPress={() => setError('')}>
-                  <Text style={[styles.inlineError, { color: palette.danger }]}>{error}</Text>
-                </Pressable>
-              ) : undefined
-            }
-            sentence={sentence}
-            reflection={reflection}
-            below={below}
-          />
+      <View style={styles.fill}>
+        <TideScene
+          lineIndex={idx}
+          lineCount={island.lines.length}
+          lines={lines}
+          blind={blind}
+          countdown={countdown}
+          banner={
+            error ? (
+              <Pressable onPress={() => setError('')}>
+                <Text style={[styles.inlineError, { color: palette.danger }]}>{error}</Text>
+              </Pressable>
+            ) : undefined
+          }
+          sentence={sentence}
+          reflection={reflection}
+          below={below}
+          scrollRef={scrollRef}
+          onLineTap={jumpToLine}
+        />
 
-          <View style={styles.dock}>
-            <Toolbar items={toolbarItems} />
-            {take.phase !== 'idle' || take.error ? (
-              <TakeRow
-                phase={take.phase}
-                level={take.level}
-                takePlaying={take.takePlaying}
-                comparing={comparing}
-                error={take.error}
-                clean={take.clean}
-                score={take.take?.score ?? null}
-                calibrating={take.mode === 'calibrate' && take.phase === 'recording'}
-                onRecord={() => void recordTake()}
-                onCompare={compare}
-                onPlayTake={hearTake}
-                onCalibrate={() => void calibrateSpeaker()}
-              />
-            ) : null}
-            <BottomRow
-              ring={ring}
-              ringMode={ringMode}
-              onToggle={toggle}
-              onPrev={prev}
-              onNext={next}
-              prevDisabled={idx === 0}
-              nextDisabled={idx >= island.lines.length - 1}
-              recording={take.phase === 'recording'}
-              onRecord={() => void (take.phase === 'recording' ? toggle() : recordTake())}
+        <View style={styles.dock}>
+          <Toolbar items={toolbarItems} />
+          {take.phase !== 'idle' || take.error ? (
+            <TakeRow
+              phase={take.phase}
+              level={take.level}
+              takePlaying={take.takePlaying}
+              comparing={comparing}
+              error={take.error}
+              clean={take.clean}
+              score={take.take?.score ?? null}
+              calibrating={take.mode === 'calibrate' && take.phase === 'recording'}
+              onRecord={() => void recordTake()}
+              onCompare={compare}
+              onPlayTake={hearTake}
+              onCalibrate={() => void calibrateSpeaker()}
             />
-          </View>
+          ) : null}
+          <BottomRow
+            ring={ring}
+            ringMode={ringMode}
+            onToggle={toggle}
+            onPrev={prev}
+            onNext={next}
+            prevDisabled={idx === 0}
+            nextDisabled={idx >= island.lines.length - 1}
+            recording={take.phase === 'recording'}
+            onRecord={() => void (take.phase === 'recording' ? toggle() : recordTake())}
+          />
         </View>
-      </ScrollView>
+      </View>
 
       <SpeedSheet open={sheet === 'speed'} onClose={() => setSheet(null)} onDismissed={runAfterSheet} speed={speed} onCommit={commitSpeed} />
       <RepeatSheet open={sheet === 'repeat'} onClose={() => setSheet(null)} onDismissed={runAfterSheet} value={repeat} onChange={setRepeat} />
@@ -1478,6 +1668,36 @@ export default function IslandScreen() {
         onToggleHideEnglish={toggleHideEnglish}
       />
       <LagSheet open={sheet === 'lag'} onClose={() => setSheet(null)} onDismissed={runAfterSheet} value={lagMs} onChange={pickLag} />
+      <AutoEchoSheet
+        open={sheet === 'echo'}
+        onClose={() => {
+          stopEcho();
+          setSheet(null);
+        }}
+        onDismissed={runAfterSheet}
+        sentence={blind ? null : (phrase.label ?? line.ja)}
+        english={showEnglish && !hideEnglish ? line.en : null}
+        step={echoStep}
+        countdown={countdown}
+        level={take.level}
+        error={take.error}
+        autoEcho={autoEcho}
+        autoRecord={autoRecord}
+        onToggleAutoEcho={toggleAutoEcho}
+        onToggleAutoRecord={toggleAutoRecord}
+        onStart={startEcho}
+        onRecord={() => void startSpeak()}
+        stopping={speakStopped && !take.error}
+        onStop={() => {
+          // Before the mic is open there is nothing to stop yet.
+          if (take.phase !== 'recording') return;
+          setSpeakStopped(true);
+          stopPlayback(player);
+          void player.seekTo(0);
+          take.finishNow();
+        }}
+        onRetry={() => void startSpeak()}
+      />
       <IslandMenuSheet
         open={sheet === 'island'}
         onClose={() => setSheet(null)}

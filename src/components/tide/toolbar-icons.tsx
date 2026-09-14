@@ -75,3 +75,13 @@ export function LagIcon({ color, size = 24 }: IconProps) {
     </Svg>
   );
 }
+
+export function EchoIcon({ color, size = 24 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M4 6v12l8-6-8-6Z" stroke={color} strokeWidth={STROKE} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M15.5 8.5a5 5 0 0 1 0 7" stroke={color} strokeWidth={STROKE} strokeLinecap="round" />
+      <Path d="M19 6a9 9 0 0 1 0 12" stroke={color} strokeWidth={STROKE} strokeLinecap="round" />
+    </Svg>
+  );
+}

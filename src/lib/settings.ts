@@ -1,8 +1,8 @@
 /**
  * The few settings the app keeps on the device, as one JSON file in the app's
  * document directory. Small enough that a storage library would be overkill.
- * Keeps the voice, blind mode, the shadowing lag, the reading display and
- * pitch marks.
+ * Keeps the voice, blind mode, the shadowing lag, the reading display, pitch
+ * marks, and the Auto Echo toggles.
  */
 
 import { documentDirectory, getInfoAsync, readAsStringAsync, writeAsStringAsync } from 'expo-file-system/legacy';
@@ -27,6 +27,8 @@ export type Settings = {
   lagMs: LagMs;
   reading: ReadingMode;
   pitch: boolean;
+  autoEcho: boolean;
+  autoRecord: boolean;
 };
 
 const FILE = `${documentDirectory ?? ''}settings.json`;
@@ -37,6 +39,8 @@ const DEFAULTS: Settings = {
   lagMs: DEFAULT_LAG_MS,
   reading: DEFAULT_READING,
   pitch: DEFAULT_PITCH,
+  autoEcho: true,
+  autoRecord: true,
 };
 
 // Defaults when there is no file yet, or when its JSON is corrupt (nothing in
@@ -59,6 +63,8 @@ async function read(): Promise<Settings> {
     lagMs: LAG_OPTIONS.includes(parsed.lagMs as LagMs) ? (parsed.lagMs as LagMs) : DEFAULT_LAG_MS,
     reading: READING_OPTIONS.includes(parsed.reading as ReadingMode) ? (parsed.reading as ReadingMode) : DEFAULT_READING,
     pitch: parsed.pitch !== false,
+    autoEcho: parsed.autoEcho !== false,
+    autoRecord: parsed.autoRecord !== false,
   };
 }
 
@@ -128,4 +134,12 @@ export async function setReading(reading: ReadingMode): Promise<void> {
 
 export async function setPitch(pitch: boolean): Promise<void> {
   await update({ pitch });
+}
+
+export async function setAutoEcho(autoEcho: boolean): Promise<void> {
+  await update({ autoEcho });
+}
+
+export async function setAutoRecord(autoRecord: boolean): Promise<void> {
+  await update({ autoRecord });
 }
