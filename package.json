@@ -3,6 +3,9 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
+    "@expo-google-fonts/noto-serif": "^0.4.2",
+    "@expo-google-fonts/noto-serif-jp": "^0.4.3",
+    "@expo-google-fonts/space-grotesk": "^0.4.1",
     "@expo/ui": "~57.0.18",
     "@react-native-community/slider": "5.2.0",
     "expo": "~57.0.22",

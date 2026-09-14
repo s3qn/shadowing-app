@@ -50,6 +50,18 @@ export const Spacing = {
 
 export const Radius = { sm: 8, md: 14, lg: 22, pill: 999 } as const;
 
+export const tide = {
+  sky: ['#070A12', '#101A2A', '#16243A'] as const, // .d4 .sky4 gradient stops
+  water: '#08131C',                                 // .d4 .water gradient stop
+  waterline: 'rgba(255,158,128,0.55)',               // .d4 .water box-shadow, --cr for .ja
+  lang: { ja: '#FF9E80', es: '#7FE0D4' },            // .d4 --c / .d4.es --c
+  listen: '#B9A8F0',   // :root --lav
+  turn: '#F4C86A',     // :root --amber
+  record: '#FF8F7A',   // :root --coral
+  text: '#ECE8F4',     // :root --ink
+  textDim: '#B7B1C6',  // :root --ink2
+} as const;
+
 export const Fonts = Platform.select({
   ios: { sans: 'system-ui', rounded: 'ui-rounded', mono: 'ui-monospace' },
   default: { sans: 'normal', rounded: 'normal', mono: 'monospace' },

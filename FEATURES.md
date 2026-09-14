@@ -93,6 +93,13 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Take score: after Record my take, words that ran early, late or dropped get
   coloured underlines, measured against the take's own median delay, with a
   Behind the voice summary line.
+- Tide fonts and palette: Noto Serif JP, Noto Serif and Space Grotesk load
+  before the splash hides; theme.ts has the Tide palette.
+- Tide home screen: dark sky over water, each island a band filled from the
+  left by practice time (20 minutes fills it), with search, sort, rename,
+  delete, the practice card and a round record button restyled.
+- App icon: the cat artwork, with a navy background on Android and the splash
+  (visible in a real build, not Expo Go).
 
 ## Next (approved, in order)
 

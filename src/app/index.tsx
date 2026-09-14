@@ -1,4 +1,5 @@
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -14,8 +15,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PracticeCard } from '@/components/practice-card';
-import { Radius, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { fonts } from '@/constants/fonts';
+import { Radius, Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
 import { forgetIsland, getPracticeLog, minutesOn, type PracticeLog } from '@/lib/practice';
 import { deleteTakes } from '@/lib/takes';
@@ -24,9 +25,10 @@ const SORTS = ['newest', 'least'] as const;
 type Sort = (typeof SORTS)[number];
 const SORT_LABEL: Record<Sort, string> = { newest: 'Newest', least: 'Least practiced' };
 const EMPTY_LOG: PracticeLog = { days: {}, islands: {} };
+// 20 minutes of shadowing fills an island's ownership band.
+const TIDE_TARGET_SECONDS = 20 * 60;
 
 export default function IslandsScreen() {
-  const { palette } = useTheme();
   const router = useRouter();
   const [islands, setIslands] = useState<api.IslandSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -131,8 +133,16 @@ export default function IslandsScreen() {
 
   if (!api.configured()) {
     return (
-      <SafeAreaView style={StyleSheet.flatten([styles.fill, styles.center, { backgroundColor: palette.bg }])}>
-        <Text style={[styles.empty, { color: palette.ink }]}>
+      <SafeAreaView style={StyleSheet.flatten([styles.fill, styles.center, { backgroundColor: tide.sky[0] }])}>
+        <StatusBar style="light" />
+        <Stack.Screen
+          options={{
+            headerStyle: { backgroundColor: tide.sky[0] },
+            headerTintColor: tide.text,
+            headerShadowVisible: false,
+          }}
+        />
+        <Text style={[styles.empty, { color: tide.text }]}>
           Set EXPO_PUBLIC_SHADOW_API_URL and EXPO_PUBLIC_SHADOW_TOKEN in .env, then restart
           the dev server.
         </Text>
@@ -141,12 +151,18 @@ export default function IslandsScreen() {
   }
 
   return (
-    <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: palette.bg }])}>
+    <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
+      <StatusBar style="light" />
       <Stack.Screen
         options={{
+          headerStyle: { backgroundColor: tide.sky[0] },
+          headerTintColor: tide.text,
+          headerShadowVisible: false,
           headerRight: () => (
             <Pressable onPress={() => router.push('/settings')} hitSlop={12}>
-              <Text style={{ color: palette.accent, fontSize: 16, fontWeight: '600' }}>Settings</Text>
+              <Text style={{ color: tide.text, fontSize: 16, fontWeight: '600', fontFamily: fonts.ui }}>
+                Settings
+              </Text>
             </Pressable>
           ),
         }}
@@ -157,7 +173,7 @@ export default function IslandsScreen() {
         contentContainerStyle={styles.list}
         keyboardShouldPersistTaps="handled"
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={load} tintColor={palette.muted} />
+          <RefreshControl refreshing={loading} onRefresh={load} tintColor={tide.textDim} />
         }
         ListHeaderComponent={
           <View style={styles.header}>
@@ -166,12 +182,12 @@ export default function IslandsScreen() {
               value={query}
               onChangeText={setQuery}
               placeholder="Search islands"
-              placeholderTextColor={palette.muted}
+              placeholderTextColor={tide.textDim}
               clearButtonMode="while-editing"
               autoCorrect={false}
               style={StyleSheet.flatten([
                 styles.search,
-                { backgroundColor: palette.surface, borderColor: palette.line, color: palette.ink },
+                { backgroundColor: tide.water, borderColor: tide.waterline, color: tide.text },
               ])}
             />
             <View style={styles.sortRow}>
@@ -183,9 +199,9 @@ export default function IslandsScreen() {
                     onPress={() => setSort(s)}
                     style={[
                       styles.pill,
-                      { backgroundColor: on ? palette.accent : palette.surface, borderColor: on ? palette.accent : palette.line },
+                      { backgroundColor: on ? tide.lang.ja : tide.water, borderColor: tide.waterline },
                     ]}>
-                    <Text style={[styles.pillText, { color: on ? palette.accentInk : palette.ink }]}>
+                    <Text style={[styles.pillText, { color: on ? tide.sky[0] : tide.text }]}>
                       {SORT_LABEL[s]}
                     </Text>
                   </Pressable>
@@ -196,10 +212,10 @@ export default function IslandsScreen() {
         }
         ListEmptyComponent={
           loading ? (
-            <ActivityIndicator style={{ marginTop: Spacing.xxl }} color={palette.accent} />
+            <ActivityIndicator style={{ marginTop: Spacing.xxl }} color={tide.lang.ja} />
           ) : (
             <View style={styles.center}>
-              <Text style={[styles.empty, { color: palette.muted }]}>
+              <Text style={[styles.empty, { color: tide.textDim }]}>
                 {error
                   ? error
                   : query.trim() && islands.length > 0
@@ -212,16 +228,19 @@ export default function IslandsScreen() {
         renderItem={({ item }) => {
           const busy = item.status === 'pending' || item.status === 'working';
           const minutes = minutesOn(log, item.id);
+          const seconds = log.islands[item.id]?.seconds ?? 0;
+          const fraction = Math.min(1, seconds / TIDE_TARGET_SECONDS);
           return (
             // Long press deletes, after a confirmation. Building islands are disabled, so they cannot be deleted until they land.
             <Pressable
               disabled={busy}
               onPress={() => router.push({ pathname: '/island/[id]', params: { id: item.id } })}
               onLongPress={() => confirmDelete(item)}
-              style={StyleSheet.flatten([
-                styles.card,
-                { backgroundColor: palette.surface, borderColor: palette.line },
-              ])}>
+              style={styles.row}>
+              <View
+                pointerEvents="none"
+                style={[styles.rowFill, { width: `${fraction * 100}%`, backgroundColor: tide.lang.ja }]}
+              />
               <View style={styles.cardTop}>
                 {editingId === item.id ? (
                   <TextInput
@@ -230,7 +249,7 @@ export default function IslandsScreen() {
                     onChangeText={setDraftTitle}
                     onSubmitEditing={() => void rename(item.id, draftTitle)}
                     onBlur={() => void rename(item.id, draftTitle)}
-                    style={[styles.cardTitle, styles.cardTitleInput, { color: palette.ink, borderColor: palette.line }]}
+                    style={[styles.cardTitle, styles.cardTitleInput, { color: tide.text, borderColor: tide.waterline }]}
                   />
                 ) : (
                   <Pressable
@@ -240,14 +259,14 @@ export default function IslandsScreen() {
                       setEditingId(item.id);
                       editingIdRef.current = item.id;
                     }}>
-                    <Text numberOfLines={2} style={[styles.cardTitle, { color: palette.ink }]}>
+                    <Text numberOfLines={2} style={[styles.cardTitle, { color: tide.text }]}>
                       {item.title || 'Untitled island'}
                     </Text>
                   </Pressable>
                 )}
-                {busy ? <ActivityIndicator size="small" color={palette.accent} /> : null}
+                {busy ? <ActivityIndicator size="small" color={tide.lang.ja} /> : null}
               </View>
-              <Text style={[styles.cardMeta, { color: palette.muted }]}>
+              <Text style={[styles.cardMeta, { color: tide.textDim }]}>
                 {item.status === 'failed'
                   ? 'Failed'
                   : busy
@@ -260,8 +279,8 @@ export default function IslandsScreen() {
       />
       <Pressable
         onPress={() => router.push('/record')}
-        style={[styles.fab, { backgroundColor: palette.accent }]}>
-        <Text style={[styles.fabText, { color: palette.accentInk }]}>Record an island</Text>
+        style={[styles.fab, { backgroundColor: tide.lang.ja }]}>
+        <Text style={[styles.fabText, { color: tide.sky[0] }]}>+</Text>
       </Pressable>
     </SafeAreaView>
   );
@@ -270,27 +289,29 @@ export default function IslandsScreen() {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   center: { alignItems: 'center', justifyContent: 'center', paddingTop: Spacing.xxl },
-  list: { padding: Spacing.lg, paddingBottom: 120, gap: Spacing.md },
-  empty: { fontSize: 15, lineHeight: 22, textAlign: 'center', paddingHorizontal: Spacing.xl },
-  card: { borderWidth: 1, borderRadius: Radius.md, padding: Spacing.lg, gap: Spacing.xs },
+  list: { padding: Spacing.lg, paddingBottom: 170, gap: Spacing.md },
+  empty: { fontSize: 15, lineHeight: 22, textAlign: 'center', paddingHorizontal: Spacing.xl, fontFamily: fonts.ui },
+  row: { borderTopWidth: 1, borderTopColor: tide.waterline, paddingVertical: Spacing.md, gap: Spacing.xs, overflow: 'hidden' },
+  rowFill: { position: 'absolute', left: 0, top: 0, bottom: 0, opacity: 0.16 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   cardTitleWrap: { flex: 1 },
-  cardTitle: { flex: 1, fontSize: 17, fontWeight: '600' },
+  cardTitle: { flex: 1, fontSize: 17, fontWeight: '600', fontFamily: fonts.serifJp },
   cardTitleInput: { borderBottomWidth: 1, paddingVertical: 0 },
-  cardMeta: { fontSize: 13 },
+  cardMeta: { fontSize: 13, fontFamily: fonts.ui },
   header: { gap: Spacing.md, marginBottom: Spacing.md },
-  search: { borderWidth: 1, borderRadius: Radius.md, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, fontSize: 15 },
+  search: { borderWidth: 1, borderRadius: Radius.md, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, fontSize: 15, fontFamily: fonts.ui },
   sortRow: { flexDirection: 'row', gap: Spacing.sm },
   pill: { borderWidth: 1, borderRadius: Radius.pill, paddingVertical: Spacing.xs + 2, paddingHorizontal: Spacing.md },
-  pillText: { fontSize: 13, fontWeight: '700' },
+  pillText: { fontSize: 13, fontWeight: '700', fontFamily: fonts.ui },
   fab: {
     position: 'absolute',
-    left: Spacing.lg,
     right: Spacing.lg,
-    bottom: Spacing.xl,
-    paddingVertical: Spacing.lg,
+    bottom: 96,
+    width: 56,
+    height: 56,
     borderRadius: Radius.pill,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  fabText: { fontSize: 16, fontWeight: '700' },
+  fabText: { fontSize: 28, fontWeight: '700', lineHeight: 32 },
 });
