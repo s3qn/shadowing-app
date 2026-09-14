@@ -9,13 +9,15 @@ The useful part for shadowing is that the AudioQuery already carries exact
 per-mora durations, so the karaoke timeline comes free. No forced alignment.
 Measured against the rendered wav: summing prePhonemeLength + every mora's
 consonant_length + vowel_length + postPhonemeLength predicted a 2.720s file to
-within 11ms, and speedScale divides the whole timeline linearly.
+within 11ms, and speedScale divides the whole timeline linearly. The accent
+phrases also carry the pitch accent, kept per mora as `high`.
 
 Audio is always rendered at speedScale 1.0. The client slows playback down with
 its own pitch-corrected rate control and divides these timings by that rate,
 which avoids a round trip every time the user moves the speed slider.
 """
 
+import array
 import io
 import logging
 import os
@@ -28,6 +30,8 @@ log = logging.getLogger(__name__)
 VOICEVOX_URL = os.getenv("VOICEVOX_URL", "http://127.0.0.1:50021")
 DEFAULT_SPEAKER = int(os.getenv("VOICEVOX_SPEAKER", "3"))
 TIMEOUT_S = 60.0
+# Backfill queries run inside a read the phone is waiting on, so they give up fast.
+BACKFILL_TIMEOUT_S = 2.0
 
 
 class VoicevoxError(RuntimeError):
@@ -73,8 +77,8 @@ async def fetch_resource(url: str) -> bytes:
         return r.content
 
 
-async def audio_query(text: str, speaker: int) -> dict:
-    async with httpx.AsyncClient(timeout=TIMEOUT_S) as client:
+async def audio_query(text: str, speaker: int, timeout: float = TIMEOUT_S) -> dict:
+    async with httpx.AsyncClient(timeout=timeout) as client:
         r = await client.post(
             f"{VOICEVOX_URL}/audio_query",
             params={"text": text, "speaker": speaker},
@@ -105,6 +109,20 @@ def to_hiragana(katakana: str) -> str:
     )
 
 
+def accent_highs(accent: int, count: int) -> list[bool]:
+    """High/low for each mora of one accent phrase, from VOICEVOX's `accent`
+    (1-based nucleus; equal to the mora count for a flat phrase). Accent 1:
+    first mora high, rest low. Otherwise the first mora is low, moras 2..accent
+    high, the rest low. Out-of-range values are clamped so a phrase never
+    ends up all high or all low by accident."""
+    if count <= 0:
+        return []
+    accent = accent if 1 <= accent <= count else count
+    if accent == 1:
+        return [True] + [False] * (count - 1)
+    return [False] + [True] * (accent - 1) + [False] * (count - accent)
+
+
 def build_timeline(query: dict) -> list[dict]:
     """Flatten an AudioQuery into absolute mora timings, in seconds.
 
@@ -116,7 +134,9 @@ def build_timeline(query: dict) -> list[dict]:
     t = float(query.get("prePhonemeLength", 0.0))
 
     for phrase_index, phrase in enumerate(query.get("accent_phrases", [])):
-        for mora in phrase.get("moras", []):
+        moras = phrase.get("moras", [])
+        highs = accent_highs(int(phrase.get("accent") or 0), len(moras))
+        for i, mora in enumerate(moras):
             dur = float(mora.get("consonant_length") or 0.0) + float(
                 mora.get("vowel_length") or 0.0
             )
@@ -128,6 +148,7 @@ def build_timeline(query: dict) -> list[dict]:
                     "start": round(t, 4),
                     "end": round(t + dur, 4),
                     "phrase": phrase_index,
+                    "high": highs[i],
                 }
             )
             t += dur
@@ -146,6 +167,23 @@ def total_duration(query: dict, timeline: list[dict]) -> float:
     return round(end + float(query.get("postPhonemeLength", 0.0)), 4)
 
 
+def needs_accent(timeline: list[dict]) -> bool:
+    """True for a stored timeline from before pitch marks: moras with no
+    `high` key at all. A `high` of None means a backfill already gave up."""
+    return bool(timeline) and any("high" not in m for m in timeline)
+
+
+def backfill_accent(timeline: list[dict], query: dict) -> list[dict] | None:
+    """Copy `high` from a fresh AudioQuery of the same text onto a stored
+    timeline. Returns None when the fresh moras do not line up one to one
+    with the stored ones (nothing safe to copy). Timings are never touched:
+    the stored ones are what the wav on disk was rendered from."""
+    fresh = build_timeline(query)
+    if len(fresh) != len(timeline) or any(f["text"] != m["text"] for m, f in zip(timeline, fresh)):
+        return None
+    return [{**m, "high": f["high"]} for m, f in zip(timeline, fresh)]
+
+
 def pad_wav(wav: bytes, pad_ms: int) -> bytes:
     """The same wav with `pad_ms` of silence appended, as PCM in the file's own
     format. Zero or negative padding returns the input unchanged."""
@@ -162,6 +200,46 @@ def pad_wav(wav: bytes, pad_ms: int) -> bytes:
     with wave.open(out, "wb") as dst:
         dst.setparams(params)
         dst.writeframes(frames + silence)
+    return out.getvalue()
+
+
+def slice_wav(wav: bytes, start_ms: int, end_ms: int, fade_ms: int = 5) -> bytes:
+    """The frames between `start_ms` and `end_ms` of `wav` as a wav in the
+    file's own format, with a linear fade of `fade_ms` at both cuts so a
+    cut inside a word does not click. `end_ms` past the file is clamped to
+    it. Raises ValueError when the span is empty after clamping."""
+    with wave.open(io.BytesIO(wav)) as src:
+        params = src.getparams()
+        frames = src.readframes(src.getnframes())
+
+    start_frame = round(params.framerate * start_ms / 1000)
+    end_frame = min(params.nframes, round(params.framerate * end_ms / 1000))
+    if start_ms < 0 or start_frame >= end_frame:
+        raise ValueError("empty span")
+
+    frame_bytes = params.sampwidth * params.nchannels
+    sliced = frames[start_frame * frame_bytes: end_frame * frame_bytes]
+
+    if params.sampwidth == 2:
+        n_frames = end_frame - start_frame
+        fade = min(round(params.framerate * fade_ms / 1000), n_frames // 2)
+        if fade > 0:
+            samples = array.array("h")
+            samples.frombytes(sliced)
+            nchannels = params.nchannels
+            for i in range(fade):
+                scale = i / fade
+                head = i
+                tail = n_frames - 1 - i
+                for ch in range(nchannels):
+                    samples[head * nchannels + ch] = round(samples[head * nchannels + ch] * scale)
+                    samples[tail * nchannels + ch] = round(samples[tail * nchannels + ch] * scale)
+            sliced = samples.tobytes()
+
+    out = io.BytesIO()
+    with wave.open(out, "wb") as dst:
+        dst.setparams(params)
+        dst.writeframes(sliced)
     return out.getvalue()
 
 

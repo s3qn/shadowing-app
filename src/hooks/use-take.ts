@@ -14,7 +14,7 @@ import { File } from 'expo-file-system';
 import { useEffect, useRef, useState } from 'react';
 
 import { meterLevel } from '@/components/level-bars';
-import { cleanTakeUrl, uploadTake } from '@/lib/api';
+import { cleanTakeUrl, uploadTake, type AudioSpan } from '@/lib/api';
 import {
   applyPlaybackMode,
   applyRecordingMode,
@@ -23,7 +23,7 @@ import {
   stopPlayback,
   useSessionPlayer,
 } from '@/lib/audio-mode';
-import { cleanTakeFile, findTake, saveTake, type Take } from '@/lib/takes';
+import { cleanTakeFile, deleteTake, findTake, saveTake, type Take } from '@/lib/takes';
 
 const TAIL_MS = 1000;
 // Nothing but the line's own finish event stops a take, and that event does
@@ -122,9 +122,14 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
   // The take (or calibration) a recording in progress belongs to, kept in a
   // ref because the tail runs after the line (and possibly the current idx,
   // the speed slider, and the lag setting) has moved on.
-  const target = useRef<{ islandId: string; idx: number; mode: TakeMode; speed: number; lagMs: number } | null>(
-    null,
-  );
+  const target = useRef<{
+    islandId: string;
+    idx: number;
+    mode: TakeMode;
+    speed: number;
+    lagMs: number;
+    span: AudioSpan | null;
+  } | null>(null);
   const tail = useRef<ReturnType<typeof setTimeout> | null>(null);
   const watchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Current props, read from finish() after the tail delay so it can tell
@@ -156,12 +161,19 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
    * removed an echo, downloads the cleaned file and switches the take on
    * screen over to it. Never touches the raw take: on any failure, or when
    * the backend reports nothing to clean, the raw take is left exactly as
-   * it was and keeps playing.
+   * it was and keeps playing. `span`, when set, is the phrase that was
+   * playing while the take was recorded, so the cleaner's reference matches it.
    */
-  async function cleanTake(targetIslandId: string, targetIdx: number, saved: Take, speed: number) {
+  async function cleanTake(
+    targetIslandId: string,
+    targetIdx: number,
+    saved: Take,
+    speed: number,
+    span: AudioSpan | null,
+  ) {
     setClean({ state: 'working', erleDb: null, note: '' });
     try {
-      const result = await uploadTake(targetIslandId, targetIdx, saved.uri, speed);
+      const result = await uploadTake(targetIslandId, targetIdx, saved.uri, speed, false, span);
       if (!result.cleaned) {
         setClean({ state: 'skipped', erleDb: result.erleDb, note: result.note });
         return;
@@ -192,7 +204,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
       if (savedFor && uri) {
         if (savedFor.mode === 'calibrate') {
           try {
-            const result = await uploadTake(savedFor.islandId, savedFor.idx, uri, savedFor.speed, true);
+            const result = await uploadTake(savedFor.islandId, savedFor.idx, uri, savedFor.speed, true, savedFor.span);
             setClean({ state: 'done', erleDb: result.erleDb, note: result.note });
           } catch (e) {
             setClean({ state: 'failed', erleDb: null, note: e instanceof Error ? e.message : '' });
@@ -203,7 +215,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
             if (savedFor.islandId === current.current.islandId && savedFor.idx === current.current.idx) {
               setTake(saved);
             }
-            void cleanTake(savedFor.islandId, savedFor.idx, saved, savedFor.speed);
+            void cleanTake(savedFor.islandId, savedFor.idx, saved, savedFor.speed, savedFor.span);
           } catch (e) {
             // The previous take, if any, is untouched: saveTake only replaces
             // it after the move into place succeeds.
@@ -231,13 +243,16 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
    * `speed` is carried through to `finish` in a ref, because the speed
    * slider can still move during the one second tail. `lagMs` is the
    * shadowing lag, added to the one second tail so a take is not cut while
-   * the speaker is still a beat behind the line.
+   * the speaker is still a beat behind the line. `span` is the phrase that
+   * plays under the take, passed on to the cleaner so its reference is the
+   * same audio.
    */
   async function startTake(
     lineSeconds: number | undefined,
     speed: number,
     mode: TakeMode,
     lagMs = 0,
+    span: AudioSpan | null = null,
   ): Promise<boolean> {
     if (!islandId) return false;
     setError('');
@@ -251,7 +266,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
       await applyRecordingMode();
       await recorder.prepareToRecordAsync();
       recorder.record();
-      target.current = { islandId, idx, mode, speed, lagMs };
+      target.current = { islandId, idx, mode, speed, lagMs, span };
       setMode(mode);
       // Nothing else should be pending here, but a leftover timer would end
       // this take early.
@@ -300,6 +315,18 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
     }
   }
 
+  /**
+   * Deletes the current line's take from disk and from the screen. Used when
+   * the phrase it was recorded over is changed or cleared, since the take no
+   * longer matches the audio it would be compared with.
+   */
+  function discardTake() {
+    stopPlayback(takePlayer);
+    if (islandId) deleteTake(islandId, idx);
+    setTake(null);
+    setClean(IDLE_CLEAN);
+  }
+
   function playTake() {
     if (!take) return;
     void takePlayer.seekTo(0);
@@ -340,5 +367,6 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
     cancel,
     playTake,
     stopTake,
+    discardTake,
   };
 }

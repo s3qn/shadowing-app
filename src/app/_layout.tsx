@@ -1,12 +1,13 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { useTheme } from '@/hooks/use-theme';
 
 export default function RootLayout() {
   const { palette, scheme } = useTheme();
   return (
-    <>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
@@ -23,6 +24,6 @@ export default function RootLayout() {
         <Stack.Screen name="island/[id]" options={{ title: '' }} />
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       </Stack>
-    </>
+    </GestureHandlerRootView>
   );
 }

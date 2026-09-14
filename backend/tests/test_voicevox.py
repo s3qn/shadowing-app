@@ -10,6 +10,8 @@ an optional pause_mora, plus prePhonemeLength/postPhonemeLength/speedScale.
 import io
 import wave
 
+import pytest
+
 import voicevox
 
 
@@ -206,3 +208,186 @@ def test_pad_wav_keeps_stereo_and_other_rates():
     with wave.open(io.BytesIO(padded)) as out:
         assert out.getnframes() == original_nframes + 22050
         assert out.getnchannels() == 2
+
+
+# ---------------------------------------------------------------------------
+# accent_highs / needs_accent / backfill_accent
+# ---------------------------------------------------------------------------
+
+def test_accent_highs_atamadaka():
+    assert voicevox.accent_highs(1, 3) == [True, False, False]
+
+
+def test_accent_highs_nakadaka():
+    assert voicevox.accent_highs(3, 5) == [False, True, True, False, False]
+
+
+def test_accent_highs_heiban_is_low_then_high_to_the_end():
+    assert voicevox.accent_highs(5, 5) == [False, True, True, True, True]
+
+
+def test_accent_highs_single_mora_and_empty():
+    assert voicevox.accent_highs(1, 1) == [True]
+    assert voicevox.accent_highs(1, 0) == []
+
+
+def test_accent_highs_clamps_out_of_range():
+    assert voicevox.accent_highs(0, 3) == [False, True, True]
+    assert voicevox.accent_highs(9, 3) == [False, True, True]
+
+
+def test_build_timeline_marks_each_mora_high_or_low():
+    query = {
+        "accent_phrases": [
+            {"accent": 1, "moras": [_mora("キョ", 0.0, 0.1), _mora("オ", 0.0, 0.1), _mora("ワ", 0.0, 0.1)]},
+            {
+                "accent": 5,
+                "moras": [
+                    _mora("ガ", 0.0, 0.1),
+                    _mora("ッ", 0.0, 0.1),
+                    _mora("コ", 0.0, 0.1),
+                    _mora("オ", 0.0, 0.1),
+                    _mora("ニ", 0.0, 0.1),
+                ],
+            },
+        ],
+        "prePhonemeLength": 0.0,
+        "postPhonemeLength": 0.0,
+    }
+
+    timeline = voicevox.build_timeline(query)
+
+    assert [m["high"] for m in timeline] == [True, False, False, False, True, True, True, True]
+
+
+def test_build_timeline_without_accent_key_is_flat():
+    query = {
+        "accent_phrases": [{"moras": [_mora("キ", 0.0, 0.1), _mora("ョ", 0.0, 0.1), _mora("ウ", 0.0, 0.1)]}],
+        "prePhonemeLength": 0.0,
+        "postPhonemeLength": 0.0,
+    }
+
+    timeline = voicevox.build_timeline(query)
+
+    assert [m["high"] for m in timeline] == [False, True, True]
+
+
+def test_needs_accent():
+    assert voicevox.needs_accent([]) is False
+    assert voicevox.needs_accent([{"text": "コ"}]) is True
+    assert voicevox.needs_accent([{"text": "コ", "high": None}, {"text": "ン", "high": None}]) is False
+    assert voicevox.needs_accent([{"text": "コ", "high": True}, {"text": "ン", "high": False}]) is False
+
+
+def test_backfill_accent_copies_highs_when_moras_match():
+    timeline = [
+        {"text": "キョ", "kana": "きょ", "start": 0.0, "end": 0.1, "phrase": 0},
+        {"text": "オ", "kana": "お", "start": 0.1, "end": 0.2, "phrase": 0},
+        {"text": "ワ", "kana": "わ", "start": 0.2, "end": 0.3, "phrase": 0},
+    ]
+    query = {
+        "accent_phrases": [
+            {"accent": 1, "moras": [_mora("キョ", 0.0, 0.1), _mora("オ", 0.0, 0.1), _mora("ワ", 0.0, 0.1)]},
+        ],
+        "prePhonemeLength": 0.0,
+        "postPhonemeLength": 0.0,
+    }
+
+    filled = voicevox.backfill_accent(timeline, query)
+
+    assert filled is not None
+    assert [m["high"] for m in filled] == [True, False, False]
+    for stored, result in zip(timeline, filled):
+        assert result["start"] == stored["start"]
+        assert result["end"] == stored["end"]
+        assert result["kana"] == stored["kana"]
+        assert result["phrase"] == stored["phrase"]
+
+
+def test_backfill_accent_returns_none_on_mora_mismatch():
+    timeline = [{"text": "キョ", "start": 0.0, "end": 0.1, "phrase": 0}]
+    query_shorter = {"accent_phrases": [], "prePhonemeLength": 0.0, "postPhonemeLength": 0.0}
+    query_different = {
+        "accent_phrases": [{"accent": 1, "moras": [_mora("ワ", 0.0, 0.1)]}],
+        "prePhonemeLength": 0.0,
+        "postPhonemeLength": 0.0,
+    }
+
+    assert voicevox.backfill_accent(timeline, query_shorter) is None
+    assert voicevox.backfill_accent(timeline, query_different) is None
+
+
+# ---------------------------------------------------------------------------
+# slice_wav
+# ---------------------------------------------------------------------------
+
+def test_slice_wav_keeps_the_span_frames():
+    wav = _make_wav(24000, 1, 2, 1000)
+    with wave.open(io.BytesIO(wav)) as src:
+        source_frames = src.readframes(src.getnframes())
+        source_params = src.getparams()
+
+    sliced = voicevox.slice_wav(wav, 200, 500)
+
+    with wave.open(io.BytesIO(sliced)) as out:
+        assert out.getnframes() == 7200
+        params = out.getparams()
+        assert params.nchannels == source_params.nchannels
+        assert params.sampwidth == source_params.sampwidth
+        assert params.framerate == source_params.framerate
+        frames = out.readframes(out.getnframes())
+
+    frame_bytes = source_params.sampwidth * source_params.nchannels
+    assert (
+        frames[120 * frame_bytes: 7080 * frame_bytes]
+        == source_frames[4920 * frame_bytes: 11880 * frame_bytes]
+    )
+
+
+def test_slice_wav_fades_both_cuts():
+    wav = _make_wav(24000, 1, 2, 1000)
+
+    sliced = voicevox.slice_wav(wav, 200, 500)
+
+    with wave.open(io.BytesIO(sliced)) as out:
+        nframes = out.getnframes()
+        frame_bytes = out.getsampwidth() * out.getnchannels()
+        frames = out.readframes(nframes)
+
+    zero_frame = b"\x00" * frame_bytes
+    assert frames[:frame_bytes] == zero_frame
+    assert frames[-frame_bytes:] == zero_frame
+    mid = nframes // 2
+    assert frames[mid * frame_bytes: (mid + 1) * frame_bytes] != zero_frame
+
+
+def test_slice_wav_clamps_end_to_the_file():
+    wav = _make_wav(24000, 1, 2, 1000)
+
+    sliced = voicevox.slice_wav(wav, 800, 5000)
+
+    with wave.open(io.BytesIO(sliced)) as out:
+        assert out.getnframes() == 4800
+
+
+def test_slice_wav_rejects_an_empty_span():
+    wav = _make_wav(24000, 1, 2, 1000)
+
+    with pytest.raises(ValueError):
+        voicevox.slice_wav(wav, 500, 500)
+    with pytest.raises(ValueError):
+        voicevox.slice_wav(wav, 700, 300)
+    with pytest.raises(ValueError):
+        voicevox.slice_wav(wav, 1200, 1500)
+
+
+def test_slice_wav_stereo_fades_every_channel():
+    wav = _make_wav(44100, 2, 2, 1000)
+
+    sliced = voicevox.slice_wav(wav, 200, 500)
+
+    with wave.open(io.BytesIO(sliced)) as out:
+        frame_bytes = out.getsampwidth() * out.getnchannels()
+        first_frame = out.readframes(1)
+
+    assert first_frame == b"\x00" * frame_bytes

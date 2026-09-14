@@ -139,12 +139,39 @@ def add_line(island_id: str, idx: int, line: dict, duration: float, timeline: li
         )
 
 
-def set_words(island_id: str, idx: int, words: list) -> None:
-    with connect() as conn:
-        conn.execute(
-            "UPDATE lines SET words=? WHERE island_id=? AND idx=?",
-            (json.dumps(words, ensure_ascii=False), island_id, idx),
+def _set_line_json(island_id: str, idx: int, column: str, value: list,
+                   expected: list | None) -> bool:
+    """Write one JSON column of a line. With `expected`, only when the stored
+    value still equals it (compared as parsed JSON, inside one write lock),
+    so a backfill computed from an older read cannot overwrite a line that a
+    re-voice replaced in the meantime. Returns True when a row was written."""
+    conn = connect()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        if expected is not None:
+            row = conn.execute(
+                f"SELECT {column} FROM lines WHERE island_id=? AND idx=?", (island_id, idx)
+            ).fetchone()
+            if row is None or json.loads(row[column] or "[]") != expected:
+                conn.rollback()
+                return False
+        cur = conn.execute(
+            f"UPDATE lines SET {column}=? WHERE island_id=? AND idx=?",
+            (json.dumps(value, ensure_ascii=False), island_id, idx),
         )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def set_words(island_id: str, idx: int, words: list, expected: list | None = None) -> bool:
+    return _set_line_json(island_id, idx, "words", words, expected)
+
+
+def set_timeline(island_id: str, idx: int, timeline: list,
+                 expected: list | None = None) -> bool:
+    return _set_line_json(island_id, idx, "timeline", timeline, expected)
 
 
 def clear_lines(island_id: str) -> None:

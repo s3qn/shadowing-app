@@ -142,6 +142,61 @@ def test_set_words_replaces_words_without_touching_timeline(island_id):
     assert line["timeline"] == timeline
 
 
+def test_set_timeline_replaces_timeline_without_touching_words(island_id):
+    timeline = [{"text": "あ", "start": 0.0, "end": 0.2}]
+    words = [{"text": "old", "start": 0.0, "end": 0.2}]
+    store.add_line(island_id, 0, {"ja": "line"}, 1.0, timeline, words)
+
+    new_timeline = [{"text": "あ", "start": 0.0, "end": 0.2, "high": True}]
+    store.set_timeline(island_id, 0, new_timeline)
+
+    line = store.get_island(island_id)["lines"][0]
+    assert line["timeline"] == new_timeline
+    assert line["words"] == words
+
+
+def test_set_timeline_with_expected_writes_when_unchanged(island_id):
+    timeline = [{"text": "あ", "start": 0.0, "end": 0.2}]
+    store.add_line(island_id, 0, {"ja": "line"}, 1.0, timeline, [])
+
+    filled = [{**timeline[0], "high": True}]
+    assert store.set_timeline(island_id, 0, filled, expected=timeline) is True
+
+    assert store.get_island(island_id)["lines"][0]["timeline"] == filled
+
+
+def test_set_timeline_with_expected_skips_a_replaced_line(island_id):
+    old = [{"text": "あ", "start": 0.0, "end": 0.2}]
+    store.add_line(island_id, 0, {"ja": "line"}, 1.0, old, [])
+    # A re-voice replaces the line between the backfill's read and its write.
+    revoiced = [{"text": "あ", "start": 0.0, "end": 0.3, "high": False}]
+    store.add_line(island_id, 0, {"ja": "line"}, 1.0, revoiced, [])
+
+    stale = [{**old[0], "high": True}]
+    assert store.set_timeline(island_id, 0, stale, expected=old) is False
+
+    assert store.get_island(island_id)["lines"][0]["timeline"] == revoiced
+
+
+def test_set_words_with_expected_skips_a_replaced_line(island_id):
+    timeline = [{"text": "あ", "start": 0.0, "end": 0.2}]
+    store.add_line(island_id, 0, {"ja": "line"}, 1.0, timeline, [])
+    fresh = [{"text": "new", "start": 0.0, "end": 0.2, "ruby": []}]
+    store.add_line(island_id, 0, {"ja": "line"}, 1.0, timeline, fresh)
+
+    stale = [{"text": "old", "start": 0.0, "end": 0.2, "ruby": []}]
+    assert store.set_words(island_id, 0, stale, expected=[]) is False
+    assert store.get_island(island_id)["lines"][0]["words"] == fresh
+
+    assert store.set_words(island_id, 0, stale, expected=fresh) is True
+    assert store.get_island(island_id)["lines"][0]["words"] == stale
+
+
+def test_set_with_expected_on_a_missing_line_writes_nothing(island_id):
+    assert store.set_words(island_id, 7, [], expected=[]) is False
+    assert store.get_island(island_id)["lines"] == []
+
+
 def test_clear_lines_empties_lines_but_keeps_island(island_id):
     store.add_line(island_id, 0, {"ja": "a"}, 1.0, [], [])
     store.add_line(island_id, 1, {"ja": "b"}, 1.0, [], [])

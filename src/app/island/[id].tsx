@@ -14,13 +14,21 @@ import {
   Text,
   View,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { cancelAnimation, Easing, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ExportLink } from '@/components/export-link';
+import { PhraseBar } from '@/components/phrase-bar';
+import { PitchReading } from '@/components/pitch-reading';
+import { ReadingPills } from '@/components/reading-pills';
 import { RingButton, type RingMode } from '@/components/ring-button';
+import { RubyWord } from '@/components/ruby-word';
+import { SELECTION_POPUP_WIDTH, SelectionPopup } from '@/components/selection-popup';
 import { TakeRow } from '@/components/take-row';
 import { POPOVER_WIDTH, WordPanel } from '@/components/word-panel';
 import { Radius, SPEED_MAX, SPEED_MIN, Spacing } from '@/constants/theme';
+import { usePhrase, type PhraseSpan } from '@/hooks/use-phrase';
 import { useTake, type TakeMode } from '@/hooks/use-take';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
@@ -31,7 +39,18 @@ import {
   stopPlayback,
   useSessionPlayer,
 } from '@/lib/audio-mode';
-import { getSettings, setBlind as persistBlind, setLagMs as persistLagMs, LAG_OPTIONS, type LagMs } from '@/lib/settings';
+import { pitchCells } from '@/lib/pitch';
+import { lineRomaji } from '@/lib/romaji';
+import {
+  getSettings,
+  setBlind as persistBlind,
+  setLagMs as persistLagMs,
+  setPitch as persistPitch,
+  setReading as persistReading,
+  LAG_OPTIONS,
+  type LagMs,
+  type ReadingMode,
+} from '@/lib/settings';
 import { deleteTakes } from '@/lib/takes';
 
 // Expo Go on Android does not ship the AudioControlsService, and activating
@@ -85,6 +104,12 @@ export default function IslandScreen() {
   // not overwrite the choice.
   const blindTouched = useRef(false);
   const lagTouched = useRef(false);
+  // How the reading is shown (furigana over the kanji, the kana line, or
+  // romaji) and whether pitch marks are drawn. Remembered like Blind and Lag.
+  const [readingMode, setReadingMode] = useState<ReadingMode>('furigana');
+  const [pitch, setPitchOn] = useState(true);
+  const readingTouched = useRef(false);
+  const pitchTouched = useRef(false);
   const [voice, setVoice] = useState<number | null>(null);
   const [voiceName, setVoiceName] = useState('');
   const [revoicing, setRevoicing] = useState(false);
@@ -105,22 +130,42 @@ export default function IslandScreen() {
   const [selected, setSelected] = useState<number | null>(null);
   const [glossData, setGlossData] = useState<api.Gloss | null>(null);
   // Where each word sits inside the sentence block, so the popover can sit
-  // right under the tapped one without moving anything else.
+  // right under the tapped one without moving anything else, and so the drag
+  // gesture below can hit-test a touch point to a word.
   const wordBoxes = useRef<Record<number, { x: number; y: number; width: number; height: number }>>({});
   const [blockWidth, setBlockWidth] = useState(0);
+  // The run of words a drag has selected. Set on the pan gesture's start and
+  // update, left alone on end: that is what shows the Repeat popup.
+  const [dragSpan, setDragSpan] = useState<PhraseSpan | null>(null);
+  const anchorWord = useRef(0);
 
   const line = island?.lines[idx];
+  // Per line, not per render: the position ticks every 50ms while playing.
+  const lineRomajiText = useMemo(() => (line ? lineRomaji(line) : ''), [line]);
+  const linePitchCells = useMemo(() => (line ? pitchCells(line.timeline) : null), [line]);
   // The pad requested from the backend: always the breath plus the lag,
   // whatever the Repeat pill says, so tapping Repeat never restarts the line.
   const breathMs = LOOP_GAP_MS + lagMs;
+  const phrase = usePhrase(lineKey, line, speed);
   const source = useMemo(
     () =>
       island && line
-        ? { uri: api.lineAudioUrl(island.id, line.idx, `${island.speaker}-${generation}`, speed, breathMs) }
+        ? {
+            uri: api.lineAudioUrl(
+              island.id,
+              line.idx,
+              `${island.speaker}-${generation}`,
+              speed,
+              breathMs,
+              phrase.audio,
+            ),
+          }
         : null,
     // A lag change re-creates the player (new pad, new source URL), so a
     // playing line restarts from the top, exactly like a speed change does.
-    [island, line, speed, generation, lagMs],
+    // A phrase is its own render, so setting or clearing one swaps the player
+    // like a speed change.
+    [island, line, speed, generation, lagMs, phrase.audio?.startMs, phrase.audio?.endMs],
   );
   // Native status arrives every 50ms; particles can be shorter than that, so
   // the position shown to the highlighter is interpolated between updates.
@@ -245,9 +290,14 @@ export default function IslandScreen() {
       // what they tapped wins.
       if (!blindTouched.current) {
         setBlind(settings.blind);
-        if (settings.blind) closePanel();
+        if (settings.blind) {
+          closePanel();
+          setDragSpan(null);
+        }
       }
       if (!lagTouched.current) setLagMs(settings.lagMs);
+      if (!readingTouched.current) setReadingMode(settings.reading);
+      if (!pitchTouched.current) setPitchOn(settings.pitch);
       try {
         const speakers = await api.listSpeakers();
         for (const sp of speakers) {
@@ -335,6 +385,7 @@ export default function IslandScreen() {
     dropTake();
     stopPlayback(player);
     closePanel();
+    setDragSpan(null);
     try {
       try {
         await api.regenerate(island.id, target);
@@ -434,7 +485,7 @@ export default function IslandScreen() {
   function lockMeta(): AudioMetadata {
     const pos = `Line ${idx + 1} of ${island!.lines.length}`;
     const artist = island!.title || 'Island';
-    return blind ? { title: pos, artist } : { title: line!.ja, artist, albumTitle: pos };
+    return blind ? { title: pos, artist } : { title: phrase.label ?? line!.ja, artist, albumTitle: pos };
   }
 
   // The line player is the lock screen / notification's active player.
@@ -452,7 +503,7 @@ export default function IslandScreen() {
     if (!lockScreen || !island || !line) return;
     player.updateLockScreenMetadata(lockMeta());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blind, idx, island?.title, island?.lines.length, line?.ja]);
+  }, [blind, idx, island?.title, island?.lines.length, line?.ja, phrase.label]);
 
   // A take made with the phone in a pocket is not a take, and the microphone
   // must never run in the background: dropped as soon as the app backgrounds.
@@ -549,6 +600,7 @@ export default function IslandScreen() {
     }
     playWhenLoaded.current = true;
     setPeekKey(null);
+    if (phrase.span) take.discardTake();
     setIdx((i) => (i + 1) % island.lines.length);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status.didJustFinish]);
@@ -559,9 +611,11 @@ export default function IslandScreen() {
     setGlossData(null);
   }
 
-  // A new line or speed means new audio, so the panel no longer applies.
+  // A new line or speed means new audio, so the panel and any drag selection
+  // no longer apply.
   useEffect(() => {
     closePanel();
+    setDragSpan(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx, speed]);
 
@@ -586,6 +640,118 @@ export default function IslandScreen() {
     startPlayback(wordPlayer);
   }
 
+  // Hit-tests a point in styles.words' own coordinate space (what
+  // GestureDetector reports touches in, since it wraps that view) to a word
+  // index: the row whose y-range contains the point (or the closest one by
+  // vertical distance, for a touch between rows), then within that row the
+  // word whose x-range is closest, which clamps a drag past either edge of a
+  // row to that edge rather than spilling onto the next one. Blind mode has
+  // nothing to hit.
+  function hitTest(x: number, y: number): number | null {
+    if (!line || hidden) return null;
+    const boxes = wordBoxes.current;
+    const indices = Object.keys(boxes)
+      .map(Number)
+      .filter((i) => i < line.words.length);
+    if (indices.length === 0) return null;
+    let rowY = boxes[indices[0]!]!.y;
+    let exact = false;
+    for (const i of indices) {
+      const b = boxes[i]!;
+      if (y >= b.y && y < b.y + b.height) {
+        rowY = b.y;
+        exact = true;
+        break;
+      }
+    }
+    if (!exact) {
+      let best = Infinity;
+      for (const i of indices) {
+        const b = boxes[i]!;
+        const dist = Math.abs(y - (b.y + b.height / 2));
+        if (dist < best) {
+          best = dist;
+          rowY = b.y;
+        }
+      }
+    }
+    const row = indices.filter((i) => Math.abs(boxes[i]!.y - rowY) < 2).sort((a, b) => a - b);
+    let picked = row[0]!;
+    let bestXDist = Infinity;
+    for (const i of row) {
+      const b = boxes[i]!;
+      if (x >= b.x && x < b.x + b.width) return i;
+      const dist = x < b.x ? b.x - x : x - (b.x + b.width);
+      if (dist < bestXDist) {
+        bestXDist = dist;
+        picked = i;
+      }
+    }
+    return picked;
+  }
+
+  // A drag picks the phrase, snapped to whole words: hold still for the pan
+  // to activate (the ScrollView is free to claim a vertical drag until then),
+  // then the highlight follows the touch as `dragSpan`. A plain tap falls
+  // through to the word popover instead, and also dismisses a drag selection
+  // sitting from before. Both run on the JS thread: nothing here is a
+  // worklet, so state and the existing async handlers can be called directly.
+  const pan = Gesture.Pan()
+    .activateAfterLongPress(450)
+    .runOnJS(true)
+    .onStart((e) => {
+      const i = hitTest(e.x, e.y);
+      if (i === null) return;
+      closePanel();
+      anchorWord.current = i;
+      setDragSpan({ from: i, to: i });
+    })
+    .onUpdate((e) => {
+      const i = hitTest(e.x, e.y);
+      if (i === null) return;
+      const a = anchorWord.current;
+      setDragSpan({ from: Math.min(a, i), to: Math.max(a, i) });
+    });
+  const tap = Gesture.Tap()
+    .runOnJS(true)
+    .onEnd((e) => {
+      setDragSpan(null);
+      const i = hitTest(e.x, e.y);
+      if (i !== null) void tapWord(i);
+    });
+  const sentenceGesture = Gesture.Exclusive(pan, tap);
+
+  // The drag selection's popup Repeat button: same follow-up as picking a
+  // phrase used to run, then the selection (and its popup) is done.
+  function repeatSelection() {
+    const span = dragSpan;
+    setDragSpan(null);
+    if (!span || phrase.set(span) !== 'set') return;
+    dropTake();
+    // A take belongs to the audio it was recorded over.
+    take.discardTake();
+    stopPlayback(player);
+    cancelAnimation(ring);
+    ring.value = 0;
+    ringPhase.current = 'idle';
+    playWhenLoaded.current = true;
+  }
+
+  // Back to the whole line, carrying on if it was playing.
+  function clearPhrase() {
+    if (!phrase.span) return;
+    const wasActive = status.playing;
+    dropTake();
+    take.discardTake();
+    stopPlayback(player);
+    cancelAnimation(ring);
+    ring.value = 0;
+    ringPhase.current = 'idle';
+    playWhenLoaded.current = wasActive;
+    setDragSpan(null);
+    phrase.clear();
+  }
+
   // Switching lines: stop the old audio first, reset everything that belonged
   // to it, and carry on playing on the new line if we were playing.
   function go(target: number) {
@@ -594,6 +760,8 @@ export default function IslandScreen() {
     if (clamped === idx) return;
     const wasActive = status.playing;
     dropTake();
+    // Leaving the line clears its phrase, and with it a take recorded on it.
+    if (phrase.span) take.discardTake();
     stopPlayback(player);
     cancelAnimation(ring);
     ring.value = 0;
@@ -601,6 +769,7 @@ export default function IslandScreen() {
     anchor.current = { time: 0, at: Date.now(), playing: false, rate: 1 };
     setPosition(0);
     closePanel();
+    setDragSpan(null);
     playWhenLoaded.current = wasActive;
     // Coming back to a line that was peeked at hides it again.
     setPeekKey(null);
@@ -614,6 +783,7 @@ export default function IslandScreen() {
   async function toggle() {
     const active = status.playing;
     playWhenLoaded.current = false;
+    setDragSpan(null);
     if (active) {
       dropTake();
       stopPlayback(player);
@@ -627,6 +797,8 @@ export default function IslandScreen() {
     } catch {
       // A seek can fail while the item is still loading; play anyway.
     }
+    // A short phrase can reach lineEnd before a status below it resets this.
+    crossed.current = false;
     startPlayback(player);
   }
 
@@ -635,7 +807,10 @@ export default function IslandScreen() {
     blindTouched.current = true;
     setBlind(next);
     setPeekKey(null);
-    if (next) closePanel();
+    if (next) {
+      closePanel();
+      setDragSpan(null);
+    }
     // The pill already shows the new value; a failed save only means it is
     // not remembered next time.
     persistBlind(next).catch(() => {});
@@ -658,6 +833,22 @@ export default function IslandScreen() {
     setLagMs(ms);
   }
 
+  // Neither touches playback: switching the reading never stops the line, a
+  // take, a compare or the popover. A failed save only means it is not
+  // remembered next time.
+  function pickReading(mode: ReadingMode) {
+    readingTouched.current = true;
+    setReadingMode(mode);
+    persistReading(mode).catch(() => {});
+  }
+
+  function togglePitch() {
+    const next = !pitch;
+    pitchTouched.current = true;
+    setPitchOn(next);
+    persistPitch(next).catch(() => {});
+  }
+
   // The take is only in phase 'recording' once startTake resolves, so the pill
   // stays tappable through the permission and audio mode round trips. This
   // holds the second tap off, which would otherwise prepare the recorder again
@@ -673,6 +864,7 @@ export default function IslandScreen() {
     try {
       playWhenLoaded.current = false;
       closePanel();
+      setDragSpan(null);
       // dropTake(), but waiting for the cancel: it stops a take still
       // recording and releases the session, and that must be done before the
       // new recorder is prepared rather than land under it.
@@ -689,7 +881,12 @@ export default function IslandScreen() {
       }
       // The spoken line's length (without the pad) is the watchdog's base: a
       // take that is never ended by the line stops itself a few seconds past it.
-      if (!(await take.startTake(lineEnd || undefined, speed, mode, lagMs))) return;
+      // A calibration is always the whole line (calibrateSpeaker clears a
+      // phrase first): the speaker profile is global and a slice is too short
+      // to learn it from.
+      const span = mode === 'calibrate' ? null : phrase.audio;
+      if (!(await take.startTake(lineEnd || undefined, speed, mode, lagMs, span))) return;
+      crossed.current = false;
       startPlayback(player);
     } finally {
       startingTake.current = false;
@@ -700,9 +897,25 @@ export default function IslandScreen() {
     await beginRecording('take');
   }
 
+  // Calibrating with a phrase set goes back to the whole line first and
+  // starts once that audio is swapped in (the effect below), so the phone
+  // plays exactly the reference the backend calibrates against.
+  const calibrateWhenLoaded = useRef(false);
   async function calibrateSpeaker() {
+    if (phrase.span) {
+      clearPhrase();
+      playWhenLoaded.current = false;
+      calibrateWhenLoaded.current = true;
+      return;
+    }
     await beginRecording('calibrate');
   }
+  useEffect(() => {
+    if (!calibrateWhenLoaded.current || !source) return;
+    calibrateWhenLoaded.current = false;
+    void beginRecording('calibrate');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source, player]);
 
   function compare() {
     if (compareNext.current || (take.takePlaying && comparing)) {
@@ -712,6 +925,7 @@ export default function IslandScreen() {
     }
     playWhenLoaded.current = false;
     closePanel();
+    setDragSpan(null);
     take.stopTake();
     compareNext.current = true;
     setComparing(true);
@@ -722,6 +936,7 @@ export default function IslandScreen() {
       } catch {
         // A seek can fail while the item is still loading; play anyway.
       }
+      crossed.current = false;
       startPlayback(player);
     })();
   }
@@ -732,6 +947,7 @@ export default function IslandScreen() {
       return;
     }
     closePanel();
+    setDragSpan(null);
     compareNext.current = false;
     setComparing(false);
     if (status.playing) stopPlayback(player);
@@ -832,10 +1048,23 @@ export default function IslandScreen() {
   // straight onto the word spans no matter what the playback rate is.
   // Word spans are stored for speed 1.0; the rendered audio is 1/speed as long.
   // Only a playing line lights up. Paused or finished, nothing is green.
-  const activeWord = status.playing
-    ? line.words.findIndex((w) => position >= w.start / speed && position < w.end / speed)
+  // The phrase audio starts at the phrase's first word, so the position is
+  // shifted back onto the line's own timings.
+  // The breath after a phrase runs the shifted position past the phrase, so
+  // only the phrase's own words may light up.
+  const at = position + phrase.offsetSec;
+  const found = status.playing
+    ? line.words.findIndex((w) => at >= w.start / speed && at < w.end / speed)
     : -1;
+  const activeWord =
+    phrase.span && (found < phrase.span.from || found > phrase.span.to) ? -1 : found;
   const reading = line.timeline.map((m) => m.kana).join('');
+  // Under the sentence: the kana or romaji line by mode, nothing in Furigana
+  // mode (the reading is on the kanji). The pitch strip is the kana line with
+  // marks; in Kana mode it stands in for the plain line, in the other modes
+  // it is its own row.
+  const modeLine = readingMode === 'kana' ? reading : readingMode === 'romaji' ? lineRomajiText : null;
+  const cells = pitch ? linePitchCells : null;
 
   const ringMode: RingMode = status.playing ? (inBreath ? 'breath' : 'playing') : 'idle';
 
@@ -845,6 +1074,37 @@ export default function IslandScreen() {
     ? Math.max(0, Math.min(blockWidth - POPOVER_WIDTH, box.x + box.width / 2 - POPOVER_WIDTH / 2))
     : 0;
   const popTop = box ? box.y + box.height + 6 : 0;
+
+  // The Repeat popup under a drag selection: the same clamping approach as
+  // the word popover above, but anchored to the union of the span's word
+  // boxes instead of one box.
+  const dragBoxes = dragSpan
+    ? Array.from(
+        { length: dragSpan.to - dragSpan.from + 1 },
+        (_, k) => wordBoxes.current[dragSpan.from + k],
+      ).filter((b): b is { x: number; y: number; width: number; height: number } => !!b)
+    : [];
+  const dragUnion = dragBoxes.length
+    ? dragBoxes.reduce(
+        (acc, b) => ({
+          x: Math.min(acc.x, b.x),
+          y: Math.min(acc.y, b.y),
+          right: Math.max(acc.right, b.x + b.width),
+          bottom: Math.max(acc.bottom, b.y + b.height),
+        }),
+        { x: Infinity, y: Infinity, right: -Infinity, bottom: -Infinity },
+      )
+    : null;
+  const dragPopLeft = dragUnion
+    ? Math.max(
+        0,
+        Math.min(
+          blockWidth - SELECTION_POPUP_WIDTH,
+          dragUnion.x + (dragUnion.right - dragUnion.x) / 2 - SELECTION_POPUP_WIDTH / 2,
+        ),
+      )
+    : 0;
+  const dragPopTop = dragUnion ? dragUnion.bottom + 6 : 0;
   const progress = status.duration > 0 ? status.currentTime / status.duration : 0;
 
   return (
@@ -871,48 +1131,46 @@ export default function IslandScreen() {
               <View
                 style={styles.block}
                 onLayout={(e) => setBlockWidth(e.nativeEvent.layout.width)}>
-              <View style={styles.words}>
-                {line.words.map((w, i) => (
-                  <Text
-                    key={i}
-                    onPress={() => tapWord(i)}
-                    onLayout={(e) => {
-                      wordBoxes.current[i] = e.nativeEvent.layout;
-                    }}
-                    style={[
-                      styles.ja,
-                      styles.word,
-                      {
-                        color: i === activeWord ? palette.accentInk : palette.ink,
-                        backgroundColor:
-                          i === activeWord
-                            ? palette.accent
-                            : i === selected
-                              ? palette.surfaceAlt
-                              : 'transparent',
-                        textDecorationLine: i === selected ? 'underline' : 'none',
-                      },
-                    ]}>
-                    {w.text}
-                  </Text>
-                ))}
-              </View>
+              <GestureDetector gesture={sentenceGesture}>
+                <View style={styles.words}>
+                  {line.words.map((w, i) => (
+                    <RubyWord
+                      key={i}
+                      word={w}
+                      showRuby={readingMode === 'furigana'}
+                      active={i === activeWord}
+                      selected={i === selected || (!!dragSpan && i >= dragSpan.from && i <= dragSpan.to)}
+                      dimmed={!!phrase.span && (i < phrase.span.from || i > phrase.span.to)}
+                      onLayout={(e) => {
+                        wordBoxes.current[i] = e.nativeEvent.layout;
+                      }}
+                    />
+                  ))}
+                </View>
+              </GestureDetector>
               {selected !== null && line.words[selected] ? (
                 <WordPanel
                   word={line.words[selected]!.text}
                   gloss={glossData}
                   left={popLeft}
                   top={popTop}
+                  romaji={readingMode === 'romaji'}
                   onHear={() => hearWord()}
                   onClose={closePanel}
                 />
+              ) : null}
+              {dragSpan && dragUnion ? (
+                <SelectionPopup left={dragPopLeft} top={dragPopTop} onRepeat={repeatSelection} />
               ) : null}
               </View>
             ) : (
               <Text style={[styles.ja, { color: palette.ink }]}>{line.ja}</Text>
             )}
 
-            <Text style={[styles.reading, { color: palette.muted }]}>{reading}</Text>
+            {modeLine !== null && !(readingMode === 'kana' && cells) ? (
+              <Text style={[styles.reading, { color: palette.muted }]}>{modeLine}</Text>
+            ) : null}
+            {cells ? <PitchReading cells={cells} /> : null}
 
             <Pressable onPress={() => setShowEnglish((v) => !v)}>
               <Text style={[styles.en, { color: showEnglish ? palette.ink : palette.muted }]}>
@@ -921,6 +1179,8 @@ export default function IslandScreen() {
             </Pressable>
           </>
         )}
+
+        <PhraseBar label={phrase.label} hidden={hidden} onClear={clearPhrase} />
       </ScrollView>
 
       <View style={[styles.controls, { borderTopColor: palette.line }]}>
@@ -966,6 +1226,14 @@ export default function IslandScreen() {
           </Pressable>
         ) : null}
 
+        <ExportLink
+          islandId={island.id}
+          title={island.title}
+          speed={speed}
+          gapMs={breathMs}
+          disabled={revoicing || regenerating}
+        />
+
         <Pressable onPress={confirmRegenerate} disabled={revoicing || regenerating} style={styles.action}>
           <Text style={[styles.actionText, { color: revoicing || regenerating ? palette.muted : palette.accent }]}>
             {regenerating
@@ -998,6 +1266,8 @@ export default function IslandScreen() {
             );
           })}
         </View>
+
+        <ReadingPills value={readingMode} onChange={pickReading} pitch={pitch} onTogglePitch={togglePitch} />
 
         <View style={styles.shadowRow}>
           <Pressable
@@ -1079,7 +1349,6 @@ const styles = StyleSheet.create({
   ja: { fontSize: 32, lineHeight: 48, fontWeight: '600', textAlign: 'center' },
   block: { position: 'relative', zIndex: 5 },
   words: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
-  word: { paddingHorizontal: 4, borderRadius: Radius.sm, overflow: 'hidden' },
   reading: { fontSize: 20, lineHeight: 30, textAlign: 'center' },
   en: { fontSize: 15, lineHeight: 22, textAlign: 'center', marginTop: Spacing.sm },
   again: {

@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { Gloss } from '@/lib/api';
+import { kanaToRomaji } from '@/lib/romaji';
 
 export const POPOVER_WIDTH = 250;
 
@@ -12,17 +13,29 @@ type Props = {
   /** Absolute position inside the sentence block, computed by the screen. */
   left: number;
   top: number;
+  /** Show the reading as romaji instead of kana, following the reading mode. */
+  romaji?: boolean;
   onHear: () => void;
   onClose: () => void;
 };
+
+/** は and へ are read as particles (ワ/エ), not their base kana; every other
+ * reading is converted mora by mora. */
+function toRomajiReading(gloss: Gloss): string {
+  const isParticle = gloss.entries[0]?.senses[0]?.pos[0] === 'particle';
+  if (isParticle && gloss.reading === 'は') return 'wa';
+  if (isParticle && gloss.reading === 'へ') return 'e';
+  return kanaToRomaji(gloss.reading);
+}
 
 /**
  * Yomitan-style popover under a tapped word: reading, meaning, a button to
  * hear the word again. Absolutely positioned so the sentence never moves.
  * It never touches playback itself; the screen decides what Hear it does.
  */
-export function WordPanel({ word, gloss, left, top, onHear, onClose }: Props) {
+export function WordPanel({ word, gloss, left, top, romaji = false, onHear, onClose }: Props) {
   const { palette } = useTheme();
+  const shownReading = gloss ? (romaji ? toRomajiReading(gloss) : gloss.reading) : '';
   return (
     <View
       style={[
@@ -36,7 +49,7 @@ export function WordPanel({ word, gloss, left, top, onHear, onClose }: Props) {
           </Text>
           {gloss?.reading ? (
             <Text style={[styles.reading, { color: palette.muted }]} numberOfLines={1}>
-              {gloss.reading}
+              {shownReading}
               {gloss.base && gloss.base !== word.replace(/[、。！？]/g, '') ? `  ·  ${gloss.base}` : ''}
             </Text>
           ) : null}

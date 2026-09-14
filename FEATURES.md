@@ -71,10 +71,21 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   appended by the backend, so loops and Repeat Island survive a locked phone.
   A take or recording stops on background. Lock-screen metadata is set, but
   with ducking iOS keeps the music app's card, and Android needs a dev build.
+- Phrase loop: long press a word and drag across the sentence to select whole
+  words, then tap Repeat in the popup. The backend cuts that span from the
+  line's audio, so the loop, breath, Lag, takes and a locked phone all work on
+  the phrase; Whole line goes back. A quick tap still opens the word popover.
+- Export an island: one tap shares an m4a of the island at the slider speed,
+  each line twice with the breath after it, through the phone's share sheet.
+  Built with ffmpeg on the backend and cached until a re-voice or regenerate.
+- Reading display: furigana above kanji (checked against the spoken moras),
+  an OJAD-style pitch-accent strip from VOICEVOX accent phrases, and a romaji
+  mode, in one Reading pill row remembered on the phone. Older islands get
+  ruby and accent filled in when opened.
 
 ## Next (approved, in order)
 
-1. Furigana above kanji (ruby layout) instead of a separate reading line.
+(empty: pick from Ideas)
 
 ## Ideas (not approved)
 
@@ -88,12 +99,6 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   SRT import).
 - Import existing audio or text as an island (was part of the original pitch:
   "generate good AI vocals or import existing content").
-- Pitch-accent marks over the reading, from VOICEVOX's accent phrases (the data
-  is already in the timeline).
-- Romaji toggle in the player.
-- Phrase loop: tap a start word and an end word to loop only that span of a
-  line, using the word timings the highlight already has.
 - Spaced repetition: resurface islands on a schedule.
-- Export an island as one audio file.
 - Operations: autostart VOICEVOX, backend, cloudflared and the dashboard on
   boot (systemd user units); Cloudflare Access in front of dev.sean.build.

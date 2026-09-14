@@ -11,7 +11,7 @@
  */
 
 import { fetch as expoFetch } from 'expo/fetch';
-import { File } from 'expo-file-system';
+import { Directory, File, Paths } from 'expo-file-system';
 
 const BASE = process.env.EXPO_PUBLIC_SHADOW_API_URL ?? '';
 const TOKEN = process.env.EXPO_PUBLIC_SHADOW_TOKEN ?? '';
@@ -28,10 +28,19 @@ export type Mora = {
   start: number;
   end: number;
   phrase: number;
+  /** Pitch, true on a high mora; missing on islands built before accent marks existed, null when the backend could not recover it. */
+  high?: boolean | null;
 };
 
-/** One word of a line with the span of audio it is spoken in. */
-export type Word = { text: string; start: number; end: number };
+/** One run of a word's text with the reading shown above it; rt is empty for kana, digits and punctuation. */
+export type RubySegment = { text: string; rt: string };
+
+/** One word of a line with the span of audio it is spoken in. `ruby` is
+ * missing only on lines served by a backend older than furigana. */
+export type Word = { text: string; start: number; end: number; ruby?: RubySegment[] };
+
+/** A stretch of a line's rendered audio, in milliseconds at the requested speed. */
+export type AudioSpan = { startMs: number; endMs: number };
 
 export type Line = {
   idx: number;
@@ -207,13 +216,34 @@ export function lineAudioUrl(
   version: number | string = 0,
   speed = 1,
   padMs = 0,
+  span: AudioSpan | null = null,
 ): string {
   // `v` changes with the voice and with every regeneration so a replaced line is never served from cache.
   // `speed` asks the backend for a natively slower or faster render.
   // `padMs`, when positive, is silence the backend appends so the player can loop natively with a breath.
   const s = speed.toFixed(2);
   const pad = padMs > 0 ? `&pad=${Math.round(padMs)}` : '';
-  return `${BASE}/islands/${islandId}/lines/${idx}/audio?token=${encodeURIComponent(TOKEN)}&v=${version}&speed=${s}${pad}`;
+  // `start`/`end` ask for only that stretch of the render, cut on the backend, so a phrase loops natively like a line.
+  const range = span ? `&start=${Math.round(span.startMs)}&end=${Math.round(span.endMs)}` : '';
+  return `${BASE}/islands/${islandId}/lines/${idx}/audio?token=${encodeURIComponent(TOKEN)}&v=${version}&speed=${s}${pad}${range}`;
+}
+
+/**
+ * Download the island as one m4a into the app's cache folder and return the
+ * file. Blocking on the server while it renders any missing speed and runs
+ * ffmpeg, so the first call at a new speed takes a few seconds.
+ */
+export async function exportIsland(
+  islandId: string,
+  speed: number,
+  gapMs: number,
+  repeats: number,
+  fileName: string,
+): Promise<File> {
+  const dir = new Directory(Paths.cache, 'exports');
+  if (!dir.exists) dir.create({ intermediates: true, idempotent: true });
+  const url = `${BASE}/islands/${islandId}/export?speed=${speed.toFixed(2)}&repeats=${repeats}&gap=${Math.round(gapMs)}`;
+  return File.downloadFileAsync(url, new File(dir, fileName), { headers: headers(), idempotent: true });
 }
 
 /** Result of an echo cancellation pass on an uploaded take, or a calibration recording. */
@@ -230,7 +260,9 @@ export type TakeClean = {
  * the echo canceller against the line's reference audio. For a calibration
  * upload this replaces the stored speaker profile instead of cleaning a take.
  * `cleaned` is false when no echo was found (earphones) or no profile exists
- * yet; then there is nothing to fetch from cleanTakeUrl.
+ * yet; then there is nothing to fetch from cleanTakeUrl. `span`, when set, is
+ * the phrase that was playing while the take was recorded, so the cleaner's
+ * reference matches it.
  */
 export async function uploadTake(
   islandId: string,
@@ -238,11 +270,16 @@ export async function uploadTake(
   uri: string,
   speed: number,
   calibrate = false,
+  span: AudioSpan | null = null,
 ): Promise<TakeClean> {
   const form = new FormData();
   form.append('take', new File(uri), 'take.wav');
   form.append('speed', speed.toFixed(2));
   form.append('calibrate', calibrate ? '1' : '0');
+  if (span) {
+    form.append('start', String(Math.round(span.startMs)));
+    form.append('end', String(Math.round(span.endMs)));
+  }
 
   return json<TakeClean>(
     await expoFetch(`${BASE}/islands/${islandId}/lines/${idx}/take`, {

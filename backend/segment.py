@@ -12,11 +12,15 @@ word before them so 飲んでいます and 十時 read as one chunk each.
 Tokens VOICEVOX pronounces differently from the dictionary (digits, Latin
 letters, names) are resynchronised on the next word that matches, and the
 unmatched moras are given to the token that caused the gap. Never raises: on
-anything unexpected the whole line becomes one chunk.
+anything unexpected the whole line becomes one chunk. Every word also carries
+its furigana segments, dropped where they disagree with what was spoken.
 """
 
 import logging
+import re
 import threading
+
+from voicevox import to_hiragana
 
 log = logging.getLogger(__name__)
 
@@ -130,6 +134,121 @@ def tokenize(text: str) -> list[dict]:
     return chunks
 
 
+_KANJI = re.compile(r"[一-鿿㐀-䶿々〆ヶ]+")
+
+
+def _split_ruby(surface: str, reading: str) -> list[dict]:
+    """[{text, rt}] for one token: each kanji run with its own reading, kana
+    runs with rt "". The reading is matched against the surface with the
+    okurigana as literals, so 行きます gives い over 行 and nothing over きます.
+    When that match fails the whole token carries the whole reading."""
+    if not reading or not _KANJI.search(surface):
+        return [{"text": surface, "rt": ""}]
+    parts: list[tuple[str, bool]] = []
+    pattern = "^"
+    pos = 0
+    for m in _KANJI.finditer(surface):
+        if m.start() > pos:
+            plain = surface[pos:m.start()]
+            parts.append((plain, False))
+            pattern += re.escape(to_hiragana(plain))
+        parts.append((m.group(), True))
+        pattern += "(.+?)"
+        pos = m.end()
+    if pos < len(surface):
+        plain = surface[pos:]
+        parts.append((plain, False))
+        pattern += re.escape(to_hiragana(plain))
+    matched = re.match(pattern + "$", to_hiragana(reading))
+    if not matched:
+        return [{"text": surface, "rt": to_hiragana(reading)}]
+    groups = iter(matched.groups())
+    return [{"text": text, "rt": next(groups) if kanji else ""} for text, kanji in parts]
+
+
+def ruby(text: str) -> list[dict]:
+    """Furigana segments for one word as shown in the line: [{text, rt}],
+    concatenating back to `text`. Kanji runs carry their hiragana reading in
+    rt, everything else has rt "". Never raises: on anything unexpected the
+    whole word is one plain segment."""
+    try:
+        out: list[dict] = []
+        for tok in _tokenizer().tokenize(text):
+            reading = "" if tok.reading == "*" else tok.reading
+            for seg in _split_ruby(tok.surface, reading):
+                if out and not seg["rt"] and not out[-1]["rt"]:
+                    out[-1]["text"] += seg["text"]
+                else:
+                    out.append(seg)
+        return out or [{"text": text, "rt": ""}]
+    except Exception:
+        log.exception("segment: ruby failed for %r", text)
+        return [{"text": text, "rt": ""}]
+
+
+_KANA = re.compile(r"[ァ-ヴぁ-ゖー]")
+_SAME_SOUND = str.maketrans({"ハ": "ワ", "ヘ": "エ"})
+_ANY_MORAS = r"(?:[^|]+\|)+"
+
+
+def ruby_matches(segs: list[dict], spoken: list[str]) -> bool:
+    """True when a word's ruby reads the way VOICEVOX spoke it. janome reads
+    a word on its own, so 3月 gets つき over 月 while the line says がつ.
+    Kanji runs contribute their rt, kana contributes itself, and anything with
+    no reading (digits, Latin letters) matches one or more moras, so 10時
+    still keeps じ over 時. Punctuation is ignored. Particle は and へ compare
+    equal to ワ and エ on both sides."""
+    items: list[str | None] = []  # a mora, or None for "some moras"
+    run: list[str] = []
+
+    def flush() -> None:
+        items.extend(_normalise(run))
+        run.clear()
+
+    for seg in segs:
+        if seg["rt"]:
+            run.extend(split_moras(_to_katakana(seg["rt"])))
+            continue
+        for ch in seg["text"]:
+            if _KANA.match(ch):
+                run.extend(split_moras(_to_katakana(ch)))
+            elif ch.strip() and ch not in _PUNCT:
+                flush()
+                if not items or items[-1] is not None:
+                    items.append(None)
+    flush()
+    pattern = r"\|"
+    for item in items:
+        pattern += _ANY_MORAS if item is None else re.escape(item.translate(_SAME_SOUND)) + r"\|"
+    said = "|" + "|".join(m.translate(_SAME_SOUND) for m in _normalise(spoken)) + "|"
+    return re.fullmatch(pattern, said) is not None
+
+
+def checked_ruby(text: str, spoken: list[str]) -> list[dict]:
+    """ruby(text), or one plain segment when its readings disagree with the
+    moras the word was spoken with. No moras means nothing to check against."""
+    segs = ruby(text)
+    if spoken and any(s["rt"] for s in segs) and not ruby_matches(segs, spoken):
+        return [{"text": text, "rt": ""}]
+    return segs
+
+
+def ensure_ruby(words: list[dict], timeline: list[dict] | None = None) -> bool:
+    """Add ruby to words stored before furigana existed, checked against the
+    moras inside each word's time span when a timeline is given. Returns True
+    when anything was added, so the caller knows to persist."""
+    changed = False
+    for w in words:
+        if "ruby" not in w:
+            spoken = [
+                m["text"] for m in timeline or []
+                if m["start"] >= w["start"] - 1e-6 and m["end"] <= w["end"] + 1e-6
+            ]
+            w["ruby"] = checked_ruby(w["text"], spoken)
+            changed = True
+    return changed
+
+
 def _find(spoken: list[str], pattern: list[str], start: int, window: int = 8) -> int:
     """First index >= start (within a window) where pattern occurs, else -1."""
     n = len(pattern)
@@ -144,7 +263,7 @@ def align(text: str, timeline: list[dict]) -> list[dict]:
     at 0 so the highlight is on from the moment playback begins."""
     if not timeline:
         return []
-    whole = [{"text": text, "start": 0.0, "end": timeline[-1]["end"]}]
+    whole = [{"text": text, "start": 0.0, "end": timeline[-1]["end"], "ruby": ruby(text)}]
     try:
         chunks = [c for c in tokenize(text) if c["text"]]
         if not chunks:
@@ -198,7 +317,14 @@ def align(text: str, timeline: list[dict]) -> list[dict]:
         words[0]["_first"] = 0
         words[-1]["_last"] = total - 1
         out = [
-            {"text": w["text"], "start": timeline[w["_first"]]["start"], "end": timeline[w["_last"]]["end"]}
+            {
+                "text": w["text"],
+                "start": timeline[w["_first"]]["start"],
+                "end": timeline[w["_last"]]["end"],
+                "ruby": checked_ruby(
+                    w["text"], [m["text"] for m in timeline[w["_first"]:w["_last"] + 1]]
+                ),
+            }
             for w in words
         ]
         out[0]["start"] = 0.0

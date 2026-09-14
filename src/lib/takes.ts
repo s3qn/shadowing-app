@@ -89,6 +89,26 @@ export async function saveTake(islandId: string, idx: number, fromUri: string): 
   return { uri: dest.uri, recordedAt, cleanUri: null };
 }
 
+/** Remove every take of one line, raw and cleaned. Never throws. */
+export function deleteTake(islandId: string, idx: number): void {
+  const prefix = `${idx}-`;
+  try {
+    const dir = takeDir(islandId);
+    if (!dir.exists) return;
+    for (const entry of dir.list()) {
+      if (!entry.name.startsWith(prefix)) continue;
+      if (!entry.name.endsWith('.wav') && !entry.name.endsWith('.m4a')) continue;
+      try {
+        entry.delete();
+      } catch {
+        // Leftover file, not fatal: findTake is not asked for it again until a new take replaces it.
+      }
+    }
+  } catch {
+    // No folder, or it could not be read: nothing to delete.
+  }
+}
+
 /** Remove every take of an island. Missing folder is fine. */
 export function deleteTakes(islandId: string): void {
   try {

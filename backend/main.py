@@ -14,6 +14,7 @@ is the intended way in.
 """
 
 import asyncio
+import copy
 import hashlib
 import logging
 import os
@@ -35,6 +36,7 @@ from dotenv import load_dotenv
 # from the environment at import time.
 load_dotenv()
 
+import export
 import generate
 import gloss as glossary
 import segment
@@ -211,6 +213,9 @@ async def _synthesize_lines(island_id: str, lines: list[dict], speaker: int) -> 
         base = stale.stem.split("@")[0]
         if base.isdigit() and (int(base) >= len(lines) or "@" in stale.stem):
             stale.unlink(missing_ok=True)
+    # An export built from the old lines no longer matches this island's
+    # content, so it must not be served again under the same cache key.
+    export.clear_exports(island_id)
     # A take was cleaned against the line that used to be at this index. A
     # regenerate or revoice replaces that line, so the old take (and its
     # cleaned copy) no longer matches anything and would be misleading.
@@ -297,24 +302,97 @@ def list_islands(authorization: str | None = Header(None)) -> list[dict]:
     return store.list_islands()
 
 
-@app.get("/shadow/islands/{island_id}")
-def get_island(island_id: str, authorization: str | None = Header(None)) -> dict:
-    require_token(authorization)
-    island = store.get_island(island_id)
-    if island is None:
-        raise HTTPException(404, "no such island")
-    # Islands built before word timings existed get them on first read.
-    for line in island["lines"]:
+# Old islands get their word timings, furigana and pitch marks on first read
+# rather than through a migration. Timings and ruby are local (janome) and
+# fill every line in one read. Accent needs one VOICEVOX audio_query per
+# line (no synthesis, about 50ms), so it is capped per read and an island
+# with hundreds of lines fills over a few opens.
+ACCENT_FILL_PER_READ = 16
+
+
+def _fill_words(island_id: str, lines: list[dict]) -> None:
+    """Word timings and ruby for lines stored before either existed. Blocking
+    (janome), so the route runs it in a thread. Writes only when something
+    was added, so a second read of the same island writes nothing, and only
+    over the words it read, so a line replaced meanwhile is left alone."""
+    for line in lines:
+        before = copy.deepcopy(line["words"])
         if not line["words"] and line["timeline"]:
             line["words"] = segment.align(line["ja"], line["timeline"])
             # A whole-line fallback is not worth persisting; a later read may
             # do better once whatever failed is fixed.
             if not segment.is_fallback(line["ja"], line["words"]):
-                store.set_words(island_id, line["idx"], line["words"])
+                store.set_words(island_id, line["idx"], line["words"], expected=before)
+        elif segment.ensure_ruby(line["words"], line["timeline"]):
+            store.set_words(island_id, line["idx"], line["words"], expected=before)
+
+
+async def _fill_accent(island: dict) -> None:
+    """`high` per mora for timelines stored before pitch marks existed, from
+    a fresh audio_query of the same text. At most ACCENT_FILL_PER_READ engine
+    calls, each with a short timeout; the first failure ends the pass (no
+    marks this time, tried again next read). A line whose moras do not line
+    up with the fresh query is stored with None so it is never asked again.
+    Empty timelines have nothing to fill and are skipped. Writes only over
+    the timeline it read."""
+    calls = 0
+    for line in island["lines"]:
+        if not voicevox.needs_accent(line["timeline"]):
+            continue
+        if calls >= ACCENT_FILL_PER_READ:
+            break
+        calls += 1
+        try:
+            query = await voicevox.audio_query(
+                line["ja"], island["speaker"], timeout=voicevox.BACKFILL_TIMEOUT_S
+            )
+        except Exception:
+            log.warning("accent backfill: VOICEVOX unreachable or slow for %s", island["id"])
+            break
+        filled = voicevox.backfill_accent(line["timeline"], query)
+        if filled is None:
+            log.warning("accent backfill: moras differ for %s line %d", island["id"], line["idx"])
+            filled = [{**m, "high": None} for m in line["timeline"]]
+        if store.set_timeline(island["id"], line["idx"], filled, expected=line["timeline"]):
+            line["timeline"] = filled
+
+
+@app.get("/shadow/islands/{island_id}")
+async def get_island(island_id: str, authorization: str | None = Header(None)) -> dict:
+    require_token(authorization)
+    island = store.get_island(island_id)
+    if island is None:
+        raise HTTPException(404, "no such island")
+    # A re-voice or regenerate rewrites lines while the phone polls this
+    # route, so backfill only a settled island.
+    if island["status"] == "ready":
+        await asyncio.to_thread(_fill_words, island_id, island["lines"])
+        await _fill_accent(island)
     return island
 
 
 SPEED_MIN, SPEED_MAX = 0.5, 1.5
+
+
+def _variant(idx: int, speed: float, span: tuple[int, int] | None) -> str:
+    """Stem of a cached render: the speed and, for a phrase, its span in
+    ms. `speed` is already rounded to 0.05."""
+    stem = f"{idx}@{speed:.2f}"
+    return f"{stem}~{span[0]}-{span[1]}" if span else stem
+
+
+def _span(start: int, end: int) -> tuple[int, int] | None:
+    """The (start, end) ms pair a route was asked for, or None for the whole
+    line. Both default to -1; any other negative value, giving one without
+    the other, or an empty or backwards span, is a client error."""
+    if start < -1 or end < -1:
+        raise HTTPException(400, "start and end must be milliseconds, or -1 for the whole line")
+    if start < 0 and end < 0:
+        return None
+    if start < 0 or end <= start:
+        raise HTTPException(400, "start and end must be milliseconds with start < end")
+    return (start, end)
+
 
 # One shared calibration profile for the phone's speaker-to-mic path (see the
 # take-bleed plan). It is not scoped to an island: the room and the phone are
@@ -322,10 +400,13 @@ SPEED_MIN, SPEED_MAX = 0.5, 1.5
 TAKE_PROFILE = "default"
 
 
-async def _resolve_line_audio(island: dict, idx: int, speed: float) -> Path:
+async def _resolve_line_audio(island: dict, idx: int, speed: float,
+                               span: tuple[int, int] | None = None) -> Path:
     """Path to a line's rendered wav at the given speed, rendering and caching
     it first if it is not already on disk. Shared by the line audio route and
-    the take cleaner, which needs the exact reference the phone played."""
+    the take cleaner, which needs the exact reference the phone played: the
+    whole line, or (`span` set) the phrase that was looping when the take was
+    recorded."""
     speed = round(min(SPEED_MAX, max(SPEED_MIN, speed)) * 20) / 20
     path = store.line_audio_path(island["id"], idx)
     if speed != 1.0:
@@ -341,26 +422,40 @@ async def _resolve_line_audio(island: dict, idx: int, speed: float) -> Path:
             tmp = path.with_suffix(".tmp")
             tmp.write_bytes(wav)
             os.replace(tmp, path)
+    if span:
+        sliced = path.with_name(_variant(idx, speed, span) + ".wav")
+        if not sliced.exists():
+            try:
+                data = voicevox.slice_wav(path.read_bytes(), *span)
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
+            tmp = sliced.with_suffix(".tmp")
+            tmp.write_bytes(data)
+            os.replace(tmp, sliced)
+        path = sliced
     return path
 
 
 @app.get("/shadow/islands/{island_id}/lines/{idx}/audio")
 async def line_audio(island_id: str, idx: int, token: str = "", speed: float = 1.0,
-                     pad: int = 0,
+                     pad: int = 0, start: int = -1, end: int = -1,
                      authorization: str | None = Header(None)) -> FileResponse:
     """One line's wav. With `speed` other than 1, the line is re-synthesized
     at that speedScale (rounded to 0.05) and cached beside the original, so
     slow playback is natural speech rather than a stretched recording. With
     `pad` above 0, `pad` ms of silence is appended, cached beside the render,
     so the player can loop natively with the breath baked in rather than
-    timing it in JS."""
+    timing it in JS. With `start` and `end` both given, in milliseconds of
+    the rendered audio, only that span (a phrase loop) is sliced out and
+    served, cached beside the render the same way."""
     # Audio is fetched by the player, which cannot always set a header, so a
     # token query parameter is accepted here as well as the usual header.
     _token_or_header(token, authorization)
     island = store.get_island(island_id)
     if island is None:
         raise HTTPException(404, "no such island")
-    path = await _resolve_line_audio(island, idx, speed)
+    span = _span(start, end)
+    path = await _resolve_line_audio(island, idx, speed, span)
     if not path.exists():
         raise HTTPException(404, "no audio for that line")
     pad = max(0, min(5000, pad))
@@ -368,7 +463,7 @@ async def line_audio(island_id: str, idx: int, token: str = "", speed: float = 1
         speed_r = round(min(SPEED_MAX, max(SPEED_MIN, speed)) * 20) / 20
         # The "@" is what the stale sweep in _synthesize_lines (line 210) keys
         # on, so a padded file is removed along with the render it came from.
-        padded = path.with_name(f"{idx}@{speed_r:.2f}+{pad}.wav")
+        padded = path.with_name(f"{_variant(idx, speed_r, span)}+{pad}.wav")
         if not padded.exists():
             padded_bytes = voicevox.pad_wav(path.read_bytes(), pad)
             tmp = padded.with_suffix(".tmp")
@@ -376,6 +471,59 @@ async def line_audio(island_id: str, idx: int, token: str = "", speed: float = 1
             os.replace(tmp, padded)
         path = padded
     return FileResponse(path, media_type="audio/wav")
+
+
+# Per island and cache key. Entries are tiny and keys are bounded by what one
+# user exports, so they are never evicted.
+_export_locks: dict[str, asyncio.Lock] = {}
+
+
+@app.get("/shadow/islands/{island_id}/export")
+async def export_island(island_id: str, speed: float = 1.0, repeats: int = 2,
+                        gap: int = 2000, token: str = "",
+                        authorization: str | None = Header(None)) -> FileResponse:
+    """The island as one m4a file for listening outside the app: each line
+    played `repeats` times with `gap` ms of silence after every play, at
+    `speed`, in the island's voice. Built once per distinct content and
+    parameters and kept on disk under a content hash; dropped whenever the
+    island is re-voiced or regenerated."""
+    _token_or_header(token, authorization)
+    island = store.get_island(island_id)
+    if island is None:
+        raise HTTPException(404, "no such island")
+    if island["status"] != "ready":
+        raise HTTPException(409, "the island is still being built")
+    if not island["lines"]:
+        raise HTTPException(409, "the island has no lines")
+
+    spec = export.normalise(speed, repeats, gap)
+    key = export.cache_key(island, spec)
+    path = export.export_path(island["id"], key)
+    if not path.exists():
+        # One build per key at a time. A second request for the same key waits
+        # here and then finds the file the first one wrote.
+        async with _export_locks.setdefault(f"{island['id']}/{key}", asyncio.Lock()):
+            if not path.exists():
+                wavs = []
+                for line in island["lines"]:
+                    p = await _resolve_line_audio(island, line["idx"], spec.speed)
+                    if not p.exists():
+                        raise HTTPException(409, f"line {line['idx'] + 1} has no audio")
+                    wavs.append(p.read_bytes())
+                try:
+                    await asyncio.to_thread(
+                        export.build, wavs, spec, path, island["title"] or "Island"
+                    )
+                except export.ExportError as exc:
+                    log.error("export %s/%s failed: %s", island["id"], key, exc)
+                    raise HTTPException(500, "could not build the audio file") from exc
+
+    return FileResponse(
+        path,
+        media_type="audio/mp4",
+        filename=export.file_name(island["title"], spec.speed),
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 def _round(value: float | None, places: int = 1) -> float | None:
@@ -435,18 +583,22 @@ async def upload_take(
     take: UploadFile = File(...),
     speed: float = Form(1.0),
     calibrate: str = Form("0"),
+    start: int = Form(-1),
+    end: int = Form(-1),
     authorization: str | None = Header(None),
 ) -> dict:
     """Clean a shadow take against the line that was playing while it was
     recorded, or (calibrate=1) learn the phone's speaker-to-mic path from a
-    silent recording of that same line.
+    silent recording of that same line. A take recorded over a phrase carries
+    `start`/`end` so it is cleaned against that same phrase, not the whole
+    line.
 
     Calibration has to happen once per phone before any take can be cleaned,
     which is why a take without a stored profile is refused with a 409 rather
     than quietly kept as recorded: the difference matters to the caller. See
     aec.py for how the path is learned and applied."""
     require_token(authorization)
-    start = time.monotonic()
+    began_at = time.monotonic()
     is_calibration = calibrate == "1"
 
     island = store.get_island(island_id)
@@ -455,6 +607,7 @@ async def upload_take(
     line = next((l for l in island["lines"] if l["idx"] == idx), None)
     if line is None:
         raise HTTPException(404, "no such line")
+    span = _span(start, end)
 
     try:
         # Imported lazily so the app still starts if this module is broken
@@ -481,7 +634,7 @@ async def upload_take(
         suffix = Path(take.filename or "take.wav").suffix or ".wav"
         src = tmp_dir / f"upload{suffix}"
         src.write_bytes(raw)
-        ref_path = await _resolve_line_audio(island, idx, speed)
+        ref_path = await _resolve_line_audio(island, idx, speed, span)
 
         # ffmpeg and the filter are seconds of blocking CPU. On the event loop
         # they would stall every other request for the duration, including the
@@ -496,7 +649,7 @@ async def upload_take(
         shutil.rmtree(tmp_dir, ignore_errors=True)
         log.info(
             "take island=%s idx=%d calibrate=%s took %.2fs",
-            island_id, idx, is_calibration, time.monotonic() - start,
+            island_id, idx, is_calibration, time.monotonic() - began_at,
         )
     return response
 
