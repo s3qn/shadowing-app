@@ -4,6 +4,7 @@ import { LevelBars } from '@/components/level-bars';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { CleanStatus, TakePhase } from '@/hooks/use-take';
+import type { TakeScore } from '@/lib/api';
 
 export type Props = {
   phase: TakePhase;
@@ -12,6 +13,7 @@ export type Props = {
   comparing: boolean; // a Compare run is in progress (original or take playing)
   error: string;
   clean: CleanStatus; // backend echo cleanup status for the current take or calibration
+  score: TakeScore | null; // timing score for the current take, once the upload answers
   calibrating: boolean; // true while a Calibrate speaker recording is in progress
   onRecord: () => void; // Record my take / Again
   onCompare: () => void; // toggles: starts a compare, or stops one in progress
@@ -39,6 +41,39 @@ function cleanStatusText(clean: CleanStatus): string | null {
   }
 }
 
+/** Summary line for a take's timing score: counts of early, late and dropped
+ * words, "All words in time" when there are none, and how far behind or
+ * ahead of the voice the take ran when that is more than a quarter second.
+ * Null when there is no score yet, and when it exists but scored no words,
+ * `score.note` explains why. */
+function scoreText(score: TakeScore | null): string | null {
+  if (!score) return null;
+  let early = 0;
+  let late = 0;
+  let dropped = 0;
+  let scored = 0;
+  for (const w of score.words) {
+    if (w === 'none') continue;
+    scored++;
+    if (w === 'early') early++;
+    else if (w === 'late') late++;
+    else if (w === 'dropped') dropped++;
+  }
+  if (scored === 0) {
+    return score.note ? `Timing not scored: ${score.note}.` : null;
+  }
+  const parts: string[] = [];
+  if (early) parts.push(`Early ${early}`);
+  if (late) parts.push(`Late ${late}`);
+  if (dropped) parts.push(`Dropped ${dropped}`);
+  let text = parts.length ? parts.join(' · ') : 'All words in time';
+  if (score.behindMs !== null && Math.abs(score.behindMs) > 250) {
+    const secs = (Math.abs(score.behindMs) / 1000).toFixed(1);
+    text += score.behindMs > 0 ? ` · Behind the voice by ${secs}s` : ` · Ahead of the voice by ${secs}s`;
+  }
+  return text;
+}
+
 /**
  * The row of take controls under the ring: Record my take and Calibrate
  * speaker while there is no take, level bars while the mic is open, then
@@ -51,6 +86,7 @@ export function TakeRow({
   comparing,
   error,
   clean,
+  score,
   calibrating,
   onRecord,
   onCompare,
@@ -60,6 +96,7 @@ export function TakeRow({
   const { palette } = useTheme();
   const myTakeOn = takePlaying && !comparing;
   const statusText = cleanStatusText(clean);
+  const scoreLine = phase === 'ready' ? scoreText(score) : null;
 
   return (
     <View>
@@ -135,6 +172,8 @@ export function TakeRow({
       ) : null}
 
       {statusText ? <Text style={[styles.status, { color: palette.muted }]}>{statusText}</Text> : null}
+
+      {scoreLine ? <Text style={[styles.status, { color: palette.muted }]}>{scoreLine}</Text> : null}
 
       {error ? <Text style={[styles.error, { color: palette.danger }]}>{error}</Text> : null}
     </View>

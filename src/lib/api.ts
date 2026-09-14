@@ -159,6 +159,17 @@ export async function regenerate(id: string, complexity: Complexity): Promise<vo
   await json<unknown>(res);
 }
 
+export async function renameIsland(id: string, title: string): Promise<void> {
+  const form = new FormData();
+  form.append('title', title);
+  const res = await expoFetch(`${BASE}/islands/${id}/title`, {
+    method: 'PATCH',
+    headers: headers(),
+    body: form,
+  });
+  await json<unknown>(res);
+}
+
 export async function listSpeakers(): Promise<Speaker[]> {
   return json<Speaker[]>(await fetch(`${BASE}/speakers`, { headers: headers() }));
 }
@@ -246,6 +257,23 @@ export async function exportIsland(
   return File.downloadFileAsync(url, new File(dir, fileName), { headers: headers(), idempotent: true });
 }
 
+/** How one word of a scored take lines up against the reference: on time,
+ * early, late, dropped out, or not scored (outside a phrase span, or the
+ * take could not be scored at all). */
+export type WordMark = 'ok' | 'early' | 'late' | 'dropped' | 'none';
+
+/** Timing score for a take, index-aligned with the line's words. `behindMs`
+ * is the take's median offset against the reference minus the Lag setting,
+ * null when nothing could be scored; `note` explains why when it is empty
+ * for none of the words. */
+export type TakeScore = {
+  words: WordMark[];
+  offsetsMs: (number | null)[];
+  behindMs: number | null;
+  anchor: 'echo' | 'clock' | null;
+  note: string;
+};
+
 /** Result of an echo cancellation pass on an uploaded take, or a calibration recording. */
 export type TakeClean = {
   cleaned: boolean;
@@ -253,6 +281,8 @@ export type TakeClean = {
   delayMs: number | null;
   driftSamples: number | null;
   note: string;
+  /** Missing on a calibration upload. */
+  score?: TakeScore;
 };
 
 /**
@@ -262,7 +292,10 @@ export type TakeClean = {
  * `cleaned` is false when no echo was found (earphones) or no profile exists
  * yet; then there is nothing to fetch from cleanTakeUrl. `span`, when set, is
  * the phrase that was playing while the take was recorded, so the cleaner's
- * reference matches it.
+ * reference matches it. `lagMs` is the phone's Lag setting and `lineStartMs`
+ * is when the line's first audio played, measured from the start of the
+ * recording; both feed the take's timing score and are ignored for a
+ * calibration upload.
  */
 export async function uploadTake(
   islandId: string,
@@ -271,6 +304,8 @@ export async function uploadTake(
   speed: number,
   calibrate = false,
   span: AudioSpan | null = null,
+  lagMs = 0,
+  lineStartMs: number | null = null,
 ): Promise<TakeClean> {
   const form = new FormData();
   form.append('take', new File(uri), 'take.wav');
@@ -279,6 +314,10 @@ export async function uploadTake(
   if (span) {
     form.append('start', String(Math.round(span.startMs)));
     form.append('end', String(Math.round(span.endMs)));
+  }
+  form.append('lag', String(Math.round(lagMs)));
+  if (lineStartMs !== null) {
+    form.append('line_start', String(Math.round(lineStartMs)));
   }
 
   return json<TakeClean>(

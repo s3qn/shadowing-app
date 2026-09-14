@@ -17,6 +17,8 @@ const palette = {
     accentInk: '#FFFFFF',
     highlight: '#FFD97A',
     danger: '#A3341F',
+    info: '#2F6DB5',
+    warn: '#B8700F',
   },
   dark: {
     bg: '#111310',
@@ -29,6 +31,8 @@ const palette = {
     accentInk: '#07130F',
     highlight: '#F0B429',
     danger: '#E4735A',
+    info: '#7FB3F0',
+    warn: '#F0B429',
   },
 } as const;
 

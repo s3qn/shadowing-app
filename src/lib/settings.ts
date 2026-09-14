@@ -9,6 +9,7 @@ import { documentDirectory, getInfoAsync, readAsStringAsync, writeAsStringAsync 
 
 export const DEFAULT_VOICE = 3;
 const DEFAULT_BLIND = false;
+const DEFAULT_HIDE_ENGLISH = false;
 const DEFAULT_LAG_MS: LagMs = 0;
 
 export const LAG_OPTIONS = [0, 300, 500, 1000] as const;
@@ -19,12 +20,20 @@ export type ReadingMode = (typeof READING_OPTIONS)[number];
 const DEFAULT_READING: ReadingMode = 'furigana';
 const DEFAULT_PITCH = true;
 
-export type Settings = { voice: number; blind: boolean; lagMs: LagMs; reading: ReadingMode; pitch: boolean };
+export type Settings = {
+  voice: number;
+  blind: boolean;
+  hideEnglish: boolean;
+  lagMs: LagMs;
+  reading: ReadingMode;
+  pitch: boolean;
+};
 
 const FILE = `${documentDirectory ?? ''}settings.json`;
 const DEFAULTS: Settings = {
   voice: DEFAULT_VOICE,
   blind: DEFAULT_BLIND,
+  hideEnglish: DEFAULT_HIDE_ENGLISH,
   lagMs: DEFAULT_LAG_MS,
   reading: DEFAULT_READING,
   pitch: DEFAULT_PITCH,
@@ -46,6 +55,7 @@ async function read(): Promise<Settings> {
   return {
     voice: typeof parsed.voice === 'number' ? parsed.voice : DEFAULT_VOICE,
     blind: parsed.blind === true,
+    hideEnglish: parsed.hideEnglish === true,
     lagMs: LAG_OPTIONS.includes(parsed.lagMs as LagMs) ? (parsed.lagMs as LagMs) : DEFAULT_LAG_MS,
     reading: READING_OPTIONS.includes(parsed.reading as ReadingMode) ? (parsed.reading as ReadingMode) : DEFAULT_READING,
     pitch: parsed.pitch !== false,
@@ -102,6 +112,10 @@ export async function setVoice(voice: number): Promise<void> {
 
 export async function setBlind(blind: boolean): Promise<void> {
   await update({ blind });
+}
+
+export async function setHideEnglish(hideEnglish: boolean): Promise<void> {
+  await update({ hideEnglish });
 }
 
 export async function setLagMs(lagMs: LagMs): Promise<void> {

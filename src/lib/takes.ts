@@ -3,13 +3,16 @@
  * line, kept on the phone under document storage: one file per line, newest
  * wins. Takes are wav (`<idx>-<ms>.wav`) and may have a cleaned sibling
  * (`<idx>-<ms>.clean.wav`) once the backend has removed the played line from
- * the recording. Older takes recorded before this change are `.m4a`; they
- * still play, just never have a cleaned counterpart.
+ * the recording, and a score sibling (`<idx>-<ms>.score.json`) with the
+ * per-word timing marks. Older takes recorded before this change are `.m4a`;
+ * they still play, just never have a cleaned counterpart or a score.
  */
 
 import { Directory, File, Paths } from 'expo-file-system';
 
-export type Take = { uri: string; recordedAt: number; cleanUri: string | null };
+import type { TakeScore } from '@/lib/api';
+
+export type Take = { uri: string; recordedAt: number; cleanUri: string | null; score: TakeScore | null };
 
 /** Folder for one island's takes: <document>/takes/<islandId>. */
 export function takeDir(islandId: string): Directory {
@@ -24,9 +27,10 @@ export function cleanTakeFile(islandId: string, idx: number, recordedAt: number)
 }
 
 /**
- * Newest take for a line, or null. Pairs a take with its cleaned sibling by
- * the `<ms>` stamp in the filename; `cleanUri` is set only when that file is
- * actually present. Reads the folder; never throws.
+ * Newest take for a line, or null. Pairs a take with its cleaned sibling and
+ * its score sibling by the `<ms>` stamp in the filename; `cleanUri` and
+ * `score` are set only when that file is actually present. Reads the
+ * folder; never throws.
  */
 export function findTake(islandId: string, idx: number): Take | null {
   const prefix = `${idx}-`;
@@ -35,12 +39,22 @@ export function findTake(islandId: string, idx: number): Take | null {
     if (!dir.exists) return null;
     const bases: { uri: string; recordedAt: number; ms: string }[] = [];
     const cleanByMs = new Map<string, string>();
+    const scoreByMs = new Map<string, TakeScore>();
     for (const entry of dir.list()) {
       const name = entry.name;
       if (!name.startsWith(prefix)) continue;
       const rest = name.slice(prefix.length);
       if (rest.endsWith('.clean.wav')) {
         cleanByMs.set(rest.slice(0, -'.clean.wav'.length), entry.uri);
+        continue;
+      }
+      if (rest.endsWith('.score.json')) {
+        const ms = rest.slice(0, -'.score.json'.length);
+        try {
+          scoreByMs.set(ms, JSON.parse(new File(entry.uri).textSync()) as TakeScore);
+        } catch {
+          // Bad or half-written JSON: treat as no score for this take.
+        }
         continue;
       }
       let ms: string | null = null;
@@ -56,16 +70,28 @@ export function findTake(islandId: string, idx: number): Take | null {
       if (!newest || base.recordedAt > newest.recordedAt) newest = base;
     }
     if (!newest) return null;
-    return { uri: newest.uri, recordedAt: newest.recordedAt, cleanUri: cleanByMs.get(newest.ms) ?? null };
+    return {
+      uri: newest.uri,
+      recordedAt: newest.recordedAt,
+      cleanUri: cleanByMs.get(newest.ms) ?? null,
+      score: scoreByMs.get(newest.ms) ?? null,
+    };
   } catch {
     return null;
   }
 }
 
+/** Write a take's timing score beside `<idx>-<recordedAt>.wav`. */
+export function saveTakeScore(islandId: string, idx: number, recordedAt: number, score: TakeScore): void {
+  const dir = takeDir(islandId);
+  if (!dir.exists) dir.create({ intermediates: true, idempotent: true });
+  new File(dir, `${idx}-${recordedAt}.score.json`).write(JSON.stringify(score));
+}
+
 /**
  * Move a finished recording into place as `<idx>-<ms>.wav` and drop every
- * other take of that line, wav or m4a, cleaned or raw, so a stale
- * `.clean.wav` can never pair with the new take.
+ * other take of that line, wav, m4a or json, cleaned or raw, so a stale
+ * `.clean.wav` or `.score.json` can never pair with the new take.
  */
 export async function saveTake(islandId: string, idx: number, fromUri: string): Promise<Take> {
   const dir = takeDir(islandId);
@@ -79,17 +105,17 @@ export async function saveTake(islandId: string, idx: number, fromUri: string): 
   for (const entry of dir.list()) {
     if (entry.name === name) continue;
     if (!entry.name.startsWith(prefix)) continue;
-    if (!entry.name.endsWith('.wav') && !entry.name.endsWith('.m4a')) continue;
+    if (!entry.name.endsWith('.wav') && !entry.name.endsWith('.m4a') && !entry.name.endsWith('.json')) continue;
     try {
       entry.delete();
     } catch {
       // Leftover file, not fatal: the newest take is what matters.
     }
   }
-  return { uri: dest.uri, recordedAt, cleanUri: null };
+  return { uri: dest.uri, recordedAt, cleanUri: null, score: null };
 }
 
-/** Remove every take of one line, raw and cleaned. Never throws. */
+/** Remove every take of one line, raw, cleaned and scored. Never throws. */
 export function deleteTake(islandId: string, idx: number): void {
   const prefix = `${idx}-`;
   try {
@@ -97,7 +123,7 @@ export function deleteTake(islandId: string, idx: number): void {
     if (!dir.exists) return;
     for (const entry of dir.list()) {
       if (!entry.name.startsWith(prefix)) continue;
-      if (!entry.name.endsWith('.wav') && !entry.name.endsWith('.m4a')) continue;
+      if (!entry.name.endsWith('.wav') && !entry.name.endsWith('.m4a') && !entry.name.endsWith('.json')) continue;
       try {
         entry.delete();
       } catch {

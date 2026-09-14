@@ -12,6 +12,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -29,6 +30,7 @@ import { TakeRow } from '@/components/take-row';
 import { POPOVER_WIDTH, WordPanel } from '@/components/word-panel';
 import { Radius, SPEED_MAX, SPEED_MIN, Spacing } from '@/constants/theme';
 import { usePhrase, type PhraseSpan } from '@/hooks/use-phrase';
+import { usePracticeClock } from '@/hooks/use-practice-clock';
 import { useTake, type TakeMode } from '@/hooks/use-take';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
@@ -44,6 +46,7 @@ import { lineRomaji } from '@/lib/romaji';
 import {
   getSettings,
   setBlind as persistBlind,
+  setHideEnglish as persistHideEnglish,
   setLagMs as persistLagMs,
   setPitch as persistPitch,
   setReading as persistReading,
@@ -68,6 +71,9 @@ export default function IslandScreen() {
   const [island, setIsland] = useState<api.Island | null>(null);
   const [error, setError] = useState('');
   const [idx, setIdx] = useState(0);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [draftTitle, setDraftTitle] = useState('');
+  const editingTitleRef = useRef(false);
   // `speed` is what the audio was rendered at; `dragging` follows the thumb
   // live so the label moves, and only a release re-renders the line.
   const [speed, setSpeed] = useState<number>(0.7);
@@ -98,11 +104,13 @@ export default function IslandScreen() {
   }
   const [showEnglish, setShowEnglish] = useState(false);
   const [blind, setBlind] = useState(false);
+  const [hideEnglish, setHideEnglish] = useState(false);
   // Shadowing lag: lengthens the take tail and the loop breath, nothing else.
   const [lagMs, setLagMs] = useState<LagMs>(0);
   // Set once the user taps Blind or a Lag pill, so a slow settings load does
   // not overwrite the choice.
   const blindTouched = useRef(false);
+  const hideEnglishTouched = useRef(false);
   const lagTouched = useRef(false);
   // How the reading is shown (furigana over the kanji, the kana line, or
   // romaji) and whether pitch marks are drawn. Remembered like Blind and Lag.
@@ -174,6 +182,7 @@ export default function IslandScreen() {
   const player = useAudioPlayer(source, { updateInterval: 50, keepAudioSessionActive: true });
   const status = useAudioPlayerStatus(player);
   useSessionPlayer(player);
+  usePracticeClock(island?.id, player, status);
   const breathSec = breathMs / 1000;
   // status.duration includes the pad. Below the breath length the item is not loaded yet.
   const lineEnd = status.duration > breathSec ? status.duration - breathSec : 0;
@@ -295,6 +304,7 @@ export default function IslandScreen() {
           setDragSpan(null);
         }
       }
+      if (!hideEnglishTouched.current) setHideEnglish(settings.hideEnglish);
       if (!lagTouched.current) setLagMs(settings.lagMs);
       if (!readingTouched.current) setReadingMode(settings.reading);
       if (!pitchTouched.current) setPitchOn(settings.pitch);
@@ -358,6 +368,23 @@ export default function IslandScreen() {
       setError(e instanceof Error ? e.message : 'Re-voicing failed');
     } finally {
       setRevoicing(false);
+    }
+  }
+
+  async function renameTitle(title: string) {
+    if (!island) return;
+    // A single-line TextInput fires onSubmitEditing then onBlur for one
+    // return press (submitBehavior defaults to 'blurAndSubmit'). The ref
+    // closes that window synchronously so the second call is a no-op.
+    if (!editingTitleRef.current) return;
+    editingTitleRef.current = false;
+    const finalTitle = title.trim() || 'Untitled island';
+    setEditingTitle(false);
+    try {
+      await api.renameIsland(island.id, finalTitle);
+      setIsland({ ...island, title: finalTitle });
+    } catch (e) {
+      Alert.alert('Could not rename', e instanceof Error ? e.message : 'The server did not answer.');
     }
   }
 
@@ -816,6 +843,13 @@ export default function IslandScreen() {
     persistBlind(next).catch(() => {});
   }
 
+  function toggleHideEnglish() {
+    const next = !hideEnglish;
+    hideEnglishTouched.current = true;
+    setHideEnglish(next);
+    persistHideEnglish(next).catch(() => {});
+  }
+
   function pickLag(ms: LagMs) {
     lagTouched.current = true;
     persistLagMs(ms).catch(() => {});
@@ -892,6 +926,17 @@ export default function IslandScreen() {
       startingTake.current = false;
     }
   }
+
+  // Stamps where line time 0 sits in the take (see markLineStart) the first
+  // time playback status arrives with a real position during a take, so a
+  // headphone take (no echo for the backend to anchor on) can still be
+  // scored.
+  useEffect(() => {
+    if (take.phase === 'recording' && take.mode === 'take' && status.playing && status.currentTime > 0) {
+      take.markLineStart(status.currentTime);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status.playing, status.currentTime, take.phase, take.mode]);
 
   async function recordTake() {
     await beginRecording('take');
@@ -1058,6 +1103,10 @@ export default function IslandScreen() {
     : -1;
   const activeWord =
     phrase.span && (found < phrase.span.from || found > phrase.span.to) ? -1 : found;
+  // The last take's per-word timing marks, index-aligned with line.words.
+  // Only shown once that take is ready: otherwise the old take's marks would
+  // stay up while a new one is recording.
+  const marks = take.phase === 'ready' ? take.take?.score?.words ?? null : null;
   const reading = line.timeline.map((m) => m.kana).join('');
   // Under the sentence: the kana or romaji line by mode, nothing in Furigana
   // mode (the reading is on the kanji). The pitch strip is the kana line with
@@ -1141,6 +1190,7 @@ export default function IslandScreen() {
                       active={i === activeWord}
                       selected={i === selected || (!!dragSpan && i >= dragSpan.from && i <= dragSpan.to)}
                       dimmed={!!phrase.span && (i < phrase.span.from || i > phrase.span.to)}
+                      mark={marks && marks[i] !== 'ok' && marks[i] !== 'none' ? marks[i] : null}
                       onLayout={(e) => {
                         wordBoxes.current[i] = e.nativeEvent.layout;
                       }}
@@ -1172,11 +1222,13 @@ export default function IslandScreen() {
             ) : null}
             {cells ? <PitchReading cells={cells} /> : null}
 
-            <Pressable onPress={() => setShowEnglish((v) => !v)}>
-              <Text style={[styles.en, { color: showEnglish ? palette.ink : palette.muted }]}>
-                {showEnglish ? line.en : 'Tap to show the English'}
-              </Text>
-            </Pressable>
+            {!hideEnglish ? (
+              <Pressable onPress={() => setShowEnglish((v) => !v)}>
+                <Text style={[styles.en, { color: showEnglish ? palette.ink : palette.muted }]}>
+                  {showEnglish ? line.en : 'Tap to show the English'}
+                </Text>
+              </Pressable>
+            ) : null}
           </>
         )}
 
@@ -1208,6 +1260,7 @@ export default function IslandScreen() {
           comparing={comparing}
           error={take.error}
           clean={take.clean}
+          score={take.take?.score ?? null}
           calibrating={take.mode === 'calibrate' && take.phase === 'recording'}
           onRecord={() => void recordTake()}
           onCompare={compare}
@@ -1225,6 +1278,29 @@ export default function IslandScreen() {
             </Text>
           </Pressable>
         ) : null}
+
+        {editingTitle ? (
+          <TextInput
+            autoFocus
+            value={draftTitle}
+            onChangeText={setDraftTitle}
+            onSubmitEditing={() => void renameTitle(draftTitle)}
+            onBlur={() => void renameTitle(draftTitle)}
+            style={[styles.titleInput, { color: palette.ink, borderColor: palette.line }]}
+          />
+        ) : (
+          <Pressable
+            onPress={() => {
+              setDraftTitle(island.title);
+              setEditingTitle(true);
+              editingTitleRef.current = true;
+            }}
+            style={styles.action}>
+            <Text style={[styles.actionText, { color: palette.accent }]}>
+              {island.title || 'Untitled island'}
+            </Text>
+          </Pressable>
+        )}
 
         <ExportLink
           islandId={island.id}
@@ -1280,6 +1356,17 @@ export default function IslandScreen() {
               },
             ]}>
             <Text style={[styles.pillText, { color: blind ? palette.accentInk : palette.ink }]}>Blind</Text>
+          </Pressable>
+          <Pressable
+            onPress={toggleHideEnglish}
+            style={[
+              styles.pill,
+              {
+                backgroundColor: hideEnglish ? palette.accent : palette.surface,
+                borderColor: hideEnglish ? palette.accent : palette.line,
+              },
+            ]}>
+            <Text style={[styles.pillText, { color: hideEnglish ? palette.accentInk : palette.ink }]}>Hide EN</Text>
           </Pressable>
           <Text style={[styles.pillLabel, styles.lagLabel, { color: palette.muted }]}>Lag</Text>
           {LAG_OPTIONS.map((ms) => {
@@ -1368,6 +1455,13 @@ const styles = StyleSheet.create({
   controls: { borderTopWidth: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.lg, gap: Spacing.md },
   action: { alignItems: 'center', paddingVertical: Spacing.xs },
   actionText: { fontSize: 14, fontWeight: '600' },
+  titleInput: {
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+    paddingVertical: Spacing.xs,
+    borderBottomWidth: 1,
+  },
   ringRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xl },
   side: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
   sideText: { fontSize: 40, lineHeight: 44, fontWeight: '300' },

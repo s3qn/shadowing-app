@@ -131,6 +131,17 @@ def test_set_ready_sets_status_clears_stage_and_sets_title(island_id):
         assert after[key] == before[key], key
 
 
+def test_set_title_updates_only_title(island_id):
+    before = store.get_island(island_id)
+
+    store.set_title(island_id, "Renamed island")
+
+    after = store.get_island(island_id)
+    assert after["title"] == "Renamed island"
+    for key in ("id", "status", "stage", "complexity", "speaker", "transcript", "error", "created_at"):
+        assert after[key] == before[key], key
+
+
 def test_set_words_replaces_words_without_touching_timeline(island_id):
     timeline = [{"text": "あ", "start": 0.0, "end": 0.2}]
     store.add_line(island_id, 0, {"ja": "line"}, 1.0, timeline, [{"text": "old"}])

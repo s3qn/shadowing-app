@@ -118,6 +118,14 @@ def set_ready(island_id: str, title: str) -> None:
         )
 
 
+def set_title(island_id: str, title: str) -> None:
+    with connect() as conn:
+        conn.execute(
+            "UPDATE islands SET title=? WHERE id=?",
+            (title, island_id),
+        )
+
+
 def add_line(island_id: str, idx: int, line: dict, duration: float, timeline: list,
              words: list | None = None) -> None:
     with connect() as conn:

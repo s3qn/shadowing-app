@@ -82,6 +82,17 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   an OJAD-style pitch-accent strip from VOICEVOX accent phrases, and a romaji
   mode, in one Reading pill row remembered on the phone. Older islands get
   ruby and accent filled in when opened.
+- Hide English: a Hide EN pill in the player hides only the English line,
+  remembered on the phone. With Blind on, Tap to peek shows the Japanese and
+  keeps the English hidden.
+- Rename an island: tap its title on the list or in the player. Re-voice keeps
+  the new title; Regenerate writes a fresh one.
+- Practice stats and sorting: the home screen shows minutes shadowed today and
+  a streak (a day counts from 60s of line playback, measured from the player
+  itself, takes excluded), with title search and a Newest / Least practiced sort.
+- Take score: after Record my take, words that ran early, late or dropped get
+  coloured underlines, measured against the take's own median delay, with a
+  Behind the voice summary line.
 
 ## Next (approved, in order)
 

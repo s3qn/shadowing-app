@@ -548,13 +548,18 @@ def _run_calibration(src: Path, ref_path: Path) -> dict:
     }
 
 
-def _run_clean(src: Path, ref_path: Path, profile, island_id: str, idx: int) -> dict:
-    """Take the played line back out of a take and store both versions.
-    Blocking, for the same reasons as _run_calibration."""
+def _run_clean(src: Path, ref_path: Path, profile, island_id: str, idx: int,
+               line: dict, speed: float, span: tuple[int, int] | None,
+               lag_ms: int, line_start_ms: int) -> dict:
+    """Take the played line back out of a take, store both versions, and
+    score the take's timing against the line's words. Blocking, for the
+    same reasons as _run_calibration."""
     import aec
+    import take_score
 
+    ref_audio = aec.decode(ref_path)
     mic = aec.decode(src)
-    result = aec.clean(aec.decode(ref_path), mic, profile)
+    result = aec.clean(ref_audio, mic, profile)
 
     raw_path, clean_path = store.take_paths(island_id, idx)
     aec.encode(raw_path, mic)
@@ -566,6 +571,29 @@ def _run_clean(src: Path, ref_path: Path, profile, island_id: str, idx: int) -> 
         # it belonged to the one just uploaded.
         clean_path.unlink(missing_ok=True)
 
+    if result.cleaned:
+        anchor_ms, anchor = result.delay_ms, "echo"
+    elif line_start_ms >= 0:
+        anchor_ms, anchor = float(line_start_ms), "clock"
+    else:
+        anchor_ms, anchor = None, None
+    take_for_score = result.output if result.cleaned else mic
+    try:
+        score = take_score.score_take(
+            ref_audio, take_for_score, aec.SR, line["words"], speed, span,
+            anchor_ms, lag_ms, anchor,
+        )
+    except Exception:
+        log.exception("take scoring failed island=%s idx=%d", island_id, idx)
+        n = len(line["words"])
+        score = {
+            "words": ["none"] * n,
+            "offsetsMs": [None] * n,
+            "behindMs": None,
+            "anchor": anchor,
+            "note": "Could not score the take",
+        }
+
     return {
         "cleaned": result.cleaned,
         "erleDb": _round(result.erle_db),
@@ -573,6 +601,7 @@ def _run_clean(src: Path, ref_path: Path, profile, island_id: str, idx: int) -> 
         "driftSamples": result.drift_samples,
         "frozenBlocks": result.frozen_blocks,
         "note": result.note,
+        "score": score,
     }
 
 
@@ -585,13 +614,18 @@ async def upload_take(
     calibrate: str = Form("0"),
     start: int = Form(-1),
     end: int = Form(-1),
+    lag: int = Form(0),
+    line_start: int = Form(-1),
     authorization: str | None = Header(None),
 ) -> dict:
     """Clean a shadow take against the line that was playing while it was
     recorded, or (calibrate=1) learn the phone's speaker-to-mic path from a
     silent recording of that same line. A take recorded over a phrase carries
     `start`/`end` so it is cleaned against that same phrase, not the whole
-    line.
+    line. `lag` (the phone's Lag setting, ms) and `line_start` (ms from the
+    start of the recording to the line's first audio, for takes with no
+    echo to find the anchor in) feed the take's timing score; both are
+    ignored for a calibration upload.
 
     Calibration has to happen once per phone before any take can be cleaned,
     which is why a take without a stored profile is refused with a 409 rather
@@ -608,6 +642,10 @@ async def upload_take(
     if line is None:
         raise HTTPException(404, "no such line")
     span = _span(start, end)
+    # The same rounding _resolve_line_audio applies before it renders, so the
+    # score's word windows use the speed the reference audio was actually
+    # played at rather than the raw value the client sent.
+    render_speed = round(min(SPEED_MAX, max(SPEED_MIN, speed)) * 20) / 20
 
     try:
         # Imported lazily so the app still starts if this module is broken
@@ -642,8 +680,10 @@ async def upload_take(
         if is_calibration:
             response = await asyncio.to_thread(_run_calibration, src, ref_path)
         else:
+            lag_ms = max(0, min(5000, lag))
             response = await asyncio.to_thread(
-                _run_clean, src, ref_path, profile, island_id, idx
+                _run_clean, src, ref_path, profile, island_id, idx,
+                line, render_speed, span, lag_ms, line_start,
             )
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
@@ -785,3 +825,17 @@ def delete_island(island_id: str, authorization: str | None = Header(None)) -> d
     require_token(authorization)
     store.delete_island(island_id)
     return {"ok": True}
+
+
+@app.patch("/shadow/islands/{island_id}/title")
+def rename_island(
+    island_id: str,
+    title: str = Form(...),
+    authorization: str | None = Header(None),
+) -> dict:
+    require_token(authorization)
+    if store.get_island(island_id) is None:
+        raise HTTPException(404, "island not found")
+    title = title.strip() or "Untitled island"
+    store.set_title(island_id, title)
+    return {"id": island_id, "title": title}

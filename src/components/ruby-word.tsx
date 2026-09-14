@@ -12,6 +12,9 @@ type Props = {
   selected: boolean;
   /** Drawn in the muted colour (a word outside a phrase loop's span). */
   dimmed?: boolean;
+  /** How the last take's timing scored this word: a coloured bottom border,
+   * always present (transparent when unmarked) so layout does not jump. */
+  mark?: 'early' | 'late' | 'dropped' | null;
   /** Layout inside the sentence block, for the popover under the word. */
   onLayout: (e: LayoutChangeEvent) => void;
 };
@@ -26,19 +29,25 @@ type Props = {
  * screen's single gesture on the sentence block does the hit-testing and
  * calls the tap or drag handlers itself.
  */
-export function RubyWord({ word, showRuby, active, selected, dimmed, onLayout }: Props) {
+export function RubyWord({ word, showRuby, active, selected, dimmed, mark, onLayout }: Props) {
   const { palette } = useTheme();
   const segments = showRuby && word.ruby?.some((s) => s.rt) ? word.ruby : null;
   const ink = active ? palette.accentInk : dimmed ? palette.muted : palette.ink;
   const rubyInk = active ? palette.accentInk : palette.muted;
   const baseStyle = [styles.base, { color: ink, textDecorationLine: selected ? 'underline' : 'none' } as const];
+  const markColor =
+    mark === 'early' ? palette.info : mark === 'late' ? palette.warn : mark === 'dropped' ? palette.danger : 'transparent';
   return (
     <View
       onLayout={onLayout}
       style={[
         styles.word,
         segments ? styles.rubyRow : styles.plain,
-        { backgroundColor: active ? palette.accent : selected ? palette.surfaceAlt : 'transparent' },
+        {
+          backgroundColor: active ? palette.accent : selected ? palette.surfaceAlt : 'transparent',
+          borderBottomWidth: 3,
+          borderBottomColor: markColor,
+        },
       ]}>
       {segments ? (
         segments.map((seg, i) => (

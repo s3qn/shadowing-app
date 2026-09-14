@@ -23,7 +23,7 @@ import {
   stopPlayback,
   useSessionPlayer,
 } from '@/lib/audio-mode';
-import { cleanTakeFile, deleteTake, findTake, saveTake, type Take } from '@/lib/takes';
+import { cleanTakeFile, deleteTake, findTake, saveTake, saveTakeScore, type Take } from '@/lib/takes';
 
 const TAIL_MS = 1000;
 // Nothing but the line's own finish event stops a take, and that event does
@@ -129,6 +129,8 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
     speed: number;
     lagMs: number;
     span: AudioSpan | null;
+    recordStartedAt: number;
+    lineStartMs: number | null;
   } | null>(null);
   const tail = useRef<ReturnType<typeof setTimeout> | null>(null);
   const watchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -162,7 +164,10 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
    * screen over to it. Never touches the raw take: on any failure, or when
    * the backend reports nothing to clean, the raw take is left exactly as
    * it was and keeps playing. `span`, when set, is the phrase that was
-   * playing while the take was recorded, so the cleaner's reference matches it.
+   * playing while the take was recorded, so the cleaner's reference matches
+   * it. `lagMs` and `lineStartMs` feed the take's timing score; the score,
+   * when the backend returns one, is saved and set on the take on screen
+   * whether or not the take itself turned out cleanable.
    */
   async function cleanTake(
     targetIslandId: string,
@@ -170,10 +175,23 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
     saved: Take,
     speed: number,
     span: AudioSpan | null,
+    lagMs: number,
+    lineStartMs: number | null,
   ) {
     setClean({ state: 'working', erleDb: null, note: '' });
     try {
-      const result = await uploadTake(targetIslandId, targetIdx, saved.uri, speed, false, span);
+      const result = await uploadTake(targetIslandId, targetIdx, saved.uri, speed, false, span, lagMs, lineStartMs);
+      if (result.score) {
+        const score = result.score;
+        try {
+          saveTakeScore(targetIslandId, targetIdx, saved.recordedAt, score);
+        } catch {
+          // Best effort: the marks just won't survive a line switch and back.
+        }
+        // Same recordedAt guard as the cleanUri update below: a new take, or
+        // a line switch and back, must not resurrect a stale score.
+        setTake((onScreen) => (onScreen && onScreen.recordedAt === saved.recordedAt ? { ...onScreen, score } : onScreen));
+      }
       if (!result.cleaned) {
         setClean({ state: 'skipped', erleDb: result.erleDb, note: result.note });
         return;
@@ -215,7 +233,15 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
             if (savedFor.islandId === current.current.islandId && savedFor.idx === current.current.idx) {
               setTake(saved);
             }
-            void cleanTake(savedFor.islandId, savedFor.idx, saved, savedFor.speed, savedFor.span);
+            void cleanTake(
+              savedFor.islandId,
+              savedFor.idx,
+              saved,
+              savedFor.speed,
+              savedFor.span,
+              savedFor.lagMs,
+              savedFor.lineStartMs,
+            );
           } catch (e) {
             // The previous take, if any, is untouched: saveTake only replaces
             // it after the move into place succeeds.
@@ -266,7 +292,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
       await applyRecordingMode();
       await recorder.prepareToRecordAsync();
       recorder.record();
-      target.current = { islandId, idx, mode, speed, lagMs, span };
+      target.current = { islandId, idx, mode, speed, lagMs, span, recordStartedAt: Date.now(), lineStartMs: null };
       setMode(mode);
       // Nothing else should be pending here, but a leftover timer would end
       // this take early.
@@ -290,6 +316,26 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
       }
       return false;
     }
+  }
+
+  /**
+   * Records where line time 0 sits in the take, for a take with no echo to
+   * anchor the score on (earphones): `currentTimeSec` is the player's
+   * position when this first fires after the line starts, so `Date.now()`
+   * minus how long the recorder has been running minus that position is
+   * when the line itself began. Only the first call for a take counts; a
+   * take with no target, or one that already has a mark, is a no-op.
+   */
+  function markLineStart(currentTimeSec: number) {
+    const t = target.current;
+    if (!t || t.lineStartMs !== null) return;
+    const elapsedMs = Date.now() - t.recordStartedAt;
+    const lineStartMs = elapsedMs - currentTimeSec * 1000;
+    // A `currentTime` still carrying the pre-seek position reads too large
+    // here and would go negative: skip it and let a later, fresher status
+    // update set the mark instead of clamping to a wrong 0.
+    if (lineStartMs < 0) return;
+    t.lineStartMs = lineStartMs;
   }
 
   function scheduleStop() {
@@ -364,6 +410,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
     clean,
     startTake,
     scheduleStop,
+    markLineStart,
     cancel,
     playTake,
     stopTake,
