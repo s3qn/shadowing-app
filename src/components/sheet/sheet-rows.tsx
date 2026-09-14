@@ -20,12 +20,16 @@ export function SheetOption({ label, hint, selected, onPress }: SheetOptionProps
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected }}
-      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
+      style={({ pressed }) => [
+        styles.row,
+        styles.option,
+        selected ? styles.optionSelected : styles.optionDivider,
+        pressed && !selected && styles.rowPressed,
+      ]}>
       <View style={styles.text}>
-        <Text style={styles.label}>{label}</Text>
+        <Text style={[styles.label, selected && styles.labelSelected]}>{label}</Text>
         {hint ? <Text style={styles.hint}>{hint}</Text> : null}
       </View>
-      {selected ? <Text style={styles.check}>✓</Text> : null}
     </Pressable>
   );
 }
@@ -91,10 +95,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   rowPressed: { backgroundColor: 'rgba(255,255,255,0.06)' },
+  option: { borderWidth: 1, borderColor: 'transparent', marginVertical: 2 },
+  optionDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.06)' },
+  optionSelected: { backgroundColor: 'rgba(255,158,128,0.12)', borderColor: tide.lang.ja },
   text: { flexShrink: 1, gap: 2 },
   label: { fontFamily: fonts.ui, fontSize: 16, color: tide.text },
+  labelSelected: { color: tide.lang.ja },
   hint: { fontFamily: fonts.ui, fontSize: 12, color: tide.textDim },
-  check: { fontFamily: fonts.ui, fontSize: 16, color: tide.lang.ja },
   destructive: { color: tide.record },
   disabled: { color: tide.textDim },
   note: { fontFamily: fonts.ui, fontSize: 12, color: tide.textDim },

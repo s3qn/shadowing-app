@@ -217,6 +217,44 @@ export async function gloss(word: string): Promise<Gloss> {
   return out;
 }
 
+/** How a word functions in the particular sentence it was tapped in. Cached
+ * server side, keyed on (word, sentence). Empty string means the backend
+ * tried and had nothing to say, not a failure the caller needs to surface. */
+export async function explainWord(word: string, sentenceJa: string, sentenceEn: string): Promise<string> {
+  const q = `word=${encodeURIComponent(word)}&sentence_ja=${encodeURIComponent(sentenceJa)}&sentence_en=${encodeURIComponent(sentenceEn)}`;
+  const out = await json<{ context: string }>(await fetch(`${BASE}/explain-word?${q}`, { headers: headers() }));
+  return out.context;
+}
+
+/** One turn of the Explain chat thread. */
+export type ChatTurn = { role: 'user' | 'assistant'; text: string };
+
+/** Ask one question about a sentence, optionally about `marked` words within
+ * it, with the thread so far for context. The thread itself lives in client
+ * state; nothing here is persisted server side. */
+export async function explainChat(body: {
+  sentenceJa: string;
+  sentenceEn: string;
+  marked: string[];
+  question: string;
+  history: ChatTurn[];
+}): Promise<string> {
+  const out = await json<{ answer: string }>(
+    await fetch(`${BASE}/explain-chat`, {
+      method: 'POST',
+      headers: { ...headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sentence_ja: body.sentenceJa,
+        sentence_en: body.sentenceEn,
+        marked: body.marked,
+        question: body.question,
+        history: body.history,
+      }),
+    }),
+  );
+  return out.answer;
+}
+
 /** One word rendered on its own in the given voice. */
 export function wordAudioUrl(text: string, speaker: number): string {
   return `${BASE}/word-audio?text=${encodeURIComponent(text)}&speaker=${speaker}&token=${encodeURIComponent(TOKEN)}`;

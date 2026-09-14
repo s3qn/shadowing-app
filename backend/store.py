@@ -46,6 +46,21 @@ CREATE TABLE IF NOT EXISTS lines (
   PRIMARY KEY (island_id, idx),
   FOREIGN KEY (island_id) REFERENCES islands(id) ON DELETE CASCADE
 );
+CREATE TABLE IF NOT EXISTS word_context (
+  word        TEXT NOT NULL,
+  sentence    TEXT NOT NULL,
+  context     TEXT NOT NULL,
+  created_at  TEXT NOT NULL,
+  PRIMARY KEY (word, sentence)
+);
+CREATE TABLE IF NOT EXISTS explain_cache (
+  sentence    TEXT NOT NULL,
+  marked      TEXT NOT NULL,
+  question    TEXT NOT NULL,
+  answer      TEXT NOT NULL,
+  created_at  TEXT NOT NULL,
+  PRIMARY KEY (sentence, marked, question)
+);
 """
 
 
@@ -175,6 +190,45 @@ def _set_line_json(island_id: str, idx: int, column: str, value: list,
 
 def set_words(island_id: str, idx: int, words: list, expected: list | None = None) -> bool:
     return _set_line_json(island_id, idx, "words", words, expected)
+
+
+def get_word_context(word: str, sentence: str) -> str | None:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT context FROM word_context WHERE word=? AND sentence=?",
+            (word, sentence),
+        ).fetchone()
+    return row["context"] if row is not None else None
+
+
+def set_word_context(word: str, sentence: str, context: str) -> None:
+    with connect() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO word_context (word, sentence, context, created_at)"
+            " VALUES (?,?,?,?)",
+            (word, sentence, context, _now()),
+        )
+
+
+def get_explain_answer(sentence: str, marked: list[str], question: str) -> str | None:
+    """A cached Explain answer for this exact (sentence, marked words,
+    question) triple, or None on a cache miss. `marked` is compared as its
+    JSON-serialised form, same list order as the caller used to set it."""
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT answer FROM explain_cache WHERE sentence=? AND marked=? AND question=?",
+            (sentence, json.dumps(marked, ensure_ascii=False), question),
+        ).fetchone()
+    return row["answer"] if row is not None else None
+
+
+def set_explain_answer(sentence: str, marked: list[str], question: str, answer: str) -> None:
+    with connect() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO explain_cache (sentence, marked, question, answer, created_at)"
+            " VALUES (?,?,?,?,?)",
+            (sentence, json.dumps(marked, ensure_ascii=False), question, answer, _now()),
+        )
 
 
 def set_timeline(island_id: str, idx: int, timeline: list,

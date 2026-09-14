@@ -2,7 +2,8 @@
  * The few settings the app keeps on the device, as one JSON file in the app's
  * document directory. Small enough that a storage library would be overkill.
  * Keeps the voice, blind mode, the shadowing lag, the reading display, pitch
- * marks, and the Auto Echo toggles.
+ * marks, and the Auto Echo toggles (including whether the line plays under
+ * the Speak step).
  */
 
 import { documentDirectory, getInfoAsync, readAsStringAsync, writeAsStringAsync } from 'expo-file-system/legacy';
@@ -29,6 +30,9 @@ export type Settings = {
   pitch: boolean;
   autoEcho: boolean;
   autoRecord: boolean;
+  /** Auto Echo's Speak step plays the line under the voice. Off by default:
+   * without headphones the phone speaker bleeds into the take. */
+  playLineWhileSpeaking: boolean;
 };
 
 const FILE = `${documentDirectory ?? ''}settings.json`;
@@ -41,6 +45,7 @@ const DEFAULTS: Settings = {
   pitch: DEFAULT_PITCH,
   autoEcho: true,
   autoRecord: true,
+  playLineWhileSpeaking: false,
 };
 
 // Defaults when there is no file yet, or when its JSON is corrupt (nothing in
@@ -65,6 +70,7 @@ async function read(): Promise<Settings> {
     pitch: parsed.pitch !== false,
     autoEcho: parsed.autoEcho !== false,
     autoRecord: parsed.autoRecord !== false,
+    playLineWhileSpeaking: parsed.playLineWhileSpeaking === true,
   };
 }
 
@@ -142,4 +148,8 @@ export async function setAutoEcho(autoEcho: boolean): Promise<void> {
 
 export async function setAutoRecord(autoRecord: boolean): Promise<void> {
   await update({ autoRecord });
+}
+
+export async function setPlayLineWhileSpeaking(playLineWhileSpeaking: boolean): Promise<void> {
+  await update({ playLineWhileSpeaking });
 }

@@ -138,7 +138,7 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  list: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing.xxl },
+  list: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: 170 },
   header: { gap: Spacing.xs, marginBottom: Spacing.sm },
   title: { fontSize: 22, fontWeight: '700' },
   hint: { fontSize: 14, lineHeight: 20 },

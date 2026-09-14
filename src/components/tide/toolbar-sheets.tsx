@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
-import { SheetNote, SheetOption, SheetToggle } from '@/components/sheet/sheet-rows';
+import { SheetOption, SheetToggle } from '@/components/sheet/sheet-rows';
 import { fonts } from '@/constants/fonts';
 import { SPEED_MAX, SPEED_MIN, tide } from '@/constants/theme';
 import { LAG_OPTIONS, READING_OPTIONS, type LagMs, type ReadingMode } from '@/lib/settings';
@@ -36,7 +36,12 @@ type SpeedSheetProps = SheetBaseProps & {
 export function SpeedSheet({ open, onClose, onDismissed, speed, onCommit }: SpeedSheetProps) {
   const [dragging, setDragging] = useState<number | null>(null);
   return (
-    <BottomSheet open={open} onClose={onClose} onDismissed={onDismissed} title="Speed">
+    <BottomSheet
+      open={open}
+      onClose={onClose}
+      onDismissed={onDismissed}
+      title="Speed"
+      hint="Slow speech is spoken slowly by the voice, not stretched.">
       <Text style={styles.readout}>{(dragging ?? speed).toFixed(2)}x</Text>
       <Slider
         style={styles.slider}
@@ -54,37 +59,6 @@ export function SpeedSheet({ open, onClose, onDismissed, speed, onCommit }: Spee
         thumbTintColor={tide.lang.ja}
         accessibilityLabel="Playback speed"
       />
-      <SheetNote>Slow speech is spoken slowly by the voice, not stretched.</SheetNote>
-    </BottomSheet>
-  );
-}
-
-type RepeatSheetProps = SheetBaseProps & {
-  value: RepeatMode;
-  onChange: (mode: RepeatMode) => void;
-};
-
-const REPEAT_HINT: Record<RepeatMode, string> = {
-  off: 'Play the line once',
-  line: 'This line again, with a breath',
-  island: 'Every line in order, then start over',
-};
-
-export function RepeatSheet({ open, onClose, onDismissed, value, onChange }: RepeatSheetProps) {
-  return (
-    <BottomSheet open={open} onClose={onClose} onDismissed={onDismissed} title="Repeat">
-      {(['off', 'line', 'island'] as const).map((mode) => (
-        <SheetOption
-          key={mode}
-          label={REPEAT_LABEL[mode]}
-          hint={REPEAT_HINT[mode]}
-          selected={value === mode}
-          onPress={() => {
-            onChange(mode);
-            onClose();
-          }}
-        />
-      ))}
     </BottomSheet>
   );
 }
@@ -144,7 +118,12 @@ type LagSheetProps = SheetBaseProps & {
 
 export function LagSheet({ open, onClose, onDismissed, value, onChange }: LagSheetProps) {
   return (
-    <BottomSheet open={open} onClose={onClose} onDismissed={onDismissed} title="Lag">
+    <BottomSheet
+      open={open}
+      onClose={onClose}
+      onDismissed={onDismissed}
+      title="Lag"
+      hint="Speaking a beat behind the voice: the take tail and the breath grow by this much.">
       {LAG_OPTIONS.map((ms) => (
         <SheetOption
           key={ms}
@@ -156,12 +135,18 @@ export function LagSheet({ open, onClose, onDismissed, value, onChange }: LagShe
           }}
         />
       ))}
-      <SheetNote>Speaking a beat behind the voice: the take tail and the breath grow by this much.</SheetNote>
     </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  readout: { fontFamily: fonts.serifLight, fontSize: 40, color: tide.text, textAlign: 'center', fontVariant: ['tabular-nums'] },
+  readout: {
+    fontFamily: fonts.uiMedium,
+    fontWeight: '500',
+    fontSize: 24,
+    color: tide.text,
+    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
+  },
   slider: { height: 36, marginTop: 8 },
 });

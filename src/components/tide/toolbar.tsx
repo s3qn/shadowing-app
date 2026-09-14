@@ -29,7 +29,7 @@ export function Toolbar({ items }: { items: ToolbarItem[] }) {
           onPress={item.onPress}
           accessibilityRole="button"
           accessibilityLabel={item.value ? `${item.label}, ${item.value}` : item.label}
-          style={styles.item}>
+          style={[styles.item, item.active && styles.itemActive]}>
           {item.icon}
           <Text style={[styles.label, item.active && styles.active]}>{item.label}</Text>
           {item.value ? <Text style={styles.value}>{item.value}</Text> : null}
@@ -40,9 +40,21 @@ export function Toolbar({ items }: { items: ToolbarItem[] }) {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 12, paddingHorizontal: 6 },
-  item: { flex: 1, alignItems: 'center', gap: 3 },
-  label: { fontFamily: fonts.uiMedium, fontSize: 11, color: tide.textDim },
+  row: { flexDirection: 'row', justifyContent: 'space-around', paddingTop: 10, paddingBottom: 4, paddingHorizontal: 6, gap: 6 },
+  item: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    minHeight: 54,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  itemActive: { backgroundColor: 'rgba(255,158,128,0.14)', borderColor: tide.lang.ja },
+  label: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 11, color: tide.textDim },
   value: { fontFamily: fonts.ui, fontSize: 11, color: tide.text },
   active: { color: tide.lang.ja },
 });

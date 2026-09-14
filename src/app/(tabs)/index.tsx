@@ -1,4 +1,4 @@
-import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { Tabs, useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
@@ -136,7 +136,7 @@ export default function IslandsScreen() {
     return (
       <SafeAreaView style={StyleSheet.flatten([styles.fill, styles.center, { backgroundColor: tide.sky[0] }])}>
         <StatusBar style="light" />
-        <Stack.Screen
+        <Tabs.Screen
           options={{
             headerStyle: { backgroundColor: tide.sky[0] },
             headerTintColor: tide.text,
@@ -154,7 +154,7 @@ export default function IslandsScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       <StatusBar style="light" />
-      <Stack.Screen
+      <Tabs.Screen
         options={{
           headerStyle: { backgroundColor: tide.sky[0] },
           headerTintColor: tide.text,

@@ -14,25 +14,24 @@ import { IslandMenuSheet } from '@/components/tide/island-menu-sheet';
 import { PlayerTitle } from '@/components/tide/player-title';
 import { TideScene } from '@/components/tide/tide-scene';
 import { Toolbar, type ToolbarItem } from '@/components/tide/toolbar';
-import { BlindIcon, EchoIcon, LagIcon, ReadingIcon, RepeatIcon, SpeedIcon } from '@/components/tide/toolbar-icons';
+import { BlindIcon, LagIcon, ReadingIcon, RepeatIcon, SpeedIcon } from '@/components/tide/toolbar-icons';
 import {
   BlindSheet,
   LagSheet,
   READING_LABEL,
   REPEAT_LABEL,
   ReadingSheet,
-  RepeatSheet,
   SpeedSheet,
   lagLabel,
   type RepeatMode,
 } from '@/components/tide/toolbar-sheets';
 import { PressScale } from '@/components/press-scale';
+import { ExplainSheet } from '@/components/explain-sheet';
 import { PhraseBar } from '@/components/phrase-bar';
 import { PitchReading } from '@/components/pitch-reading';
 import { type RingMode } from '@/components/ring-button';
 import { RubyWord } from '@/components/ruby-word';
 import { SELECTION_POPUP_WIDTH, SelectionPopup } from '@/components/selection-popup';
-import { TakeRow } from '@/components/take-row';
 import { WordOutline } from '@/components/word-outline';
 import { POPOVER_WIDTH, WordPanel } from '@/components/word-panel';
 import { fonts } from '@/constants/fonts';
@@ -40,7 +39,7 @@ import { Radius, Spacing, tide } from '@/constants/theme';
 import { useIslandExport } from '@/hooks/use-island-export';
 import { usePhrase, type PhraseSpan } from '@/hooks/use-phrase';
 import { usePracticeClock } from '@/hooks/use-practice-clock';
-import { useTake, type TakeMode } from '@/hooks/use-take';
+import { TAIL_MS, useTake, WATCHDOG_FALLBACK_MS, type TakeMode } from '@/hooks/use-take';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
 import {
@@ -56,6 +55,7 @@ import {
   getSettings,
   setAutoEcho as persistAutoEcho,
   setAutoRecord as persistAutoRecord,
+  setPlayLineWhileSpeaking as persistPlayLineWhileSpeaking,
   setBlind as persistBlind,
   setHideEnglish as persistHideEnglish,
   setLagMs as persistLagMs,
@@ -86,9 +86,9 @@ export default function IslandScreen() {
   const [speed, setSpeed] = useState<number>(0.7);
   // Off: play once and stop. Line: repeat this line. Island: every line in
   // order, then start over. Each repeat has a breath in front of it.
-  const [repeat, setRepeat] = useState<RepeatMode>('line');
+  const [repeat, setRepeat] = useState<RepeatMode>('island');
   // Which toolbar or header sheet is open, if any: one at a time.
-  const [sheet, setSheet] = useState<'speed' | 'repeat' | 'reading' | 'blind' | 'lag' | 'echo' | 'island' | null>(
+  const [sheet, setSheet] = useState<'speed' | 'reading' | 'blind' | 'lag' | 'echo' | 'island' | null>(
     null,
   );
   // An action a sheet's row picked, run once the sheet has fully closed (an
@@ -106,21 +106,23 @@ export default function IslandScreen() {
   }
   // Ring fill, 0..1, animated on the UI thread.
   const ring = useSharedValue(0);
+  // Auto Echo's active segment fill, 0..1, animated on the UI thread the same
+  // way: one shared value, aimed with withTiming over the step's real
+  // duration, re-aimed only on drift. Which segment reads it is decided by
+  // the step (see the effect below and SEGMENT_INDEX in AutoEchoSheet).
+  const echoFill = useSharedValue(0);
   // The breath between repeats is silence the backend appends to the line's
   // own audio (the `pad` query param), so Repeat Line is the player's own
   // loop and Repeat Island advances on the native finish event. There are no
   // timers in the loop on purpose: Android stops JS timers while the screen
   // is locked, and the native `status` (every 50ms) keeps arriving in the
-  // background on both platforms, so the ring, the countdown, the take tail
-  // and Compare all key off it instead. The requested breath is this plus the
+  // background on both platforms, so the ring, the countdown and the take
+  // tail all key off it instead. The requested breath is this plus the
   // shadowing lag. Other apps' audio stays ducked for the whole loop, breaths
   // included, and comes back at a stop point (see `releaseAudioSession`).
   const LOOP_GAP_MS = 2000;
-  // Anything that interrupts the line also drops a take in progress and any
-  // compare that was waiting for the line to end.
+  // Anything that interrupts the line also drops a take in progress.
   function dropTake() {
-    compareNext.current = false;
-    setComparing(false);
     take.stopTake();
     void take.cancel();
   }
@@ -159,6 +161,12 @@ export default function IslandScreen() {
   // The tapped word, its dictionary result, and the timer that ends Hear it.
   const [selected, setSelected] = useState<number | null>(null);
   const [glossData, setGlossData] = useState<api.Gloss | null>(null);
+  // How the tapped word functions in this sentence: undefined until the
+  // fetch resolves, null once it resolves empty or fails. Guarded by
+  // wordRequestId so a slow answer for a word that's no longer selected
+  // never lands under a different one.
+  const [explainContext, setExplainContext] = useState<string | null | undefined>(undefined);
+  const wordRequestId = useRef(0);
   // Where each word sits inside the sentence block, so the popover can sit
   // right under the tapped one without moving anything else, and so the drag
   // gesture below can hit-test a touch point to a word.
@@ -169,6 +177,14 @@ export default function IslandScreen() {
   // update, left alone on end: that is what shows the Repeat popup.
   const [dragSpan, setDragSpan] = useState<PhraseSpan | null>(null);
   const anchorWord = useRef(0);
+  // The Explain sheet: one answer per line, so it clears alongside the rest
+  // of the panel state on a line or speed change.
+  const [explainOpen, setExplainOpen] = useState(false);
+  const [explainMarked, setExplainMarked] = useState<string[]>([]);
+  const [explainWhole, setExplainWhole] = useState(false);
+  // Bumped on every line or speed change, so an answer that lands after the
+  // line moved on can tell it no longer belongs to the sentence on screen.
+  const [chatGeneration, setChatGeneration] = useState(0);
 
   const line = island?.lines[idx];
   // The transcript's Japanese text, one entry per line: stable across the
@@ -220,12 +236,6 @@ export default function IslandScreen() {
   // status.duration includes the pad. Below the breath length the item is not loaded yet.
   const lineEnd = status.duration > breathSec ? status.duration - breathSec : 0;
   const take = useTake(island?.id, idx, generation);
-  // Set when Compare is waiting for the line to finish before it plays the
-  // take; cleared once that happens or the compare is dropped.
-  const compareNext = useRef(false);
-  // State, not a ref: the Compare pill has to re-render to read Stop for as
-  // long as either half of a compare run (the line, then the take) is playing.
-  const [comparing, setComparing] = useState(false);
   // Auto Echo's own step, and a ref mirror so the effects and listeners below
   // (some subscribed once, some reading state a render behind) always see the
   // current step rather than the one closed over when they were set up.
@@ -236,6 +246,9 @@ export default function IslandScreen() {
   const [autoRecord, setAutoRecordState] = useState(true);
   const autoEchoTouched = useRef(false);
   const autoRecordTouched = useRef(false);
+  // Off: the Speak step records with the line silent, so no speaker bleed.
+  const [playLineWhileSpeaking, setPlayLineWhileSpeakingState] = useState(false);
+  const playLineTouched = useRef(false);
   // When the Speak take was started, so the take-saved effect below only
   // reacts to a take recorded during this pass (see that effect's comment).
   const speakStartedAt = useRef(0);
@@ -250,7 +263,7 @@ export default function IslandScreen() {
   // the countdown would flash for that moment. Auto Echo's own Listen step
   // needs the same early stop when Repeat is Off, since the loop advances
   // itself rather than the line looping.
-  const stopsAtLineEnd = take.phase === 'recording' || comparing || (repeat === 'off' && !echoActive);
+  const stopsAtLineEnd = take.phase === 'recording' || (repeat === 'off' && !echoActive);
   const inBreath = status.playing && lineEnd > 0 && status.currentTime >= lineEnd && !stopsAtLineEnd;
   const countdown = inBreath ? Math.max(1, Math.ceil(status.duration - status.currentTime)) : null;
   const wasTakePlaying = useRef(false);
@@ -361,6 +374,7 @@ export default function IslandScreen() {
       if (!lagTouched.current) setLagMs(settings.lagMs);
       if (!autoEchoTouched.current) setAutoEchoState(settings.autoEcho);
       if (!autoRecordTouched.current) setAutoRecordState(settings.autoRecord);
+      if (!playLineTouched.current) setPlayLineWhileSpeakingState(settings.playLineWhileSpeaking);
       if (!readingTouched.current) setReadingMode(settings.reading);
       if (!pitchTouched.current) setPitchOn(settings.pitch);
       try {
@@ -554,6 +568,90 @@ export default function IslandScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status.playing, status.currentTime, status.duration, lineEnd]);
 
+  // Auto Echo's segment fill: which segment is "active" is `step` itself
+  // (AutoEchoSheet's SEGMENT_INDEX), so this only has to animate `echoFill`
+  // toward 1 over that step's real duration. Reset to 0 on every step change,
+  // which is also what makes a finished step's fill hold at full: the sheet
+  // renders segments before the active one as always full, so once the step
+  // moves on this value stops mattering for it.
+  const echoFillStep = useRef<EchoStep>('idle');
+  // The Speak segment has no natural end event to key off (the learner or the
+  // watchdog can stop it early), so it is aimed once per recording attempt,
+  // identified by `speakStartedAt`, which a Retry bumps without changing
+  // `echoStep` at all.
+  const echoFillSpeakAt = useRef(-1);
+  useEffect(() => {
+    if (echoFillStep.current !== echoStep) {
+      echoFillStep.current = echoStep;
+      cancelAnimation(echoFill);
+      echoFill.value = 0;
+    }
+
+    if (echoStep === 'listen') {
+      if (!status.playing || lineEnd <= 0) return;
+      const target = Math.min(1, status.currentTime / lineEnd);
+      if (echoFill.value === 0 || Math.abs(echoFill.value - target) > 0.08) {
+        cancelAnimation(echoFill);
+        echoFill.value = target;
+        const remaining = Math.max(0, (lineEnd - status.currentTime) * 1000);
+        echoFill.value = withTiming(1, { duration: remaining, easing: Easing.linear });
+      }
+      return;
+    }
+
+    if (echoStep === 'echo') {
+      if (breathSec <= 0 || lineEnd <= 0) return;
+      const target = Math.min(1, Math.max(0, status.currentTime - lineEnd) / breathSec);
+      if (echoFill.value === 0 || Math.abs(echoFill.value - target) > 0.08) {
+        cancelAnimation(echoFill);
+        echoFill.value = target;
+        const remaining = Math.max(0, (status.duration - status.currentTime) * 1000);
+        echoFill.value = withTiming(1, { duration: remaining, easing: Easing.linear });
+      }
+      return;
+    }
+
+    if (echoStep === 'speak') {
+      // Still opening the mic, or the previous take's cleanup finishing:
+      // hold empty until this attempt is actually recording.
+      if (take.phase !== 'recording' || echoFillSpeakAt.current === speakStartedAt.current) return;
+      echoFillSpeakAt.current = speakStartedAt.current;
+      cancelAnimation(echoFill);
+      echoFill.value = 0;
+      const lineMs = lineEnd > 0 ? lineEnd * 1000 : WATCHDOG_FALLBACK_MS;
+      const expected = lineMs + TAIL_MS + lagMs;
+      echoFill.value = withTiming(1, { duration: expected, easing: Easing.linear });
+      return;
+    }
+
+    if (echoStep === 'play') {
+      if (take.takeDuration <= 0) return;
+      const target = Math.min(1, take.takeCurrentTime / take.takeDuration);
+      if (echoFill.value === 0 || Math.abs(echoFill.value - target) > 0.08) {
+        cancelAnimation(echoFill);
+        echoFill.value = target;
+        const remaining = Math.max(0, (take.takeDuration - take.takeCurrentTime) * 1000);
+        echoFill.value = withTiming(1, { duration: remaining, easing: Easing.linear });
+      }
+      return;
+    }
+    // idle, armed, done: nothing to animate. Armed holds at the 0 the step
+    // change above just set (Speak has not started yet); done and idle show
+    // through the sheet's static full/empty rule instead of this value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    echoStep,
+    status.playing,
+    status.currentTime,
+    status.duration,
+    lineEnd,
+    breathSec,
+    take.phase,
+    take.takeCurrentTime,
+    take.takeDuration,
+    lagMs,
+  ]);
+
   // After a line switch that should keep playing, start the new source as
   // soon as it is swapped in; the native player begins when the item is ready.
   const playWhenLoaded = useRef(false);
@@ -641,13 +739,6 @@ export default function IslandScreen() {
       take.scheduleStop();
       return;
     }
-    if (compareNext.current) {
-      compareNext.current = false;
-      stopPlayback(player);
-      void player.seekTo(0);
-      take.playTake();
-      return;
-    }
     if (echoRef.current === 'listen') {
       // The line itself keeps playing into the pad's silence, which is the
       // Echo step's pause (the breath plus Lag); the countdown already reads
@@ -716,13 +807,17 @@ export default function IslandScreen() {
     stopPlayback(wordPlayer);
     setSelected(null);
     setGlossData(null);
+    setExplainContext(undefined);
+    wordRequestId.current++;
   }
 
-  // A new line or speed means new audio, so the panel and any drag selection
-  // no longer apply.
+  // A new line or speed means new audio, so the panel, any drag selection and
+  // the Explain thread (which is about the old line's sentence) no longer apply.
   useEffect(() => {
     closePanel();
     setDragSpan(null);
+    setExplainOpen(false);
+    setChatGeneration((g) => g + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx, speed]);
 
@@ -734,9 +829,17 @@ export default function IslandScreen() {
     if (status.playing) stopPlayback(player);
     setSelected(i);
     setGlossData(null);
+    setExplainContext(undefined);
+    const requestId = ++wordRequestId.current;
     try {
       const g = await api.gloss(line.words[i]!.text);
       setGlossData(g);
+      try {
+        const ctx = await api.explainWord(line.words[i]!.text, line.ja, line.en);
+        if (wordRequestId.current === requestId) setExplainContext(ctx || null);
+      } catch {
+        if (wordRequestId.current === requestId) setExplainContext(null);
+      }
     } catch {
       setGlossData({ word: line.words[i]!.text, base: '', reading: '', entries: [], found: false });
     }
@@ -862,6 +965,21 @@ export default function IslandScreen() {
     playWhenLoaded.current = true;
   }
 
+  // The drag selection's popup Explain button: reads the same dragSpan
+  // Repeat does, turns it into the marked words for the sheet, and clears
+  // the selection since the sheet takes over from here. A plain JS callback
+  // off a Pressable.onPress, not the pan gesture, so it can read state
+  // freely.
+  function openExplain() {
+    const span = dragSpan;
+    if (!span || !line) return;
+    const words = line.words.slice(span.from, span.to + 1).map((w) => w.text);
+    setExplainMarked(words);
+    setExplainWhole(span.from === 0 && span.to === line.words.length - 1);
+    setDragSpan(null);
+    setExplainOpen(true);
+  }
+
   // Back to the whole line, carrying on if it was playing.
   function clearPhrase() {
     if (!phrase.span) return;
@@ -972,8 +1090,8 @@ export default function IslandScreen() {
   }
 
   // Neither touches playback: switching the reading never stops the line, a
-  // take, a compare or the popover. A failed save only means it is not
-  // remembered next time.
+  // take or the popover. A failed save only means it is not remembered next
+  // time.
   function pickReading(mode: ReadingMode) {
     readingTouched.current = true;
     setReadingMode(mode);
@@ -1003,6 +1121,13 @@ export default function IslandScreen() {
     persistAutoRecord(next).catch(() => {});
   }
 
+  function togglePlayLineWhileSpeaking() {
+    const next = !playLineWhileSpeaking;
+    playLineTouched.current = true;
+    setPlayLineWhileSpeakingState(next);
+    persistPlayLineWhileSpeaking(next).catch(() => {});
+  }
+
   // The Speed sheet's slider release: the line is re-rendered at the new
   // speed, and if it was playing, carries on at the new speed from the top
   // instead of going silent.
@@ -1024,10 +1149,12 @@ export default function IslandScreen() {
   // and start the line twice.
   const startingTake = useRef(false);
 
-  // Shared by recordTake and calibrateSpeaker: only the recording mode
+  // Shared by startSpeak and calibrateSpeaker: only the recording mode
   // differs between a take and a speaker calibration, so both go through the
   // same cancel, close, drop, seek and play sequence and cannot drift apart.
-  async function beginRecording(mode: TakeMode): Promise<boolean> {
+  // `silent` records without starting the line: the take then ends on its own
+  // timer in useTake instead of the line's end.
+  async function beginRecording(mode: TakeMode, silent = false): Promise<boolean> {
     if (!line || startingTake.current) return false;
     startingTake.current = true;
     try {
@@ -1037,8 +1164,6 @@ export default function IslandScreen() {
       // dropTake(), but waiting for the cancel: it stops a take still
       // recording and releases the session, and that must be done before the
       // new recorder is prepared rather than land under it.
-      compareNext.current = false;
-      setComparing(false);
       take.stopTake();
       stopPlayback(player);
       await take.cancel();
@@ -1054,9 +1179,9 @@ export default function IslandScreen() {
       // phrase first): the speaker profile is global and a slice is too short
       // to learn it from.
       const span = mode === 'calibrate' ? null : phrase.audio;
-      if (!(await take.startTake(lineEnd || undefined, speed, mode, lagMs, span))) return false;
+      if (!(await take.startTake(lineEnd || undefined, speed, mode, lagMs, span, silent))) return false;
       crossed.current = false;
-      startPlayback(player);
+      if (!silent) startPlayback(player);
       return true;
     } finally {
       startingTake.current = false;
@@ -1073,10 +1198,6 @@ export default function IslandScreen() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status.playing, status.currentTime, take.phase, take.mode]);
-
-  async function recordTake() {
-    await beginRecording('take');
-  }
 
   // Calibrating with a phrase set goes back to the whole line first and
   // starts once that audio is swapped in (the effect below), so the phone
@@ -1100,7 +1221,8 @@ export default function IslandScreen() {
 
   // The Speak step's take: opens the mic with the line playing under it,
   // exactly like Record my take, so the recording is scored and cleaned the
-  // same way. `speakStartedAt` marks the moment so the take-saved effect
+  // same way. With Play the line while I speak off, the line stays silent and
+  // the take is neither cleaned nor scored (see useTake's `silent`). `speakStartedAt` marks the moment so the take-saved effect
   // below only reacts to a take from this pass, not a stale or cancelled one.
   async function startSpeak() {
     // A second tap while the mic is still opening: the first start carries
@@ -1109,7 +1231,7 @@ export default function IslandScreen() {
     speakStartedAt.current = Date.now();
     setSpeakStopped(false);
     setEchoStep('speak');
-    const ok = await beginRecording('take');
+    const ok = await beginRecording('take', !playLineWhileSpeaking);
     if (!ok) {
       setEchoStep('idle');
       return;
@@ -1154,6 +1276,12 @@ export default function IslandScreen() {
     startEcho();
   }
 
+  // Repeat is a direct-cycle toolbar button, not a sheet: each tap moves to
+  // the next mode in order and wraps back to the start.
+  function cycleRepeat() {
+    setRepeat((current) => (current === 'island' ? 'line' : current === 'line' ? 'off' : 'island'));
+  }
+
   // Ends the loop: called when the sheet closes and when the app backgrounds
   // mid-pass. Drops any take in progress and any that just finished recording.
   function stopEcho() {
@@ -1163,43 +1291,6 @@ export default function IslandScreen() {
     stopPlayback(player);
     void player.seekTo(0);
     void releaseAudioSession();
-  }
-
-  function compare() {
-    if (compareNext.current || (take.takePlaying && comparing)) {
-      dropTake();
-      stopPlayback(player);
-      return;
-    }
-    playWhenLoaded.current = false;
-    closePanel();
-    setDragSpan(null);
-    take.stopTake();
-    compareNext.current = true;
-    setComparing(true);
-    ringPhase.current = 'idle';
-    void (async () => {
-      try {
-        await player.seekTo(0);
-      } catch {
-        // A seek can fail while the item is still loading; play anyway.
-      }
-      crossed.current = false;
-      startPlayback(player);
-    })();
-  }
-
-  function hearTake() {
-    if (take.takePlaying) {
-      take.stopTake();
-      return;
-    }
-    closePanel();
-    setDragSpan(null);
-    compareNext.current = false;
-    setComparing(false);
-    if (status.playing) stopPlayback(player);
-    take.playTake();
   }
 
   // The Speak step's take, once saved and its player loaded, starts the Play
@@ -1224,19 +1315,16 @@ export default function IslandScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [take.phase, take.take?.recordedAt, take.takeLoaded, take.clean.state]);
 
-  // A compare run covers both halves, the line then the take, so it only
-  // ends here when the take finishes playing on its own; the Compare pill
-  // stopping it early is handled in compare() and dropTake() above. This also
-  // covers My take finishing on its own. Android gives audio focus back by
-  // itself when the take player stops; on iOS the duck lasts as long as the
-  // session is active, so releaseAudioSession() hands the volume back here.
+  // The Play step's take finishing on its own is a stop point: Android gives
+  // audio focus back by itself when the take player stops; on iOS the duck
+  // lasts as long as the session is active, so releaseAudioSession() hands
+  // the volume back here.
   useEffect(() => {
     if (wasTakePlaying.current && !take.takePlaying && !status.playing) {
-      if (comparing) setComparing(false);
       void releaseAudioSession();
     }
     wasTakePlaying.current = take.takePlaying;
-  }, [take.takePlaying, comparing, status.playing]);
+  }, [take.takePlaying, status.playing]);
 
   // The Play step's take finishing on its own moves the loop on: Auto Echo on
   // advances to the next line (wrapping like Repeat Island), off ends the
@@ -1472,6 +1560,7 @@ export default function IslandScreen() {
             <WordPanel
               word={line.words[selected]!.text}
               gloss={glossData}
+              context={explainContext}
               left={popLeft}
               top={popTop}
               romaji={readingMode === 'romaji'}
@@ -1480,7 +1569,7 @@ export default function IslandScreen() {
             />
           ) : null}
           {dragSpan && dragUnion ? (
-            <SelectionPopup left={dragPopLeft} top={dragPopTop} onRepeat={repeatSelection} />
+            <SelectionPopup left={dragPopLeft} top={dragPopTop} onRepeat={repeatSelection} onExplain={openExplain} />
           ) : null}
         </View>
       ) : (
@@ -1541,10 +1630,11 @@ export default function IslandScreen() {
     },
     {
       key: 'repeat',
-      icon: <RepeatIcon color={tide.textDim} size={22} />,
+      icon: <RepeatIcon color={repeat !== 'off' ? tide.lang.ja : tide.textDim} size={22} />,
       label: 'Repeat',
       value: REPEAT_LABEL[repeat],
-      onPress: () => setSheet('repeat'),
+      active: repeat !== 'off',
+      onPress: cycleRepeat,
     },
     {
       key: 'reading',
@@ -1563,16 +1653,11 @@ export default function IslandScreen() {
     },
     {
       key: 'lag',
-      icon: <LagIcon color={tide.textDim} size={22} />,
+      icon: <LagIcon color={lagMs !== 0 ? tide.lang.ja : tide.textDim} size={22} />,
       label: 'Lag',
       value: lagLabel(lagMs),
+      active: lagMs !== 0,
       onPress: () => setSheet('lag'),
-    },
-    {
-      key: 'echo',
-      icon: <EchoIcon color={tide.textDim} size={22} />,
-      label: 'Echo',
-      onPress: openEcho,
     },
   ];
 
@@ -1617,22 +1702,6 @@ export default function IslandScreen() {
 
         <View style={styles.dock}>
           <Toolbar items={toolbarItems} />
-          {take.phase !== 'idle' || take.error ? (
-            <TakeRow
-              phase={take.phase}
-              level={take.level}
-              takePlaying={take.takePlaying}
-              comparing={comparing}
-              error={take.error}
-              clean={take.clean}
-              score={take.take?.score ?? null}
-              calibrating={take.mode === 'calibrate' && take.phase === 'recording'}
-              onRecord={() => void recordTake()}
-              onCompare={compare}
-              onPlayTake={hearTake}
-              onCalibrate={() => void calibrateSpeaker()}
-            />
-          ) : null}
           <BottomRow
             ring={ring}
             ringMode={ringMode}
@@ -1642,13 +1711,12 @@ export default function IslandScreen() {
             prevDisabled={idx === 0}
             nextDisabled={idx >= island.lines.length - 1}
             recording={take.phase === 'recording'}
-            onRecord={() => void (take.phase === 'recording' ? toggle() : recordTake())}
+            onRecord={() => void (take.phase === 'recording' ? toggle() : openEcho())}
           />
         </View>
       </View>
 
       <SpeedSheet open={sheet === 'speed'} onClose={() => setSheet(null)} onDismissed={runAfterSheet} speed={speed} onCommit={commitSpeed} />
-      <RepeatSheet open={sheet === 'repeat'} onClose={() => setSheet(null)} onDismissed={runAfterSheet} value={repeat} onChange={setRepeat} />
       <ReadingSheet
         open={sheet === 'reading'}
         onClose={() => setSheet(null)}
@@ -1680,11 +1748,14 @@ export default function IslandScreen() {
         step={echoStep}
         countdown={countdown}
         level={take.level}
+        fill={echoFill}
         error={take.error}
         autoEcho={autoEcho}
         autoRecord={autoRecord}
         onToggleAutoEcho={toggleAutoEcho}
         onToggleAutoRecord={toggleAutoRecord}
+        playLineWhileSpeaking={playLineWhileSpeaking}
+        onTogglePlayLineWhileSpeaking={togglePlayLineWhileSpeaking}
         onStart={startEcho}
         onRecord={() => void startSpeak()}
         stopping={speakStopped && !take.error}
@@ -1715,6 +1786,15 @@ export default function IslandScreen() {
         onCalibrate={() => closeSheetThen(() => void calibrateSpeaker())}
         onDelete={() => closeSheetThen(confirmDelete)}
       />
+      <ExplainSheet
+        open={explainOpen}
+        onClose={() => setExplainOpen(false)}
+        sentenceJa={line?.ja ?? ''}
+        sentenceEn={line?.en ?? ''}
+        marked={explainMarked}
+        whole={explainWhole}
+        generation={chatGeneration}
+      />
     </SafeAreaView>
   );
 }
@@ -1731,7 +1811,7 @@ const styles = StyleSheet.create({
   peek: { minHeight: 80, alignItems: 'center', justifyContent: 'center' },
   peekText: { fontFamily: fonts.ui, fontSize: 15, color: tide.textDim },
   menuGlyph: { fontFamily: fonts.ui, fontSize: 22, color: tide.text },
-  dock: {},
+  dock: { backgroundColor: 'rgba(0,0,0,0.18)', borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg },
   body: { fontSize: 15, lineHeight: 22, textAlign: 'center', padding: Spacing.xl },
   inlineError: { fontSize: 13, lineHeight: 18, textAlign: 'center' },
   retry: { paddingVertical: Spacing.md, paddingHorizontal: Spacing.xxl, borderRadius: Radius.pill, marginTop: Spacing.md },

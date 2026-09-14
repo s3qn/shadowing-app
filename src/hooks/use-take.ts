@@ -25,7 +25,9 @@ import {
 } from '@/lib/audio-mode';
 import { cleanTakeFile, deleteTake, findTake, saveTake, saveTakeScore, type Take } from '@/lib/takes';
 
-const TAIL_MS = 1000;
+// Exported so the Auto Echo sheet's Speak fill can aim at the same expected
+// take length this hook's own watchdog uses, instead of a second guess.
+export const TAIL_MS = 1000;
 // Nothing but the line's own finish event stops a take, and that event does
 // not always come: an audio session interruption (a call, Siri, an alarm)
 // pauses the recorder silently, and a line that stalls on the tunnel never
@@ -33,7 +35,7 @@ const TAIL_MS = 1000;
 // length plus the tail plus room for buffering.
 const WATCHDOG_SLACK_MS = 5000;
 // Used when the line's duration is not known yet. Lines are one sentence.
-const WATCHDOG_FALLBACK_MS = 30000;
+export const WATCHDOG_FALLBACK_MS = 30000;
 
 export type TakePhase = 'idle' | 'recording' | 'ready';
 
@@ -138,6 +140,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
     span: AudioSpan | null;
     recordStartedAt: number;
     lineStartMs: number | null;
+    silent: boolean;
   } | null>(null);
   const tail = useRef<ReturnType<typeof setTimeout> | null>(null);
   const watchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -249,6 +252,12 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
             if (savedFor.islandId === current.current.islandId && savedFor.idx === current.current.idx) {
               setTake(saved);
             }
+            // A silent take has no line in it to remove, and nothing to time
+            // the words against, so it is not uploaded and has no score.
+            if (savedFor.silent) {
+              if (seq === takeSeq.current) setClean({ state: 'skipped', erleDb: null, note: '' });
+              return;
+            }
             void cleanTake(
               savedFor.islandId,
               savedFor.idx,
@@ -308,7 +317,9 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
    * shadowing lag, added to the one second tail so a take is not cut while
    * the speaker is still a beat behind the line. `span` is the phrase that
    * plays under the take, passed on to the cleaner so its reference is the
-   * same audio.
+   * same audio. `silent` means the line is not played under the take: the
+   * take then stops itself after the line's length plus the tail and lag,
+   * and is saved without cleanup or a score.
    */
   async function startTake(
     lineSeconds: number | undefined,
@@ -316,6 +327,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
     mode: TakeMode,
     lagMs = 0,
     span: AudioSpan | null = null,
+    silent = false,
   ): Promise<boolean> {
     if (!islandId) return false;
     setError('');
@@ -330,7 +342,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
       await applyRecordingMode();
       await recorder.prepareToRecordAsync();
       recorder.record();
-      target.current = { islandId, idx, mode, speed, lagMs, span, recordStartedAt: Date.now(), lineStartMs: null };
+      target.current = { islandId, idx, mode, speed, lagMs, span, recordStartedAt: Date.now(), lineStartMs: null, silent };
       setMode(mode);
       // Nothing else should be pending here, but a leftover timer would end
       // this take early.
@@ -343,6 +355,14 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
         watchdog.current = null;
         void finish();
       }, lineMs + TAIL_MS + lagMs + WATCHDOG_SLACK_MS);
+      // No line end will call scheduleStop, so the take ends at the length
+      // it would have had with the line playing.
+      if (silent) {
+        tail.current = setTimeout(() => {
+          tail.current = null;
+          void finish();
+        }, lineMs + TAIL_MS + lagMs);
+      }
       setRecording(true);
       return true;
     } catch (e) {
@@ -450,6 +470,10 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
     // new player (a new take, or its cleaned file) sends one, so the player's
     // own flag is checked as well.
     takeLoaded: takePlayer.isLoaded && takeStatus.isLoaded,
+    // For the Auto Echo sheet's Play step fill: real progress through the
+    // take, the same way the line player drives Listen.
+    takeCurrentTime: takeStatus.currentTime,
+    takeDuration: takeStatus.duration,
     error,
     clean,
     startTake,

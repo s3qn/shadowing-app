@@ -116,6 +116,13 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Scrolling transcript on the waterline with auto-scroll, and a moving
   outline on the active word
 - Auto Echo: Listen, Echo, Speak and Play as one loop in a sheet
+- Player dock of tiles with accent highlight, Repeat cycle defaulting to
+  Island, tidy sheets
+- One control per function: take row and quick chips removed, record button
+  opens Auto Echo, silent Speak setting
+- Explain: word meaning in context and one-tap phrase explanations
+- Record page in the Tide look
+- Pill tab bar and system fonts
 
 ## Next (approved, in order)
 

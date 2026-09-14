@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 
 import { LevelBars } from '@/components/level-bars';
 import { PressScale } from '@/components/press-scale';
@@ -21,7 +22,6 @@ export const STEP_HINT: Record<EchoStep, string> = {
   done: 'Pass complete',
 };
 
-const STEP_GREEN = '#5FD9A6';
 const SEGMENT_LABELS = ['Listen', 'Echo', 'Speak', 'Play'];
 
 // idle has no filled segment; done fills every segment (the pass is over).
@@ -44,6 +44,10 @@ type AutoEchoSheetProps = {
   step: EchoStep;
   countdown: number | null;
   level: number;
+  /** 0..1, animated on the UI thread by the screen: how far the current
+   * step's segment has filled. Steps before it are always full, steps after
+   * it are always empty; this only drives the one that is active now. */
+  fill: SharedValue<number>;
   /** Stop was tapped and the take is saving: Stop and Retry are hidden. */
   stopping: boolean;
   error: string;
@@ -51,6 +55,9 @@ type AutoEchoSheetProps = {
   autoRecord: boolean;
   onToggleAutoEcho: () => void;
   onToggleAutoRecord: () => void;
+  /** Speak plays the line under the voice; off records with the line silent. */
+  playLineWhileSpeaking: boolean;
+  onTogglePlayLineWhileSpeaking: () => void;
   onStart: () => void;
   onRecord: () => void;
   onStop: () => void;
@@ -71,18 +78,28 @@ export function AutoEchoSheet({
   step,
   countdown,
   level,
+  fill,
   stopping,
   error,
   autoEcho,
   autoRecord,
   onToggleAutoEcho,
   onToggleAutoRecord,
+  playLineWhileSpeaking,
+  onTogglePlayLineWhileSpeaking,
   onStart,
   onRecord,
   onStop,
   onRetry,
 }: AutoEchoSheetProps) {
   const segmentIndex = SEGMENT_INDEX[step];
+
+  // The one active segment's width, read from the screen's shared value.
+  // Segments before and after it are plain static styles below, so this
+  // never runs for a step that has no active segment (idle, done).
+  const fillStyle = useAnimatedStyle(() => ({
+    width: `${Math.max(0, Math.min(1, fill.value)) * 100}%`,
+  }));
 
   return (
     <BottomSheet open={open} onClose={onClose} onDismissed={onDismissed} title="Auto Echo">
@@ -92,7 +109,10 @@ export function AutoEchoSheet({
       <View style={styles.segments}>
         {SEGMENT_LABELS.map((label, i) => (
           <View key={label} style={styles.segmentCol}>
-            <View style={[styles.segmentBar, i <= segmentIndex && styles.segmentBarDone]} />
+            <View style={styles.segmentBar}>
+              {i < segmentIndex ? <View style={[styles.segmentFill, styles.segmentFillDone]} /> : null}
+              {i === segmentIndex ? <Animated.View style={[styles.segmentFill, fillStyle]} /> : null}
+            </View>
             <Text style={[styles.segmentLabel, i <= segmentIndex && styles.segmentLabelDone]}>{label}</Text>
           </View>
         ))}
@@ -133,6 +153,14 @@ export function AutoEchoSheet({
         onValueChange={onToggleAutoEcho}
       />
       <SheetToggle label="Speak opens the microphone on its own" value={autoRecord} onValueChange={onToggleAutoRecord} />
+      <SheetToggle
+        label="Play the line while I speak"
+        value={playLineWhileSpeaking}
+        onValueChange={onTogglePlayLineWhileSpeaking}
+      />
+      {playLineWhileSpeaking ? (
+        <Text style={styles.note}>Use headphones, the phone speaker bleeds into your take.</Text>
+      ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
     </BottomSheet>
   );
@@ -143,21 +171,29 @@ const styles = StyleSheet.create({
   english: { fontFamily: fonts.ui, fontSize: 13, color: tide.textDim, textAlign: 'center', marginTop: 4 },
   segments: { flexDirection: 'row', gap: 8, marginTop: 20 },
   segmentCol: { flex: 1, alignItems: 'center', gap: 4 },
-  segmentBar: { alignSelf: 'stretch', height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.14)' },
-  segmentBarDone: { backgroundColor: STEP_GREEN },
+  segmentBar: {
+    alignSelf: 'stretch',
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    overflow: 'hidden',
+  },
+  segmentFill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 3, backgroundColor: tide.lang.ja },
+  segmentFillDone: { width: '100%' },
   segmentLabel: { fontFamily: fonts.ui, fontSize: 11, color: tide.textDim },
   segmentLabelDone: { color: tide.text },
   hintRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 14, minHeight: 32 },
   hint: { fontFamily: fonts.ui, fontSize: 13, color: tide.textDim, textAlign: 'center' },
-  countdown: { fontFamily: fonts.uiMedium, fontSize: 16, color: tide.text, fontVariant: ['tabular-nums'] },
+  countdown: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 16, color: tide.text, fontVariant: ['tabular-nums'] },
   buttonRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20, marginTop: 16, minHeight: 52 },
-  pill: { paddingVertical: 14, paddingHorizontal: 36, borderRadius: 26, backgroundColor: STEP_GREEN, alignItems: 'center', justifyContent: 'center' },
-  pillLabel: { fontFamily: fonts.uiMedium, fontSize: 16, color: '#08131C' },
+  pill: { paddingVertical: 14, paddingHorizontal: 36, borderRadius: 26, backgroundColor: tide.lang.ja, alignItems: 'center', justifyContent: 'center' },
+  pillLabel: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 16, color: '#08131C' },
   round: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
   recordRound: { backgroundColor: tide.record },
-  retryRound: { backgroundColor: STEP_GREEN },
+  retryRound: { backgroundColor: tide.lang.ja },
   recordDot: { width: 16, height: 16, borderRadius: 8, backgroundColor: tide.sky[0] },
   stopSquare: { width: 16, height: 16, borderRadius: 3, backgroundColor: tide.sky[0] },
   retryGlyph: { fontFamily: fonts.ui, fontSize: 24, color: tide.sky[0] },
+  note: { fontFamily: fonts.ui, fontSize: 12, lineHeight: 17, color: tide.textDim, marginTop: 4 },
   error: { fontFamily: fonts.ui, fontSize: 13, lineHeight: 19, textAlign: 'center', color: tide.record, marginTop: 12 },
 });

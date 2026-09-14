@@ -11,6 +11,10 @@ export const POPOVER_WIDTH = 250;
 type Props = {
   word: string;
   gloss: Gloss | null;
+  /** How the word functions in this particular sentence. `undefined` means
+   * the fetch has not resolved yet, `null` means it resolved with nothing to
+   * say (or failed quietly); either way there is no context line to show. */
+  context?: string | null;
   /** Absolute position inside the sentence block, computed by the screen. */
   left: number;
   top: number;
@@ -34,7 +38,7 @@ function toRomajiReading(gloss: Gloss): string {
  * hear the word again. Absolutely positioned so the sentence never moves.
  * It never touches playback itself; the screen decides what Hear it does.
  */
-export function WordPanel({ word, gloss, left, top, romaji = false, onHear, onClose }: Props) {
+export function WordPanel({ word, gloss, context, left, top, romaji = false, onHear, onClose }: Props) {
   const shownReading = gloss ? (romaji ? toRomajiReading(gloss) : gloss.reading) : '';
   return (
     <View style={[styles.pop, { left, top, backgroundColor: tide.water, borderColor: tide.waterline, shadowColor: '#000' }]}>
@@ -72,6 +76,12 @@ export function WordPanel({ word, gloss, left, top, romaji = false, onHear, onCl
         )}
       </ScrollView>
 
+      {gloss !== null && context ? (
+        <Text style={styles.context}>In this sentence: {context}</Text>
+      ) : gloss !== null && context === undefined ? (
+        <Text style={styles.contextLoading}>…</Text>
+      ) : null}
+
       <PressScale onPress={onHear} style={styles.hear}>
         <Text style={styles.hearText}>Hear again</Text>
       </PressScale>
@@ -100,6 +110,8 @@ const styles = StyleSheet.create({
   close: { fontSize: 22, lineHeight: 24, fontWeight: '600', paddingHorizontal: 4, fontFamily: fonts.ui, color: tide.textDim },
   body: { flexGrow: 0, maxHeight: 96 },
   meaning: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui, color: tide.text },
+  context: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui, color: tide.textDim },
+  contextLoading: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui, color: tide.textDim },
   hear: { paddingVertical: Spacing.sm, borderRadius: Radius.pill, alignItems: 'center', backgroundColor: tide.lang.ja },
-  hearText: { fontSize: 14, fontFamily: fonts.uiMedium, color: tide.sky[0] },
+  hearText: { fontSize: 14, fontFamily: fonts.uiMedium, fontWeight: '500', color: tide.sky[0] },
 });

@@ -7,8 +7,8 @@ import { addPractice, flushPractice } from '@/lib/practice';
  * Counts seconds the line player was audibly playing as shadowing practice,
  * breath included, across every mode that plays it (the ring, Repeat Line,
  * Repeat Island, phrase loop, locked or background playback, and the line
- * half of Record my take, Calibrate and Compare). It never counts a take
- * played back, My take, Hear it or the take half of Compare.
+ * half of Calibrate speaker and Auto Echo's Listen step). It never counts a
+ * take played back, including Auto Echo's Speak or Play steps.
  */
 export function usePracticeClock(islandId: string | undefined, player: AudioPlayer, status: AudioStatus): void {
   const prev = useRef<{ player: AudioPlayer; time: number } | null>(null);

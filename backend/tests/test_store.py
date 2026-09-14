@@ -255,3 +255,71 @@ def test_line_audio_path_and_take_paths_stay_under_test_data_dir(island_id):
     for path in (audio_path, raw_path, clean_path):
         assert store.DATA_DIR in path.parents
     assert store.DATA_DIR != Path.home() / "shadowing-data"
+
+
+def test_get_word_context_missing_returns_none():
+    assert store.get_word_context("行きます", "学校に行きます。") is None
+
+
+def test_set_word_context_then_get_round_trips():
+    store.set_word_context("行きます", "学校に行きます。", "The polite present form of 行く.")
+
+    assert store.get_word_context("行きます", "学校に行きます。") == (
+        "The polite present form of 行く."
+    )
+
+
+def test_set_word_context_twice_overwrites_rather_than_erroring():
+    store.set_word_context("行きます", "学校に行きます。", "first answer")
+    store.set_word_context("行きます", "学校に行きます。", "second answer")
+
+    assert store.get_word_context("行きます", "学校に行きます。") == "second answer"
+
+
+def test_set_word_context_is_scoped_to_word_and_sentence_pair():
+    store.set_word_context("行きます", "学校に行きます。", "about going to school")
+    store.set_word_context("行きます", "公園に行きます。", "about going to the park")
+
+    assert store.get_word_context("行きます", "学校に行きます。") == "about going to school"
+    assert store.get_word_context("行きます", "公園に行きます。") == "about going to the park"
+
+
+def test_get_explain_answer_missing_returns_none():
+    assert store.get_explain_answer("学校に行きます。", ["行きます"], "explain this") is None
+
+
+def test_set_explain_answer_then_get_round_trips():
+    store.set_explain_answer(
+        "学校に行きます。", ["行きます"], "explain this", "It means 'go', polite present form."
+    )
+
+    assert store.get_explain_answer("学校に行きます。", ["行きます"], "explain this") == (
+        "It means 'go', polite present form."
+    )
+
+
+def test_set_explain_answer_twice_overwrites_rather_than_erroring():
+    store.set_explain_answer("学校に行きます。", ["行きます"], "explain this", "first answer")
+    store.set_explain_answer("学校に行きます。", ["行きます"], "explain this", "second answer")
+
+    assert store.get_explain_answer("学校に行きます。", ["行きます"], "explain this") == "second answer"
+
+
+def test_set_explain_answer_is_scoped_to_sentence_marked_and_question():
+    store.set_explain_answer("学校に行きます。", ["行きます"], "explain this", "about going")
+    store.set_explain_answer("学校に行きます。", [], "explain this", "about the whole sentence")
+    store.set_explain_answer("学校に行きます。", ["行きます"], "why is this polite?", "a different question")
+
+    assert store.get_explain_answer("学校に行きます。", ["行きます"], "explain this") == "about going"
+    assert store.get_explain_answer("学校に行きます。", [], "explain this") == "about the whole sentence"
+    assert store.get_explain_answer("学校に行きます。", ["行きます"], "why is this polite?") == (
+        "a different question"
+    )
+
+
+def test_set_explain_answer_marked_word_order_matters():
+    store.set_explain_answer("学校に行きます。", ["行きます", "学校"], "explain this", "order A")
+    store.set_explain_answer("学校に行きます。", ["学校", "行きます"], "explain this", "order B")
+
+    assert store.get_explain_answer("学校に行きます。", ["行きます", "学校"], "explain this") == "order A"
+    assert store.get_explain_answer("学校に行きます。", ["学校", "行きます"], "explain this") == "order B"

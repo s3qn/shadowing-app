@@ -30,6 +30,9 @@ type BottomSheetProps = {
    * onPress, so they never race the Modal dismissing. */
   onDismissed?: () => void;
   title?: string;
+  /** A short explanation shown once under the title, in the muted style,
+   * instead of repeating the same note on every row. */
+  hint?: string;
   /** Wraps the content in KeyboardAvoidingView (padding). Rename needs it. */
   avoidKeyboard?: boolean;
   children: ReactNode;
@@ -40,7 +43,7 @@ type BottomSheetProps = {
  * dismiss. An internal `mounted` state keeps the Modal on screen through the
  * exit animation instead of yanking it away the instant `open` goes false.
  */
-export function BottomSheet({ open, onClose, onDismissed, title, avoidKeyboard, children }: BottomSheetProps) {
+export function BottomSheet({ open, onClose, onDismissed, title, hint, avoidKeyboard, children }: BottomSheetProps) {
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const [mounted, setMounted] = useState(open);
@@ -122,6 +125,7 @@ export function BottomSheet({ open, onClose, onDismissed, title, avoidKeyboard, 
           style={[styles.panel, { paddingBottom: insets.bottom + 16 }, panelStyle]}>
           <View style={styles.grab} />
           {title ? <Text style={styles.title}>{title}</Text> : null}
+          {hint ? <Text style={styles.hint}>{hint}</Text> : null}
           <View style={styles.body}>{children}</View>
         </Animated.View>
       </GestureDetector>
@@ -171,10 +175,18 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: fonts.uiMedium,
+    fontWeight: '500',
     fontSize: 15,
     color: tide.text,
     textAlign: 'center',
     marginTop: 12,
+    marginBottom: 4,
+  },
+  hint: {
+    fontFamily: fonts.ui,
+    fontSize: 12,
+    color: tide.textDim,
+    textAlign: 'center',
     marginBottom: 4,
   },
   body: { marginTop: 8 },

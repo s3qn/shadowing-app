@@ -31,11 +31,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 
 from dotenv import load_dotenv
+from pydantic import BaseModel
 
 # Before the local imports: store, voicevox and transcribe read their settings
 # from the environment at import time.
 load_dotenv()
 
+import explain
 import export
 import generate
 import gloss as glossary
@@ -818,6 +820,57 @@ async def word_gloss(word: str, authorization: str | None = Header(None)) -> dic
     """Base form, reading and dictionary senses for one word from a line."""
     require_token(authorization)
     return await asyncio.to_thread(glossary.gloss, word)
+
+
+@app.get("/shadow/explain-word")
+async def explain_word(word: str, sentence_ja: str, sentence_en: str = "",
+                       authorization: str | None = Header(None)) -> dict:
+    """How one word functions in one particular sentence. Cached in sqlite,
+    keyed on (word, sentence_ja), since the same word in the same sentence
+    always gets the same answer."""
+    require_token(authorization)
+    cached = await asyncio.to_thread(store.get_word_context, word, sentence_ja)
+    if cached is not None:
+        return {"context": cached}
+    context = await asyncio.to_thread(explain.word_context, word, sentence_ja, sentence_en)
+    if context:
+        await asyncio.to_thread(store.set_word_context, word, sentence_ja, context)
+    return {"context": context}
+
+
+class ExplainChatBody(BaseModel):
+    sentence_ja: str
+    sentence_en: str = ""
+    marked: list[str] = []
+    question: str
+    history: list[dict] = []
+
+
+@app.post("/shadow/explain-chat")
+async def explain_chat(body: ExplainChatBody,
+                       authorization: str | None = Header(None)) -> dict:
+    """One turn of free-form chat about a sentence. The thread itself lives in
+    the client's own state, not persisted here. The opening turn of a thread
+    (no history yet) is cached in sqlite, keyed on (sentence, marked words,
+    question): that is the Explain sheet's fixed question re-run on the same
+    selection, and it always gets the same answer. A follow-up turn carries
+    history and is never cached, since it depends on the thread so far."""
+    require_token(authorization)
+    if not body.history:
+        cached = await asyncio.to_thread(
+            store.get_explain_answer, body.sentence_ja, body.marked, body.question
+        )
+        if cached is not None:
+            return {"answer": cached}
+    answer = await asyncio.to_thread(
+        explain.chat_answer, body.sentence_ja, body.sentence_en, body.marked,
+        body.question, body.history,
+    )
+    if answer and not body.history:
+        await asyncio.to_thread(
+            store.set_explain_answer, body.sentence_ja, body.marked, body.question, answer
+        )
+    return {"answer": answer}
 
 
 @app.delete("/shadow/islands/{island_id}")

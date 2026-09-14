@@ -25,6 +25,6 @@ export function PlayerTitle({ title, lineIndex, lineCount }: Props) {
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center' },
-  title: { fontFamily: fonts.uiMedium, fontSize: 14, color: tide.text },
+  title: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 14, color: tide.text },
   line: { fontFamily: fonts.ui, fontSize: 10, letterSpacing: 1.2, textTransform: 'uppercase', color: tide.textDim },
 });
