@@ -146,3 +146,40 @@ def test_generate_lines_parses_and_filters_lines(monkeypatch):
         {"ja": "起きます", "kana": "おきます", "romaji": "okimasu", "en": "I get up"},
         {"ja": "寝ます", "kana": "", "romaji": "", "en": ""},
     ]
+
+
+# -- register (polite vs. casual) -----------------------------------------
+
+
+def _captured_prompt(monkeypatch, **kwargs):
+    """Call generate_lines with a fake CLI that returns one empty island, and
+    return the prompt it was actually asked to write, so tests can check
+    which instructions reached the model without invoking the real CLI."""
+    seen = {}
+
+    def fake_run(*args, **kw):
+        seen["prompt"] = kw.get("input")
+        return FakeCompleted(returncode=0, stdout=json.dumps({"title": "t", "lines": []}))
+
+    monkeypatch.setattr(generate.subprocess, "run", fake_run)
+    generate.generate_lines("I went to the store.", **kwargs)
+    return seen["prompt"]
+
+
+def test_generate_lines_default_register_is_polite(monkeypatch):
+    prompt = _captured_prompt(monkeypatch, complexity="simple")
+    assert generate.REGISTER_RULES["polite"] in prompt
+    assert generate.REGISTER_RULES["casual"] not in prompt
+
+
+def test_generate_lines_casual_register_instructs_plain_form(monkeypatch):
+    prompt = _captured_prompt(monkeypatch, complexity="simple", register="casual")
+    assert generate.REGISTER_RULES["casual"] in prompt
+    assert generate.REGISTER_RULES["polite"] not in prompt
+    # The whole point of the register: casual must explicitly rule out です/ます.
+    assert "です" in prompt and "ます" in prompt
+
+
+def test_generate_lines_unknown_register_falls_back_to_polite(monkeypatch):
+    prompt = _captured_prompt(monkeypatch, complexity="simple", register="rude")
+    assert generate.REGISTER_RULES["polite"] in prompt

@@ -1,8 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 
-import { Radius } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { Radius, tide } from '@/constants/theme';
 
 const BARS = 28;
 const MIN_H = 4;
@@ -35,7 +34,6 @@ type Props = {
  * Nothing here is synthetic. Animated only smooths each bar's height change.
  */
 export function LevelBars({ level, live }: Props) {
-  const { palette } = useTheme();
   const heights = useRef(
     Array.from({ length: BARS }, () => new Animated.Value(MIN_H)),
   ).current;
@@ -71,7 +69,7 @@ export function LevelBars({ level, live }: Props) {
       {heights.map((h, i) => (
         <Animated.View
           key={i}
-          style={[styles.bar, { height: h, backgroundColor: live ? palette.accent : palette.line }]}
+          style={[styles.bar, { height: h, backgroundColor: live ? tide.record : tide.waterline }]}
         />
       ))}
     </View>

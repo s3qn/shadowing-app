@@ -5,39 +5,46 @@ import { addPractice, flushPractice } from '@/lib/practice';
 
 /**
  * Counts seconds the line player was audibly playing as shadowing practice,
- * breath included, across every mode that plays it (the ring, Repeat Line,
- * Repeat Island, phrase loop, locked or background playback, and the line
+ * breath included, across every mode that plays it (the ring, a line's
+ * repeats, the island running on, phrase loop, locked or background playback, and the line
  * half of Calibrate speaker and Auto Echo's Listen step). It never counts a
  * take played back, including Auto Echo's Speak or Play steps.
+ *
+ * Listens to the player itself rather than taking a status, so the screen
+ * does not have to re-render on every 50ms update for this to see them.
  */
-export function usePracticeClock(islandId: string | undefined, player: AudioPlayer, status: AudioStatus): void {
-  const prev = useRef<{ player: AudioPlayer; time: number } | null>(null);
+export function usePracticeClock(islandId: string | undefined, player: AudioPlayer): void {
+  const prev = useRef<{ player: AudioPlayer; time: number; playing: boolean } | null>(null);
+  const idRef = useRef(islandId);
+  idRef.current = islandId;
 
   useEffect(() => {
-    // A swap lands a render with the new player but expo-audio's status
-    // hook still holds the old player's last status until the new player's
-    // first native event (it only resets state on a real event, not on the
-    // player changing). Drop the baseline instead of trusting that status as
-    // the new player's start: the next effect run only fires on an actual
-    // currentTime/playing change, so it is guaranteed to be a genuine status
-    // for the new player.
+    // A new player starts without a baseline: its first update is the one
+    // the next delta is measured from. The old player's last status decides
+    // whether this was a stop point.
     if (prev.current && prev.current.player !== player) {
+      const wasPlaying = prev.current.playing;
       prev.current = null;
-      if (!status.playing) void flushPractice();
-      return;
+      if (!wasPlaying) void flushPractice();
     }
-    if (status.playing && prev.current) {
-      const delta = status.currentTime - prev.current.time;
-      // A negative delta is the native loop wrapping or a seek to 0; a delta
-      // above 1s is a seek or a stall. Both are skipped.
-      if (delta > 0 && delta <= 1 && islandId) addPractice(islandId, delta);
-    }
-    prev.current = { player, time: status.currentTime };
-    // A stop point: end of Repeat Off, take start, compare handoff, tap word,
-    // leaving the screen all pause first, so this is where the buffer lands.
-    if (!status.playing) void flushPractice();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status.currentTime, status.playing, player]);
+    const sub = player.addListener('playbackStatusUpdate', (s: AudioStatus) => {
+      const p = prev.current;
+      // Only a change of position or playing counts, as an effect keyed on
+      // those two would.
+      if (p && p.player === player && p.time === s.currentTime && p.playing === s.playing) return;
+      if (s.playing && p && p.player === player) {
+        const delta = s.currentTime - p.time;
+        // A negative delta is the native loop wrapping or a seek to 0; a delta
+        // above 1s is a seek or a stall. Both are skipped.
+        if (delta > 0 && delta <= 1 && idRef.current) addPractice(idRef.current, delta);
+      }
+      prev.current = { player, time: s.currentTime, playing: s.playing };
+      // A stop point: take start, compare handoff, tap word,
+      // leaving the screen all pause first, so this is where the buffer lands.
+      if (!s.playing) void flushPractice();
+    });
+    return () => sub.remove();
+  }, [player]);
 
   useEffect(() => {
     return () => {

@@ -1,56 +1,40 @@
-import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Radius, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { SettingsRow, SettingsSection } from '@/components/tide/settings-row';
+import { Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
-import { applyPlaybackMode, releaseAudioSession, startPlayback, useSessionPlayer } from '@/lib/audio-mode';
-import { getVoice, setVoice } from '@/lib/settings';
+import { getSettings, setHaptics, setSkyAlwaysNight } from '@/lib/settings';
 
 export default function SettingsScreen() {
-  const { palette } = useTheme();
-  const [speakers, setSpeakers] = useState<api.Speaker[]>([]);
-  const [chosen, setChosen] = useState<number | null>(null);
-  const [error, setError] = useState('');
-  const player = useAudioPlayer(null);
-  const status = useAudioPlayerStatus(player);
-  useSessionPlayer(player);
-
-  useEffect(() => {
-    void applyPlaybackMode();
-  }, []);
-
-  // A voice preview also gives the music back once it finishes. The release
-  // is skipped while any other mounted player (a loop on the island screen
-  // underneath) is playing or starting, see `releaseAudioSession`.
-  const wasPlaying = useRef(false);
-  useEffect(() => {
-    if (wasPlaying.current && !status.playing) void releaseAudioSession();
-    wasPlaying.current = status.playing;
-  }, [status.playing]);
+  const router = useRouter();
+  const [voiceName, setVoiceName] = useState('');
+  const [haptics, setHapticsState] = useState(true);
+  const [skyAlwaysNight, setSkyAlwaysNightState] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       let alive = true;
       (async () => {
+        // Read independently of the speaker list: that call needs the
+        // backend and can fail or hang offline, and coupling it to
+        // Promise.all used to leave the switches showing defaults (so a tap
+        // saved the wrong flip) whenever it did.
+        const settings = await getSettings();
+        if (!alive) return;
+        setHapticsState(settings.hapticsEnabled);
+        setSkyAlwaysNightState(settings.skyAlwaysNight);
+
         try {
-          const [list, current] = await Promise.all([api.listSpeakers(), getVoice()]);
+          const speakers = await api.listSpeakers();
           if (!alive) return;
-          setSpeakers(list);
-          setChosen(current);
-        } catch (e) {
-          if (alive) setError(e instanceof Error ? e.message : 'Could not load voices');
+          const speaker = speakers.find((sp) => sp.styles.some((st) => st.id === settings.voice));
+          const style = speaker?.styles.find((st) => st.id === settings.voice);
+          setVoiceName(speaker && style ? `${speaker.name} ${style.name}` : '');
+        } catch {
+          // Voice list needs the backend; the row still works without a name shown.
         }
       })();
       return () => {
@@ -59,100 +43,54 @@ export default function SettingsScreen() {
     }, []),
   );
 
-  // Tapping a style both previews it and makes it the voice for new islands.
-  async function pick(styleId: number) {
-    setChosen(styleId);
-    await setVoice(styleId);
-    player.replace({ uri: api.voicePreviewUrl(styleId) });
-    startPlayback(player);
-  }
-
-  const chosenSpeaker = speakers.find((sp) => sp.styles.some((st) => st.id === chosen));
-
   return (
-    <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: palette.bg }])}>
-      <FlatList
-        data={speakers}
-        keyExtractor={(sp) => sp.uuid}
-        contentContainerStyle={styles.list}
-        ListHeaderComponent={
-          <View style={styles.header}>
-            <Text style={[styles.title, { color: palette.ink }]}>Voice</Text>
-            <Text style={[styles.hint, { color: palette.muted }]}>
-              Tap a style to hear it. The one you pick is used for new islands.
-            </Text>
-          </View>
-        }
-        ListEmptyComponent={
-          error ? (
-            <Text style={[styles.hint, { color: palette.danger }]}>{error}</Text>
-          ) : (
-            <ActivityIndicator style={{ marginTop: Spacing.xl }} color={palette.accent} />
-          )
-        }
-        ListFooterComponent={
-          chosenSpeaker ? (
-            <Text style={[styles.credit, { color: palette.muted }]}>
-              Audio made with this voice is credited as VOICEVOX:{chosenSpeaker.name}
-            </Text>
-          ) : null
-        }
-        renderItem={({ item: sp }) => {
-          const active = sp.styles.find((st) => st.id === chosen) ?? sp.styles[0];
-          return (
-            <View style={[styles.row, { backgroundColor: palette.surface, borderColor: palette.line }]}>
-              <View style={styles.rowTop}>
-                {active ? (
-                  <Image source={{ uri: api.iconUrl(active.icon) }} style={styles.icon} />
-                ) : null}
-                <Text style={[styles.name, { color: palette.ink }]}>{sp.name}</Text>
-              </View>
-              <View style={styles.chips}>
-                {sp.styles.map((st) => {
-                  const on = st.id === chosen;
-                  return (
-                    <Pressable
-                      key={st.id}
-                      onPress={() => pick(st.id)}
-                      style={[
-                        styles.chip,
-                        {
-                          backgroundColor: on ? palette.accent : palette.surfaceAlt,
-                          borderColor: on ? palette.accent : palette.line,
-                        },
-                      ]}>
-                      <Text style={[styles.chipText, { color: on ? palette.accentInk : palette.ink }]}>
-                        {st.name}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-          );
-        }}
-      />
+    <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
+      <ScrollView contentContainerStyle={styles.list}>
+        <SettingsSection title="Practice">
+          <SettingsRow label="Reading, pitch, defaults" last onPress={() => router.push('/settings/practice')} />
+        </SettingsSection>
+
+        <SettingsSection title="Playback">
+          <SettingsRow label="Speed, repeat, pause, Auto Echo" last onPress={() => router.push('/settings/playback')} />
+        </SettingsSection>
+
+        <SettingsSection title="Voice">
+          <SettingsRow label="Voice" value={voiceName} last onPress={() => router.push('/settings/voice')} />
+        </SettingsSection>
+
+        <SettingsSection title="Appearance">
+          <SettingsRow
+            label="Haptics"
+            switchValue={haptics}
+            onSwitchChange={(next) => {
+              setHapticsState(next);
+              void setHaptics(next);
+            }}
+          />
+          <SettingsRow
+            label="Always night sky"
+            last
+            switchValue={skyAlwaysNight}
+            onSwitchChange={(next) => {
+              setSkyAlwaysNightState(next);
+              void setSkyAlwaysNight(next);
+            }}
+          />
+        </SettingsSection>
+
+        <SettingsSection title="Data">
+          <SettingsRow label="Storage, delete takes" last onPress={() => router.push('/settings/data')} />
+        </SettingsSection>
+
+        <SettingsSection title="About">
+          <SettingsRow label="Version, credits" last onPress={() => router.push('/settings/about')} />
+        </SettingsSection>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  list: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: 170 },
-  header: { gap: Spacing.xs, marginBottom: Spacing.sm },
-  title: { fontSize: 22, fontWeight: '700' },
-  hint: { fontSize: 14, lineHeight: 20 },
-  credit: { fontSize: 12, lineHeight: 18, marginTop: Spacing.lg, textAlign: 'center' },
-  row: { borderWidth: 1, borderRadius: Radius.md, padding: Spacing.md, gap: Spacing.sm },
-  rowTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  icon: { width: 44, height: 44, borderRadius: 22 },
-  name: { fontSize: 17, fontWeight: '600' },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  chip: {
-    borderWidth: 1,
-    borderRadius: Radius.pill,
-    paddingVertical: Spacing.xs + 2,
-    paddingHorizontal: Spacing.md,
-  },
-  chipText: { fontSize: 13, fontWeight: '600' },
+  list: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: 170 },
 });

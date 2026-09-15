@@ -40,6 +40,21 @@ COMPLEXITY_RULES = {
     ),
 }
 
+REGISTER_RULES = {
+    "polite": (
+        "Use です/ます polite form throughout, the way one adult speaks to "
+        "someone they are not close with."
+    ),
+    "casual": (
+        "Use plain form throughout, natural casual spoken Japanese as between "
+        "close friends. Never use です or ます. End sentences with casual forms "
+        "(the plain dictionary or た form, plain negatives) and add casual "
+        "sentence-final particles like よ, ね or じゃん where a native speaker "
+        "naturally would. Use casual contractions where they fit, such as てる "
+        "instead of ている and ちゃう instead of てしまう."
+    ),
+}
+
 PROMPT_TEMPLATE = """You write Japanese shadowing material for a learner.
 
 The learner recorded themselves talking about their own life, in {language}. \
@@ -58,9 +73,11 @@ feelings). Do not invent a different life.
 
 LEVEL: {rules}
 
-STYLE: plain natural desu/masu polite form, spoken register, no literary \
-flourishes, no translationese. If the transcript is short or unclear, write \
-fewer sentences rather than padding with generic filler.
+REGISTER: {register_rules}
+
+STYLE: natural spoken Japanese, no literary flourishes, no translationese. If \
+the transcript is short or unclear, write fewer sentences rather than padding \
+with generic filler.
 
 OUTPUT: reply with RAW JSON only. No prose, no explanation, no markdown code \
 fences. Exactly this shape:
@@ -117,7 +134,7 @@ LANGUAGE_NAMES = {"en": "English", "he": "Hebrew", "ja": "Japanese"}
 
 
 def generate_lines(transcript: str, complexity: str = "simple", count: int = 8,
-                   language: str = "") -> dict:
+                   language: str = "", register: str = "polite") -> dict:
     """Generate Japanese lines from an English transcript.
 
     Returns {"title": str, "lines": [{"ja","kana","romaji","en"}, ...]}.
@@ -128,10 +145,12 @@ def generate_lines(transcript: str, complexity: str = "simple", count: int = 8,
         return {"title": "", "lines": []}
 
     rules = COMPLEXITY_RULES.get(complexity, COMPLEXITY_RULES["simple"])
+    register_rules = REGISTER_RULES.get(register, REGISTER_RULES["polite"])
     prompt = PROMPT_TEMPLATE.format(
         transcript=transcript[:4000],
         count=count,
         rules=rules,
+        register_rules=register_rules,
         language=LANGUAGE_NAMES.get(language, "English or Hebrew"),
     )
 
@@ -175,5 +194,5 @@ def generate_lines(transcript: str, complexity: str = "simple", count: int = 8,
             }
         )
 
-    log.info("generate: %d lines at complexity=%s", len(lines), complexity)
+    log.info("generate: %d lines at complexity=%s register=%s", len(lines), complexity, register)
     return {"title": (parsed.get("title") or "").strip(), "lines": lines}

@@ -16,6 +16,7 @@ is the intended way in.
 import asyncio
 import copy
 import hashlib
+import json
 import logging
 import os
 import secrets
@@ -24,6 +25,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+import uuid
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, UploadFile
@@ -226,7 +228,7 @@ async def _synthesize_lines(island_id: str, lines: list[dict], speaker: int) -> 
 
 
 async def _build_island(island_id: str, audio_path: Path, complexity: str,
-                        speaker: int, count: int) -> None:
+                        speaker: int, count: int, register: str = "polite") -> None:
     """The whole pipeline, run in the background so the upload returns at once."""
     try:
         store.set_stage(island_id, "transcribing")
@@ -241,7 +243,7 @@ async def _build_island(island_id: str, audio_path: Path, complexity: str,
 
         store.set_stage(island_id, "writing")
         generated = await asyncio.to_thread(
-            generate.generate_lines, text, complexity, count, language
+            generate.generate_lines, text, complexity, count, language, register
         )
         lines = generated.get("lines") or []
         if not lines:
@@ -267,6 +269,7 @@ async def create_island(
     background: BackgroundTasks,
     audio: UploadFile = File(...),
     complexity: str = Form("simple"),
+    register: str = Form("polite"),
     speaker: int = Form(voicevox.DEFAULT_SPEAKER),
     count: int = Form(8),
     authorization: str | None = Header(None),
@@ -274,6 +277,8 @@ async def create_island(
     require_token(authorization)
     if complexity not in generate.COMPLEXITY_RULES:
         raise HTTPException(400, "complexity must be 'simple' or 'complex'")
+    if register not in generate.REGISTER_RULES:
+        raise HTTPException(400, "register must be 'polite' or 'casual'")
 
     raw = await audio.read()
     if not raw:
@@ -281,7 +286,7 @@ async def create_island(
     if len(raw) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, "recording too large")
 
-    island_id = store.create_island(complexity, speaker)
+    island_id = store.create_island(complexity, speaker, register)
     suffix = Path(audio.filename or "rec.m4a").suffix or ".m4a"
     tmp_dir = Path(tempfile.mkdtemp(prefix=f"island-{island_id}-"))
     src = tmp_dir / f"input{suffix}"
@@ -294,7 +299,7 @@ async def create_island(
         raise HTTPException(400, "could not decode the uploaded audio")
     shutil.rmtree(tmp_dir, ignore_errors=True)
 
-    background.add_task(_build_island, island_id, wav, complexity, speaker, count)
+    background.add_task(_build_island, island_id, wav, complexity, speaker, count, register)
     return {"id": island_id, "status": "pending"}
 
 
@@ -362,7 +367,7 @@ async def _fill_accent(island: dict) -> None:
 @app.get("/shadow/islands/{island_id}")
 async def get_island(island_id: str, authorization: str | None = Header(None)) -> dict:
     require_token(authorization)
-    island = store.get_island(island_id)
+    island = await asyncio.to_thread(store.get_island, island_id)
     if island is None:
         raise HTTPException(404, "no such island")
     # A re-voice or regenerate rewrites lines while the phone polls this
@@ -402,6 +407,33 @@ def _span(start: int, end: int) -> tuple[int, int] | None:
 TAKE_PROFILE = "default"
 
 
+def _write_atomic(path: Path, data: bytes) -> None:
+    """Write `data` to `path` via a temp file and rename, so a reader never
+    sees a partial write. The tmp name carries a random suffix so two
+    concurrent writers targeting the same `path` (two requests racing to
+    render the same line) never share, and clobber, one tmp file. Blocking
+    IO, meant to run in a thread."""
+    tmp = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        tmp.write_bytes(data)
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def _cached_transform(src: Path, dest: Path, transform) -> None:
+    """If `dest` is not already on disk, read `src`, run the CPU-only
+    `transform` over its bytes and atomically write the result to `dest`.
+    Used for both the phrase slice and the pause pad: a stat, a read, the
+    transform and a write-plus-rename, all blocking, so callers run this
+    with asyncio.to_thread instead of on the event loop, matching every
+    other route in this file that touches disk or does real work."""
+    if dest.exists():
+        return
+    _write_atomic(dest, transform(src.read_bytes()))
+
+
 async def _resolve_line_audio(island: dict, idx: int, speed: float,
                                span: tuple[int, int] | None = None) -> Path:
     """Path to a line's rendered wav at the given speed, rendering and caching
@@ -413,7 +445,7 @@ async def _resolve_line_audio(island: dict, idx: int, speed: float,
     path = store.line_audio_path(island["id"], idx)
     if speed != 1.0:
         path = path.with_name(f"{idx}@{speed:.2f}.wav")
-        if not path.exists():
+        if not await asyncio.to_thread(path.exists):
             line = next((l for l in island.get("lines", []) if l["idx"] == idx), None)
             if line is None:
                 raise HTTPException(404, "no such line")
@@ -421,21 +453,25 @@ async def _resolve_line_audio(island: dict, idx: int, speed: float,
                 wav, _, _, _ = await voicevox.speak(line["ja"], island["speaker"], speed)
             except voicevox.VoicevoxError as exc:
                 raise HTTPException(502, str(exc)) from exc
-            tmp = path.with_suffix(".tmp")
-            tmp.write_bytes(wav)
-            os.replace(tmp, path)
+            await asyncio.to_thread(_write_atomic, path, wav)
     if span:
         sliced = path.with_name(_variant(idx, speed, span) + ".wav")
-        if not sliced.exists():
-            try:
-                data = voicevox.slice_wav(path.read_bytes(), *span)
-            except ValueError as exc:
-                raise HTTPException(400, str(exc)) from exc
-            tmp = sliced.with_suffix(".tmp")
-            tmp.write_bytes(data)
-            os.replace(tmp, sliced)
+        try:
+            await asyncio.to_thread(
+                _cached_transform, path, sliced, lambda b: voicevox.slice_wav(b, *span)
+            )
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
         path = sliced
     return path
+
+
+# The longest silence the line audio route appends: the player's longest Pause.
+PAD_MAX_MS = 10000
+
+
+def _clamp_pad(pad: int) -> int:
+    return max(0, min(PAD_MAX_MS, pad))
 
 
 @app.get("/shadow/islands/{island_id}/lines/{idx}/audio")
@@ -453,24 +489,20 @@ async def line_audio(island_id: str, idx: int, token: str = "", speed: float = 1
     # Audio is fetched by the player, which cannot always set a header, so a
     # token query parameter is accepted here as well as the usual header.
     _token_or_header(token, authorization)
-    island = store.get_island(island_id)
+    island = await asyncio.to_thread(store.get_island, island_id)
     if island is None:
         raise HTTPException(404, "no such island")
     span = _span(start, end)
     path = await _resolve_line_audio(island, idx, speed, span)
-    if not path.exists():
+    if not await asyncio.to_thread(path.exists):
         raise HTTPException(404, "no audio for that line")
-    pad = max(0, min(5000, pad))
+    pad = _clamp_pad(pad)
     if pad > 0:
         speed_r = round(min(SPEED_MAX, max(SPEED_MIN, speed)) * 20) / 20
         # The "@" is what the stale sweep in _synthesize_lines (line 210) keys
         # on, so a padded file is removed along with the render it came from.
         padded = path.with_name(f"{_variant(idx, speed_r, span)}+{pad}.wav")
-        if not padded.exists():
-            padded_bytes = voicevox.pad_wav(path.read_bytes(), pad)
-            tmp = padded.with_suffix(".tmp")
-            tmp.write_bytes(padded_bytes)
-            os.replace(tmp, padded)
+        await asyncio.to_thread(_cached_transform, path, padded, lambda b: voicevox.pad_wav(b, pad))
         path = padded
     return FileResponse(path, media_type="audio/wav")
 
@@ -490,7 +522,7 @@ async def export_island(island_id: str, speed: float = 1.0, repeats: int = 2,
     parameters and kept on disk under a content hash; dropped whenever the
     island is re-voiced or regenerated."""
     _token_or_header(token, authorization)
-    island = store.get_island(island_id)
+    island = await asyncio.to_thread(store.get_island, island_id)
     if island is None:
         raise HTTPException(404, "no such island")
     if island["status"] != "ready":
@@ -637,7 +669,7 @@ async def upload_take(
     began_at = time.monotonic()
     is_calibration = calibrate == "1"
 
-    island = store.get_island(island_id)
+    island = await asyncio.to_thread(store.get_island, island_id)
     if island is None:
         raise HTTPException(404, "no such island")
     line = next((l for l in island["lines"] if l["idx"] == idx), None)
@@ -725,7 +757,7 @@ async def regenerate(
     require_token(authorization)
     if complexity not in generate.COMPLEXITY_RULES:
         raise HTTPException(400, "complexity must be 'simple' or 'complex'")
-    island = store.get_island(island_id)
+    island = await asyncio.to_thread(store.get_island, island_id)
     if island is None:
         raise HTTPException(404, "no such island")
 
@@ -741,7 +773,8 @@ async def regenerate(
             (complexity, island_id),
         )
     background.add_task(
-        _build_island, island_id, wav, complexity, island["speaker"], count
+        _build_island, island_id, wav, complexity, island["speaker"], count,
+        island.get("register", "polite"),
     )
     return {"id": island_id, "status": "working", "complexity": complexity}
 
@@ -849,28 +882,37 @@ class ExplainChatBody(BaseModel):
 @app.post("/shadow/explain-chat")
 async def explain_chat(body: ExplainChatBody,
                        authorization: str | None = Header(None)) -> dict:
-    """One turn of free-form chat about a sentence. The thread itself lives in
+    """One turn about a sentence, structured as {"vocab", "grammar",
+    "summary"} (any of the three may be absent). The thread itself lives in
     the client's own state, not persisted here. The opening turn of a thread
-    (no history yet) is cached in sqlite, keyed on (sentence, marked words,
-    question): that is the Explain sheet's fixed question re-run on the same
-    selection, and it always gets the same answer. A follow-up turn carries
-    history and is never cached, since it depends on the thread so far."""
+    (no history yet) is cached in sqlite as JSON, keyed on (sentence, marked
+    words, question): that is the Explain sheet's fixed question re-run on
+    the same selection, and it always gets the same answer. A follow-up turn
+    carries history and is never cached, since it depends on the thread so
+    far."""
     require_token(authorization)
     if not body.history:
         cached = await asyncio.to_thread(
             store.get_explain_answer, body.sentence_ja, body.marked, body.question
         )
         if cached is not None:
-            return {"answer": cached}
-    answer = await asyncio.to_thread(
+            try:
+                return json.loads(cached)
+            except json.JSONDecodeError:
+                # A row sqlite cannot parse back is no better than no row:
+                # fall through to a fresh answer, which overwrites it below.
+                log.warning("explain cache row is not valid JSON, treating as a miss")
+    raw = await asyncio.to_thread(
         explain.chat_answer, body.sentence_ja, body.sentence_en, body.marked,
         body.question, body.history,
     )
+    answer = explain.parse_explain_answer(raw, body.sentence_ja)
     if answer and not body.history:
         await asyncio.to_thread(
-            store.set_explain_answer, body.sentence_ja, body.marked, body.question, answer
+            store.set_explain_answer, body.sentence_ja, body.marked, body.question,
+            json.dumps(answer, ensure_ascii=False),
         )
-    return {"answer": answer}
+    return answer
 
 
 @app.delete("/shadow/islands/{island_id}")

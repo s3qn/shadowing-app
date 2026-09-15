@@ -20,18 +20,28 @@ export function SpeedIcon({ color, size = 24 }: IconProps) {
   );
 }
 
+/** Path data from Lucide's "repeat" icon (ISC licence), 24 viewBox:
+ * https://lucide.dev/icons/repeat, also at
+ * https://github.com/lucide-icons/lucide/blob/main/icons/repeat.svg
+ * Tried "repeat-2" first: its two chevrons cross through the middle of the
+ * glyph, which reads as a muddy X at this icon's small on-screen size. Plain
+ * "repeat" keeps its loop as one clean rectangle with a chevron at each end,
+ * so it stays legible at 22px and matches the classic media-player repeat
+ * glyph better. */
 export function RepeatIcon({ color, size = 24 }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="m17 2 4 4-4 4" stroke={color} strokeWidth={STROKE} strokeLinecap="round" strokeLinejoin="round" />
       <Path
-        d="M5 8a7 7 0 0 1 12-3.5M19 5v4h-4"
+        d="M3 11v-1a4 4 0 0 1 4-4h14"
         stroke={color}
         strokeWidth={STROKE}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+      <Path d="m7 22-4-4 4-4" stroke={color} strokeWidth={STROKE} strokeLinecap="round" strokeLinejoin="round" />
       <Path
-        d="M19 16a7 7 0 0 1-12 3.5M5 19v-4h4"
+        d="M21 13v1a4 4 0 0 1-4 4H3"
         stroke={color}
         strokeWidth={STROKE}
         strokeLinecap="round"
@@ -67,11 +77,11 @@ export function BlindIcon({ color, size = 24 }: IconProps) {
   );
 }
 
-export function LagIcon({ color, size = 24 }: IconProps) {
+export function SearchIcon({ color, size = 24 }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Circle cx={12} cy={12} r={8.5} stroke={color} strokeWidth={STROKE} />
-      <Path d="M12 7v5l3.5 2" stroke={color} strokeWidth={STROKE} strokeLinecap="round" strokeLinejoin="round" />
+      <Circle cx={10.5} cy={10.5} r={6.5} stroke={color} strokeWidth={STROKE} />
+      <Line x1={15.5} y1={15.5} x2={20.5} y2={20.5} stroke={color} strokeWidth={STROKE} strokeLinecap="round" />
     </Svg>
   );
 }

@@ -123,6 +123,20 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Explain: word meaning in context and one-tap phrase explanations
 - Record page in the Tide look
 - Pill tab bar and system fonts
+- Repeat popover: the island always plays on line after line and wraps until
+  paused. The Repeat tile opens two tick rulers that snap with a haptic per
+  step: Times (Off, 2× to 9× per line) and Pause (0–10s in 0.5s steps after
+  every play, with the countdown). Decision: Lag and the loop breath were the
+  same thing, so Pause replaces both and the Lag tile is gone; Auto Echo's
+  Echo step uses the same Pause, and a take's tail grows by it up to 1s. The
+  old Off, Line and Island modes are gone; a phrase from the selection popup
+  still loops until cleared.
+- Delight wave: sky by time of day, pittari sparkle, voice ripples, selection
+  handles, Skia water with tilt, frost, Repeat rulers, settings pages, home
+  polish
+- Smooth player: line and take audio reused and cached locally, line changes
+  start in about 100ms, rippling play button with instant stop
+- Reading Off option; Speed and Reading tiles glow only when not default
 
 ## Next (approved, in order)
 

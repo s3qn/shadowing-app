@@ -1,7 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { Radius, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { PressScale } from '@/components/press-scale';
+import { Radius, Spacing, tide } from '@/constants/theme';
 
 export const SELECTION_POPUP_WIDTH = 208;
 
@@ -16,23 +16,26 @@ type Props = {
 /**
  * The popup shown once a drag selects a run of words: Repeat and Explain,
  * positioned the same way `WordPanel` is (absolute, clamped into the block by
- * the screen). Everything either button starts (loading the phrase's audio,
+ * the screen). It follows the selection handles as they move the span and
+ * hides while either handle is being dragged, reappearing at the new span on
+ * release. Everything either button starts (loading the phrase's audio,
  * dropping a take, playing, opening the Explain sheet) is the screen's job.
  */
 export function SelectionPopup({ left, top, onRepeat, onExplain }: Props) {
-  const { palette } = useTheme();
   return (
     <View
       style={[
         styles.pop,
-        { left, top, backgroundColor: palette.surface, borderColor: palette.line, shadowColor: '#000' },
+        { left, top, backgroundColor: tide.water, borderColor: tide.waterline, shadowColor: '#000' },
       ]}>
-      <Pressable onPress={onRepeat} style={[styles.repeat, { backgroundColor: palette.accent }]}>
-        <Text style={[styles.repeatText, { color: palette.accentInk }]}>Repeat</Text>
-      </Pressable>
-      <Pressable onPress={onExplain} style={[styles.repeat, { backgroundColor: palette.surfaceAlt, borderWidth: 1, borderColor: palette.accent }]}>
-        <Text style={[styles.repeatText, { color: palette.accent }]}>Explain</Text>
-      </Pressable>
+      <PressScale onPress={onRepeat} style={[styles.repeat, { backgroundColor: tide.lang.ja }]}>
+        <Text style={[styles.repeatText, { color: tide.sky[0] }]}>Repeat</Text>
+      </PressScale>
+      <PressScale
+        onPress={onExplain}
+        style={[styles.repeat, { backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: tide.lang.ja }]}>
+        <Text style={[styles.repeatText, { color: tide.lang.ja }]}>Explain</Text>
+      </PressScale>
     </View>
   );
 }

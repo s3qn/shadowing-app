@@ -27,7 +27,7 @@ export function spanToAudio(line: Line, span: PhraseSpan, speed: number): AudioS
 
 /**
  * A phrase is a run of words of one line, kept as word indices so it survives
- * a speed or lag change. It is keyed on the line (generation plus idx) so a
+ * a speed or pause change. It is keyed on the line (generation plus idx) so a
  * line switch or a regenerate hides it in the same render, and it is cleared
  * in that render too, so it does not come back when the user returns to the line.
  * The player loads the phrase as its own shorter audio; see the plan.

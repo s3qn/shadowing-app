@@ -5,6 +5,7 @@ here: subprocess.run is monkeypatched with a fake in every test that reaches
 it, same pattern as test_generate.py.
 """
 
+import json
 import subprocess
 
 import explain
@@ -211,3 +212,119 @@ def test_chat_answer_no_marked_words_reads_as_whole_sentence(monkeypatch):
     explain.chat_answer("学校に行きます。", "I go to school.", [], "what does this mean?", [])
 
     assert "(none, whole sentence)" in captured["input"]
+
+
+# -- parse_explain_answer ------------------------------------------------------
+
+
+def test_parse_explain_answer_empty_returns_empty_dict():
+    assert explain.parse_explain_answer("") == {}
+    assert explain.parse_explain_answer("   ") == {}
+
+
+def test_parse_explain_answer_good_json():
+    raw = """{
+      "vocab": [{"word": "行きます", "reading": "いきます", "meaning": "to go", "pos": "verb"}],
+      "grammar": [{"pattern": "に", "explanation": "marks the destination of motion."}],
+      "summary": "The speaker says they are going to school."
+    }"""
+
+    result = explain.parse_explain_answer(raw)
+
+    assert result == {
+        "vocab": [{"word": "行きます", "reading": "いきます", "meaning": "to go", "pos": "verb"}],
+        "grammar": [{"pattern": "に", "explanation": "marks the destination of motion."}],
+        "summary": "The speaker says they are going to school.",
+    }
+
+
+def test_parse_explain_answer_strips_code_fences():
+    raw = '```json\n{"summary": "A short sentence about going to school."}\n```'
+
+    assert explain.parse_explain_answer(raw) == {
+        "summary": "A short sentence about going to school."
+    }
+
+
+def test_parse_explain_answer_drops_items_missing_required_fields():
+    raw = """{
+      "vocab": [
+        {"word": "学校", "meaning": "school", "pos": "noun"},
+        {"word": "", "reading": "いきます", "meaning": "to go", "pos": "verb"},
+        {"reading": "いきます", "meaning": "to go", "pos": "verb"}
+      ],
+      "grammar": [
+        {"pattern": "に", "explanation": "marks the destination."},
+        {"pattern": "を"}
+      ]
+    }"""
+
+    result = explain.parse_explain_answer(raw)
+
+    assert result["vocab"] == [{"word": "学校", "reading": "", "meaning": "school", "pos": "noun"}]
+    assert result["grammar"] == [{"pattern": "に", "explanation": "marks the destination."}]
+    assert "summary" not in result
+
+
+def test_parse_explain_answer_invalid_pos_falls_back_to_other():
+    raw = '{"vocab": [{"word": "学校", "meaning": "school", "pos": "not-a-real-group"}]}'
+
+    result = explain.parse_explain_answer(raw)
+
+    assert result["vocab"][0]["pos"] == "other"
+
+
+def test_parse_explain_answer_caps_vocab_and_grammar_counts():
+    vocab = [{"word": f"w{i}", "meaning": f"m{i}", "pos": "noun"} for i in range(10)]
+    grammar = [{"pattern": f"p{i}", "explanation": f"e{i}"} for i in range(10)]
+    raw = json.dumps({"vocab": vocab, "grammar": grammar})
+
+    result = explain.parse_explain_answer(raw)
+
+    assert len(result["vocab"]) == explain.MAX_VOCAB_ITEMS
+    assert len(result["grammar"]) == explain.MAX_GRAMMAR_ITEMS
+
+
+def test_parse_explain_answer_garbage_falls_back_to_summary():
+    raw = "Sorry, I can't help with that request."
+
+    assert explain.parse_explain_answer(raw) == {"summary": raw}
+
+
+def test_parse_explain_answer_empty_object_returns_empty_dict():
+    assert explain.parse_explain_answer("{}") == {}
+
+
+# -- parse_explain_answer: grammar span -----------------------------------
+
+
+def test_parse_explain_answer_keeps_span_that_is_a_real_substring():
+    raw = json.dumps({
+        "grammar": [{"pattern": "に", "explanation": "marks the destination.", "span": "学校に"}]
+    })
+
+    result = explain.parse_explain_answer(raw, sentence_ja="学校に行きます。")
+
+    assert result["grammar"] == [
+        {"pattern": "に", "explanation": "marks the destination.", "span": "学校に"}
+    ]
+
+
+def test_parse_explain_answer_grammar_item_without_span_is_unaffected():
+    raw = json.dumps({"grammar": [{"pattern": "に", "explanation": "marks the destination."}]})
+
+    result = explain.parse_explain_answer(raw, sentence_ja="学校に行きます。")
+
+    assert result["grammar"] == [{"pattern": "に", "explanation": "marks the destination."}]
+    assert "span" not in result["grammar"][0]
+
+
+def test_parse_explain_answer_drops_span_that_is_not_a_substring():
+    raw = json.dumps({
+        "grammar": [{"pattern": "に", "explanation": "marks the destination.", "span": "not in the sentence"}]
+    })
+
+    result = explain.parse_explain_answer(raw, sentence_ja="学校に行きます。")
+
+    assert result["grammar"] == [{"pattern": "に", "explanation": "marks the destination."}]
+    assert "span" not in result["grammar"][0]

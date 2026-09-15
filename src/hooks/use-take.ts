@@ -36,6 +36,9 @@ export const TAIL_MS = 1000;
 const WATCHDOG_SLACK_MS = 5000;
 // Used when the line's duration is not known yet. Lines are one sentence.
 export const WATCHDOG_FALLBACK_MS = 30000;
+// How long after a line change its take is read from disk: past the line
+// change's render and the new sentence's rise, so the read never lands in it.
+const FIND_TAKE_DELAY_MS = 450;
 
 export type TakePhase = 'idle' | 'recording' | 'ready';
 
@@ -102,36 +105,110 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
   const recorderState = useAudioRecorderState(recorder, 50);
 
   const [recording, setRecording] = useState(false);
-  const [take, setTake] = useState<Take | null>(null);
-  const [error, setError] = useState('');
-  const [clean, setClean] = useState<CleanStatus>(IDLE_CLEAN);
   const [mode, setMode] = useState<TakeMode>('take');
 
+  // Everything below belongs to one line of one generation. The take, an
+  // error and a clean result are each stored with the key of the line they
+  // happened on and read only while that line is on screen, so a line change
+  // resets them without setting any state (which would render the whole
+  // player screen a second time right after the change).
+  const lineKey = `${islandId ?? ''}:${idx}:${generation}`;
+  const lineKeyRef = useRef(lineKey);
+  lineKeyRef.current = lineKey;
+
+  // The newest take per line key, read from disk once per line and kept up
+  // to date by every save, score, clean and discard after that. A key with no
+  // entry has not been read yet.
+  const takes = useRef(new Map<string, Take | null>());
+  const [, setTakesTick] = useState(0);
+  const take = takes.current.get(lineKey) ?? null;
+  function updateTake(key: string, fn: (onScreen: Take | null) => Take | null) {
+    // Not read from disk yet: the file this update describes is already on
+    // disk, and the read picks it up.
+    if (!takes.current.has(key)) return;
+    const prev = takes.current.get(key) ?? null;
+    const next = fn(prev);
+    if (next === prev) return;
+    takes.current.set(key, next);
+    setTakesTick((n) => n + 1);
+  }
+  function putTake(key: string, next: Take | null) {
+    takes.current.set(key, next);
+    setTakesTick((n) => n + 1);
+  }
+
+  const [errorState, setErrorState] = useState({ key: '', message: '' });
+  const error = errorState.key === lineKey ? errorState.message : '';
+  function setError(message: string) {
+    const key = lineKeyRef.current;
+    setErrorState((cur) => (cur.message === message && (cur.key === key || !message) ? cur : { key, message }));
+  }
+  const [cleanState, setCleanState] = useState<{ key: string; clean: CleanStatus }>({ key: '', clean: IDLE_CLEAN });
+  const clean = cleanState.key === lineKey ? cleanState.clean : IDLE_CLEAN;
+  function setClean(next: CleanStatus, key = lineKeyRef.current) {
+    setCleanState({ key, clean: next });
+  }
+
+  // ONE take player for the screen's whole life, like the line player: a new
+  // take swaps its source with replace() (the effect below). Handing the
+  // source to useAudioPlayer releases the native player and builds a new one
+  // on every line change where either line has a take.
+  //
   // keepAudioSessionActive: pausing a player tears the audio session down
   // 100ms later, and that check only looks at players, never at recorders. The
   // take player is paused right before a take starts, so without this the
   // teardown lands on the recorder that has just been prepared.
-  //
+  const takePlayer = useAudioPlayer(null, { keepAudioSessionActive: true });
+  const takeStatus = useAudioPlayerStatus(takePlayer);
+  useSessionPlayer(takePlayer);
+
   // Plays take.cleanUri once cleanTake has set it; until then, or if cleanup
   // never succeeds, this plays the raw take, which is what the source falls
   // back to.
-  const takePlayer = useAudioPlayer(take ? { uri: take.cleanUri ?? take.uri } : null, {
-    keepAudioSessionActive: true,
-  });
-  const takeStatus = useAudioPlayerStatus(takePlayer);
-  useSessionPlayer(takePlayer);
-  // A short local file can finish loading before the status listener above
-  // subscribes to a new take player, and then no status ever reports it. One
-  // re-render here lets `takeLoaded` read the player's own flag.
-  const [, setLoadedTick] = useState(0);
+  const takeUri = take ? (take.cleanUri ?? take.uri) : null;
+  // The uri the native player holds (last handed to replace()), and the one
+  // it has reported loaded. The player's status keeps the previous take's
+  // values until the new item reports, so `takeLoaded` only reads true once
+  // `readyUri` is this take.
+  const loadedTakeUri = useRef<string | null>(null);
+  const [readyUri, setReadyUri] = useState<string | null>(null);
   useEffect(() => {
-    if (takePlayer.isLoaded) setLoadedTick((n) => n + 1);
+    // No take on this line: the old item stays loaded but unreachable, since
+    // playTake needs a take and takeLoaded needs this take's uri. Coming back
+    // to that same take then needs no swap at all.
+    if (!takeUri || takeUri === loadedTakeUri.current) return;
+    loadedTakeUri.current = takeUri;
+    setReadyUri(null);
+    // A new source never starts on its own: a cleaned file landing while the
+    // raw take plays would otherwise carry on from the top of the new file.
+    stopPlayback(takePlayer);
+    try {
+      takePlayer.replace({ uri: takeUri });
+    } catch {
+      // The screen is unmounting and the player is already released.
+    }
+  }, [takeUri, takePlayer]);
+  useEffect(() => {
+    const sub = takePlayer.addListener('playbackStatusUpdate', (s) => {
+      const uri = loadedTakeUri.current;
+      // `isLoaded` on the player itself is the current item's, so a status the
+      // previous item sent before the swap cannot mark the new one ready.
+      if (!uri || !s.isLoaded) return;
+      try {
+        if (takePlayer.isLoaded) setReadyUri(uri);
+      } catch {
+        // Released: nothing to mark.
+      }
+    });
+    return () => sub.remove();
   }, [takePlayer]);
+  const takeReady = !!takeUri && readyUri === takeUri;
 
   // The take (or calibration) a recording in progress belongs to, kept in a
   // ref because the tail runs after the line (and possibly the current idx,
   // the speed slider, and the lag setting) has moved on.
   const target = useRef<{
+    key: string;
     islandId: string;
     idx: number;
     mode: TakeMode;
@@ -144,22 +221,31 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
   } | null>(null);
   const tail = useRef<ReturnType<typeof setTimeout> | null>(null);
   const watchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Current props, read from finish() after the tail delay so it can tell
-  // whether the recorded line is still the one on screen.
-  const current = useRef({ islandId, idx });
-  current.current = { islandId, idx };
   // Bumped each time a recording is about to open. A finish() still saving
   // an older take compares against it, so it never switches the session back
   // to playback, or clears `recording`, under a take started after it.
   const takeSeq = useRef(0);
 
+  // Reads a line's take from disk the first time the line shows, a moment
+  // after the line change (FIND_TAKE_DELAY_MS), so the folder listing and
+  // score JSON reads never sit inside its render. Anything saved for the line
+  // in the meantime already filled the entry, and wins.
   useEffect(() => {
-    setTake(islandId ? findTake(islandId, idx) : null);
-    // An error, and a clean result, belong to the line they happened on; a
-    // new line starts clean.
-    setError('');
-    setClean(IDLE_CLEAN);
-  }, [islandId, idx, generation]);
+    const key = lineKey;
+    if (takes.current.has(key)) return;
+    if (!islandId) {
+      takes.current.set(key, null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (takes.current.has(key)) return;
+      const found = findTake(islandId, idx);
+      if (takes.current.has(key)) return;
+      putTake(key, found);
+    }, FIND_TAKE_DELAY_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineKey]);
 
   function clearTimers() {
     if (tail.current) {
@@ -184,6 +270,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
    * whether or not the take itself turned out cleanable.
    */
   async function cleanTake(
+    key: string,
     targetIslandId: string,
     targetIdx: number,
     saved: Take,
@@ -196,7 +283,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
     // The clean status only describes the latest take: a newer take already
     // recording, or saved, owns it.
     const latest = () => seq === takeSeq.current;
-    setClean({ state: 'working', erleDb: null, note: '' });
+    setClean({ state: 'working', erleDb: null, note: '' }, key);
     try {
       const result = await uploadTake(targetIslandId, targetIdx, saved.uri, speed, false, span, lagMs, lineStartMs);
       if (result.score) {
@@ -208,10 +295,12 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
         }
         // Same recordedAt guard as the cleanUri update below: a new take, or
         // a line switch and back, must not resurrect a stale score.
-        setTake((onScreen) => (onScreen && onScreen.recordedAt === saved.recordedAt ? { ...onScreen, score } : onScreen));
+        updateTake(key, (onScreen) =>
+          onScreen && onScreen.recordedAt === saved.recordedAt ? { ...onScreen, score } : onScreen,
+        );
       }
       if (!result.cleaned) {
-        if (latest()) setClean({ state: 'skipped', erleDb: result.erleDb, note: result.note });
+        if (latest()) setClean({ state: 'skipped', erleDb: result.erleDb, note: result.note }, key);
         return;
       }
       const downloaded = await File.downloadFileAsync(
@@ -221,12 +310,12 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
       // Only adopt the cleaned file if the take on screen is still this one:
       // a new take, or a line switch and back, must not resurrect a stale
       // clean result landing after the fact.
-      setTake((onScreen) =>
+      updateTake(key, (onScreen) =>
         onScreen && onScreen.recordedAt === saved.recordedAt ? { ...onScreen, cleanUri: downloaded.uri } : onScreen,
       );
-      if (latest()) setClean({ state: 'done', erleDb: result.erleDb, note: result.note });
+      if (latest()) setClean({ state: 'done', erleDb: result.erleDb, note: result.note }, key);
     } catch (e) {
-      if (latest()) setClean({ state: 'failed', erleDb: null, note: e instanceof Error ? e.message : '' });
+      if (latest()) setClean({ state: 'failed', erleDb: null, note: e instanceof Error ? e.message : '' }, key);
     }
   }
 
@@ -242,23 +331,24 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
         if (savedFor.mode === 'calibrate') {
           try {
             const result = await uploadTake(savedFor.islandId, savedFor.idx, uri, savedFor.speed, true, savedFor.span);
-            setClean({ state: 'done', erleDb: result.erleDb, note: result.note });
+            setClean({ state: 'done', erleDb: result.erleDb, note: result.note }, savedFor.key);
           } catch (e) {
-            setClean({ state: 'failed', erleDb: null, note: e instanceof Error ? e.message : '' });
+            setClean({ state: 'failed', erleDb: null, note: e instanceof Error ? e.message : '' }, savedFor.key);
           }
         } else {
           try {
             const saved = await saveTake(savedFor.islandId, savedFor.idx, uri);
-            if (savedFor.islandId === current.current.islandId && savedFor.idx === current.current.idx) {
-              setTake(saved);
-            }
+            // Stored for the line it was recorded on, which shows it only
+            // while that line is on screen.
+            putTake(savedFor.key, saved);
             // A silent take has no line in it to remove, and nothing to time
             // the words against, so it is not uploaded and has no score.
             if (savedFor.silent) {
-              if (seq === takeSeq.current) setClean({ state: 'skipped', erleDb: null, note: '' });
+              if (seq === takeSeq.current) setClean({ state: 'skipped', erleDb: null, note: '' }, savedFor.key);
               return;
             }
             void cleanTake(
+              savedFor.key,
               savedFor.islandId,
               savedFor.idx,
               saved,
@@ -342,7 +432,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
       await applyRecordingMode();
       await recorder.prepareToRecordAsync();
       recorder.record();
-      target.current = { islandId, idx, mode, speed, lagMs, span, recordStartedAt: Date.now(), lineStartMs: null, silent };
+      target.current = { key: lineKey, islandId, idx, mode, speed, lagMs, span, recordStartedAt: Date.now(), lineStartMs: null, silent };
       setMode(mode);
       // Nothing else should be pending here, but a leftover timer would end
       // this take early.
@@ -429,7 +519,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
   function discardTake() {
     stopPlayback(takePlayer);
     if (islandId) deleteTake(islandId, idx);
-    setTake(null);
+    putTake(lineKey, null);
     setClean(IDLE_CLEAN);
   }
 
@@ -466,14 +556,13 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
     level: recording ? meterLevel(recorderState.metering) : 0,
     take,
     takePlaying: takeStatus.playing,
-    // useAudioPlayerStatus keeps the previous player's last status until the
-    // new player (a new take, or its cleaned file) sends one, so the player's
-    // own flag is checked as well.
-    takeLoaded: takePlayer.isLoaded && takeStatus.isLoaded,
+    // The status keeps the previous item's values until the new take (or its
+    // cleaned file) reports, so it counts only once readyUri is this take.
+    takeLoaded: takeReady && takeStatus.isLoaded,
     // For the Auto Echo sheet's Play step fill: real progress through the
     // take, the same way the line player drives Listen.
-    takeCurrentTime: takeStatus.currentTime,
-    takeDuration: takeStatus.duration,
+    takeCurrentTime: takeReady ? takeStatus.currentTime : 0,
+    takeDuration: takeReady ? takeStatus.duration : 0,
     error,
     clean,
     startTake,

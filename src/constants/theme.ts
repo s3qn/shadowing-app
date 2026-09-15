@@ -1,43 +1,10 @@
 /**
- * Design tokens. One palette per scheme, read through useTheme so a screen
- * never hardcodes a colour.
+ * Design tokens. Tide (below) is the one palette the app draws from: every
+ * screen sits on the sky gradient from useSkyStyle, so there is no separate
+ * light or dark scheme to pick between.
  */
 
 import { Platform } from 'react-native';
-
-const palette = {
-  light: {
-    bg: '#FBFAF8',
-    surface: '#FFFFFF',
-    surfaceAlt: '#F1EFEA',
-    ink: '#16150F',
-    muted: '#6C6960',
-    line: '#E2DFD7',
-    accent: '#1F6F5C',
-    accentInk: '#FFFFFF',
-    highlight: '#FFD97A',
-    danger: '#A3341F',
-    info: '#2F6DB5',
-    warn: '#B8700F',
-  },
-  dark: {
-    bg: '#111310',
-    surface: '#1A1D19',
-    surfaceAlt: '#232720',
-    ink: '#F3F1EA',
-    muted: '#9B9A90',
-    line: '#2F332C',
-    accent: '#5FD0AE',
-    accentInk: '#07130F',
-    highlight: '#F0B429',
-    danger: '#E4735A',
-    info: '#7FB3F0',
-    warn: '#F0B429',
-  },
-} as const;
-
-export type Palette = (typeof palette)[keyof typeof palette];
-export const Colors = palette;
 
 export const Spacing = {
   xs: 4,
@@ -50,8 +17,32 @@ export const Spacing = {
 
 export const Radius = { sm: 8, md: 14, lg: 22, pill: 999 } as const;
 
+// Gradient stops [top, middle, bottom] per time of day. All four are dark
+// tinted variants (never the light, high-key colours the names might
+// suggest) so tide.text stays readable over the sentence, the transcript
+// and the Home list at every hour.
+export const tideSkies = {
+  // Deep indigo warming to a hint of dawn blue at the horizon.
+  morning: ['#12102A', '#1A2142', '#223A5E'] as const,
+  // Deep teal-blue, the darkest and coolest of the four.
+  day: ['#0B2430', '#10333F', '#17434F'] as const,
+  // Deep plum with a warm ember glow near the horizon.
+  sunset: ['#241530', '#34193A', '#5C2E28'] as const,
+  night: ['#070A12', '#101A2A', '#16243A'] as const,
+} as const;
+
+// Per-period water palette for the Tide player's Skia canvas: shallow (near
+// the surface) fading to deep (below the first screen), plus a glint colour
+// left open (no alpha or closing paren) for the light band to complete.
+export const tideWaters = {
+  morning: { shallow: '#22466A', mid: '#152F4B', deep: '#0A1A2C', glint: 'rgba(200,220,255' },
+  day: { shallow: '#1B5566', mid: '#113A4A', deep: '#082028', glint: 'rgba(220,245,255' },
+  sunset: { shallow: '#3E2E48', mid: '#231E3A', deep: '#100E22', glint: 'rgba(255,190,150' },
+  night: { shallow: '#173247', mid: '#0E2233', deep: '#07131D', glint: 'rgba(255,225,200' },
+} as const;
+
 export const tide = {
-  sky: ['#070A12', '#101A2A', '#16243A'] as const, // .d4 .sky4 gradient stops
+  sky: tideSkies.night,                              // .d4 .sky4 gradient stops
   water: '#08131C',                                 // .d4 .water gradient stop
   waterline: 'rgba(255,158,128,0.55)',               // .d4 .water box-shadow, --cr for .ja
   lang: { ja: '#FF9E80', es: '#7FE0D4' },            // .d4 --c / .d4.es --c

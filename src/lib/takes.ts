@@ -14,6 +14,34 @@ import type { TakeScore } from '@/lib/api';
 
 export type Take = { uri: string; recordedAt: number; cleanUri: string | null; score: TakeScore | null };
 
+/** How a finished Auto Echo take is celebrated at the end of the Play step. */
+export type ResultTier = 'great' | 'good' | 'retry';
+
+/**
+ * Judge one Play-step take: scored (Speak played the line under the voice)
+ * uses the ratio of `'ok'` words to scored words (`'none'` words are outside
+ * the phrase span or unscoreable and excluded). Silent (no score possible)
+ * falls back to how closely `takeDuration` matches the line's own duration,
+ * a cheap on-device proxy, not a scored fact. A score with zero scoreable
+ * words is treated as unscored.
+ */
+export function resultTier(score: TakeScore | null, takeDuration: number, lineEnd: number): ResultTier {
+  const scored = score?.words.filter((w) => w !== 'none') ?? [];
+  if (scored.length > 0) {
+    const okRatio = scored.filter((w) => w === 'ok').length / scored.length;
+    if (okRatio >= 0.8) return 'great';
+    if (okRatio >= 0.5) return 'good';
+    return 'retry';
+  }
+  if (lineEnd > 0 && takeDuration > 0) {
+    const ratio = takeDuration / lineEnd;
+    if (ratio >= 0.85 && ratio <= 1.15) return 'great';
+    if (ratio >= 0.6 && ratio <= 1.4) return 'good';
+    return 'retry';
+  }
+  return 'retry';
+}
+
 /** Folder for one island's takes: <document>/takes/<islandId>. */
 export function takeDir(islandId: string): Directory {
   return new Directory(Paths.document, 'takes', islandId);
@@ -140,6 +168,31 @@ export function deleteTakes(islandId: string): void {
   try {
     const dir = takeDir(islandId);
     if (dir.exists) dir.delete();
+  } catch {
+    // Nothing to clean up, or the folder was already gone.
+  }
+}
+
+/** Root folder for every island's takes: <document>/takes. */
+function takesRoot(): Directory {
+  return new Directory(Paths.document, 'takes');
+}
+
+/** Total bytes used by every take on disk, across every island. */
+export async function takesStorageBytes(): Promise<number> {
+  try {
+    const root = takesRoot();
+    return root.exists ? (root.size ?? 0) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Remove every take of every island. Missing folder is fine. */
+export async function deleteAllTakes(): Promise<void> {
+  try {
+    const root = takesRoot();
+    if (root.exists) root.delete();
   } catch {
     // Nothing to clean up, or the folder was already gone.
   }

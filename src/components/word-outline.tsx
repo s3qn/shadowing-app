@@ -1,60 +1,71 @@
-import { useEffect, useRef } from 'react';
-import { StyleSheet } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { Platform, StyleSheet } from 'react-native';
+import Animated, { type SharedValue, useAnimatedStyle } from 'react-native-reanimated';
 
-import { Radius, tide } from '@/constants/theme';
-
-type Box = { x: number; y: number; width: number; height: number };
+import type { Highlight, WordBox } from '@/components/word-highlight';
+import { tide } from '@/constants/theme';
 
 type Props = {
-  /** The active word's layout box, or null when no word is active. */
-  box: Box | null;
+  /** The same highlight the word colours read (see word-highlight.ts). */
+  highlight: Highlight;
+  /** Each word's layout box, by word index, in this outline's parent. */
+  boxes: SharedValue<(WordBox | null)[]>;
 };
 
 /**
- * A thin outline that glides from word to word as the active word changes,
- * sitting 3px outside the word's box. Fades out when there is no active
- * word instead of collapsing to a point.
+ * A thin glowing underline under the lit word. It reads the same `level` the
+ * word colours read, so it slides to the next word over exactly the handoff
+ * that recolours it, and it can never sit under a word that is not lit. A
+ * handoff to a word on another row fades out and back in rather than sliding
+ * diagonally across the text. Nothing is lit: it is fully transparent.
  */
-export function WordOutline({ box }: Props) {
-  const x = useSharedValue(0);
-  const y = useSharedValue(0);
-  const w = useSharedValue(0);
-  const h = useSharedValue(0);
-  const opacity = useSharedValue(0);
-  const shown = useRef(false);
-
-  useEffect(() => {
-    if (!box) {
-      opacity.value = withTiming(0, { duration: 120 });
-      shown.current = false;
-      return;
+export function WordOutline({ highlight, boxes }: Props) {
+  const style = useAnimatedStyle(() => {
+    const h = highlight.value;
+    const all = boxes.value;
+    const m = Math.floor(h.level);
+    const f = h.level - m;
+    let a = -1;
+    let b = -1;
+    let opacity = 0;
+    let t = 0;
+    if (m === h.from) {
+      a = h.from;
+      opacity = f;
+    } else if (m > h.from && m <= h.to) {
+      a = m - 1;
+      b = m;
+      opacity = 1;
+      t = f;
+    } else if (m === h.to + 1) {
+      a = h.to;
+      opacity = 1 - f;
     }
-    const next = { x: box.x - 3, y: box.y - 3, w: box.width + 6, h: box.height + 6 };
-    if (!shown.current) {
-      x.value = next.x;
-      y.value = next.y;
-      w.value = next.w;
-      h.value = next.h;
-      opacity.value = withTiming(1, { duration: 80 });
-      shown.current = true;
-    } else {
-      const timing = { duration: 120, easing: Easing.out(Easing.cubic) };
-      x.value = withTiming(next.x, timing);
-      y.value = withTiming(next.y, timing);
-      w.value = withTiming(next.w, timing);
-      h.value = withTiming(next.h, timing);
-      opacity.value = withTiming(1, { duration: 80 });
+    const boxA = a >= 0 ? all[a] : null;
+    const boxB = b >= 0 ? all[b] : null;
+    if (!boxA || h.on <= 0) return { opacity: 0 };
+    let x = boxA.x;
+    let y = boxA.y + boxA.height;
+    let w = boxA.width;
+    if (boxB && t > 0) {
+      const yB = boxB.y + boxB.height;
+      if (Math.abs(yB - y) < 2) {
+        x += (boxB.x - x) * t;
+        w += (boxB.width - w) * t;
+      } else {
+        if (t >= 0.5) {
+          x = boxB.x;
+          y = yB;
+          w = boxB.width;
+        }
+        opacity *= Math.abs(1 - 2 * t);
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [box?.x, box?.y, box?.width, box?.height]);
-
-  const style = useAnimatedStyle(() => ({
-    transform: [{ translateX: x.value }, { translateY: y.value }],
-    width: w.value,
-    height: h.value,
-    opacity: opacity.value,
-  }));
+    return {
+      opacity: opacity * h.on,
+      width: w + 6,
+      transform: [{ translateX: x - 3 }, { translateY: y }],
+    };
+  });
 
   return <Animated.View pointerEvents="none" style={[styles.outline, style]} />;
 }
@@ -64,8 +75,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     top: 0,
-    borderWidth: 1.5,
-    borderColor: tide.text,
-    borderRadius: Radius.sm + 3,
+    width: 0,
+    height: 2.5,
+    borderRadius: 2,
+    opacity: 0,
+    backgroundColor: tide.lang.ja,
+    ...Platform.select({
+      ios: { shadowColor: tide.lang.ja, shadowOpacity: 0.9, shadowRadius: 4, shadowOffset: { width: 0, height: 0 } },
+      default: {},
+    }),
   },
 });

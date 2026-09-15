@@ -5,6 +5,7 @@ points SHADOW_DATA_DIR at. Every test gets its own island id from the
 island_id fixture, so tests do not depend on each other or on run order.
 """
 
+import threading
 from pathlib import Path
 
 import pytest
@@ -36,6 +37,21 @@ def test_create_island_then_get_island(island_id):
 
 def test_get_island_missing_id_returns_none():
     assert store.get_island("does-not-exist") is None
+
+
+def test_create_island_defaults_register_to_polite(island_id):
+    # island_id was created without passing register at all.
+    island = store.get_island(island_id)
+    assert island["register"] == "polite"
+
+
+def test_create_island_stores_given_register():
+    iid = store.create_island("simple", 3, register="casual")
+    try:
+        island = store.get_island(iid)
+        assert island["register"] == "casual"
+    finally:
+        store.delete_island(iid)
 
 
 def test_add_line_stores_timeline_and_words_in_idx_order(island_id):
@@ -255,6 +271,41 @@ def test_line_audio_path_and_take_paths_stay_under_test_data_dir(island_id):
     for path in (audio_path, raw_path, clean_path):
         assert store.DATA_DIR in path.parents
     assert store.DATA_DIR != Path.home() / "shadowing-data"
+
+
+def test_connect_reuses_the_same_connection_on_one_thread():
+    # store calls now run from asyncio.to_thread worker threads that get
+    # reused across requests, so connect() must hand back the same
+    # connection object rather than opening a fresh one every call.
+    assert store.connect() is store.connect()
+
+
+def test_connect_gives_each_thread_its_own_connection():
+    other = {}
+
+    def grab():
+        other["conn"] = store.connect()
+
+    thread = threading.Thread(target=grab)
+    thread.start()
+    thread.join()
+
+    assert other["conn"] is not store.connect()
+
+
+def test_set_timeline_leaves_the_connection_usable_after_a_stale_write(island_id):
+    # _set_line_json used to conn.close() the connection it used; now that
+    # connect() hands back a cached per-thread connection, a stale write
+    # (the early "expected mismatch" return) must roll back and leave that
+    # same connection open for the next call on this thread.
+    timeline = [{"text": "あ", "start": 0.0, "end": 0.2}]
+    store.add_line(island_id, 0, {"ja": "line"}, 1.0, timeline, [])
+
+    stale = [{**timeline[0], "high": True}]
+    assert store.set_timeline(island_id, 0, stale, expected=[{"text": "not-it"}]) is False
+
+    # A closed connection would raise sqlite3.ProgrammingError here.
+    assert store.get_island(island_id)["lines"][0]["timeline"] == timeline
 
 
 def test_get_word_context_missing_returns_none():

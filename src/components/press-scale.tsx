@@ -1,6 +1,7 @@
 import { Pressable, type PressableProps } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
+
+import { hapticImpact } from '@/lib/haptics';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -18,15 +19,17 @@ export function PressScale({ onPress, onLongPress, disabled, haptic = true, styl
   const scale = useSharedValue(1);
   const reducedMotion = useReducedMotion();
 
-  const handlePressIn = async () => {
-    // Fire haptic on press-in
-    if (haptic) {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-
-    // Animate scale only if not disabled and reduced motion is not requested
+  const handlePressIn = () => {
+    // Animate scale first, synchronously, so a quick tap always sees the
+    // shrink: nothing here should be able to delay it past press-out.
     if (!disabled && !reducedMotion) {
       scale.value = withSpring(0.94);
+    }
+
+    // Haptic fires alongside, not before: hapticImpact reads the settings
+    // cache synchronously, so it never blocks the animation above.
+    if (haptic) {
+      void hapticImpact();
     }
   };
 

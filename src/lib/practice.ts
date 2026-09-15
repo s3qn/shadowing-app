@@ -25,7 +25,7 @@ export const STREAK_THRESHOLD_SECONDS = 60;
 
 // A stretch of playback under 15s of buffered seconds waits for the next
 // natural flush point (a pause); past that it flushes on its own, so a
-// Repeat Line loop on a locked phone still lands on disk without a timer.
+// line repeating on a locked phone still lands on disk without a timer.
 const FLUSH_THRESHOLD_SECONDS = 15;
 
 const FILE = `${documentDirectory ?? ''}practice.json`;

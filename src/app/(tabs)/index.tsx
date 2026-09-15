@@ -1,10 +1,10 @@
 import { Tabs, useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
+  Dimensions,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -12,15 +12,76 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import Animated, {
+  cancelAnimation,
+  Easing,
+  Extrapolation,
+  FadeOut,
+  LinearTransition,
+  interpolate,
+  interpolateColor,
+  runOnJS,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BottomSheet } from '@/components/sheet/bottom-sheet';
+import { SheetAction } from '@/components/sheet/sheet-rows';
 import { PracticeCard } from '@/components/practice-card';
+import { IslandSearch } from '@/components/island-search';
 import { PressScale } from '@/components/press-scale';
+import { SearchIcon } from '@/components/tide/toolbar-icons';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
+import { useSkyStyle, isNight } from '@/lib/sky';
 import * as api from '@/lib/api';
+import { registerCard, startOpen, unregisterCard, type CardRect } from '@/lib/card-morph';
+import { hapticImpact } from '@/lib/haptics';
+import { invalidateLineAudio } from '@/lib/line-audio-cache';
 import { forgetIsland, getPracticeLog, minutesOn, type PracticeLog } from '@/lib/practice';
+import { getSettings, setHomeWaveDate } from '@/lib/settings';
 import { deleteTakes } from '@/lib/takes';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+// A long press holds this long before it counts, so it reads as deliberate
+// next to the plain tap that opens the island.
+const LONG_PRESS_MS = 400;
+// Cards past this position in the list appear instantly instead of joining
+// the wave: staggering a whole long list would take too long to settle.
+const WAVE_MAX_CARDS = 10;
+const WAVE_STAGGER_MS = 40;
+
+/** Today's date where the phone is, `YYYY-MM-DD`. Local, not UTC, so the wave
+ * resets at midnight for the person holding the phone. */
+function todayLocal(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** A card's entrance for the once-a-day Home wave: rises from 18px below
+ * while fading in, delayed by its position in the stagger. */
+function waveEntering(delayMs: number) {
+  return () => {
+    'worklet';
+    return {
+      initialValues: { opacity: 0, transform: [{ translateY: 18 }] },
+      animations: {
+        opacity: withDelay(delayMs, withTiming(1, { duration: 220 })),
+        transform: [{ translateY: withDelay(delayMs, withSpring(0, { damping: 22, stiffness: 200 })) }],
+      },
+    };
+  };
+}
 
 const SORTS = ['newest', 'least'] as const;
 type Sort = (typeof SORTS)[number];
@@ -31,18 +92,73 @@ const TIDE_TARGET_SECONDS = 20 * 60;
 
 export default function IslandsScreen() {
   const router = useRouter();
+  const sky = useSkyStyle();
+  const night = isNight(new Date());
   const [islands, setIslands] = useState<api.IslandSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  // 0 closed, 1 open, driven by IslandSearch. The header magnifier fades out
+  // as the pill's own magnifier fades in just below it.
+  const searchGrow = useSharedValue(0);
+  const searchButtonStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(searchGrow.value, [0.1, 0.4], [1, 0], Extrapolation.CLAMP),
+  }));
   const [sort, setSort] = useState<Sort>('newest');
   const [log, setLog] = useState<PracticeLog>(EMPTY_LOG);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [draftTitle, setDraftTitle] = useState('');
-  const editingIdRef = useRef<string | null>(null);
+  const reducedMotion = useReducedMotion();
+  // True only for the first Home mount of the local day: the list waves in
+  // once, then settles for every later visit until the date rolls over.
+  // `getSettingsSync` falls back to defaults (homeWaveDate: '') before
+  // anything has read the file, which used to read as "never waved" and
+  // wave on every cold start. Wait for the real, on-disk value instead, and
+  // stay false (no wave) if it has not arrived by the time this decides.
+  const [waveHome, setWaveHome] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void getSettings().then((settings) => {
+      if (cancelled) return;
+      const shouldWave = settings.homeWaveDate !== todayLocal();
+      setWaveHome(shouldWave);
+      if (shouldWave) void setHomeWaveDate(todayLocal());
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   // A list request that started before a delete can still answer with the
   // deleted row, which would put it back on screen. Ids deleted here stay out.
   const removed = useRef<Set<string>>(new Set());
+
+  // The Rename/Delete sheet a long press opens: which island it is for, and
+  // whether it is showing the menu or the rename field.
+  const [menuItem, setMenuItem] = useState<api.IslandSummary | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [draftTitle, setDraftTitle] = useState('');
+  // An action a sheet row picked, run once the sheet has fully closed (an
+  // Alert shown while the Modal is dismissing can vanish on iOS otherwise).
+  const afterSheet = useRef<(() => void) | null>(null);
+  function closeSheetThen(fn: () => void) {
+    afterSheet.current = fn;
+    setMenuItem(null);
+  }
+  function runAfterSheet() {
+    const fn = afterSheet.current;
+    afterSheet.current = null;
+    if (fn) fn();
+  }
+  function openMenu(item: api.IslandSummary) {
+    setRenaming(false);
+    setDraftTitle(item.title);
+    setMenuItem(item);
+  }
+  function saveRename() {
+    const item = menuItem;
+    if (!item) return;
+    const title = draftTitle;
+    closeSheetThen(() => void rename(item.id, title));
+  }
 
   const load = useCallback(async () => {
     try {
@@ -57,32 +173,43 @@ export default function IslandsScreen() {
   }, []);
 
   async function remove(id: string) {
+    const restore = islands.find((i) => i.id === id) ?? null;
+    // Drop it from state right away so the row's exit animation and the
+    // rows below sliding up happen immediately, not after the round trip.
+    removed.current.add(id);
+    setIslands((prev) => prev.filter((i) => i.id !== id));
     try {
       await api.deleteIsland(id);
+      invalidateLineAudio(id);
       // Phone keeps the takes; the server never saw them.
       deleteTakes(id);
       void forgetIsland(id);
-      removed.current.add(id);
-      setIslands((prev) => prev.filter((i) => i.id !== id));
     } catch (e) {
+      removed.current.delete(id);
+      if (restore) {
+        setIslands((prev) => (prev.some((i) => i.id === id) ? prev : [...prev, restore]));
+      }
       Alert.alert('Could not delete', e instanceof Error ? e.message : 'The server did not answer.');
     }
   }
 
   async function rename(id: string, title: string) {
-    // A single-line TextInput fires onSubmitEditing then onBlur for one return
-    // press (submitBehavior defaults to 'blurAndSubmit'). editingIdRef closes
-    // that window synchronously so the second call is a no-op.
-    if (editingIdRef.current !== id) return;
-    editingIdRef.current = null;
     const finalTitle = title.trim() || 'Untitled island';
-    setEditingId(null);
     try {
       await api.renameIsland(id, finalTitle);
       setIslands((prev) => prev.map((i) => (i.id === id ? { ...i, title: finalTitle } : i)));
     } catch (e) {
       Alert.alert('Could not rename', e instanceof Error ? e.message : 'The server did not answer.');
     }
+  }
+
+  function openSearch() {
+    setSearchOpen(true);
+  }
+
+  function closeSearch() {
+    setSearchOpen(false);
+    setQuery('');
   }
 
   function confirmDelete(item: api.IslandSummary) {
@@ -134,15 +261,26 @@ export default function IslandsScreen() {
 
   if (!api.configured()) {
     return (
-      <SafeAreaView style={StyleSheet.flatten([styles.fill, styles.center, { backgroundColor: tide.sky[0] }])}>
+      <SafeAreaView style={StyleSheet.flatten([styles.fill, styles.center, { backgroundColor: sky.top }])}>
         <StatusBar style="light" />
         <Tabs.Screen
           options={{
-            headerStyle: { backgroundColor: tide.sky[0] },
+            headerStyle: { backgroundColor: sky.top },
             headerTintColor: tide.text,
             headerShadowVisible: false,
           }}
         />
+        <View style={[StyleSheet.absoluteFill, sky.from]} />
+        <Animated.View style={[StyleSheet.absoluteFill, sky.to, sky.fadeStyle]} />
+        {night && (
+          <>
+            <View style={[styles.star, { top: '10%', left: '15%' }]} />
+            <View style={[styles.star, { top: '25%', right: '12%' }]} />
+            <View style={[styles.star, { top: '40%', left: '25%' }]} />
+            <View style={[styles.star, { top: '55%', right: '18%' }]} />
+            <View style={[styles.star, { top: '70%', left: '20%' }]} />
+          </>
+        )}
         <Text style={[styles.empty, { color: tide.text }]}>
           Set EXPO_PUBLIC_SHADOW_API_URL and EXPO_PUBLIC_SHADOW_TOKEN in .env, then restart
           the dev server.
@@ -152,46 +290,47 @@ export default function IslandsScreen() {
   }
 
   return (
-    <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
+    <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: sky.top }])}>
       <StatusBar style="light" />
       <Tabs.Screen
         options={{
-          headerStyle: { backgroundColor: tide.sky[0] },
+          headerStyle: { backgroundColor: sky.top },
           headerTintColor: tide.text,
           headerShadowVisible: false,
-          headerRight: () => (
-            <Pressable onPress={() => router.push('/settings')} hitSlop={12}>
-              <Text style={{ color: tide.text, fontSize: 16, fontWeight: '600', fontFamily: fonts.ui }}>
-                Settings
-              </Text>
-            </Pressable>
+          headerLeft: () => (
+            <Animated.View style={searchButtonStyle} pointerEvents={searchOpen ? 'none' : 'auto'}>
+              <PressScale onPress={openSearch} hitSlop={12} accessibilityLabel="Search islands">
+                <SearchIcon color={tide.text} size={22} />
+              </PressScale>
+            </Animated.View>
           ),
         }}
       />
-      <FlatList
+      <View style={[StyleSheet.absoluteFill, sky.from]} />
+      <Animated.View style={[StyleSheet.absoluteFill, sky.to, sky.fadeStyle]} />
+      {night && (
+        <>
+          <View style={[styles.star, { top: '10%', right: '10%' }]} />
+          <View style={[styles.star, { top: '25%', left: '12%' }]} />
+          <View style={[styles.star, { top: '40%', right: '20%' }]} />
+          <View style={[styles.star, { top: '60%', left: '15%' }]} />
+          <View style={[styles.star, { top: '75%', right: '25%' }]} />
+        </>
+      )}
+      <IslandSearch open={searchOpen} query={query} onChangeQuery={setQuery} onClose={closeSearch} grow={searchGrow} />
+      <Animated.FlatList
         data={shown}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         keyboardShouldPersistTaps="handled"
+        itemLayoutAnimation={LinearTransition.duration(220)}
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={load} tintColor={tide.textDim} />
         }
         ListHeaderComponent={
           <View style={styles.header}>
             <PracticeCard log={log} />
-            <TextInput
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Search islands"
-              placeholderTextColor={tide.textDim}
-              clearButtonMode="while-editing"
-              autoCorrect={false}
-              style={StyleSheet.flatten([
-                styles.search,
-                { backgroundColor: tide.water, borderColor: tide.waterline, color: tide.text },
-              ])}
-            />
-            <View style={styles.sortRow}>
+            <Animated.View layout={LinearTransition.duration(200)} style={styles.sortRow}>
               {SORTS.map((s) => {
                 const on = sort === s;
                 return (
@@ -208,7 +347,7 @@ export default function IslandsScreen() {
                   </Pressable>
                 );
               })}
-            </View>
+            </Animated.View>
           </View>
         }
         ListEmptyComponent={
@@ -226,55 +365,30 @@ export default function IslandsScreen() {
             </View>
           )
         }
-        renderItem={({ item }) => {
+        renderItem={({ item, index }) => {
           const busy = item.status === 'pending' || item.status === 'working';
           const minutes = minutesOn(log, item.id);
           const seconds = log.islands[item.id]?.seconds ?? 0;
           const fraction = Math.min(1, seconds / TIDE_TARGET_SECONDS);
+          const meta = item.status === 'failed'
+            ? 'Failed'
+            : busy
+              ? (api.STAGE_LABEL[item.stage] ?? 'Working…')
+              : `${item.line_count} lines · ${item.complexity}${minutes >= 1 ? ` · ${minutes} min` : ''}`;
+          const waveIndex = waveHome && !reducedMotion && index < WAVE_MAX_CARDS ? index : null;
           return (
-            // Long press deletes, after a confirmation. Building islands are disabled, so they cannot be deleted until they land.
-            <Pressable
-              disabled={busy}
-              onPress={() => router.push({ pathname: '/island/[id]', params: { id: item.id } })}
-              onLongPress={() => confirmDelete(item)}
-              style={styles.row}>
-              <View
-                pointerEvents="none"
-                style={[styles.rowFill, { width: `${fraction * 100}%`, backgroundColor: tide.lang.ja }]}
-              />
-              <View style={styles.cardTop}>
-                {editingId === item.id ? (
-                  <TextInput
-                    autoFocus
-                    value={draftTitle}
-                    onChangeText={setDraftTitle}
-                    onSubmitEditing={() => void rename(item.id, draftTitle)}
-                    onBlur={() => void rename(item.id, draftTitle)}
-                    style={[styles.cardTitle, styles.cardTitleInput, { color: tide.text, borderColor: tide.waterline }]}
-                  />
-                ) : (
-                  <Pressable
-                    style={styles.cardTitleWrap}
-                    onPress={() => {
-                      setDraftTitle(item.title);
-                      setEditingId(item.id);
-                      editingIdRef.current = item.id;
-                    }}>
-                    <Text numberOfLines={2} style={[styles.cardTitle, { color: tide.text }]}>
-                      {item.title || 'Untitled island'}
-                    </Text>
-                  </Pressable>
-                )}
-                {busy ? <ActivityIndicator size="small" color={tide.lang.ja} /> : null}
-              </View>
-              <Text style={[styles.cardMeta, { color: tide.textDim }]}>
-                {item.status === 'failed'
-                  ? 'Failed'
-                  : busy
-                    ? (api.STAGE_LABEL[item.stage] ?? 'Working…')
-                    : `${item.line_count} lines · ${item.complexity}${minutes >= 1 ? ` · ${minutes} min` : ''}`}
-              </Text>
-            </Pressable>
+            <IslandRow
+              item={item}
+              busy={busy}
+              fraction={fraction}
+              meta={meta}
+              waveIndex={waveIndex}
+              onOpen={(rect) => {
+                if (!startOpen(item.id, item.title || 'Untitled island', rect)) return;
+                router.push({ pathname: '/island/[id]', params: { id: item.id } });
+              }}
+              onMenu={() => openMenu(item)}
+            />
           );
         }}
       />
@@ -283,9 +397,208 @@ export default function IslandsScreen() {
         style={[styles.fab, { backgroundColor: tide.lang.ja }]}>
         <Text style={[styles.fabText, { color: tide.sky[0] }]}>+</Text>
       </PressScale>
+      <BottomSheet
+        open={menuItem !== null}
+        onClose={() => setMenuItem(null)}
+        onDismissed={runAfterSheet}
+        title={menuItem?.title || 'Untitled island'}
+        avoidKeyboard>
+        {renaming ? (
+          <>
+            <TextInput
+              autoFocus
+              value={draftTitle}
+              onChangeText={setDraftTitle}
+              onSubmitEditing={saveRename}
+              returnKeyType="done"
+              style={styles.sheetInput}
+            />
+            <SheetAction label="Save" onPress={saveRename} />
+          </>
+        ) : (
+          <>
+            <SheetAction label="Rename" onPress={() => setRenaming(true)} />
+            <SheetAction
+              label="Delete island"
+              destructive
+              onPress={() => {
+                const item = menuItem;
+                if (!item) return;
+                closeSheetThen(() => confirmDelete(item));
+              }}
+            />
+          </>
+        )}
+      </BottomSheet>
     </SafeAreaView>
   );
 }
+
+type IslandRowProps = {
+  item: api.IslandSummary;
+  busy: boolean;
+  fraction: number;
+  meta: string;
+  /** This card's place in the once-a-day Home wave, or `null` to appear
+   * instantly: past the first `WAVE_MAX_CARDS` cards, outside the first
+   * visit of the day, or with reduced motion on. */
+  waveIndex: number | null;
+  /** A plain tap: always opens the island, with the card's on-screen rect for
+   * the morph into the player. */
+  onOpen: (rect: CardRect) => void;
+  /** A held tap: opens the Rename/Delete sheet. */
+  onMenu: () => void;
+};
+
+/**
+ * One island card. A tap always opens the island; a roughly 400ms hold eases
+ * the card to a slightly smaller scale with a brighter border while the
+ * finger is down. Releasing early eases it back with no menu. Holding past
+ * the threshold gives a medium haptic, eases the card back to its resting
+ * size, then hands off to the Rename/Delete sheet. Reduced motion drops the
+ * scale change and keeps only the border. Deleting a row is handled by the
+ * exit animation below, not by anything here.
+ *
+ * While the island is still building, a light sweep loops across the card
+ * and the status gets a pulsing dot; reduced motion holds the dot still and
+ * drops the sweep. The moment the card turns ready, it flashes the accent
+ * once and gives a haptic.
+ */
+const IslandRow = memo(function IslandRow({ item, busy, fraction, meta, waveIndex, onOpen, onMenu }: IslandRowProps) {
+  const pressed = useSharedValue(0);
+  const reducedMotion = useReducedMotion();
+  const cardRef = useRef<View>(null);
+  const itemId = item.id;
+  useEffect(() => {
+    registerCard(itemId, cardRef);
+    return () => unregisterCard(itemId);
+  }, [itemId]);
+  // onLongPress and onPressOut can both fire once a hold registers (the
+  // finger is usually still down when the hold threshold is hit). This
+  // keeps the later onPressOut from cancelling the hold's own return-to-rest
+  // animation and swallowing the sheet it opens.
+  const longPressFired = useRef(false);
+
+  // The building sweep, its width against the card's own measured width, and
+  // the pulsing dot next to the status.
+  const rowWidth = useSharedValue(0);
+  const sweep = useSharedValue(0);
+  const dotPulse = useSharedValue(0);
+  useEffect(() => {
+    if (busy && !reducedMotion) {
+      sweep.value = withRepeat(withTiming(1, { duration: 2400, easing: Easing.linear }), -1, false);
+      dotPulse.value = withRepeat(withTiming(1, { duration: 900, easing: Easing.inOut(Easing.quad) }), -1, true);
+    } else {
+      cancelAnimation(sweep);
+      cancelAnimation(dotPulse);
+      sweep.value = 0;
+      // Reduced motion keeps the dot lit but still while busy.
+      dotPulse.value = busy && reducedMotion ? 1 : 0;
+    }
+  }, [busy, reducedMotion, sweep, dotPulse]);
+
+  // One flash of the accent the moment a busy card turns ready.
+  const flash = useSharedValue(0);
+  const prevBusy = useRef(busy);
+  useEffect(() => {
+    if (prevBusy.current && !busy && item.status === 'ready') {
+      void hapticImpact();
+      flash.value = 1;
+      flash.value = withTiming(0, { duration: 500 });
+    }
+    prevBusy.current = busy;
+  }, [busy, item.status, flash]);
+
+  function handlePressIn() {
+    longPressFired.current = false;
+    pressed.value = withTiming(1, { duration: 120 });
+  }
+
+  function handlePressOut() {
+    if (longPressFired.current) return;
+    pressed.value = withTiming(0, { duration: 120 });
+  }
+
+  function handlePress() {
+    cardRef.current?.measureInWindow((x, y, width, height) => {
+      if (width === 0) {
+        const { width: winW, height: winH } = Dimensions.get('window');
+        onOpen({ x: winW / 2, y: winH / 2, width: 0, height: 0 });
+        return;
+      }
+      onOpen({ x, y, width, height });
+    });
+  }
+
+  function handleLongPress() {
+    longPressFired.current = true;
+    void hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
+    pressed.value = withTiming(0, { duration: 180 }, (finished) => {
+      'worklet';
+      if (finished) runOnJS(onMenu)();
+    });
+  }
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: reducedMotion ? 1 : 1 - pressed.value * 0.03 }],
+    borderTopColor: interpolateColor(pressed.value, [0, 1], [tide.waterline, tide.lang.ja]),
+  }));
+
+  const sweepStyle = useAnimatedStyle(() => {
+    const width = rowWidth.value;
+    const band = width * 0.5;
+    return {
+      opacity: busy && !reducedMotion ? 1 : 0,
+      width: band,
+      transform: [{ translateX: interpolate(sweep.value, [0, 1], [-band, width + band]) }, { rotate: '20deg' }],
+    };
+  });
+
+  const dotStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(dotPulse.value, [0, 1], [0.5, 1]),
+    transform: [{ scale: reducedMotion ? 1 : interpolate(dotPulse.value, [0, 1], [0.85, 1.15]) }],
+  }));
+
+  const flashFillStyle = useAnimatedStyle(() => ({ opacity: flash.value * 0.14 }));
+  const flashBorderStyle = useAnimatedStyle(() => ({ opacity: flash.value }));
+
+  return (
+    <AnimatedPressable
+      ref={cardRef}
+      disabled={busy}
+      onPress={handlePress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      onLongPress={handleLongPress}
+      delayLongPress={LONG_PRESS_MS}
+      entering={waveIndex !== null ? waveEntering(waveIndex * WAVE_STAGGER_MS) : undefined}
+      exiting={FadeOut.duration(220)}
+      onLayout={(e) => {
+        rowWidth.value = e.nativeEvent.layout.width;
+      }}
+      style={[styles.row, animatedStyle]}>
+      <View
+        pointerEvents="none"
+        style={[styles.rowFill, { width: `${fraction * 100}%`, backgroundColor: tide.lang.ja }]}
+      />
+      {busy ? (
+        <Animated.View pointerEvents="none" style={[styles.sweepBand, sweepStyle]} />
+      ) : null}
+      <Animated.View pointerEvents="none" style={[styles.flashFill, { backgroundColor: tide.lang.ja }, flashFillStyle]} />
+      <Animated.View pointerEvents="none" style={[styles.flashBorder, { borderColor: tide.lang.ja }, flashBorderStyle]} />
+      <View style={styles.cardTop}>
+        <Text numberOfLines={2} style={[styles.cardTitle, { color: tide.text }]}>
+          {item.title || 'Untitled island'}
+        </Text>
+        {busy ? <ActivityIndicator size="small" color={tide.lang.ja} /> : null}
+      </View>
+      <View style={styles.metaRow}>
+        {busy ? <Animated.View style={[styles.statusDot, { backgroundColor: tide.lang.ja }, dotStyle]} /> : null}
+        <Text style={[styles.cardMeta, { color: tide.textDim }]}>{meta}</Text>
+      </View>
+    </AnimatedPressable>
+  );
+});
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
@@ -294,16 +607,43 @@ const styles = StyleSheet.create({
   empty: { fontSize: 15, lineHeight: 22, textAlign: 'center', paddingHorizontal: Spacing.xl, fontFamily: fonts.ui },
   row: { borderTopWidth: 1, borderTopColor: tide.waterline, paddingVertical: Spacing.md, gap: Spacing.xs, overflow: 'hidden' },
   rowFill: { position: 'absolute', left: 0, top: 0, bottom: 0, opacity: 0.16 },
+  // Clipped by the row's own overflow:hidden, so it never spills past the card.
+  sweepBand: {
+    position: 'absolute',
+    left: 0,
+    top: -20,
+    bottom: -20,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  flashFill: { ...StyleSheet.absoluteFill },
+  flashBorder: { ...StyleSheet.absoluteFill, borderWidth: 2 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  cardTitleWrap: { flex: 1 },
   cardTitle: { flex: 1, fontSize: 17, fontWeight: '600', fontFamily: fonts.serifJp },
-  cardTitleInput: { borderBottomWidth: 1, paddingVertical: 0 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
   cardMeta: { fontSize: 13, fontFamily: fonts.ui },
+  sheetInput: {
+    fontFamily: fonts.ui,
+    fontSize: 16,
+    color: tide.text,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 8,
+  },
   header: { gap: Spacing.md, marginBottom: Spacing.md },
-  search: { borderWidth: 1, borderRadius: Radius.md, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, fontSize: 15, fontFamily: fonts.ui },
   sortRow: { flexDirection: 'row', gap: Spacing.sm },
   pill: { borderWidth: 1, borderRadius: Radius.pill, paddingVertical: Spacing.xs + 2, paddingHorizontal: Spacing.md },
   pillText: { fontSize: 13, fontWeight: '700', fontFamily: fonts.ui },
+  star: {
+    position: 'absolute',
+    width: 2,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: '#FFFFFF',
+    zIndex: 0,
+  },
   fab: {
     position: 'absolute',
     right: Spacing.lg,
