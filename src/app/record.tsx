@@ -12,10 +12,10 @@ import { useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CatConstellation } from '@/components/cat-constellation';
 import { LevelBars, meterLevel } from '@/components/level-bars';
 import { PressScale } from '@/components/press-scale';
 import { Segmented, type SegmentOption } from '@/components/segmented';
-import { IslandRising } from '@/components/tide/island-rising';
 
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
@@ -24,6 +24,7 @@ import {
   applyPlaybackMode,
   applyRecordingMode,
   releaseAudioSession,
+  scheduleAudioSessionRelease,
   startPlayback,
   stopPlayback,
   useSessionPlayer,
@@ -162,13 +163,13 @@ export default function RecordScreen() {
     } catch {
       // Released with the review screen.
     }
-    void releaseAudioSession();
+    scheduleAudioSessionRelease();
   }, [playStatus.didJustFinish, player]);
 
   function togglePlay() {
     if (playStatus.playing) {
       stopPlayback(player);
-      void releaseAudioSession();
+      scheduleAudioSessionRelease();
       return;
     }
     if (playStatus.duration > 0 && playStatus.currentTime >= playStatus.duration - 0.05) {
@@ -273,7 +274,7 @@ export default function RecordScreen() {
     await recorder.stop();
     try {
       await applyPlaybackMode();
-      await releaseAudioSession();
+      scheduleAudioSessionRelease();
     } catch {
       // Best effort: the next recording attempt fixes the mode.
     }
@@ -342,8 +343,7 @@ export default function RecordScreen() {
 
       {phase === 'building' ? (
         <View style={styles.center}>
-          <IslandRising stage={stage} />
-          <Text style={styles.stage}>{STAGE_LABEL[stage] ?? 'Working…'}</Text>
+          <CatConstellation size={120} label={(STAGE_LABEL[stage] ?? 'Working…').replace(/…$/, '')} />
           <Text style={[styles.hint, styles.centerText]}>
             This takes about a minute. Close this screen if you like, the island keeps
             building and appears in the list when it is ready.
@@ -485,7 +485,6 @@ const styles = StyleSheet.create({
   header: { gap: Spacing.sm },
   title: { fontSize: 20, lineHeight: 26, color: tide.text, fontFamily: fonts.uiMedium, fontWeight: '500' },
   hint: { fontSize: 14, lineHeight: 20, color: tide.textDim, fontFamily: fonts.ui },
-  stage: { fontSize: 18, color: tide.text, fontFamily: fonts.uiMedium, fontWeight: '500' },
   meter: { alignItems: 'center', gap: Spacing.lg, marginTop: Spacing.lg },
   timer: {
     fontSize: 56,

@@ -3,14 +3,17 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useReducedMotion } from 'react-native-reanimated';
 
 import { CardMorphOverlay } from '@/components/card-morph-overlay';
+import { LoadingOverlay } from '@/components/loading-overlay';
 import { tide } from '@/constants/theme';
 import { getSettings } from '@/lib/settings';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const reducedMotion = useReducedMotion();
   // No bundled fonts to load anymore (the app uses the platform's system
   // fonts), so the splash screen just hides right away.
   useEffect(() => {
@@ -39,9 +42,22 @@ export default function RootLayout() {
           name="record"
           options={{ title: 'New island', presentation: 'modal' }}
         />
+        {/* The player draws its own header. Opened from a Home card (the
+            `morph` param), the card morph overlay is the whole transition
+            both ways, so the route itself does not animate; anywhere else,
+            and under reduced motion, the route fades. */}
         <Stack.Screen
           name="island/[id]"
-          options={{ title: '', animation: 'fade', animationDuration: 300 }}
+          options={({ route }) => {
+            const params = route.params as { morph?: string } | undefined;
+            const morph = params?.morph === '1' && !reducedMotion;
+            return {
+              title: '',
+              headerShown: false,
+              animation: morph ? 'none' : 'fade',
+              animationDuration: 300,
+            };
+          }}
         />
         <Stack.Screen name="settings/voice" options={{ title: 'Voice' }} />
         <Stack.Screen name="settings/playback" options={{ title: 'Playback' }} />
@@ -50,6 +66,7 @@ export default function RootLayout() {
         <Stack.Screen name="settings/about" options={{ title: 'About' }} />
       </Stack>
       <CardMorphOverlay />
+      <LoadingOverlay />
     </GestureHandlerRootView>
   );
 }

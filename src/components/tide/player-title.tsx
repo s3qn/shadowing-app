@@ -9,6 +9,13 @@ type Props = {
   title: string;
   lineIndex: number;
   lineCount: number;
+  /** Both rows at opacity 0 while the card morph's flying title stands in. */
+  hidden?: boolean;
+  /** Where the title text sits on screen, reported after every layout. */
+  onTitleRect?: (rect: { x: number; y: number; width: number; height: number }) => void;
+  /** With no line count yet: show the line row with a pill standing in for
+   * the count (loading), instead of keeping the row invisible. */
+  placeholder?: boolean;
 };
 
 const ROLL_HEIGHT = 14;
@@ -21,9 +28,14 @@ const MIN_NUMBER_WIDTH = 16;
 const NUMBER_GAP = 4;
 
 /** The player's header title: the island name over "Line X of Y". */
-export function PlayerTitle({ title, lineIndex, lineCount }: Props) {
+export function PlayerTitle({ title, lineIndex, lineCount, hidden = false, onTitleRect, placeholder = false }: Props) {
   const reducedMotion = useReducedMotion();
   const number = lineIndex + 1;
+  const titleRef = useRef<Text>(null);
+  const reportTitleRect = () => {
+    if (!onTitleRect) return;
+    titleRef.current?.measureInWindow((x, y, width, height) => onTitleRect({ x, y, width, height }));
+  };
 
   const prevIndex = useRef(lineIndex);
   const prevNumber = useRef(number);
@@ -48,8 +60,18 @@ export function PlayerTitle({ title, lineIndex, lineCount }: Props) {
   const widthFor = (value: number) =>
     widthCache.current.get(value) ?? Math.max(MIN_NUMBER_WIDTH, String(value).length * DIGIT_WIDTH);
 
+  // While the island loads there is no line count yet and the line row is
+  // invisible; the line it then opens on (a resumed one, say) lands without a roll.
+  const prevCount = useRef(lineCount);
   useEffect(() => {
+    const wasEmpty = prevCount.current <= 0;
+    prevCount.current = lineCount;
     if (lineIndex === prevIndex.current) return;
+    if (wasEmpty) {
+      prevIndex.current = lineIndex;
+      prevNumber.current = number;
+      return;
+    }
     dir.value = lineIndex > prevIndex.current ? 1 : -1;
     setOutNumber(prevNumber.current);
     anim.value = 0;
@@ -58,7 +80,7 @@ export function PlayerTitle({ title, lineIndex, lineCount }: Props) {
     });
     prevIndex.current = lineIndex;
     prevNumber.current = number;
-  }, [lineIndex, number, reducedMotion, anim, dir]);
+  }, [lineIndex, lineCount, number, reducedMotion, anim, dir]);
 
   // Sized to whichever of the outgoing and incoming numbers is widest, so a
   // roll from a 2-digit to a 3-digit line (or back) never clips either one.
@@ -77,11 +99,11 @@ export function PlayerTitle({ title, lineIndex, lineCount }: Props) {
   }));
 
   return (
-    <View style={styles.wrap}>
-      <Text style={styles.title} numberOfLines={1}>
+    <View style={[styles.wrap, hidden ? styles.hidden : null]}>
+      <Text ref={titleRef} style={styles.title} numberOfLines={1} onLayout={reportTitleRect}>
         {title}
       </Text>
-      <View style={styles.lineRow}>
+      <View style={[styles.lineRow, lineCount > 0 || placeholder ? null : styles.waiting]}>
         <Text style={styles.line}>LINE</Text>
         <View style={[styles.numberClip, { width: clipWidth }]}>
           {outNumber !== null && (
@@ -103,7 +125,12 @@ export function PlayerTitle({ title, lineIndex, lineCount }: Props) {
             </Text>
           )}
         </View>
-        <Text style={styles.line}>OF {lineCount}</Text>
+        <Text style={styles.line}>OF</Text>
+        {/* At least the pill's width, so a count of up to three digits
+            replaces it without moving the row. */}
+        <View style={styles.countBox}>
+          {lineCount > 0 ? <Text style={styles.line}>{lineCount}</Text> : <View style={styles.countPill} />}
+        </View>
       </View>
     </View>
   );
@@ -111,11 +138,16 @@ export function PlayerTitle({ title, lineIndex, lineCount }: Props) {
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center' },
+  hidden: { opacity: 0 },
   title: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 14, color: tide.text },
   lineRow: { flexDirection: 'row', alignItems: 'center' },
+  // Keeps the row's height while the island loads, so the title does not move.
+  waiting: { opacity: 0 },
   numberClip: { height: ROLL_HEIGHT, overflow: 'hidden', marginHorizontal: NUMBER_GAP },
   numberLayer: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, justifyContent: 'center' },
   measure: { position: 'absolute', left: 0, top: 0, opacity: 0 },
+  countBox: { minWidth: 22, height: ROLL_HEIGHT, marginLeft: NUMBER_GAP, alignItems: 'center', justifyContent: 'center' },
+  countPill: { width: 22, height: 10, borderRadius: 5, backgroundColor: tide.textDim, opacity: 0.35 },
   line: {
     fontFamily: fonts.ui,
     fontSize: 10,

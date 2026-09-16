@@ -9,7 +9,16 @@ import {
   useRef,
   useState,
 } from 'react';
-import { AppState, type LayoutChangeEvent, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  AppState,
+  type LayoutChangeEvent,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { useIsFocused } from 'expo-router';
 import { ScrollView } from 'react-native-gesture-handler';
 import Animated, {
@@ -34,6 +43,8 @@ import { useSkyStyle, isNight, currentPeriod } from '@/lib/sky';
 import { useWaterSim } from '@/components/tide/use-water-sim';
 import { WaterSurface } from '@/components/tide/water-surface';
 import { WaterCanvas } from '@/components/tide/water-canvas';
+import { isWindowed, useTranscriptWindow } from '@/components/tide/transcript-window';
+import { type ContentReveal, PIECE_RISE, usePieceStyle } from '@/components/tide/use-content-reveal';
 
 /** Temporary kill switch for bisecting the device crash: false skips the
  * Skia canvas, the touch band with its accelerometer, and the water sim's
@@ -60,6 +71,9 @@ const CROSSFADE_OUT_MS = 200;
  * before it scrolls with the measurements it has (the line's box did not
  * move, so no event comes). */
 const SYNC_FALLBACK_MS = 120;
+/** The sentence card, transcript and tide marks fade in this long once the
+ * island's lines arrive after the scene is already on screen. */
+const REVEAL_MS = 180;
 
 /** The active tide mark rides an elevator to its new line: a spring that
  * settles in about 350ms, plus a brief mid-move stretch. */
@@ -71,6 +85,11 @@ const MARK_STRETCH_UP_MS = 120;
 // line: the tide rises from WL_MAX to WL_MIN as lineIndex approaches the end.
 const WL_MAX = 0.62;
 const WL_MIN = 0.42;
+
+/** On a windowed island (see isWindowed) the tide marks stop being one per
+ * line and become this many bucketed marks instead, so a long island doesn't
+ * rebuild hundreds of Views on every line change. */
+const MARK_CAP = 40;
 
 type Props = {
   lineIndex: number;
@@ -91,6 +110,20 @@ type Props = {
   scrollRef: RefObject<ScrollView | null>;
   /** A dim line was tapped: the screen should jump to it and start playing. */
   onLineTap: (i: number) => void;
+  /** Read when the lines land: true while the card morph still covers the
+   * screen, so they show at once and the morph's own fade reveals them. A
+   * function, so the screen never re-renders this scene when the cover goes. */
+  instantReveal?: () => boolean;
+  /** The screen's staged reveal: the sentence card follows `card`, the past
+   * and next rows follow `rows`. Without it both follow the lines landing. */
+  contentReveal?: ContentReveal;
+  /** The scene's expected height before its first layout, so the water and
+   * waterline are drawn from the first frame instead of after a layout pass.
+   * The real layout replaces it. */
+  initialHeight?: number;
+  /** Opened under the card morph: a long island's transcript mounts few rows
+   * and widens when this calls back (it returns a cancel). Read at mount. */
+  widenWhen?: (widen: () => void) => () => void;
 };
 
 /**
@@ -113,8 +146,18 @@ export const TideScene = memo(function TideScene({
   below,
   scrollRef,
   onLineTap,
+  instantReveal,
+  contentReveal,
+  initialHeight = 0,
+  widenWhen,
 }: Props) {
-  const [sceneH, setSceneH] = useState(0);
+  // The scene fills the window's width; its height starts from the caller's
+  // estimate. Both only seed the first frame, the layout events take over.
+  const { width: windowW } = useWindowDimensions();
+  const seedW = Number.isFinite(windowW) && windowW > 0 ? windowW : 0;
+  const [sceneH, setSceneH] = useState(() =>
+    Number.isFinite(initialHeight) && initialHeight > 0 ? initialHeight : 0,
+  );
   const [pill, setPill] = useState<'off' | 'on' | null>(null);
   // Whether the transcript should follow playback. A ref, not state: it must
   // read as up to date inside the same handler that just turned it on, and
@@ -124,6 +167,26 @@ export const TideScene = memo(function TideScene({
   const activeH = useRef(0);
   const lastTarget = useRef<number | null>(null);
   const synced = useRef(false);
+  // Set when the island's lines arrive after the scene mounted empty: the
+  // first scroll then waits for the active line's real layout (see below).
+  const arrivalPending = useRef(false);
+
+  // Mounts only the rows near the active line on a long island; on a short
+  // one the window is the whole island and both spacers are 0 (see
+  // transcript-window.ts).
+  const { window: rowWindow, measure, onRowLayout, pastOffset, nextSpacerH, onScroll } = useTranscriptWindow({
+    lineIndex,
+    lineCount,
+    lines,
+    autoScroll,
+    padTop: WL_MAX,
+    padBottom: 1 - WL_MIN,
+    widenWhen,
+  });
+  // Off (the flag, or a short island): no row onLayout and no scroll handler,
+  // as on main.
+  const windowed = isWindowed(lineCount);
+  const rowLayout = windowed ? onRowLayout : undefined;
 
   const onLayout = (e: LayoutChangeEvent) => {
     setSceneH(e.nativeEvent.layout.height);
@@ -131,7 +194,7 @@ export const TideScene = memo(function TideScene({
 
   // The water's physics runs only while this screen is focused and the app
   // is in the foreground, on top of the system's reduced-motion setting.
-  const [bandWidth, setBandWidth] = useState(0);
+  const [bandWidth, setBandWidth] = useState(seedW);
   const [appActive, setAppActive] = useState(AppState.currentState === 'active');
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => setAppActive(state === 'active'));
@@ -183,6 +246,14 @@ export const TideScene = memo(function TideScene({
   }
 
   useEffect(() => {
+    if (arrivalPending.current) {
+      const t = setTimeout(() => {
+        if (!arrivalPending.current) return;
+        arrivalPending.current = false;
+        syncNow();
+      }, SYNC_FALLBACK_MS);
+      return () => clearTimeout(t);
+    }
     syncNow();
     // syncNow reads lineIndex, lineCount and sceneH through closures that are
     // already current on every render; re-running it for any other reason
@@ -215,6 +286,44 @@ export const TideScene = memo(function TideScene({
   // effect run twice for one line) neither rises nor waits.
   const risenIndex = useRef(lineIndex);
   const syncedIndex = useRef(lineIndex);
+  // The scene mounts before the island loads (lineCount 0). The lines landing
+  // are a first placement, not a line change: no rise, no outgoing copy, no
+  // slosh, and the first scroll lands instantly once the line is laid out.
+  const shownCount = useRef(lineCount);
+  if (shownCount.current !== lineCount) {
+    if (shownCount.current <= 0) {
+      shownIndex.current = lineIndex;
+      risenIndex.current = lineIndex;
+      syncedIndex.current = lineIndex;
+      prevLine.current = lineIndex;
+      outgoing.current = null;
+      synced.current = false;
+      lastTarget.current = null;
+      arrivalPending.current = true;
+    }
+    shownCount.current = lineCount;
+  }
+  const hasLines = lineCount > 0;
+  const reveal = useSharedValue(hasLines ? 1 : 0);
+  useEffect(() => {
+    if (!hasLines) {
+      cancelAnimation(reveal);
+      reveal.value = 0;
+      return;
+    }
+    if (instantReveal?.()) {
+      cancelAnimation(reveal);
+      reveal.value = 1;
+      return;
+    }
+    reveal.value = withTiming(1, { duration: REVEAL_MS });
+    // Only the lines landing decide; instantReveal is read at that moment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasLines, reveal]);
+  const revealStyle = useAnimatedStyle(() => ({ opacity: reveal.value }));
+  const noRise = useSharedValue(0);
+  const cardIn = contentReveal?.card ?? reveal;
+  const rowsStyle = usePieceStyle(contentReveal?.rows ?? reveal, contentReveal?.rise ?? noRise);
   // A layout effect, so the start values are sent before the new line's text
   // is on screen and it never shows for a frame at rest before rising.
   useLayoutEffect(() => {
@@ -255,10 +364,15 @@ export const TideScene = memo(function TideScene({
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lineIndex]);
-  const riseStyle = useAnimatedStyle(() => ({
-    opacity: riseOpacity.value,
-    transform: [{ translateY: riseY.value }, { scaleY: riseScale.value }],
-  }));
+  const cardRise = contentReveal?.rise ?? noRise;
+  const riseStyle = useAnimatedStyle(() => {
+    const shown = Number.isFinite(cardIn.value) ? cardIn.value : 1;
+    const lift = Number.isFinite(cardRise.value) ? cardRise.value : 0;
+    return {
+      opacity: riseOpacity.value * shown,
+      transform: [{ translateY: riseY.value + lift * (1 - shown) * PIECE_RISE }, { scaleY: riseScale.value }],
+    };
+  });
   const outStyle = useAnimatedStyle(() => ({
     opacity: 1 - outLift.value,
     transform: [{ translateY: reducedMotion ? 0 : LIFT_TO * outLift.value }],
@@ -306,13 +420,17 @@ export const TideScene = memo(function TideScene({
     }
   };
 
-  const marks = useMemo(
-    () =>
-      Array.from({ length: lineCount }, (_, i) => lineCount - 1 - i).map((i) => (
+  const marks = useMemo(() => {
+    if (!isWindowed(lineCount) || lineCount <= MARK_CAP) {
+      return Array.from({ length: lineCount }, (_, i) => lineCount - 1 - i).map((i) => (
         <View key={i} style={[styles.mark, i < lineIndex ? styles.markDone : styles.markPending]} />
-      )),
-    [lineIndex, lineCount],
-  );
+      ));
+    }
+    return Array.from({ length: MARK_CAP }, (_, b) => MARK_CAP - 1 - b).map((b) => {
+      const lastLine = Math.floor(((b + 1) * lineCount) / MARK_CAP) - 1;
+      return <View key={b} style={[styles.mark, lastLine < lineIndex ? styles.markDone : styles.markPending]} />;
+    });
+  }, [lineIndex, lineCount]);
 
   // The active mark is a separate overlay riding on top of the static track
   // above, so it can slide between line positions instead of jumping when a
@@ -377,20 +495,62 @@ export const TideScene = memo(function TideScene({
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingTop: WL_MAX * sceneH, minHeight: sceneH }]}
         onScrollBeginDrag={onScrollBeginDrag}
+        onScroll={windowed ? onScroll : undefined}
+        scrollEventThrottle={windowed ? 100 : undefined}
         bounces={false}
         overScrollMode="never"
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {lines.slice(0, lineIndex).map((text, i) => (
-          <TranscriptLine key={i} index={i} text={text} tone="past" blind={blind} onPress={tapLine} />
-        ))}
+        {measure && rowLayout ? (
+          // The past rows a widening adds, laid out once out of the flow and
+          // unseen, only so their real heights are known before they join it.
+          <View
+            pointerEvents="none"
+            style={styles.measure}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
+            {lines.slice(measure.start, measure.end).map((text, j) => {
+              const i = measure.start + j;
+              return (
+                <TranscriptLine
+                  key={i}
+                  index={i}
+                  text={text}
+                  tone="past"
+                  blind={blind}
+                  onPress={tapLine}
+                  onRowLayout={rowLayout}
+                />
+              );
+            })}
+          </View>
+        ) : null}
+        {/* The rows above the window, as a signed top margin (see pastOffset). */}
+        <Animated.View style={[rowsStyle, { marginTop: pastOffset }]}>
+          {lines.slice(rowWindow.start, lineIndex).map((text, j) => {
+            const i = rowWindow.start + j;
+            return (
+              <TranscriptLine
+                key={i}
+                index={i}
+                text={text}
+                tone="past"
+                blind={blind}
+                onPress={tapLine}
+                onRowLayout={rowLayout}
+              />
+            );
+          })}
+        </Animated.View>
         <Animated.View
           style={[styles.active, riseStyle]}
           onLayout={(e) => {
             activeTop.current = e.nativeEvent.layout.y;
             activeH.current = e.nativeEvent.layout.height;
             syncPending.current = false;
+            arrivalPending.current = false;
             syncNow();
           }}
         >
@@ -437,6 +597,7 @@ export const TideScene = memo(function TideScene({
           {WATER_EFFECTS ? (
             <WaterCanvas
               height={sceneH + 20}
+              initialWidth={seedW}
               lineD={waterSim.lineD}
               boatX={waterSim.boatX}
               boatY={waterSim.boatY}
@@ -449,22 +610,26 @@ export const TideScene = memo(function TideScene({
             />
           ) : null}
           {below}
-          {lines.slice(lineIndex + 1).map((text, j) => {
-            const i = lineIndex + 1 + j;
-            return (
-              <TranscriptLine
-                key={i}
-                index={i}
-                text={text}
-                tone="next"
-                blind={blind}
-                onPress={tapLine}
-                depth={Math.min(j + 1, STILL_DEPTH)}
-                time={waterSim.time}
-                shallow={waterPalette.shallow}
-              />
-            );
-          })}
+          <Animated.View style={rowsStyle}>
+            {lines.slice(lineIndex + 1, rowWindow.end).map((text, j) => {
+              const i = lineIndex + 1 + j;
+              return (
+                <TranscriptLine
+                  key={i}
+                  index={i}
+                  text={text}
+                  tone="next"
+                  blind={blind}
+                  onPress={tapLine}
+                  depth={Math.min(j + 1, STILL_DEPTH)}
+                  time={waterSim.time}
+                  shallow={waterPalette.shallow}
+                  onRowLayout={rowLayout}
+                />
+              );
+            })}
+          </Animated.View>
+          {nextSpacerH > 0 ? <View style={{ height: nextSpacerH }} /> : null}
         </View>
       </ScrollView>
       {countdown !== null ? (
@@ -472,10 +637,10 @@ export const TideScene = memo(function TideScene({
           <Text style={styles.countdown}>{countdown}</Text>
         </View>
       ) : null}
-      <View style={styles.marks} pointerEvents="none" onLayout={onMarksLayout}>
+      <Animated.View style={[styles.marks, revealStyle]} pointerEvents="none" onLayout={onMarksLayout}>
         {marks}
         <Animated.View style={[styles.markActive, markActiveStyle]} />
-      </View>
+      </Animated.View>
       {banner ? (
         <View style={[StyleSheet.absoluteFill, styles.bannerWrap]} pointerEvents="box-none">
           {banner}
@@ -520,6 +685,7 @@ const TranscriptLine = memo(function TranscriptLine({
   depth,
   time,
   shallow,
+  onRowLayout,
 }: {
   index: number;
   text: string;
@@ -529,6 +695,7 @@ const TranscriptLine = memo(function TranscriptLine({
   depth?: number;
   time?: SharedValue<number>;
   shallow?: string;
+  onRowLayout?: (index: number, height: number) => void;
 }) {
   const submerged = tone === 'next' && depth !== undefined;
   const styleDepth = submerged ? Math.min(depth, 4) : 1;
@@ -590,6 +757,7 @@ const TranscriptLine = memo(function TranscriptLine({
   return (
     <Pressable
       onPress={() => onPress(index)}
+      onLayout={onRowLayout ? (e) => onRowLayout(index, e.nativeEvent.layout.height) : undefined}
       style={styles.dimLine}
       accessibilityRole="button"
       accessibilityLabel={tone === 'past' ? 'Previous line' : 'Next line'}
@@ -620,6 +788,7 @@ const styles = StyleSheet.create({
   },
   scroll: { flex: 1, zIndex: 2 },
   content: { position: 'relative' },
+  measure: { position: 'absolute', left: 0, right: 0, top: 0, opacity: 0 },
   active: {
     paddingLeft: 16,
     paddingRight: 16,

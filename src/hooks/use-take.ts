@@ -18,7 +18,7 @@ import { cleanTakeUrl, uploadTake, type AudioSpan } from '@/lib/api';
 import {
   applyPlaybackMode,
   applyRecordingMode,
-  releaseAudioSession,
+  scheduleAudioSessionRelease,
   startPlayback,
   stopPlayback,
   useSessionPlayer,
@@ -100,7 +100,14 @@ const WAV_RECORDING_OPTIONS: RecordingOptions = {
  * calibration. The raw take is what plays, and is all that ever plays if the
  * cleanup fails, until a cleaned file comes back and takes over.
  */
-export function useTake(islandId: string | undefined, idx: number, generation: number) {
+export function useTake(
+  islandId: string | undefined,
+  idx: number,
+  generation: number,
+  /** Delays the first disk read (it returns a cancel): the player passes the
+   * open morph's cover-gone here, so the read stays out of the landing. */
+  firstReadAfter?: (run: () => void) => () => void,
+) {
   const recorder = useAudioRecorder(WAV_RECORDING_OPTIONS);
   const recorderState = useAudioRecorderState(recorder, 50);
 
@@ -121,6 +128,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
   // entry has not been read yet.
   const takes = useRef(new Map<string, Take | null>());
   const [, setTakesTick] = useState(0);
+  const firstReadDone = useRef(false);
   const take = takes.current.get(lineKey) ?? null;
   function updateTake(key: string, fn: (onScreen: Take | null) => Take | null) {
     // Not read from disk yet: the file this update describes is already on
@@ -237,12 +245,24 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
       takes.current.set(key, null);
       return;
     }
-    const timer = setTimeout(() => {
+    const read = () => {
       if (takes.current.has(key)) return;
       const found = findTake(islandId, idx);
       if (takes.current.has(key)) return;
+      if (found === null) {
+        // Nothing on disk reads the same as not read yet: no render for it.
+        takes.current.set(key, null);
+        return;
+      }
       putTake(key, found);
-    }, FIND_TAKE_DELAY_MS);
+    };
+    if (firstReadAfter && !firstReadDone.current) {
+      return firstReadAfter(() => {
+        firstReadDone.current = true;
+        read();
+      });
+    }
+    const timer = setTimeout(read, FIND_TAKE_DELAY_MS);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lineKey]);
@@ -373,7 +393,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
       if (seq === takeSeq.current) {
         try {
           await applyPlaybackMode();
-          await releaseAudioSession();
+          scheduleAudioSessionRelease();
         } catch {
           // Best effort: the next take attempt or the next screen mount fixes it.
         }
@@ -505,7 +525,7 @@ export function useTake(islandId: string | undefined, idx: number, generation: n
     setRecording(false);
     try {
       await applyPlaybackMode();
-      await releaseAudioSession();
+      scheduleAudioSessionRelease();
     } catch {
       // Best effort: the next take attempt or the next screen mount fixes it.
     }

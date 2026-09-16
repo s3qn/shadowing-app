@@ -1,4 +1,4 @@
-import { memo, type ReactNode, useEffect, useRef } from 'react';
+import { memo, type ReactNode, useEffect, useRef, useState } from 'react';
 import { type LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   type EntryAnimationsValues,
@@ -62,12 +62,17 @@ function valueRollOut(_values: ExitAnimationsValues) {
  * rolls out of and the new text rolls into. Reduced motion crossfades
  * instead of rolling. */
 function ValueRoll({ value, reducedMotion }: { value: string; reducedMotion: boolean }) {
+  // The first value is simply there: rolling it in on mount would play under
+  // the card morph's cover, or during the player's content reveal.
+  const [first] = useState(value);
+  const [changed, setChanged] = useState(false);
+  if (!changed && value !== first) setChanged(true);
   return (
     <View style={styles.valueClip}>
       <Animated.Text
         key={value}
         style={[styles.value, styles.valueLayer]}
-        entering={reducedMotion ? FadeIn.duration(150) : valueRollIn}
+        entering={!changed ? undefined : reducedMotion ? FadeIn.duration(150) : valueRollIn}
         exiting={reducedMotion ? FadeOut.duration(150) : valueRollOut}
       >
         {value}

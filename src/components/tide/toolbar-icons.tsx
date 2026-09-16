@@ -1,3 +1,4 @@
+import { StyleSheet, View } from 'react-native';
 import Svg, { Circle, Line, Path, Text as SvgText } from 'react-native-svg';
 
 import { fonts } from '@/constants/fonts';
@@ -95,3 +96,75 @@ export function EchoIcon({ color, size = 24 }: IconProps) {
     </Svg>
   );
 }
+
+/** A speech bubble built from plain Views, no SVG, for the Explain button in
+ * the selection popup. `background` must match the surface the icon sits on:
+ * the tail's fill hides the bubble's own border where the two shapes
+ * overlap. */
+export function ExplainIcon({ color, background, size = 22 }: IconProps & { background: string }) {
+  return (
+    <View style={{ width: size, height: size }}>
+      <View style={[iconStyles.explainBubble, { borderColor: color }]}>
+        <View style={[iconStyles.explainDot, { backgroundColor: color }]} />
+        <View style={[iconStyles.explainDot, { backgroundColor: color }]} />
+        <View style={[iconStyles.explainDot, { backgroundColor: color }]} />
+        <View style={[iconStyles.explainTail, { borderColor: color, backgroundColor: background }]} />
+      </View>
+    </View>
+  );
+}
+
+/** Two overlapping rounded squares, standing in for a copy icon, no SVG.
+ * `background` must match the surface behind the icon so the front square
+ * can hide the back square's border where they overlap. */
+export function CopyIcon({ color, background, size = 15 }: IconProps & { background: string }) {
+  return (
+    <View style={{ width: size, height: size }}>
+      <View style={[iconStyles.copySquare, iconStyles.copyBack, { borderColor: color }]} />
+      <View
+        style={[iconStyles.copySquare, iconStyles.copyFront, { borderColor: color, backgroundColor: background }]}
+      />
+    </View>
+  );
+}
+
+/** A checkmark cut from the bottom-left corner of a rotated box, no SVG, for
+ * the brief check state shown after a copy succeeds. */
+export function CheckIcon({ color, size = 22 }: IconProps) {
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={[iconStyles.check, { borderColor: color }]} />
+    </View>
+  );
+}
+
+const iconStyles = StyleSheet.create({
+  explainBubble: {
+    position: 'absolute',
+    left: 2,
+    top: 3,
+    width: 18,
+    height: 14,
+    borderWidth: 1.5,
+    borderRadius: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2.5,
+  },
+  explainDot: { width: 2.5, height: 2.5, borderRadius: 1.25 },
+  explainTail: {
+    position: 'absolute',
+    left: 3,
+    bottom: -3,
+    width: 5,
+    height: 5,
+    borderRightWidth: 1.5,
+    borderBottomWidth: 1.5,
+    transform: [{ rotate: '45deg' }],
+  },
+  copySquare: { position: 'absolute', width: 11, height: 11, borderWidth: 1.5, borderRadius: 2.5 },
+  copyBack: { left: 1, top: 1 },
+  copyFront: { left: 4, top: 4 },
+  check: { width: 12, height: 6, borderLeftWidth: 2, borderBottomWidth: 2, transform: [{ rotate: '-45deg' }], marginTop: -2 },
+});

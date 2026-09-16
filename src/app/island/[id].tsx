@@ -5,12 +5,12 @@ import {
   useAudioPlayer,
   useAudioPlayerStatus,
 } from 'expo-audio';
+import * as Clipboard from 'expo-clipboard';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   AppState,
   type LayoutChangeEvent,
@@ -18,6 +18,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { Gesture, GestureDetector, ScrollView } from 'react-native-gesture-handler';
@@ -26,13 +27,14 @@ import Animated, {
   Easing,
   Extrapolation,
   interpolate,
+  runOnJS,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AutoEchoSheet, type EchoStep } from '@/components/tide/auto-echo-sheet';
 import { BottomRow } from '@/components/tide/bottom-row';
@@ -40,6 +42,8 @@ import { IslandMenuSheet } from '@/components/tide/island-menu-sheet';
 import { PlayerTitle } from '@/components/tide/player-title';
 import type { SparkleResultData } from '@/components/tide/sparkle-result';
 import { TideScene } from '@/components/tide/tide-scene';
+import { LONG_ISLAND } from '@/components/tide/transcript-window';
+import { useContentReveal, usePieceStyle } from '@/components/tide/use-content-reveal';
 import { Toolbar, type ToolbarItem } from '@/components/tide/toolbar';
 import { BlindPopover } from '@/components/tide/blind-popover';
 import { READING_LABEL, ReadingPopover } from '@/components/tide/reading-popover';
@@ -47,6 +51,7 @@ import { RepeatPopover, repeatTileLabel } from '@/components/tide/repeat-popover
 import { speedLabel, SpeedPopover } from '@/components/tide/speed-popover';
 import { BlindIcon, ReadingIcon, RepeatIcon, SpeedIcon } from '@/components/tide/toolbar-icons';
 import { PressScale } from '@/components/press-scale';
+import { CatConstellation } from '@/components/cat-constellation';
 import { ExplainSheet } from '@/components/explain-sheet';
 import { PhraseBar } from '@/components/phrase-bar';
 import { Frost } from '@/components/frost';
@@ -59,8 +64,26 @@ import { WordOutline } from '@/components/word-outline';
 import { POPOVER_WIDTH, WordPanel } from '@/components/word-panel';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
-import { startBack } from '@/lib/card-morph';
+import {
+  afterCoverGone,
+  canStartBack,
+  isActive as morphActive,
+  openCoverUp,
+  openedLine,
+  openedTitle,
+  PLAYER_HEADER_ROW_H,
+  playerGone,
+  playerReady,
+  setHeaderBoxRect,
+  setHeaderTitleRect,
+  startBack,
+  useMorphHidesTitle,
+} from '@/lib/card-morph';
+import { hapticImpact } from '@/lib/haptics';
+import { invalidateCachedIsland, peekCachedIsland, readCachedIsland, writeCachedIsland } from '@/lib/island-cache';
+import { requestLoader } from '@/lib/loading-overlay';
 import { useIslandExport } from '@/hooks/use-island-export';
+import { getLastLine, peekLastLine, setLastLine } from '@/lib/last-line';
 import { useSkyStyle } from '@/lib/sky';
 import { usePhrase, type PhraseSpan } from '@/hooks/use-phrase';
 import { useLineStatus } from '@/hooks/use-line-status';
@@ -70,6 +93,7 @@ import * as api from '@/lib/api';
 import {
   applyPlaybackMode,
   releaseAudioSession,
+  scheduleAudioSessionRelease,
   startPlayback,
   stopPlayback,
   useSessionPlayer,
@@ -118,6 +142,13 @@ const PENDING_PLAY_MS = 8000;
 // How long after a source swap a status still carrying the old source's
 // duration is read as the old source's, delivered late.
 const SWAP_STALE_MS = 2000;
+// After the open morph's cover is gone, how long the transcript stays narrow.
+const TRANSCRIPT_WIDEN_MS = 150;
+// After the open morph's cover is gone, how long the first take read waits.
+const TAKE_READ_AFTER_COVER_MS = 500;
+// After the open morph's cover is gone, how long the cached open's network
+// refresh waits, so its download and parse land after the reveal.
+const REFRESH_AFTER_COVER_MS = 600;
 // How long a Play tap waits for the seek to the top before it plays anyway.
 const SEEK_WAIT_MS = 200;
 
@@ -161,12 +192,44 @@ function useStableHandler<A extends unknown[], R>(fn: (...args: A) => R): (...ar
 }
 
 export default function IslandScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, morph } = useLocalSearchParams<{ id: string; morph?: string }>();
+  const navigation = useNavigation();
   const sky = useSkyStyle();
+  // Whether the card morph that opened this island covered the screen at
+  // mount. Never state: the morph's landing and cover-gone must not render
+  // this whole screen. Live checks go through openCoverUp and afterCoverGone.
+  const [coveredAtMount] = useState(() => openCoverUp(id));
+  // Stable, for TideScene: whether the lines landing now land under the cover.
+  const coverUpNow = useCallback(() => openCoverUp(id), [id]);
+  // A long island's transcript opens narrow under the cover and widens a
+  // moment after the cover is gone, off the landing's busy frames.
+  const widenTranscript = useCallback(
+    (widen: () => void) => afterCoverGone(id, widen, TRANSCRIPT_WIDEN_MS),
+    [id],
+  );
+  const [cacheMissed, setCacheMissed] = useState(false);
 
-  const [island, setIsland] = useState<api.Island | null>(null);
+  // Opened by the card morph, the local copy Home's press-in read is usually
+  // parsed by the time this screen mounts. It goes into the first render, so
+  // the island is on screen when the morph lands instead of one more heavy
+  // render later. A long island takes this path only if its saved line is
+  // already known too.
+  const [warmStart] = useState(() => {
+    if (!morphActive()) return null;
+    const cached = peekCachedIsland(id);
+    if (!cached) return null;
+    const n = cached.island.lines.length;
+    const saved = n >= LONG_ISLAND ? peekLastLine(id) : 0;
+    if (saved === undefined) return null;
+    return { ...cached, idx: Math.max(0, Math.min(saved, n - 1)) };
+  });
+  const warmStartRef = useRef(warmStart);
+  const [loadedIsland, setIsland] = useState<api.Island | null>(() => warmStart?.island ?? null);
+  // Only ever the island this screen is for: a copy left from another id
+  // reads as not loaded yet.
+  const island = loadedIsland && loadedIsland.id === id ? loadedIsland : null;
   const [error, setError] = useState('');
-  const [idx, setIdx] = useState(0);
+  const [idx, setIdx] = useState(() => warmStart?.idx ?? 0);
   // `speed` is what the audio was rendered at; the Speed sheet shows the
   // live drag position, and only a release re-renders the line.
   const [speed, setSpeed] = useState<number>(() => getSettingsSync().defaultSpeed);
@@ -193,22 +256,44 @@ export default function IslandScreen() {
   const [sheet, setSheet] = useState<'echo' | 'island' | null>(null);
   // The Speed tile's popover and the tile's box, anchored like Repeat's.
   const [speedPopOpen, setSpeedPopOpen] = useState(false);
-  const [speedTile, setSpeedTile] = useState<{ x: number; y: number; width: number } | null>(null);
+  // Tile boxes, the dock's top and the player's width live in refs: the
+  // first layout must not render the screen, and a popover opening renders
+  // anyway, which is when they are read.
+  const speedTile = useRef<TileBox | null>(null);
   // The readout the Speed popover's ruler follows live; only its settle
   // commits to `speed` and restarts the line, like the Pause ruler's padMs.
   const [speedLive, setSpeedLive] = useState<number>(() => getSettingsSync().defaultSpeed);
   // The Repeat tile's popover and the tile's box, anchored like Blind's.
   const [repeatPopOpen, setRepeatPopOpen] = useState(false);
-  const [repeatTile, setRepeatTile] = useState<{ x: number; y: number; width: number } | null>(null);
+  const repeatTile = useRef<TileBox | null>(null);
   // The Blind tile's popover, and where to anchor it: the tile's box in the
   // toolbar row, the dock's in the player, and the player's width.
   const [blindPopOpen, setBlindPopOpen] = useState(false);
-  const [blindTile, setBlindTile] = useState<{ x: number; y: number; width: number } | null>(null);
+  const blindTile = useRef<TileBox | null>(null);
   // The Reading tile's popover and the tile's box, anchored like Blind's.
   const [readingPopOpen, setReadingPopOpen] = useState(false);
-  const [readingTile, setReadingTile] = useState<{ x: number; y: number; width: number } | null>(null);
-  const [dockY, setDockY] = useState(0);
-  const [playerW, setPlayerW] = useState(0);
+  const readingTile = useRef<TileBox | null>(null);
+  const dockY = useRef(0);
+  // An open popover reads those refs at render time, so a tile, dock or width
+  // change while one is open renders the screen once more. Closed, it is free.
+  const popOpenRef = useRef(false);
+  popOpenRef.current = speedPopOpen || repeatPopOpen || blindPopOpen || readingPopOpen;
+  const [, bumpAnchors] = useState(0);
+  const anchorMoved = useCallback((moved: boolean) => {
+    if (moved && popOpenRef.current) bumpAnchors((n) => n + 1);
+  }, []);
+  // The dock's height is layout (the scene's spacer): state, set only on a
+  // real change.
+  const [dockH, setDockH] = useState(0);
+  // The scene's height before its first layout (the window under the header,
+  // above the bottom inset), so the water is drawn from the first frame.
+  const { height: windowH } = useWindowDimensions();
+  const screenInsets = useSafeAreaInsets();
+  const sceneEstimateH = Math.max(
+    0,
+    (Number.isFinite(windowH) ? windowH : 0) - screenInsets.top - screenInsets.bottom - HEADER_ROW_H,
+  );
+  const playerW = useRef(0);
   // An action a sheet's row picked, run once the sheet has fully closed (an
   // Alert or a share sheet shown while the Modal is dismissing can vanish on
   // iOS otherwise).
@@ -382,7 +467,11 @@ export default function IslandScreen() {
     phrase.span,
   );
   const breathSec = breathMs / 1000;
-  const take = useTake(island?.id, idx, generation);
+  const firstTakeRead = useCallback(
+    (run: () => void) => afterCoverGone(id, run, TAKE_READ_AFTER_COVER_MS),
+    [id],
+  );
+  const take = useTake(island?.id, idx, generation, coveredAtMount ? firstTakeRead : undefined);
   // Auto Echo's own step, and a ref mirror so the effects and listeners below
   // (some subscribed once, some reading state a render behind) always see the
   // current step rather than the one closed over when they were set up.
@@ -470,11 +559,14 @@ export default function IslandScreen() {
     autoPlayed.current = key;
     startPlayback(wordPlayer);
   }, [wordSource, wordStatus.isLoaded, wordPlayer]);
+  // Under the open morph's cover, the session waits until the cover is gone.
   useEffect(() => {
-    void applyPlaybackMode();
+    const stop = afterCoverGone(id, () => void applyPlaybackMode());
     return () => {
+      stop();
       void releaseAudioSession();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const [attempt, setAttempt] = useState(0);
@@ -483,22 +575,129 @@ export default function IslandScreen() {
   const carryError = useRef('');
   useEffect(() => {
     let alive = true;
-    (async () => {
+    // The raw text of what is on screen, once something is: the local copy
+    // or the network's answer, whichever lands first.
+    let shownText: string | null = null;
+    let cachedText: string | null = null;
+    // The first render already showed the local copy: only the network
+    // refresh is left to run.
+    const warm = attempt === 0 && warmStartRef.current?.island.id === id ? warmStartRef.current : null;
+    if (warm) {
+      shownText = warm.text;
+      cachedText = warm.text;
+    }
+    // Puts an island on screen for the first time on this open.
+    async function show(data: api.Island, text: string) {
+      // A long island reopens where it was left; short ones still start at line 1.
+      if (data.status === 'ready' && data.lines.length >= LONG_ISLAND) {
+        const saved = await getLastLine(id);
+        if (!alive || shownText !== null) return false;
+        setIdx(Math.max(0, Math.min(saved, data.lines.length - 1)));
+      } else {
+        setIdx((i) => Math.max(0, Math.min(i, data.lines.length - 1)));
+      }
+      shownText = text;
+      setIsland(data);
+      setError(carryError.current);
+      carryError.current = '';
+      return true;
+    }
+    async function readCache() {
+      const cached = await readCachedIsland(id);
+      if (!alive) return;
+      if (!cached) {
+        setCacheMissed(true);
+        return;
+      }
+      cachedText = cached.text;
+      if (shownText !== null) return;
+      await show(cached.island, cached.text);
+    }
+    // The local copy is read and parsed after the first frame, so the open
+    // transition starts before any of that work. Under a card morph the
+    // transition already ran (and Home started this read on press-in), so
+    // it is picked up at once.
+    const raf = warm
+      ? null
+      : morphActive()
+        ? null
+        : requestAnimationFrame(() => {
+            setTimeout(() => void readCache(), 0);
+          });
+    if (!warm && raf === null) void readCache();
+    const refresh = async () => {
       try {
-        const data = await api.getIsland(id);
-        if (alive) {
+        const text = await api.getIslandText(id);
+        if (!alive) return;
+        // The same bytes as what is on screen (and so in the local copy):
+        // nothing to parse, set or write.
+        if (shownText !== null && text === shownText) {
+          return;
+        }
+        const data = JSON.parse(text) as api.Island;
+        if (shownText === null && (await show(data, text))) {
+          // Nothing left to do here: show() already put the island on screen.
+        } else if (!alive) {
+          return;
+        } else if (shownText !== null && text !== shownText) {
+          // The server moved past the local copy: swap it in where the
+          // user is now, inside the new line count.
+          shownText = text;
+          setIdx((i) => Math.max(0, Math.min(i, data.lines.length - 1)));
           setIsland(data);
-          setError(carryError.current);
-          carryError.current = '';
+        }
+        if (text && data.status === 'ready') {
+          if (text !== cachedText) setTimeout(() => writeCachedIsland(data, text), 0);
+        } else {
+          invalidateCachedIsland(id);
         }
       } catch (e) {
         if (alive) setError(e instanceof Error ? e.message : 'Could not load this island');
       }
-    })();
+    };
+    // Opened from the local copy under the morph: the refresh waits until the
+    // cover is gone and the reveal has run, so its download and any parse
+    // stay out of the landing.
+    const stopRefresh = warm ? afterCoverGone(id, () => void refresh(), REFRESH_AFTER_COVER_MS) : null;
+    if (!warm) void refresh();
     return () => {
       alive = false;
+      stopRefresh?.();
+      if (raf !== null) cancelAnimationFrame(raf);
     };
   }, [id, attempt]);
+
+  // Tells a covering card morph the player has its first content on screen:
+  // the island, an error, or no local copy (the network's answer then fades
+  // in on its own). Two frames, so the content is laid out and drawn first.
+  const firstContent = island !== null || !!error || cacheMissed;
+  const readySentRef = useRef(false);
+  // One-shot: fires from commit (not from an effect that waits a tick after
+  // it), one frame so the content just committed is laid out and drawn
+  // first, then never again for this mount.
+  // The ref is set inside the frame, so a cancelled frame (a StrictMode
+  // remount) sends again. With the lines in hand the loader is cleared right
+  // here, without waiting for the landing render and its effect.
+  // Sent straight from the commit, not from a frame: a frame waits out the
+  // whole JS backlog, and the morph's landing worklet does the rest on the UI
+  // thread. The ref makes it once per mount (a StrictMode re-run sends
+  // nothing new).
+  useLayoutEffect(() => {
+    if (!firstContent || readySentRef.current) return;
+    const waiting = island === null && !error;
+    readySentRef.current = true;
+    playerReady(id, { waiting });
+    if (!waiting) requestLoader(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- island and error are read once, at the first content
+  }, [firstContent, id]);
+
+  // A back morph waits for this before it shrinks into the card.
+  useEffect(() => () => playerGone(id), [id]);
+
+  // Remembers the line a long island was left on, so reopening it resumes here.
+  useEffect(() => {
+    if (island && island.lines.length >= LONG_ISLAND) setLastLine(id, idx);
+  }, [id, idx, island]);
 
   // The chosen voice, and its display name, so the re-voice offer can say
   // which voice it would switch to. Also loads blind mode and the player defaults, which
@@ -554,14 +753,20 @@ export default function IslandScreen() {
 
   // Keeps the screen from locking while this player is open, when the
   // setting is on. Off once the screen unmounts either way.
+  // Under the open morph's cover it starts once the cover is gone.
   useEffect(() => {
     if (!keepAwake) return;
     const tag = 'island-player';
-    void activateKeepAwakeAsync(tag);
+    let on = false;
+    const stop = afterCoverGone(id, () => {
+      on = true;
+      void activateKeepAwakeAsync(tag);
+    });
     return () => {
-      void deactivateKeepAwake(tag);
+      stop();
+      if (on) void deactivateKeepAwake(tag);
     };
-  }, [keepAwake]);
+  }, [id, keepAwake]);
 
   // Polls until the island settles. Returns the ready island, throws with the
   // island's error when it failed, returns null when maxSeconds pass first.
@@ -597,6 +802,7 @@ export default function IslandScreen() {
     try {
       await api.revoice(island.id, voice);
       invalidateLineAudio(island.id);
+      invalidateCachedIsland(island.id);
       const data = await waitForIsland(island.id, 60, undefined, 'Re-voicing failed');
       if (data) {
         setIsland(data);
@@ -616,6 +822,7 @@ export default function IslandScreen() {
     const finalTitle = title.trim() || 'Untitled island';
     try {
       await api.renameIsland(island.id, finalTitle);
+      invalidateCachedIsland(island.id);
       // Functional update: this runs after the sheet's exit animation
       // (`onDismissed`), so `island` closed over at call time may already be
       // stale if a build or revoice updated it in the meantime.
@@ -654,6 +861,7 @@ export default function IslandScreen() {
       try {
         await api.regenerate(island.id, target);
         invalidateLineAudio(island.id);
+        invalidateCachedIsland(island.id);
       } catch (e) {
         // Nothing was started, so the island on the server still matches what
         // is on screen. Say why and go back to it.
@@ -831,7 +1039,17 @@ export default function IslandScreen() {
   // should keep playing (the native player begins once the item is ready).
   // Everything that used to reset with a new player resets here: the crossing,
   // the play count, the last tick and the highlight.
+  // Under the open morph's cover the first load waits until the cover is gone
+  // (a Play tap before that loads it at once, see playFromTop).
   useEffect(() => {
+    if (!sourceUri || sourceUri === loadedUri.current) return;
+    if (openCoverUp(id)) return afterCoverGone(id, loadSource);
+    loadSource();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceUri, player]);
+  // Loads this render's source if the player does not hold it yet. Safe to
+  // call more than once.
+  const loadSource = useStableHandler(() => {
     if (!sourceUri || sourceUri === loadedUri.current) return;
     const first = loadedUri.current === null;
     swap.current = first ? null : { at: Date.now(), oldDuration: latestStatus.current.duration };
@@ -855,8 +1073,7 @@ export default function IslandScreen() {
     playWhenLoaded.current = false;
     kickUri.current = sourceUri;
     startPlayback(player);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourceUri, player]);
+  });
   // The lines around the current one download in the background, so the next
   // line change (or a step back) loads a local file. It runs after the change
   // has committed, and a new line, speed or pause replaces what is still
@@ -932,14 +1149,20 @@ export default function IslandScreen() {
   // The line player is the lock screen / notification's active player. It
   // lives as long as the screen, and releasing it on unmount clears the lock
   // screen on both platforms, so there is no explicit clear anywhere here.
-  useEffect(() => {
+  // Under the open morph's cover it waits until the cover is gone, and then
+  // carries the metadata of that moment.
+  const activateLockScreen = useStableHandler(() => {
     if (!lockScreen || !island || !line) return;
     player.setActiveForLockScreen(true, lockMeta(), { showSeekForward: false, showSeekBackward: false });
+  });
+  useEffect(() => {
+    if (!lockScreen || !island || !line) return;
+    return afterCoverGone(id, activateLockScreen);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player, lockScreen, island?.id, generation]);
 
   useEffect(() => {
-    if (!lockScreen || !island || !line) return;
+    if (!lockScreen || !island || !line || openCoverUp(id)) return;
     player.updateLockScreenMetadata(lockMeta());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [blind, idx, island?.title, island?.lines.length, line?.ja, phrase.label]);
@@ -1002,7 +1225,7 @@ export default function IslandScreen() {
     if (explainOpen) {
       stopPlayback(player);
       void player.seekTo(0);
-      void releaseAudioSession();
+      scheduleAudioSessionRelease();
       return;
     }
     if (echoRef.current === 'listen') {
@@ -1070,7 +1293,7 @@ export default function IslandScreen() {
     // still must not advance the line.
     if (explainOpen) {
       void player.seekTo(0);
-      void releaseAudioSession();
+      scheduleAudioSessionRelease();
       return;
     }
     if (echoRef.current === 'listen' || echoRef.current === 'echo') {
@@ -1082,7 +1305,7 @@ export default function IslandScreen() {
         void startSpeak();
       } else {
         setEchoStep('armed');
-        void releaseAudioSession();
+        scheduleAudioSessionRelease();
       }
       return;
     }
@@ -1339,12 +1562,13 @@ export default function IslandScreen() {
       { scale: interpolate(Math.abs(dragY.value), [0, DRAG_LIMIT], [1, 0.99], Extrapolation.CLAMP) },
     ],
   }));
-  // The scene fades and rises 10pt into place once the line is on screen. A
+  // The scene fades and rises 10pt into place as the screen opens, before the
+  // island has loaded (TideScene fades the lines in when they land). A
   // style driven from here, not a layout `entering` animation: the wrapper
   // holds the Skia water and nested entering views, and mounting all of that
   // under a layout animation during the push is the likeliest cause of the
   // native crash on open.
-  const sceneShown = !!line && !regenerating;
+  const sceneShown = (!island || !!line) && !regenerating;
   const sceneIn = useSharedValue(0);
   useEffect(() => {
     if (!sceneShown) {
@@ -1352,11 +1576,49 @@ export default function IslandScreen() {
       sceneIn.value = 0;
       return;
     }
+    if (openCoverUp(id)) {
+      cancelAnimation(sceneIn);
+      sceneIn.value = 1;
+      return;
+    }
     sceneIn.value = withTiming(1, { duration: reducedMotion ? 200 : 220 });
   }, [sceneShown, reducedMotion, sceneIn]);
   const sceneInStyle = useAnimatedStyle(() => ({
     opacity: sceneIn.value,
     transform: [{ translateY: reducedMotion ? 0 : (1 - sceneIn.value) * 10 }],
+  }));
+  // The sentence card, transcript rows, toolbar and bottom row. Opened by the
+  // card morph they stay hidden under its cover and rise in one after another
+  // from the frame it lands (or from when the lines arrive, if later).
+  // Anywhere else, and under reduced motion, they fade in together. Styles,
+  // not `entering` animations, as above.
+  // The root LoadingOverlay in the gap between the morph landing (or the
+  // mount, off the morph path) and the lines arriving. While a morph still
+  // covers the screen it does nothing: the morph's cover-complete worklet
+  // asks for the loader if the player was not ready by then. Once landed, a
+  // wait asks for it (the overlay's own grace delays the cat) and anything
+  // else clears it.
+  const waitingForLines = !island && !error;
+  useEffect(() => {
+    // Under a covering morph only the clear is sent: its landing worklet asks
+    // for the loader if the player still waits then.
+    // A morph that lands on its timer before ready clears the loader as it
+    // ends, so a wait still going then asks for it again.
+    if (waitingForLines && openCoverUp(id)) return afterCoverGone(id, () => requestLoader(true));
+    requestLoader(waitingForLines);
+  }, [id, waitingForLines]);
+  useEffect(() => () => requestLoader(false), []);
+
+  const contentReveal = useContentReveal({
+    ready: !!line,
+    coveredAtMount,
+    staged: morph === '1' && !reducedMotion,
+  });
+  const revealValues = contentReveal.values;
+  const toolbarInStyle = usePieceStyle(revealValues.toolbar, revealValues.rise);
+  const bottomInStyle = usePieceStyle(revealValues.dock, revealValues.rise);
+  const dockBackdropStyle = useAnimatedStyle(() => ({
+    opacity: Number.isFinite(revealValues.toolbar.value) ? revealValues.toolbar.value : 1,
   }));
 
   // A handle grab fixes the opposite edge of the span, so dragging past it
@@ -1435,6 +1697,21 @@ export default function IslandScreen() {
     setExplainOpen(true);
   }
 
+  // The drag selection's popup Copy button: the same surface text Explain
+  // marks, joined with no separator, to the clipboard. Unlike Repeat and
+  // Explain this leaves the selection in place, so the learner can copy more
+  // than once or still hit Repeat or Explain after.
+  function copySelection() {
+    const span = dragSpan;
+    if (!span || !line) return;
+    const text = line.words
+      .slice(span.from, span.to + 1)
+      .map((w) => w.text)
+      .join('');
+    void Clipboard.setStringAsync(text);
+    void hapticImpact();
+  }
+
   // Closing the sheet leaves the player paused on the same line, even when
   // the sheet's own tap had the line playing.
   function closeExplain() {
@@ -1478,6 +1755,8 @@ export default function IslandScreen() {
   // Starts the line fresh from the top, whether or not it was already
   // playing: shared by the ring's Play tap and a swipe down on the sentence.
   async function playFromTop() {
+    // The source may still be waiting for the open morph's cover to go.
+    loadSource();
     dropTake();
     // A restart mid-word fades the highlight in again from the top instead
     // of snapping the lit word off.
@@ -1503,7 +1782,7 @@ export default function IslandScreen() {
     // Freeze the highlight where it is now: the paused status lands a moment
     // later, and running on until then could start lighting the next word.
     holdHighlight();
-    void releaseAudioSession();
+    scheduleAudioSessionRelease();
   }
 
   // Lines are short, so Play always starts the sentence from the top. There is
@@ -1769,7 +2048,7 @@ export default function IslandScreen() {
     dropTake();
     stopPlayback(player);
     void player.seekTo(0);
-    void releaseAudioSession();
+    scheduleAudioSessionRelease();
   }
 
   // The Speak step's take, once saved and its player loaded, starts the Play
@@ -1796,11 +2075,11 @@ export default function IslandScreen() {
 
   // The Play step's take finishing on its own is a stop point: Android gives
   // audio focus back by itself when the take player stops; on iOS the duck
-  // lasts as long as the session is active, so releaseAudioSession() hands
-  // the volume back here.
+  // lasts as long as the session is active, so a scheduled release hands
+  // the volume back a few seconds after this.
   useEffect(() => {
     if (wasTakePlaying.current && !take.takePlaying && !status.playing) {
-      void releaseAudioSession();
+      scheduleAudioSessionRelease();
     }
     wasTakePlaying.current = take.takePlaying;
   }, [take.takePlaying, status.playing]);
@@ -1837,18 +2116,14 @@ export default function IslandScreen() {
   // should still be making sound.
   const wasWordPlaying = useRef(false);
   useEffect(() => {
-    if (wasWordPlaying.current && !wordStatus.playing && !status.playing) void releaseAudioSession();
+    if (wasWordPlaying.current && !wordStatus.playing && !status.playing) scheduleAudioSessionRelease();
     wasWordPlaying.current = wordStatus.playing;
   }, [wordStatus.playing, status.playing]);
 
   function openIslandMenu() {
-    // The header `…` only renders in the main return below, but
-    // `Stack.Screen` options that omit `headerRight` merge onto whatever the
-    // last render set, so the button (and this handler) can still be live
-    // when a re-render drops into the failed/building or regenerating
-    // return, none of which render a sheet. Without this guard, a tap there
-    // sets `sheet` to 'island' and the menu pops open once the screen is
-    // back on the main return.
+    // The header `…` also shows while the island loads, where there is no
+    // sheet to open yet. Without this guard, a tap there sets `sheet` to
+    // 'island' and the menu pops open once the island lands.
     if (!line || regenerating) return;
     setSheet('island');
   }
@@ -1872,9 +2147,10 @@ export default function IslandScreen() {
     try {
       await api.deleteIsland(island.id);
       invalidateLineAudio(island.id);
+      invalidateCachedIsland(island.id);
       deleteTakes(island.id);
       void releaseAudioSession();
-      router.back();
+      plainBack();
     } catch (e) {
       Alert.alert('Could not delete', e instanceof Error ? e.message : 'The server did not answer.');
     }
@@ -1901,7 +2177,9 @@ export default function IslandScreen() {
         },
         onLayout: (e) => {
           const { x, y, width } = e.nativeEvent.layout;
-          setSpeedTile({ x, y, width });
+          const old = speedTile.current;
+          speedTile.current = { x, y, width };
+          anchorMoved(!old || old.x !== x || old.y !== y || old.width !== width);
         },
       },
       {
@@ -1918,7 +2196,9 @@ export default function IslandScreen() {
         },
         onLayout: (e) => {
           const { x, y, width } = e.nativeEvent.layout;
-          setRepeatTile({ x, y, width });
+          const old = repeatTile.current;
+          repeatTile.current = { x, y, width };
+          anchorMoved(!old || old.x !== x || old.y !== y || old.width !== width);
         },
       },
       {
@@ -1935,7 +2215,9 @@ export default function IslandScreen() {
         },
         onLayout: (e) => {
           const { x, y, width } = e.nativeEvent.layout;
-          setReadingTile({ x, y, width });
+          const old = readingTile.current;
+          readingTile.current = { x, y, width };
+          anchorMoved(!old || old.x !== x || old.y !== y || old.width !== width);
         },
       },
       {
@@ -1952,11 +2234,13 @@ export default function IslandScreen() {
         },
         onLayout: (e) => {
           const { x, y, width } = e.nativeEvent.layout;
-          setBlindTile({ x, y, width });
+          const old = blindTile.current;
+          blindTile.current = { x, y, width };
+          anchorMoved(!old || old.x !== x || old.y !== y || old.width !== width);
         },
       },
     ];
-  }, [speedLive, times, pauseMs, readingMode, blind, englishShown]);
+  }, [speedLive, times, pauseMs, readingMode, blind, englishShown, anchorMoved]);
 
   // A tapped transcript line jumps there and plays it, even from a paused
   // state (go alone would leave a paused line paused).
@@ -2019,6 +2303,7 @@ export default function IslandScreen() {
   const onClosePanel = useStableHandler(closePanel);
   const onRepeatSelection = useStableHandler(repeatSelection);
   const onOpenExplain = useStableHandler(openExplain);
+  const onCopySelection = useStableHandler(copySelection);
   const onBlockLayout = useCallback((e: LayoutChangeEvent) => setBlockWidth(e.nativeEvent.layout.width), []);
   const onBlockTouch = useCallback(() => {
     blockTouched.current = true;
@@ -2056,7 +2341,9 @@ export default function IslandScreen() {
   );
 
   const sentence = useMemo(() => {
-    if (!line) return null;
+    if (!line) {
+      return null;
+    }
     // Popover under the tapped word, centred on it, kept inside the block.
     const box = selected !== null ? wordBoxes.current[selected] : undefined;
     const popLeft = box
@@ -2166,7 +2453,13 @@ export default function IslandScreen() {
                 />
               ) : null}
               {dragSpan && dragUnion && !handleDragging ? (
-                <SelectionPopup left={dragPopLeft} top={dragPopTop} onRepeat={onRepeatSelection} onExplain={onOpenExplain} />
+                <SelectionPopup
+                  left={dragPopLeft}
+                  top={dragPopTop}
+                  onRepeat={onRepeatSelection}
+                  onExplain={onOpenExplain}
+                  onCopy={onCopySelection}
+                />
               ) : null}
             </View>
           </>
@@ -2228,55 +2521,136 @@ export default function IslandScreen() {
     peekOff,
   ]);
 
-  // The header's options, rebuilt only when something in them changes: every
-  // new options object is a navigation.setOptions call and a header render.
-  const onHeaderBack = useStableHandler(() => {
-    if (!island || !startBack(island.id)) {
+  // Leaves without the card morph. A route opened by the morph does not
+  // animate on its own, so it gets its fade back first, or the pop is a cut.
+  function plainBack() {
+    if (morph !== '1') {
       router.back();
       return;
     }
+    navigation.setOptions({ animation: 'fade' });
     requestAnimationFrame(() => router.back());
+  }
+  // Set once a back has begun fading the content out, so a second tap does
+  // not start another; cleared if the screen stays (the back fell through).
+  const leavingRef = useRef(false);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+  // Runs once the content has faded out: the overlay covers the player, pops
+  // it, and shrinks into the card.
+  const beginMorphBack = useStableHandler(() => {
+    // Gone meanwhile (a swipe back).
+    if (!mountedRef.current) return;
+    // Still mounted but no longer on top: stay as it was.
+    if (!navigation.isFocused()) {
+      leavingRef.current = false;
+      contentReveal.show();
+      return;
+    }
+    // The same `…` slot rule as the header calls below.
+    const menu = island ? !!line && !regenerating : !error;
+    const chrome = {
+      title: headerTitleText,
+      lineIndex: headerLineIndex,
+      lineCount: headerLineCount,
+      placeholder: !island && !error,
+      menu,
+    };
+    if (startBack(id, () => router.back(), chrome)) return;
+    plainBack();
+  });
+  const onHeaderBack = useStableHandler(() => {
+    // A morph already running, or a back already fading out, owns the navigation.
+    if (morphActive() || leavingRef.current) return;
+    if (!canStartBack(id)) {
+      plainBack();
+      return;
+    }
+    leavingRef.current = true;
+    // Without lines on screen there is no content to fade first.
+    if (!line) beginMorphBack();
+    else contentReveal.hide(beginMorphBack);
   });
   const onHeaderMenu = useStableHandler(openIslandMenu);
-  const headerTitleText = island?.title || 'Island';
-  const headerLineCount = island?.lines.length ?? 0;
-  const screenOptions = useMemo(
-    () => ({
-      headerStyle: { backgroundColor: sky.top },
-      headerTintColor: tide.text,
-      headerShadowVisible: false,
-      headerTitleAlign: 'center' as const,
-      headerTitle: () => <PlayerTitle title={headerTitleText} lineIndex={idx} lineCount={headerLineCount} />,
-      headerLeft: () => (
-        <PressScale onPress={onHeaderBack} hitSlop={12} accessibilityLabel="Back">
-          <Text style={styles.backGlyph}>‹</Text>
-        </PressScale>
-      ),
-      headerRight: () => (
-        <PressScale onPress={onHeaderMenu} hitSlop={12} accessibilityLabel="Island menu">
-          <Text style={styles.menuGlyph}>…</Text>
-        </PressScale>
-      ),
-    }),
-    [sky.top, headerTitleText, idx, headerLineCount, onHeaderBack, onHeaderMenu],
+  const headerTitleText = island?.title || openedTitle(id) || 'Island';
+  // Before the island loads, the line row Home opened the card with, so the
+  // header matches the morph's flying copy of it.
+  const homeLine = island ? undefined : openedLine(id);
+  const headerLineCount = island?.lines.length ?? homeLine?.lineCount ?? 0;
+  const headerLineIndex = island ? idx : (homeLine?.lineIndex ?? 0);
+  const header = (withMenu: boolean) => (
+    <PlayerHeader
+      id={id}
+      title={headerTitleText}
+      lineIndex={headerLineIndex}
+      lineCount={headerLineCount}
+      placeholder={!island && !error}
+      background={sky.top}
+      onBack={onHeaderBack}
+      onMenu={withMenu ? onHeaderMenu : null}
+    />
   );
+
+  // Where the scene ends above the dock. Before the island loads there is no
+  // dock yet, so a spacer of the last dock height holds its place: the
+  // waterline sits where it will once the lines land. The loading cat, if a
+  // wait is real, is the root LoadingOverlay: nothing to render here.
+  const dockSpace = dockH > 0 ? dockH : lastDockH;
 
   if (error && !island) {
     return (
-      <SafeAreaView style={StyleSheet.flatten([styles.fill, styles.center, { backgroundColor: sky.top }])}>
-        <Text style={[styles.body, { color: tide.record }]}>{error}</Text>
-        <PressScale
-          onPress={() => setAttempt((n) => n + 1)}
-          style={[styles.retry, { backgroundColor: tide.lang.ja }]}>
-          <Text style={[styles.retryText, { color: tide.sky[0] }]}>Retry</Text>
-        </PressScale>
+      <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: sky.top }])}>
+        {header(false)}
+        <View style={[styles.fill, styles.center]}>
+          <Text style={[styles.body, { color: tide.record }]}>{error}</Text>
+          <PressScale
+            onPress={() => setAttempt((n) => n + 1)}
+            style={[styles.retry, { backgroundColor: tide.lang.ja }]}>
+            <Text style={[styles.retryText, { color: tide.sky[0] }]}>Retry</Text>
+          </PressScale>
+        </View>
       </SafeAreaView>
     );
   }
   if (!island) {
+    // No loading view: the scene opens at once with the same tree the player
+    // below renders, so nothing remounts when the island lands and TideScene
+    // fades its lines in.
     return (
-      <SafeAreaView style={StyleSheet.flatten([styles.fill, styles.center, { backgroundColor: sky.top }])}>
-        <ActivityIndicator color={tide.lang.ja} />
+      <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: sky.top }])}>
+        <StatusBar style="light" />
+        {header(true)}
+
+        <Animated.View
+          style={[styles.fill, sceneInStyle]}
+          onLayout={(e) => {
+            const w = e.nativeEvent.layout.width;
+            anchorMoved(w !== playerW.current);
+            playerW.current = w;
+          }}>
+          <TideScene
+            lineIndex={0}
+            lineCount={0}
+            lines={lines}
+            blind={blind}
+            busy={false}
+            countdown={null}
+            banner={banner}
+            sentence={null}
+            scrollRef={scrollRef}
+            onLineTap={onLineTap}
+            instantReveal={coverUpNow}
+            widenWhen={coveredAtMount ? widenTranscript : undefined}
+            contentReveal={revealValues}
+            initialHeight={Math.max(0, sceneEstimateH - dockSpace)}
+          />
+          <View pointerEvents="none" style={{ height: dockSpace }} />
+        </Animated.View>
       </SafeAreaView>
     );
   }
@@ -2285,46 +2659,49 @@ export default function IslandScreen() {
     // silent spinner. Offer the way out.
     const busy = island.status === 'pending' || island.status === 'working';
     return (
-      <SafeAreaView style={StyleSheet.flatten([styles.fill, styles.center, { backgroundColor: sky.top }])}>
-        <Stack.Screen options={{ title: island.title || 'Island' }} />
-        {busy ? <ActivityIndicator color={tide.lang.ja} /> : null}
-        <Text style={[styles.body, { color: busy ? tide.textDim : tide.record }]}>
-          {busy
-            ? 'Still building this island…'
-            : island.error || 'This island has no lines.'}
-        </Text>
-        {!busy ? (
-          <PressScale
-            onPress={async () => {
-              try {
-                await api.regenerate(island.id, island.complexity);
-                invalidateLineAudio(island.id);
-                deleteTakes(island.id);
-                setAttempt((n) => n + 1);
-              } catch (e) {
-                setError(e instanceof Error ? e.message : 'Could not regenerate');
-              }
-            }}
-            style={[styles.retry, { backgroundColor: tide.lang.ja }]}>
-            <Text style={[styles.retryText, { color: tide.sky[0] }]}>Regenerate</Text>
-          </PressScale>
-        ) : (
-          <PressScale onPress={() => setAttempt((n) => n + 1)} style={styles.secondaryBtn}>
-            <Text style={[styles.retryText, { color: tide.textDim }]}>Refresh</Text>
-          </PressScale>
-        )}
+      <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: sky.top }])}>
+        {header(false)}
+        <View style={[styles.fill, styles.center]}>
+          {busy ? (
+            <CatConstellation label="Still building this island" />
+          ) : (
+            <Text style={[styles.body, { color: tide.record }]}>
+              {island.error || 'This island has no lines.'}
+            </Text>
+          )}
+          {!busy ? (
+            <PressScale
+              onPress={async () => {
+                try {
+                  await api.regenerate(island.id, island.complexity);
+                  invalidateLineAudio(island.id);
+                  invalidateCachedIsland(island.id);
+                  deleteTakes(island.id);
+                  setAttempt((n) => n + 1);
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : 'Could not regenerate');
+                }
+              }}
+              style={[styles.retry, { backgroundColor: tide.lang.ja }]}>
+              <Text style={[styles.retryText, { color: tide.sky[0] }]}>Regenerate</Text>
+            </PressScale>
+          ) : (
+            <PressScale onPress={() => setAttempt((n) => n + 1)} style={styles.secondaryBtn}>
+              <Text style={[styles.retryText, { color: tide.textDim }]}>Refresh</Text>
+            </PressScale>
+          )}
+        </View>
       </SafeAreaView>
     );
   }
 
   if (regenerating) {
     return (
-      <SafeAreaView style={StyleSheet.flatten([styles.fill, styles.center, { backgroundColor: sky.top }])}>
-        <Stack.Screen options={{ title: island.title || 'Island' }} />
-        <ActivityIndicator color={tide.lang.ja} />
-        <Text style={[styles.body, { color: tide.textDim }]}>
-          {api.STAGE_LABEL[buildStage] ?? 'Rebuilding this island…'}
-        </Text>
+      <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: sky.top }])}>
+        {header(false)}
+        <View style={[styles.fill, styles.center]}>
+          <CatConstellation label={(api.STAGE_LABEL[buildStage] ?? 'Rebuilding this island').replace(/…$/, '')} />
+        </View>
       </SafeAreaView>
     );
   }
@@ -2334,12 +2711,16 @@ export default function IslandScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: sky.top }])}>
       <StatusBar style="light" />
-      <Stack.Screen options={screenOptions} />
+      {header(true)}
 
       <Animated.View
         style={[styles.fill, sceneInStyle]}
         onTouchStart={onSceneTouch}
-        onLayout={(e) => setPlayerW(e.nativeEvent.layout.width)}>
+        onLayout={(e) => {
+          const w = e.nativeEvent.layout.width;
+          anchorMoved(w !== playerW.current);
+          playerW.current = w;
+        }}>
         <TideScene
           lineIndex={idx}
           lineCount={island.lines.length}
@@ -2352,48 +2733,70 @@ export default function IslandScreen() {
           below={below}
           scrollRef={scrollRef}
           onLineTap={onLineTap}
+          instantReveal={coverUpNow}
+          widenWhen={coveredAtMount ? widenTranscript : undefined}
+          contentReveal={revealValues}
+          initialHeight={Math.max(0, sceneEstimateH - dockSpace)}
         />
 
-        <View style={styles.dock} onLayout={(e) => setDockY(e.nativeEvent.layout.y)}>
-          <Toolbar items={toolbarItems} />
-          <BottomRow
-            ringMode={ringMode}
-            onToggle={onToggle}
-            onPrev={onPrev}
-            onNext={onNext}
-            prevDisabled={idx === 0}
-            nextDisabled={idx >= island.lines.length - 1}
-            recording={take.phase === 'recording'}
-            level={take.level}
-            onRecord={onDockRecord}
-          />
+        <View
+          style={styles.dock}
+          onLayout={(e) => {
+            const { y, height } = e.nativeEvent.layout;
+            anchorMoved(y !== dockY.current);
+            dockY.current = y;
+            if (Number.isFinite(height) && height > 0) {
+              // What the scene already holds for it: the last player's dock
+              // height until this one's is set. Equal, nothing renders.
+              const held = dockH > 0 ? dockH : lastDockH;
+              lastDockH = height;
+              if (Math.abs(held - height) > 0.5) setDockH(height);
+            }
+          }}>
+          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.dockBackdrop, dockBackdropStyle]} />
+          <Animated.View style={toolbarInStyle}>
+            <Toolbar items={toolbarItems} />
+          </Animated.View>
+          <Animated.View style={bottomInStyle}>
+            <BottomRow
+              ringMode={ringMode}
+              onToggle={onToggle}
+              onPrev={onPrev}
+              onNext={onNext}
+              prevDisabled={idx === 0}
+              nextDisabled={idx >= island.lines.length - 1}
+              recording={take.phase === 'recording'}
+              level={take.level}
+              onRecord={onDockRecord}
+            />
+          </Animated.View>
         </View>
-        {speedPopOpen && speedTile && playerW > 0 ? (
+        {speedPopOpen && speedTile.current && playerW.current > 0 ? (
           <SpeedPopover
-            anchorX={speedTile.x + speedTile.width / 2}
-            anchorTop={dockY + speedTile.y}
-            width={playerW}
+            anchorX={speedTile.current.x + speedTile.current.width / 2}
+            anchorTop={dockY.current + speedTile.current.y}
+            width={playerW.current}
             speed={speedLive}
             onSpeed={pickSpeed}
             onSettle={commitSpeed}
             onClose={() => setSpeedPopOpen(false)}
           />
         ) : null}
-        {readingPopOpen && readingTile && playerW > 0 ? (
+        {readingPopOpen && readingTile.current && playerW.current > 0 ? (
           <ReadingPopover
-            anchorX={readingTile.x + readingTile.width / 2}
-            anchorTop={dockY + readingTile.y}
-            width={playerW}
+            anchorX={readingTile.current.x + readingTile.current.width / 2}
+            anchorTop={dockY.current + readingTile.current.y}
+            width={playerW.current}
             value={readingMode}
             onChange={pickReading}
             onClose={() => setReadingPopOpen(false)}
           />
         ) : null}
-        {blindPopOpen && blindTile && playerW > 0 ? (
+        {blindPopOpen && blindTile.current && playerW.current > 0 ? (
           <BlindPopover
-            anchorX={blindTile.x + blindTile.width / 2}
-            anchorTop={dockY + blindTile.y}
-            width={playerW}
+            anchorX={blindTile.current.x + blindTile.current.width / 2}
+            anchorTop={dockY.current + blindTile.current.y}
+            width={playerW.current}
             jaHidden={blind}
             enHidden={!englishShown}
             onToggleJa={toggleBlind}
@@ -2401,11 +2804,11 @@ export default function IslandScreen() {
             onClose={() => setBlindPopOpen(false)}
           />
         ) : null}
-        {repeatPopOpen && repeatTile && playerW > 0 ? (
+        {repeatPopOpen && repeatTile.current && playerW.current > 0 ? (
           <RepeatPopover
-            anchorX={repeatTile.x + repeatTile.width / 2}
-            anchorTop={dockY + repeatTile.y}
-            width={playerW}
+            anchorX={repeatTile.current.x + repeatTile.current.width / 2}
+            anchorTop={dockY.current + repeatTile.current.y}
+            width={playerW.current}
             times={times}
             pauseMs={pauseMs}
             onTimes={pickTimes}
@@ -2485,8 +2888,86 @@ export default function IslandScreen() {
   );
 }
 
+const HEADER_ROW_H = PLAYER_HEADER_ROW_H;
+type TileBox = { x: number; y: number; width: number };
+/** The dock's height the last time a player laid it out, so the next open
+ * can hold its place before the lines (and the dock) arrive. 0 until then. */
+let lastDockH = 0;
+
+type PlayerHeaderProps = {
+  id: string;
+  title: string;
+  lineIndex: number;
+  lineCount: number;
+  /** Loading: the line row shows with a stand-in for the unknown count. */
+  placeholder: boolean;
+  background: string;
+  onBack: () => void;
+  /** The `…` island menu; null leaves an empty slot of the same size. */
+  onMenu: (() => void) | null;
+};
+
+/**
+ * The player's header, drawn in the screen rather than as native bar items
+ * (those get the system's glass button background, which replays its appear
+ * animation whenever the options change). The title stays hidden while the
+ * card morph's flying title stands in for it.
+ */
+function PlayerHeader({ id, title, lineIndex, lineCount, placeholder, background, onBack, onMenu }: PlayerHeaderProps) {
+  const insets = useSafeAreaInsets();
+  // The title and both buttons: the overlay draws them while a morph runs.
+  const titleHidden = useMorphHidesTitle(id, 'header');
+  const barRef = useRef<View>(null);
+  const reportBar = () => {
+    barRef.current?.measureInWindow((x, y, width, height) => setHeaderBoxRect({ x, y, width, height }));
+  };
+  return (
+    <View
+      ref={barRef}
+      onLayout={reportBar}
+      style={[styles.header, { paddingTop: insets.top, height: insets.top + HEADER_ROW_H, backgroundColor: background }]}>
+      <View pointerEvents="none" style={[styles.headerTitle, { top: insets.top }]}>
+        <PlayerTitle
+          title={title}
+          lineIndex={lineIndex}
+          lineCount={lineCount}
+          placeholder={placeholder}
+          hidden={titleHidden}
+          onTitleRect={setHeaderTitleRect}
+        />
+      </View>
+      <PressScale onPress={onBack} hitSlop={12} accessibilityLabel="Back" style={styles.headerButton}>
+        <Text style={[styles.backGlyph, titleHidden ? styles.hiddenChrome : null]}>‹</Text>
+      </PressScale>
+      {onMenu ? (
+        <PressScale onPress={onMenu} hitSlop={12} accessibilityLabel="Island menu" style={styles.headerButton}>
+          <Text style={[styles.menuGlyph, titleHidden ? styles.hiddenChrome : null]}>…</Text>
+        </PressScale>
+      ) : (
+        <View style={styles.headerButton} />
+      )}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.sm,
+  },
+  headerTitle: {
+    position: 'absolute',
+    left: Spacing.sm + 44,
+    right: Spacing.sm + 44,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  hiddenChrome: { opacity: 0 },
   center: { alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: Spacing.xl, gap: Spacing.lg, flexGrow: 1, justifyContent: 'center' },
   ja: { fontFamily: fonts.serifJp, fontSize: 26, lineHeight: 38, textAlign: 'center', color: tide.text },
@@ -2513,7 +2994,8 @@ const styles = StyleSheet.create({
   en: { fontFamily: fonts.ui, fontSize: 13, lineHeight: 18, textAlign: 'center', color: tide.textDim },
   menuGlyph: { fontFamily: fonts.ui, fontSize: 22, color: tide.text },
   backGlyph: { fontFamily: fonts.ui, fontSize: 28, color: tide.text },
-  dock: { backgroundColor: 'rgba(0,0,0,0.18)', borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg },
+  dock: { borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg },
+  dockBackdrop: { backgroundColor: 'rgba(0,0,0,0.18)', borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg },
   body: { fontSize: 15, lineHeight: 22, textAlign: 'center', padding: Spacing.xl },
   inlineError: { fontSize: 13, lineHeight: 18, textAlign: 'center' },
   retry: { paddingVertical: Spacing.md, paddingHorizontal: Spacing.xxl, borderRadius: Radius.pill, marginTop: Spacing.md },

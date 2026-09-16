@@ -127,7 +127,24 @@ export async function listIslands(): Promise<IslandSummary[]> {
 }
 
 export async function getIsland(id: string): Promise<Island> {
-  return json<Island>(await fetch(`${BASE}/islands/${id}`, { headers: headers() }));
+  return (await getIslandWithText(id)).island;
+}
+
+/** The island and the raw body it was parsed from, which the local copy in
+ * island-cache.ts stores and compares against. */
+export async function getIslandWithText(id: string): Promise<{ island: Island; text: string }> {
+  const text = await getIslandText(id);
+  const island = JSON.parse(text) as Island;
+  return { island, text };
+}
+
+/** The island's raw JSON body, unparsed, so a caller holding a local copy
+ * can compare the two and skip the parse when nothing changed. Throws like
+ * the other calls on a failed response. */
+export async function getIslandText(id: string): Promise<string> {
+  const res = await fetch(`${BASE}/islands/${id}`, { headers: headers() });
+  if (!res.ok) await json<Island>(res); // throws on a failed response
+  return res.text();
 }
 
 /** Remove an island, its lines and its audio. There is no undo. */

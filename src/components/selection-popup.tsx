@@ -1,9 +1,16 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 
 import { PressScale } from '@/components/press-scale';
-import { Radius, Spacing, tide } from '@/constants/theme';
+import { CheckIcon, CopyIcon, ExplainIcon, RepeatIcon } from '@/components/tide/toolbar-icons';
+import { Radius, tide } from '@/constants/theme';
 
-export const SELECTION_POPUP_WIDTH = 208;
+const BUTTON_SIZE = 44;
+const BUTTON_GAP = 10;
+const POPUP_PADDING_H = 8;
+const POPUP_PADDING_V = 6;
+
+export const SELECTION_POPUP_WIDTH = 3 * BUTTON_SIZE + 2 * BUTTON_GAP + 2 * POPUP_PADDING_H;
 
 type Props = {
   /** Absolute position inside the sentence block, computed by the screen. */
@@ -11,30 +18,69 @@ type Props = {
   top: number;
   onRepeat: () => void;
   onExplain: () => void;
+  onCopy: () => void;
 };
 
+const COPIED_LABEL_MS = 1200;
+
 /**
- * The popup shown once a drag selects a run of words: Repeat and Explain,
- * positioned the same way `WordPanel` is (absolute, clamped into the block by
- * the screen). It follows the selection handles as they move the span and
- * hides while either handle is being dragged, reappearing at the new span on
- * release. Everything either button starts (loading the phrase's audio,
- * dropping a take, playing, opening the Explain sheet) is the screen's job.
+ * The popup shown once a drag selects a run of words: Repeat, Explain and
+ * Copy, positioned the same way `WordPanel` is (absolute, clamped into the
+ * block by the screen). It follows the selection handles as they move the
+ * span and hides while either handle is being dragged, reappearing at the
+ * new span on release. Everything Repeat and Explain start (loading the
+ * phrase's audio, dropping a take, playing, opening the Explain sheet) is the
+ * screen's job; Copy writes the clipboard itself, here, since nothing beyond
+ * this popup depends on the result.
  */
-export function SelectionPopup({ left, top, onRepeat, onExplain }: Props) {
+export function SelectionPopup({ left, top, onRepeat, onExplain, onCopy }: Props) {
+  const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    },
+    [],
+  );
+
+  function handleCopy() {
+    onCopy();
+    setCopied(true);
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    copiedTimer.current = setTimeout(() => setCopied(false), COPIED_LABEL_MS);
+  }
+
   return (
     <View
       style={[
         styles.pop,
         { left, top, backgroundColor: tide.water, borderColor: tide.waterline, shadowColor: '#000' },
       ]}>
-      <PressScale onPress={onRepeat} style={[styles.repeat, { backgroundColor: tide.lang.ja }]}>
-        <Text style={[styles.repeatText, { color: tide.sky[0] }]}>Repeat</Text>
+      <PressScale
+        onPress={onRepeat}
+        style={[styles.button, { backgroundColor: tide.lang.ja }]}
+        accessibilityRole="button"
+        accessibilityLabel="Repeat selection">
+        <RepeatIcon color={tide.sky[0]} size={22} />
       </PressScale>
       <PressScale
         onPress={onExplain}
-        style={[styles.repeat, { backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: tide.lang.ja }]}>
-        <Text style={[styles.repeatText, { color: tide.lang.ja }]}>Explain</Text>
+        style={[styles.button, styles.outline, { borderColor: tide.lang.ja }]}
+        accessibilityRole="button"
+        accessibilityLabel="Explain selection">
+        <ExplainIcon color={tide.lang.ja} background={tide.water} size={22} />
+      </PressScale>
+      <PressScale
+        onPress={handleCopy}
+        style={[styles.button, styles.outline, { borderColor: tide.lang.ja }]}
+        accessibilityRole="button"
+        accessibilityLabel={copied ? 'Copied' : 'Copy selection'}>
+        {copied ? (
+          <CheckIcon color={tide.lang.ja} size={22} />
+        ) : (
+          <CopyIcon color={tide.lang.ja} background={tide.water} size={15} />
+        )}
       </PressScale>
     </View>
   );
@@ -51,10 +97,17 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     borderWidth: 1,
     borderRadius: Radius.md,
-    padding: Spacing.sm,
+    paddingVertical: POPUP_PADDING_V,
+    paddingHorizontal: POPUP_PADDING_H,
     flexDirection: 'row',
-    gap: Spacing.sm,
+    gap: BUTTON_GAP,
   },
-  repeat: { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.pill, alignItems: 'center' },
-  repeatText: { fontSize: 14, fontWeight: '700' },
+  button: {
+    width: BUTTON_SIZE,
+    height: BUTTON_SIZE,
+    borderRadius: BUTTON_SIZE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  outline: { backgroundColor: 'transparent', borderWidth: 1.5 },
 });

@@ -98,6 +98,9 @@ type Props = {
   intensity: number;
   /** No bubbles under reduced motion; the caustics stay, just still. */
   reducedMotion: boolean;
+  /** Width to draw at before the first layout, so the water shows on the
+   * first frame. The layout event replaces it. */
+  initialWidth?: number;
 };
 
 /**
@@ -122,8 +125,9 @@ export const WaterCanvas = memo(function WaterCanvas({
   centreY,
   intensity,
   reducedMotion,
+  initialWidth = 0,
 }: Props) {
-  const [width, setWidth] = useState(0);
+  const [width, setWidth] = useState(() => (Number.isFinite(initialWidth) && initialWidth > 0 ? initialWidth : 0));
 
   const onLayout = (e: LayoutChangeEvent) => {
     setWidth(e.nativeEvent.layout.width);

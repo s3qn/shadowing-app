@@ -38,7 +38,12 @@ type Props = {
  */
 export function Frost({ frosted, children, style, ink = tide.text, blur = 4 }: Props) {
   const reducedMotion = useReducedMotion();
-  const [width, setWidth] = useState(0);
+  // The children's width, kept in a ref: only a frosted row draws from it, so
+  // a clear row's first layout (every transcript row on open) never renders.
+  const widthRef = useRef(0);
+  const [widthState, setWidth] = useState(0);
+  // The ref holds the latest layout; the state only asks for the render.
+  const width = widthRef.current > 0 ? widthRef.current : widthState;
   const fade = useSharedValue(1);
   // Only a change fades: a row that mounts frosted is simply frosted.
   const shownFrosted = useRef(frosted);
@@ -55,7 +60,9 @@ export function Frost({ frosted, children, style, ink = tide.text, blur = 4 }: P
 
   const onLayout = (e: LayoutChangeEvent) => {
     const w = e.nativeEvent.layout.width;
-    if (Number.isFinite(w) && w !== width) setWidth(w);
+    if (!Number.isFinite(w)) return;
+    widthRef.current = w;
+    if (frosted && w !== widthState) setWidth(w);
   };
 
   let inner: ViewStyle | null = null;

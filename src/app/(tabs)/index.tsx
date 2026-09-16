@@ -2,7 +2,6 @@ import { Tabs, useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Dimensions,
   Pressable,
@@ -33,6 +32,7 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
+import { CatConstellation } from '@/components/cat-constellation';
 import { SheetAction } from '@/components/sheet/sheet-rows';
 import { PracticeCard } from '@/components/practice-card';
 import { IslandSearch } from '@/components/island-search';
@@ -42,9 +42,12 @@ import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import { useSkyStyle, isNight } from '@/lib/sky';
 import * as api from '@/lib/api';
-import { registerCard, startOpen, unregisterCard, type CardRect } from '@/lib/card-morph';
+import { registerCard, startOpen, unregisterCard, useMorphHidesTitle, type CardRect } from '@/lib/card-morph';
 import { hapticImpact } from '@/lib/haptics';
+import { invalidateCachedIsland, prewarmIsland } from '@/lib/island-cache';
+import { LONG_ISLAND } from '@/components/tide/transcript-window';
 import { invalidateLineAudio } from '@/lib/line-audio-cache';
+import { forgetLastLine, getLastLine, peekLastLine } from '@/lib/last-line';
 import { forgetIsland, getPracticeLog, minutesOn, type PracticeLog } from '@/lib/practice';
 import { getSettings, setHomeWaveDate } from '@/lib/settings';
 import { deleteTakes } from '@/lib/takes';
@@ -130,6 +133,8 @@ export default function IslandsScreen() {
   // A list request that started before a delete can still answer with the
   // deleted row, which would put it back on screen. Ids deleted here stay out.
   const removed = useRef<Set<string>>(new Set());
+  // The last list the poll put on screen, serialised, to skip an unchanged one.
+  const lastListKey = useRef('');
 
   // The Rename/Delete sheet a long press opens: which island it is for, and
   // whether it is showing the menu or the rename field.
@@ -148,11 +153,29 @@ export default function IslandsScreen() {
     afterSheet.current = null;
     if (fn) fn();
   }
-  function openMenu(item: api.IslandSummary) {
+  // Stable, like openIsland below, so a render of Home leaves IslandRow's memo alone.
+  const openMenu = useCallback((item: api.IslandSummary) => {
     setRenaming(false);
     setDraftTitle(item.title);
     setMenuItem(item);
-  }
+  }, []);
+  const openIsland = useCallback((item: api.IslandSummary, rect: CardRect) => {
+    // The overlay pushes once it covers Home. The flying header shows the
+    // line the player opens on: a long island resumes where it was left,
+    // like the player itself.
+    const lineCount = item.status === 'ready' ? item.line_count : 0;
+    const saved = lineCount >= LONG_ISLAND ? (peekLastLine(item.id) ?? 0) : 0;
+    const lineIndex = Math.max(0, Math.min(saved, lineCount - 1));
+    startOpen(
+      item.id,
+      item.title || 'Untitled island',
+      rect,
+      () => {
+        router.push({ pathname: '/island/[id]', params: { id: item.id, morph: '1' } });
+      },
+      { lineIndex, lineCount },
+    );
+  }, []);
   function saveRename() {
     const item = menuItem;
     if (!item) return;
@@ -163,7 +186,14 @@ export default function IslandsScreen() {
   const load = useCallback(async () => {
     try {
       const rows = await api.listIslands();
-      setIslands(rows.filter((i) => !removed.current.has(i.id)));
+      const next = rows.filter((i) => !removed.current.has(i.id));
+      // A poll that brings nothing new keeps the same array and row objects,
+      // so no row re-renders (a poll can land mid-morph).
+      const key = JSON.stringify(next);
+      if (key !== lastListKey.current) {
+        lastListKey.current = key;
+        setIslands(next);
+      }
       setError('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not reach the server');
@@ -181,9 +211,11 @@ export default function IslandsScreen() {
     try {
       await api.deleteIsland(id);
       invalidateLineAudio(id);
+      invalidateCachedIsland(id);
       // Phone keeps the takes; the server never saw them.
       deleteTakes(id);
       void forgetIsland(id);
+      forgetLastLine(id);
     } catch (e) {
       removed.current.delete(id);
       if (restore) {
@@ -197,6 +229,7 @@ export default function IslandsScreen() {
     const finalTitle = title.trim() || 'Untitled island';
     try {
       await api.renameIsland(id, finalTitle);
+      invalidateCachedIsland(id);
       setIslands((prev) => prev.map((i) => (i.id === id ? { ...i, title: finalTitle } : i)));
     } catch (e) {
       Alert.alert('Could not rename', e instanceof Error ? e.message : 'The server did not answer.');
@@ -352,7 +385,9 @@ export default function IslandsScreen() {
         }
         ListEmptyComponent={
           loading ? (
-            <ActivityIndicator style={{ marginTop: Spacing.xxl }} color={tide.lang.ja} />
+            <View style={{ marginTop: Spacing.xxl, alignItems: 'center' }}>
+              <CatConstellation />
+            </View>
           ) : (
             <View style={styles.center}>
               <Text style={[styles.empty, { color: tide.textDim }]}>
@@ -383,11 +418,8 @@ export default function IslandsScreen() {
               fraction={fraction}
               meta={meta}
               waveIndex={waveIndex}
-              onOpen={(rect) => {
-                if (!startOpen(item.id, item.title || 'Untitled island', rect)) return;
-                router.push({ pathname: '/island/[id]', params: { id: item.id } });
-              }}
-              onMenu={() => openMenu(item)}
+              onOpen={openIsland}
+              onMenu={openMenu}
             />
           );
         }}
@@ -445,9 +477,9 @@ type IslandRowProps = {
   waveIndex: number | null;
   /** A plain tap: always opens the island, with the card's on-screen rect for
    * the morph into the player. */
-  onOpen: (rect: CardRect) => void;
+  onOpen: (item: api.IslandSummary, rect: CardRect) => void;
   /** A held tap: opens the Rename/Delete sheet. */
-  onMenu: () => void;
+  onMenu: (item: api.IslandSummary) => void;
 };
 
 /**
@@ -478,24 +510,22 @@ const IslandRow = memo(function IslandRow({ item, busy, fraction, meta, waveInde
   // keeps the later onPressOut from cancelling the hold's own return-to-rest
   // animation and swallowing the sheet it opens.
   const longPressFired = useRef(false);
+  // The morph's flying title stands in for this one while it runs.
+  const titleHidden = useMorphHidesTitle(itemId, 'card');
 
-  // The building sweep, its width against the card's own measured width, and
-  // the pulsing dot next to the status.
+  // The building sweep, its width against the card's own measured width. The
+  // status line itself carries the busy state now, with the compact
+  // constellation next to the stage text.
   const rowWidth = useSharedValue(0);
   const sweep = useSharedValue(0);
-  const dotPulse = useSharedValue(0);
   useEffect(() => {
     if (busy && !reducedMotion) {
       sweep.value = withRepeat(withTiming(1, { duration: 2400, easing: Easing.linear }), -1, false);
-      dotPulse.value = withRepeat(withTiming(1, { duration: 900, easing: Easing.inOut(Easing.quad) }), -1, true);
     } else {
       cancelAnimation(sweep);
-      cancelAnimation(dotPulse);
       sweep.value = 0;
-      // Reduced motion keeps the dot lit but still while busy.
-      dotPulse.value = busy && reducedMotion ? 1 : 0;
     }
-  }, [busy, reducedMotion, sweep, dotPulse]);
+  }, [busy, reducedMotion, sweep]);
 
   // One flash of the accent the moment a busy card turns ready.
   const flash = useSharedValue(0);
@@ -511,6 +541,13 @@ const IslandRow = memo(function IslandRow({ item, busy, fraction, meta, waveInde
 
   function handlePressIn() {
     longPressFired.current = false;
+    // Most presses become an open: start reading the island now, so it is
+    // parsed by the time the morph has covered the screen.
+    if (!busy) {
+      prewarmIsland(itemId);
+      // Reads the saved lines file, so the open can show the resume line.
+      void getLastLine(itemId);
+    }
     pressed.value = withTiming(1, { duration: 120 });
   }
 
@@ -523,11 +560,15 @@ const IslandRow = memo(function IslandRow({ item, busy, fraction, meta, waveInde
     cardRef.current?.measureInWindow((x, y, width, height) => {
       if (width === 0) {
         const { width: winW, height: winH } = Dimensions.get('window');
-        onOpen({ x: winW / 2, y: winH / 2, width: 0, height: 0 });
+        onOpen(item, { x: winW / 2, y: winH / 2, width: 0, height: 0 });
         return;
       }
-      onOpen({ x, y, width, height });
+      onOpen(item, { x, y, width, height });
     });
+  }
+
+  function openOwnMenu() {
+    onMenu(item);
   }
 
   function handleLongPress() {
@@ -535,7 +576,7 @@ const IslandRow = memo(function IslandRow({ item, busy, fraction, meta, waveInde
     void hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
     pressed.value = withTiming(0, { duration: 180 }, (finished) => {
       'worklet';
-      if (finished) runOnJS(onMenu)();
+      if (finished) runOnJS(openOwnMenu)();
     });
   }
 
@@ -553,11 +594,6 @@ const IslandRow = memo(function IslandRow({ item, busy, fraction, meta, waveInde
       transform: [{ translateX: interpolate(sweep.value, [0, 1], [-band, width + band]) }, { rotate: '20deg' }],
     };
   });
-
-  const dotStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(dotPulse.value, [0, 1], [0.5, 1]),
-    transform: [{ scale: reducedMotion ? 1 : interpolate(dotPulse.value, [0, 1], [0.85, 1.15]) }],
-  }));
 
   const flashFillStyle = useAnimatedStyle(() => ({ opacity: flash.value * 0.14 }));
   const flashBorderStyle = useAnimatedStyle(() => ({ opacity: flash.value }));
@@ -587,13 +623,12 @@ const IslandRow = memo(function IslandRow({ item, busy, fraction, meta, waveInde
       <Animated.View pointerEvents="none" style={[styles.flashFill, { backgroundColor: tide.lang.ja }, flashFillStyle]} />
       <Animated.View pointerEvents="none" style={[styles.flashBorder, { borderColor: tide.lang.ja }, flashBorderStyle]} />
       <View style={styles.cardTop}>
-        <Text numberOfLines={2} style={[styles.cardTitle, { color: tide.text }]}>
+        <Text numberOfLines={2} style={[styles.cardTitle, { color: tide.text, opacity: titleHidden ? 0 : 1 }]}>
           {item.title || 'Untitled island'}
         </Text>
-        {busy ? <ActivityIndicator size="small" color={tide.lang.ja} /> : null}
       </View>
       <View style={styles.metaRow}>
-        {busy ? <Animated.View style={[styles.statusDot, { backgroundColor: tide.lang.ja }, dotStyle]} /> : null}
+        {busy ? <CatConstellation compact /> : null}
         <Text style={[styles.cardMeta, { color: tide.textDim }]}>{meta}</Text>
       </View>
     </AnimatedPressable>
@@ -619,8 +654,10 @@ const styles = StyleSheet.create({
   flashBorder: { ...StyleSheet.absoluteFill, borderWidth: 2 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   cardTitle: { flex: 1, fontSize: 17, fontWeight: '600', fontFamily: fonts.serifJp },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
-  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  // minHeight matches the compact constellation's canvas (44pt cat + 6pt
+  // margin) so the row does not shift height when the island turns ready
+  // and the constellation disappears.
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, minHeight: 50 },
   cardMeta: { fontSize: 13, fontFamily: fonts.ui },
   sheetInput: {
     fontFamily: fonts.ui,

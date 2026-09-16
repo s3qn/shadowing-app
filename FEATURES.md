@@ -137,6 +137,10 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Smooth player: line and take audio reused and cached locally, line changes
   start in about 100ms, rippling play button with instant stop
 - Reading Off option; Speed and Reading tiles glow only when not default
+- Long islands play smoothly: the transcript mounts only the rows near the
+  active line on islands over 120 lines.
+- Opening an island has no dead frame: content staggers in as the card lands,
+  the Cat Constellation loader covers slow loads, island data is cached.
 
 ## Next (approved, in order)
 

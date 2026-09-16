@@ -2,7 +2,6 @@ import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Image,
   StyleSheet,
@@ -11,10 +10,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CatConstellation } from '@/components/cat-constellation';
 import { PressScale } from '@/components/press-scale';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
-import { applyPlaybackMode, releaseAudioSession, startPlayback, useSessionPlayer } from '@/lib/audio-mode';
+import { applyPlaybackMode, scheduleAudioSessionRelease, startPlayback, useSessionPlayer } from '@/lib/audio-mode';
 import { getVoice, setVoice } from '@/lib/settings';
 
 export default function VoiceScreen() {
@@ -31,10 +31,10 @@ export default function VoiceScreen() {
 
   // A voice preview also gives the music back once it finishes. The release
   // is skipped while any other mounted player (a loop on the island screen
-  // underneath) is playing or starting, see `releaseAudioSession`.
+  // underneath) is playing or starting, see `scheduleAudioSessionRelease`.
   const wasPlaying = useRef(false);
   useEffect(() => {
-    if (wasPlaying.current && !status.playing) void releaseAudioSession();
+    if (wasPlaying.current && !status.playing) scheduleAudioSessionRelease();
     wasPlaying.current = status.playing;
   }, [status.playing]);
 
@@ -85,7 +85,9 @@ export default function VoiceScreen() {
           error ? (
             <Text style={[styles.hint, { color: tide.record }]}>{error}</Text>
           ) : (
-            <ActivityIndicator style={{ marginTop: Spacing.xl }} color={tide.lang.ja} />
+            <View style={{ marginTop: Spacing.xl, alignItems: 'center' }}>
+              <CatConstellation size={110} />
+            </View>
           )
         }
         ListFooterComponent={
