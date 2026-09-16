@@ -177,8 +177,8 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   the layout direction, so the app restarts itself. Each island stores its own
   learning language, so switching never breaks or deletes islands. Sean's
   idea: islands in other learning languages are hidden by default (learning
-  Japanese hides the Spanish islands), with a toggle to show them all mixed
-  together. They are only hidden, never deleted.
+  Japanese hides the Spanish islands), with a toggle in Settings (Languages)
+  to show them all mixed together. They are only hidden, never deleted.
 - Onboarding: a short, good onboarding that explains what shadowing is and
   teaches the user how to get the most out of the app.
 - Music: learn from songs (a friend's request). Integrate Apple Music or
