@@ -165,6 +165,13 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   "generate good AI vocals or import existing content"), including podcasts
   as a source.
 - MVP release: accounts with Supabase, sign in with Google and Apple.
+- Languages for the first public version: learn Japanese, Spanish or English,
+  and pick the language you already understand (Hebrew or English) for the
+  app's text, translations and explanations. English is a learning language so
+  Israeli friends can learn it with Hebrew as their language; Hebrew is not a
+  learning language for now. VOICEVOX only speaks Japanese, so the other
+  languages need another voice engine; the word timing and mora logic is
+  Japanese-specific today; Hebrew needs right-to-left layout.
 - Onboarding: a short, good onboarding that explains what shadowing is and
   teaches the user how to get the most out of the app.
 - Music: learn from songs (a friend's request). Integrate Apple Music or
