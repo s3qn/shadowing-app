@@ -146,7 +146,10 @@ const styles = StyleSheet.create({
   numberClip: { height: ROLL_HEIGHT, overflow: 'hidden', marginHorizontal: NUMBER_GAP },
   numberLayer: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, justifyContent: 'center' },
   measure: { position: 'absolute', left: 0, top: 0, opacity: 0 },
-  countBox: { minWidth: 22, height: ROLL_HEIGHT, marginLeft: NUMBER_GAP, alignItems: 'center', justifyContent: 'center' },
+  // No minWidth: the box sizes to its one child (pill or count text) so the
+  // gap after "OF" is always exactly NUMBER_GAP, the same as every other gap
+  // in the row, instead of centering a narrow count inside a wider box.
+  countBox: { height: ROLL_HEIGHT, marginLeft: NUMBER_GAP, alignItems: 'center', justifyContent: 'center' },
   countPill: { width: 22, height: 10, borderRadius: 5, backgroundColor: tide.textDim, opacity: 0.35 },
   line: {
     fontFamily: fonts.ui,

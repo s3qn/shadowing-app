@@ -14,9 +14,22 @@ const AnimatedView = Animated.createAnimatedComponent(View);
 
 // Matches the 24-viewbox, round-cap stroke style of src/components/tide/toolbar-icons.tsx.
 const STROKE = 1.8;
+const ICON_SIZE = 18;
+const BAR_BORDER = 1;
+const BAR_PAD = Spacing.xs;
+const PILL_PAD_V = Spacing.xs + 2;
+/** Space between the bar and the bottom safe-area edge. */
+const BAR_GAP = Spacing.sm;
+/**
+ * How far the floating bar reaches up from the bottom safe-area edge: its gap
+ * plus its height. The pill row is as tall as the icon, the 13pt label is
+ * shorter. A screen that pads its bottom by the safe-area inset loses this
+ * much of its own height under the bar.
+ */
+export const PILL_TAB_BAR_REACH = BAR_GAP + 2 * (BAR_BORDER + BAR_PAD + PILL_PAD_V) + ICON_SIZE;
 type TabIconProps = { color: string; size?: number };
 
-function IslandsIcon({ color, size = 18 }: TabIconProps) {
+function IslandsIcon({ color, size = ICON_SIZE }: TabIconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path d="M7 15c1.2-4.5 3-7 5-7s3.8 2.5 5 7" stroke={color} strokeWidth={STROKE} strokeLinecap="round" strokeLinejoin="round" />
@@ -32,7 +45,7 @@ function IslandsIcon({ color, size = 18 }: TabIconProps) {
 }
 
 // Lucide's "settings" gear glyph, matched to this app's stroke width.
-function SettingsIcon({ color, size = 18 }: TabIconProps) {
+function SettingsIcon({ color, size = ICON_SIZE }: TabIconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Circle cx={12} cy={12} r={3} stroke={color} strokeWidth={STROKE} strokeLinecap="round" strokeLinejoin="round" />
@@ -99,7 +112,7 @@ export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps
   return (
     <View
       pointerEvents="box-none"
-      style={[styles.wrap, { bottom: insets.bottom + Spacing.sm }]}>
+      style={[styles.wrap, { bottom: insets.bottom + BAR_GAP }]}>
       <View style={styles.bar}>
         <AnimatedView style={[styles.slidingPill, pillAnimatedStyle]} />
         {state.routes.map((route, index) => {
@@ -140,25 +153,25 @@ const styles = StyleSheet.create({
     position: 'relative',
     flexDirection: 'row',
     gap: Spacing.xs,
-    borderWidth: 1,
+    borderWidth: BAR_BORDER,
     borderColor: tide.waterline,
     backgroundColor: tide.water,
     borderRadius: Radius.pill,
-    padding: Spacing.xs,
+    padding: BAR_PAD,
   },
   slidingPill: {
     position: 'absolute',
     backgroundColor: tide.lang.ja,
     borderRadius: Radius.pill,
-    top: Spacing.xs,
-    bottom: Spacing.xs,
+    top: BAR_PAD,
+    bottom: BAR_PAD,
   },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
     borderRadius: Radius.pill,
-    paddingVertical: Spacing.xs + 2,
+    paddingVertical: PILL_PAD_V,
     paddingHorizontal: Spacing.md,
   },
   pillText: { fontSize: 13, fontWeight: '700', fontFamily: fonts.ui },

@@ -1,10 +1,11 @@
 import { Tabs, useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Dimensions,
   Pressable,
+  FlatList,
   RefreshControl,
   StyleSheet,
   Text,
@@ -40,7 +41,7 @@ import { CatConstellation } from '@/components/cat-constellation';
 import { SheetAction } from '@/components/sheet/sheet-rows';
 import { LANTERN_FADE_MS, LANTERN_RISE_MS, LANTERN_STEP_MS, LanternRow } from '@/components/lantern-row';
 import { PracticeCard } from '@/components/practice-card';
-import { IslandSearch } from '@/components/island-search';
+import { IslandSearch, startSearchOpen } from '@/components/island-search';
 import { PressScale } from '@/components/press-scale';
 import { SearchIcon } from '@/components/tide/toolbar-icons';
 import { fonts } from '@/constants/fonts';
@@ -51,6 +52,7 @@ import { registerCard, startOpen, unregisterCard, useMorphHidesTitle, type CardR
 import { hapticImpact, hapticSelection } from '@/lib/haptics';
 import { invalidateCachedIsland, prewarmIsland } from '@/lib/island-cache';
 import { LONG_ISLAND } from '@/components/tide/transcript-window';
+import { PILL_TAB_BAR_REACH } from '@/components/pill-tab-bar';
 import { invalidateLineAudio } from '@/lib/line-audio-cache';
 import { forgetLastLine, getLastLine, peekLastLine } from '@/lib/last-line';
 import { forgetIsland, getPracticeLog, minutesOn, type PracticeLog } from '@/lib/practice';
@@ -72,6 +74,21 @@ const GAP = 8;
 const STEP = CARD_H + GAP;
 /** How long the wheel has to stay at rest before the centred card lights. */
 const SETTLE_MS = 120;
+// The plain search list's space above the first card and below the last.
+const LIST_TOP = Spacing.sm;
+const LIST_BOTTOM = Spacing.xxl * 3;
+// How much of the list's bottom the floating tab bar covers. The screen pads
+// its bottom by the safe-area inset and the bar sits that inset plus its gap
+// above the screen edge, so the inset cancels and only the bar's reach is left.
+const TAB_BAR_OVERLAP = PILL_TAB_BAR_REACH;
+/** The part of a list this tall that the tab bar leaves visible. */
+function visibleOf(listH: number): number {
+  return Math.max(1, listH - TAB_BAR_OVERLAP);
+}
+
+/** What the list shows: the wheel or the plain search list, and the wheel's
+ * height with search closed (0 until measured). */
+type Shape = { wheel: boolean; wheelH: number };
 
 /** Today's date where the phone is, `YYYY-MM-DD`. Local, not UTC, so the wave
  * resets at midnight for the person holding the phone. */
@@ -117,21 +134,43 @@ export default function IslandsScreen() {
   // 0 closed, 1 open, driven by IslandSearch. The header magnifier fades out
   // as the pill's own magnifier fades in just below it.
   const searchGrow = useSharedValue(0);
+  // The search row's height, which moves the header and list below it.
+  const searchRowH = useSharedValue(0);
   const searchButtonStyle = useAnimatedStyle(() => ({
     opacity: interpolate(searchGrow.value, [0.1, 0.4], [1, 0], Extrapolation.CLAMP),
   }));
   const [sort, setSort] = useState<Sort>('newest');
   const [log, setLog] = useState<PracticeLog>(EMPTY_LOG);
   const reducedMotion = useReducedMotion();
-  // The wheel: scroll position and viewport height on the UI thread (for
-  // per-card scale and the centre reaction), and the viewport height again
-  // in JS state (for the content padding that centres the first and last
-  // card). centreIndex is the card nearest the centre right now, even
-  // mid-scroll; litIndex is the card whose lanterns are on, set only once
-  // the wheel has come to rest, and -1 while it moves.
+  // The list has two shapes. The wheel (search closed): a pad above the first
+  // card and below the last one centres any card, snapping, scale and dim,
+  // and the centred card tinted and lit. The plain list (search open):
+  // cards top aligned under the sort pills, no snapping, every card a side
+  // card. `shape` is what is on screen and the only source for the pad, so
+  // the centring maths and the screen always agree. `wheelH` is the list's
+  // height with search closed, 0 until the first onLayout, and the list
+  // stays invisible until it is known. The wheel centres in the part above
+  // the tab bar (`visibleOf`), not in the full height.
+  //
+  // A new shape lands in two commits: the first turns the cells' layout
+  // animation off, the second changes the pad. Otherwise every cell would
+  // slide to its new place while the scroll offset jumps at once.
   const scrollY = useSharedValue(0);
+  const wheelOn = useSharedValue(true);
   const viewportH = useSharedValue(0);
-  const [viewportHState, setViewportHState] = useState(0);
+  const [shape, setShape] = useState<Shape>({ wheel: true, wheelH: 0 });
+  const wanted = useRef<Shape>({ wheel: true, wheelH: 0 });
+  const [shapeReq, setShapeReq] = useState(0);
+  const [animLayout, setAnimLayout] = useState(false);
+  const listRef = useRef<FlatList<api.IslandSummary>>(null);
+  const searchOpenRef = useRef(false);
+  // False while the search row has any height, so onLayout ignores the
+  // heights the row animation passes through.
+  const rowIdle = useRef(true);
+  // The card to centre once the wheel is back on screen, or null.
+  const pendingPlace = useRef<number | null>(null);
+  // The island centred when search opened, centred again when it closes.
+  const preSearchId = useRef<string | null>(null);
   const [centreIndex, setCentreIndex] = useState(0);
   const [litIndex, setLitIndex] = useState(0);
   const centreRef = useRef(0);
@@ -296,13 +335,35 @@ export default function IslandsScreen() {
     }
   }
 
-  function openSearch() {
-    setSearchOpen(true);
+  function requestShape(next: Shape) {
+    wanted.current = next;
+    setAnimLayout(false);
+    setShapeReq((n) => n + 1);
   }
 
+  function openSearch() {
+    const n = shown.length;
+    const at = n > 0 ? Math.min(n - 1, Math.max(0, centreRef.current)) : 0;
+    preSearchId.current = shown[at]?.id ?? null;
+    startSearchOpen(searchGrow, searchRowH, reducedMotion);
+    searchOpenRef.current = true;
+    cancelSettle();
+    setSearchOpen(true);
+    requestShape({ ...wanted.current, wheel: false });
+  }
+
+  // IslandSearch has already started the close motion; the keyboard hides
+  // after this returns.
   function closeSearch() {
+    // Clearing the query brings the full list back: centre the island that
+    // was centred before search opened, or the first one if it is gone.
+    const id = preSearchId.current;
+    const full = id ? sortedAll.findIndex((i) => i.id === id) : -1;
+    pendingPlace.current = full >= 0 ? full : 0;
+    searchOpenRef.current = false;
     setSearchOpen(false);
     setQuery('');
+    requestShape({ ...wanted.current, wheel: true });
   }
 
   function confirmDelete(item: api.IslandSummary) {
@@ -340,18 +401,24 @@ export default function IslandsScreen() {
     }, [load]),
   );
 
+  // Sorted before filtering, so closing search can find where the centred
+  // island sits in the full list.
+  const sortedAll = useMemo(
+    () =>
+      [...islands].sort((a, b) => {
+        if (sort === 'least') {
+          const diff = (log.islands[a.id]?.seconds ?? 0) - (log.islands[b.id]?.seconds ?? 0);
+          if (diff !== 0) return diff;
+        }
+        // Newest first: the tie break above, and the "Newest" sort itself.
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }),
+    [islands, sort, log],
+  );
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const filtered = q ? islands.filter((i) => i.title.toLowerCase().includes(q)) : islands;
-    return [...filtered].sort((a, b) => {
-      if (sort === 'least') {
-        const diff = (log.islands[a.id]?.seconds ?? 0) - (log.islands[b.id]?.seconds ?? 0);
-        if (diff !== 0) return diff;
-      }
-      // Newest first: the tie break above, and the "Newest" sort itself.
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    });
-  }, [islands, query, sort, log]);
+    return q ? sortedAll.filter((i) => i.title.toLowerCase().includes(q)) : sortedAll;
+  }, [sortedAll, query]);
 
   // The card count on the UI thread, so the centre reaction can clamp to it
   // straight after a delete or a search that shrinks the list, without
@@ -361,23 +428,87 @@ export default function IslandsScreen() {
     countSV.value = shown.length;
   }, [shown.length, countSV]);
 
+  // -1 in the plain list, so the first real index after the wheel comes
+  // back always reaches JS.
   useAnimatedReaction(
     () => {
+      if (!wheelOn.value) return -1;
       const n = countSV.value;
       if (n <= 0) return 0;
-      return Math.min(n - 1, Math.max(0, Math.round(scrollY.value / STEP)));
+      const i = Math.round(scrollY.value / STEP);
+      if (!Number.isFinite(i)) return 0;
+      return Math.min(n - 1, Math.max(0, i));
     },
     (idx, prevIdx) => {
-      if (idx !== prevIdx) runOnJS(updateCentre)(idx);
+      if (idx >= 0 && idx !== prevIdx) runOnJS(updateCentre)(idx);
     },
   );
 
-  // The centre can also move with no drag at all (a delete or a search that
-  // shortens the list). At rest, let the light follow it after the same
-  // settle delay.
+  // The centre can also move with no drag at all (a delete or a list that
+  // gets shorter). At rest, let the light follow it after the same settle
+  // delay.
   useEffect(() => {
     if (!moving.current && centreIndex !== litIndex) scheduleSettle();
   }, [centreIndex, litIndex, scheduleSettle]);
+
+  // Second commit of a shape change: the commit that ran this effect already
+  // has the layout animation off.
+  useEffect(() => {
+    if (shapeReq === 0) return;
+    setShape(wanted.current);
+  }, [shapeReq]);
+
+  // The new pad is committed: place the offset before the frame shows, then
+  // turn the layout animation back on in the next commit.
+  useLayoutEffect(() => {
+    wheelOn.value = shape.wheel;
+    viewportH.value = shape.wheelH > 0 ? visibleOf(shape.wheelH) : 0;
+    const idx = pendingPlace.current;
+    if (shape.wheel && shape.wheelH > 0 && idx !== null) {
+      pendingPlace.current = null;
+      const n = shown.length;
+      const at = n > 0 ? Math.min(n - 1, Math.max(0, idx)) : 0;
+      const offset = at * STEP;
+      scrollY.value = offset;
+      listRef.current?.scrollToOffset({ offset, animated: false });
+      cancelSettle();
+      moving.current = false;
+      updateCentre(at);
+      scheduleSettle();
+    }
+  }, [shape, shown.length, wheelOn, viewportH, scrollY, cancelSettle, updateCentre, scheduleSettle]);
+  useEffect(() => {
+    if (shape.wheelH > 0) setAnimLayout(true);
+  }, [shape]);
+
+  // Typing in the plain list shows the results from the top.
+  useEffect(() => {
+    if (!searchOpenRef.current) return;
+    scrollY.value = 0;
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [query, scrollY]);
+
+  // Takes the closed-search height from onLayout. Heights within 1px of the
+  // current one are layout noise and change nothing.
+  function applyWheelH(h: number) {
+    if (!Number.isFinite(h) || h <= 0 || Math.abs(h - wanted.current.wheelH) <= 1) return;
+    if (wanted.current.wheel) pendingPlace.current = centreRef.current;
+    requestShape({ ...wanted.current, wheelH: h });
+  }
+
+  function onRowIdle(idle: boolean) {
+    rowIdle.current = idle;
+  }
+
+  useAnimatedReaction(
+    () => {
+      const h = searchRowH.value;
+      return Number.isFinite(h) ? h <= 0 : false;
+    },
+    (idle, prev) => {
+      if (idle !== prev) runOnJS(onRowIdle)(idle);
+    },
+  );
 
   /** Tier per line for one island, computed once per focus and cached: only
    * the centred card needs it, and a folder listing is cheap but not free. */
@@ -397,6 +528,12 @@ export default function IslandsScreen() {
     setDraftTitle(item.title);
     setMenuItem(item);
   }, []);
+
+  // Top pad centres card 0 in the visible part; the bottom pad adds the
+  // covered part back so the last card can centre there too.
+  const wheelPad = Math.max(0, (visibleOf(shape.wheelH) - CARD_H) / 2);
+  const wheelPadBottom = wheelPad + TAB_BAR_OVERLAP;
+  const shapeVisible = !shape.wheel || shape.wheelH > 0;
 
   if (!api.configured()) {
     return (
@@ -456,10 +593,17 @@ export default function IslandsScreen() {
           <View style={[styles.star, { top: '75%', right: '25%' }]} />
         </>
       )}
-      <IslandSearch open={searchOpen} query={query} onChangeQuery={setQuery} onClose={closeSearch} grow={searchGrow} />
+      <IslandSearch
+        open={searchOpen}
+        query={query}
+        onChangeQuery={setQuery}
+        onClose={closeSearch}
+        grow={searchGrow}
+        rowH={searchRowH}
+      />
       <View style={styles.headerFixed}>
         <PracticeCard log={log} />
-        <Animated.View layout={LinearTransition.duration(200)} style={styles.sortRow}>
+        <View style={styles.sortRow}>
           {SORTS.map((s) => {
             const on = sort === s;
             return (
@@ -476,18 +620,23 @@ export default function IslandsScreen() {
               </Pressable>
             );
           })}
-        </Animated.View>
+        </View>
       </View>
       <Animated.FlatList
+        ref={listRef}
         data={shown}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={[styles.list, { paddingTop: Math.max(0, (viewportHState - CARD_H) / 2), paddingBottom: Math.max(0, (viewportHState - CARD_H) / 2) }]}
+        style={shapeVisible ? undefined : styles.hidden}
+        contentContainerStyle={styles.list}
+        ListHeaderComponent={<View style={{ height: shape.wheel ? wheelPad : LIST_TOP }} />}
+        ListFooterComponent={<View style={{ height: shape.wheel ? wheelPadBottom : LIST_BOTTOM }} />}
         keyboardShouldPersistTaps="handled"
-        itemLayoutAnimation={LinearTransition.duration(220)}
+        itemLayoutAnimation={animLayout ? LinearTransition.duration(220) : undefined}
         onLayout={(e) => {
-          const h = e.nativeEvent.layout.height;
-          viewportH.value = h;
-          setViewportHState(h);
+          // With search open, or its row still moving, the height is not the
+          // wheel's.
+          if (searchOpenRef.current || !rowIdle.current) return;
+          applyWheelH(e.nativeEvent.layout.height);
         }}
         onScroll={scrollHandler}
         onScrollBeginDrag={onScrollStart}
@@ -495,11 +644,11 @@ export default function IslandsScreen() {
         onScrollEndDrag={onDragEnd}
         onMomentumScrollEnd={onMomentumEnd}
         scrollEventThrottle={16}
-        snapToInterval={STEP}
-        snapToAlignment="start"
-        decelerationRate="fast"
-        disableIntervalMomentum
-        getItemLayout={(_, index) => ({ length: STEP, offset: Math.max(0, (viewportHState - CARD_H) / 2) + index * STEP, index })}
+        snapToInterval={shape.wheel ? STEP : undefined}
+        snapToAlignment={shape.wheel ? 'start' : undefined}
+        decelerationRate={shape.wheel ? 'fast' : 'normal'}
+        disableIntervalMomentum={shape.wheel}
+        getItemLayout={(_, index) => ({ length: STEP, offset: (shape.wheel ? wheelPad : LIST_TOP) + index * STEP, index })}
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={load} tintColor={tide.textDim} />
         }
@@ -531,8 +680,8 @@ export default function IslandsScreen() {
               ? (api.STAGE_LABEL[item.stage] ?? 'Working…')
               : `${item.line_count} lines · ${item.complexity}${minutes >= 1 ? ` · ${minutes} min` : ''}`;
           const waveIndex = waveHome && !reducedMotion && index < WAVE_MAX_CARDS ? index : null;
-          const centred = index === centreIndex;
-          const lit = index === litIndex;
+          const centred = shape.wheel && index === centreIndex;
+          const lit = shape.wheel && index === litIndex;
           // Only the lit, ready card reads its takes: a busy or failed
           // card never lights, so its tiers are never worth the folder read.
           const tiers = lit && !busy && item.status !== 'failed' ? tiersFor(item.id, item.line_count) : null;
@@ -542,6 +691,7 @@ export default function IslandsScreen() {
               index={index}
               scrollY={scrollY}
               viewportH={viewportH}
+              wheelOn={wheelOn}
               centred={centred}
               lit={lit}
               tiers={tiers}
@@ -605,9 +755,10 @@ type IslandRowProps = {
   /** The list's live scroll offset, shared with every card on the UI
    * thread. */
   scrollY: SharedValue<number>;
-  /** The FlatList's own measured height, shared with every card on the UI
-   * thread. */
+  /** The wheel's viewport height, shared with every card on the UI thread. */
   viewportH: SharedValue<number>;
+  /** False in the plain search list: no wheel scale or dim. */
+  wheelOn: SharedValue<boolean>;
   /** Whether this card currently sits in the centre slot. */
   centred: boolean;
   /** Whether this card's lanterns are on: the centred card, once the wheel
@@ -650,6 +801,7 @@ const IslandRow = memo(function IslandRow({
   index,
   scrollY,
   viewportH,
+  wheelOn,
   centred,
   lit,
   tiers,
@@ -854,8 +1006,10 @@ const IslandRow = memo(function IslandRow({
   // outer slot so it never fights the card's own press scale or its
   // entering/exiting transform.
   const slotStyle = useAnimatedStyle(() => {
-    const half = Math.max(1, viewportH.value / 2);
-    const d = Math.min(1, Math.abs(scrollY.value - index * STEP) / half);
+    if (!wheelOn.value) return { transform: [{ scale: 1 }], opacity: 1 };
+    const half = Math.max(1, Number.isFinite(viewportH.value) ? viewportH.value / 2 : 1);
+    const raw = Math.min(1, Math.abs(scrollY.value - index * STEP) / half);
+    const d = Number.isFinite(raw) ? raw : 1;
     return {
       transform: [{ scale: reducedMotion ? 1 : 1 - d * 0.05 }],
       opacity: 1 - d * 0.35,
@@ -922,9 +1076,10 @@ const IslandRow = memo(function IslandRow({
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   center: { alignItems: 'center', justifyContent: 'center', paddingTop: Spacing.xxl },
-  // Horizontal padding only: the vertical padding that centres the first
-  // and last card is set at render time from the FlatList's own height.
+  // Horizontal padding only: the header and footer spacers centre the first
+  // and last card.
   list: { paddingHorizontal: Spacing.lg },
+  hidden: { opacity: 0 },
   empty: { fontSize: 15, lineHeight: 22, textAlign: 'center', paddingHorizontal: Spacing.xl, fontFamily: fonts.ui },
   // One wheel slot per card: a fixed height so snapping and the centring
   // maths both key off the same STEP, independent of the card's own size.
