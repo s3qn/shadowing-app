@@ -151,16 +151,30 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 
 ## Ideas (not approved)
 
-- Import files as islands: an anime episode (video or audio) plus its SRT
-  subtitle file; the subtitle lines become the island's lines with their own
-  timings, and the word highlighting runs on top.
-- Shadow a YouTube video: paste a link, the audio is transcribed to Japanese
-  automatically (whisper), and you shadow it with the words highlighted while
+- Anime player: import your own anime episode (video or audio) plus its SRT
+  subtitle file; the app plays the video with the subtitles moving along with
+  it, the subtitle lines become the island's lines with their own timings, and
+  the shadowing tools and word highlighting run on top.
+- Shadow a YouTube video: paste a link, it opens the video with subtitles, the
+  audio is transcribed to Japanese automatically (whisper), and every
+  shadowing feature of the app works on it with the words highlighted while
   the video plays. Timings would come from whisper's word timestamps rather
   than VOICEVOX, so the aligner needs a second input path (shared with the
   SRT import).
 - Import existing audio or text as an island (was part of the original pitch:
-  "generate good AI vocals or import existing content").
+  "generate good AI vocals or import existing content"), including podcasts
+  as a source.
+- MVP release: accounts with Supabase, sign in with Google and Apple.
+- Onboarding: a short, good onboarding that explains what shadowing is and
+  teaches the user how to get the most out of the app.
+- Music: learn from songs (a friend's request). Integrate Apple Music or
+  Spotify, or look up lyrics online, so a song becomes something to shadow.
+  Needs a check of what those services and lyrics licensing allow.
+- Suggest a feature: a Settings entry where users send feature ideas,
+  delivered to Telegram, Discord or inside the app (pick the common practice
+  when it is built).
+- Cat animation in Rive: Sean is learning Rive to make a proper animated cat;
+  the app keeps the current cat until then.
 - Spaced repetition: resurface islands on a schedule.
 - Operations: autostart VOICEVOX, backend, cloudflared and the dashboard on
   boot (systemd user units); Cloudflare Access in front of dev.sean.build.
