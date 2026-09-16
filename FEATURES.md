@@ -201,3 +201,11 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   and has you shadow each one.
 - Operations: autostart VOICEVOX, backend, cloudflared and the dashboard on
   boot (systemd user units); Cloudflare Access in front of dev.sean.build.
+- Building island look on Home: an island that is still being built
+  (transcribing, writing Japanese, recording the voice) needs a new look. The
+  current diagonal light sweep with the small cat is awful. Options to pick
+  from later: the lantern row lights one lantern per stage with the stage
+  label and 3 pulsing dots; three stage steps (Transcribe, Write, Voice) with
+  the current one pulsing; the Cat Constellation drawn larger on the card
+  with stars appearing per stage; or a quiet shimmer on the title with the
+  stage label.
