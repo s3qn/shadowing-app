@@ -189,6 +189,15 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   when it is built).
 - Cat animation in Rive: Sean is learning Rive to make a proper animated cat;
   the app keeps the current cat until then.
-- Spaced repetition: resurface islands on a schedule.
+- Shadowing revamp: rebuild the shadowing flow (Auto Echo and the shadowing
+  button) around the research in designs/13-shadowing-research.md:
+  simultaneous Speak with headphones, a step ladder per island (listen blind,
+  mumble, with text, blind and recorded, compare), at most 5 passes per
+  sitting, a speed ladder that climbs on 90 to 95% kept-up words, "kept up
+  with X of Y" as the progress number, and duration and pitch feedback on
+  takes.
+- Spaced repetition: resurface islands on a schedule. Auto practice builds on
+  it: one button that goes through every island due today, one after another,
+  and has you shadow each one.
 - Operations: autostart VOICEVOX, backend, cloudflared and the dashboard on
   boot (systemd user units); Cloudflare Access in front of dev.sean.build.
