@@ -56,6 +56,11 @@ const MORPH_EASING = Easing.bezier(0.2, 0.8, 0.2, 1);
 // open (and leaves over the first half of the shrink), from this scale.
 const CHROME_FROM_T = 0.5;
 const CHROME_SCALE_FROM = 0.85;
+// Where the island card's title sits inside the card: its 1px border plus
+// its inner padding (12 across, 11 down).
+const CARD_INSET_X = 13;
+const CARD_INSET_Y = 12;
+const CARD_RADIUS = 16;
 // Where the flying header title block sits inside its slot-wide box (its left
 // offset once centered, and its height), per title and line row, so a repeat
 // open has it on the first frame instead of after a layout pass.
@@ -290,27 +295,37 @@ function MorphRun({ state }: { state: MorphState }) {
     };
   });
 
-  const cardLayerStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(finite(t.value), [0, 0.2, 0.8], [0.16, 0.16, 0]),
-  }));
+  // The box's corners: CARD_RADIUS on screen at both ends. Mid-flight the
+  // scale is uneven, so the radius uses the geometric mean of the two scales.
+  const boxRadiusStyle = useAnimatedStyle(() => {
+    const p = finite(t.value);
+    const sx = toW > 0 ? finite(interpolate(p, [0, 1], [fromW, toW]) / toW, 1) : 1;
+    const sy = toH > 0 ? finite(interpolate(p, [0, 1], [fromH, toH]) / toH, 1) : 1;
+    const mean = Math.sqrt(Math.max(0, sx * sy));
+    return { borderRadius: mean > 0 ? finite(CARD_RADIUS / mean, CARD_RADIUS) : CARD_RADIUS };
+  });
 
-  const borderStyle = useAnimatedStyle(() => {
+  // The card's own glass face (fill and 1px border), laid out at the card's
+  // size and scaled with the box, so it matches the card on the first frame
+  // and fades before the stretch shows.
+  const cardFaceStyle = useAnimatedStyle(() => {
     const p = finite(t.value);
     const w = interpolate(p, [0, 1], [fromW, toW]);
+    const h = interpolate(p, [0, 1], [fromH, toH]);
     return {
-      // It sat under the sky layer inside the box; on top now, it fades by the
-      // sky's opacity too.
-      opacity:
-        finite(boxOpacity.value) *
-        interpolate(p, [0, 0.33], [1, 0], Extrapolation.CLAMP) *
-        (1 - interpolate(p, [0.2, 0.8], [0, 1], Extrapolation.CLAMP)),
+      opacity: finite(boxOpacity.value) * interpolate(p, [0, 0.2, 0.8], [1, 1, 0], Extrapolation.CLAMP),
       transform: [
         { translateX: finite(interpolate(p, [0, 1], [fromX, 0])) },
         { translateY: finite(interpolate(p, [0, 1], [fromY, 0])) },
-        { scaleX: toW > 0 ? finite(w / toW, 1) : 1 },
+        { scaleX: fromW > 0 ? finite(w / fromW, 1) : 1 },
+        { scaleY: fromH > 0 ? finite(h / fromH, 1) : 1 },
       ],
     };
   });
+
+  const borderStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(finite(t.value), [0, 0.33], [1, 0], Extrapolation.CLAMP),
+  }));
 
   const skyLayerStyle = useAnimatedStyle(() => ({
     opacity: interpolate(finite(t.value), [0.2, 0.8], [0, 1]),
@@ -344,8 +359,8 @@ function MorphRun({ state }: { state: MorphState }) {
   // from the card title's spot to the header slot at full size, so nothing
   // changes at the handoff. Hidden until its size is known (one layout pass
   // on a first open of this title), so it never starts from a wrong spot.
-  const blockFromX = fromX;
-  const blockFromY = fromY + Spacing.md;
+  const blockFromX = fromX + CARD_INSET_X;
+  const blockFromY = fromY + CARD_INSET_Y;
   const blockToX = slotLeft;
   const blockStyle = useAnimatedStyle(() => {
     const p = finite(t.value);
@@ -362,13 +377,14 @@ function MorphRun({ state }: { state: MorphState }) {
 
   return (
     <Animated.View pointerEvents="auto" style={StyleSheet.absoluteFill}>
-      <Animated.View style={[styles.box, { width: toW, height: toH }, boxStyle]}>
-        <Animated.View style={[StyleSheet.absoluteFill, styles.cardLayer, cardLayerStyle]} />
+      <Animated.View style={[styles.box, { width: toW, height: toH }, boxStyle, boxRadiusStyle]}>
         <Animated.View style={[StyleSheet.absoluteFill, skyLayerStyle]}>
           <Animated.View style={[StyleSheet.absoluteFill, sky.from]} />
         </Animated.View>
       </Animated.View>
-      <Animated.View style={[styles.cardBorder, { width: toW }, borderStyle]} />
+      <Animated.View style={[styles.cardFace, { width: fromW, height: fromH }, cardFaceStyle]}>
+        <Animated.View style={[styles.cardBorder, borderStyle]} />
+      </Animated.View>
       {/* On open the copies stay over the fading cover until the morph ends,
           identical to the real chrome now showing under it, so the handoff
           has no dip. On back they leave with the shrink. */}
@@ -426,14 +442,20 @@ function MorphRun({ state }: { state: MorphState }) {
 
 const styles = StyleSheet.create({
   box: { position: 'absolute', left: 0, top: 0, overflow: 'hidden', transformOrigin: 'left top' },
-  cardLayer: { backgroundColor: tide.water },
-  cardBorder: {
+  // The island card's own translucent glass fill and border.
+  cardFace: {
     position: 'absolute',
     left: 0,
     top: 0,
-    height: 1,
-    backgroundColor: tide.waterline,
+    borderRadius: CARD_RADIUS,
+    backgroundColor: 'rgba(255,255,255,0.06)',
     transformOrigin: 'left top',
+  },
+  cardBorder: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: CARD_RADIUS,
+    borderWidth: 1,
+    borderColor: 'rgba(236,232,244,0.12)',
   },
   block: { position: 'absolute', left: 0, top: 0, alignItems: 'center' },
   // Match PlayerHeader's buttons, glyphs and title slot in the island screen.

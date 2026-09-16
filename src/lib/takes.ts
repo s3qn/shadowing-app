@@ -18,21 +18,31 @@ export type Take = { uri: string; recordedAt: number; cleanUri: string | null; s
 export type ResultTier = 'great' | 'good' | 'retry';
 
 /**
+ * Tier from a score's ok-word ratio alone (`'none'` words are outside the
+ * phrase span or unscoreable and excluded). `null` when the score has no
+ * scoreable words, meaning the caller must fall back to something else.
+ * Shared by `resultTier` and `lineTiers` so their ratio thresholds cannot
+ * drift apart.
+ */
+function scoredTier(score: TakeScore | null): ResultTier | null {
+  const scored = score?.words.filter((w) => w !== 'none') ?? [];
+  if (scored.length === 0) return null;
+  const okRatio = scored.filter((w) => w === 'ok').length / scored.length;
+  if (okRatio >= 0.8) return 'great';
+  if (okRatio >= 0.5) return 'good';
+  return 'retry';
+}
+
+/**
  * Judge one Play-step take: scored (Speak played the line under the voice)
- * uses the ratio of `'ok'` words to scored words (`'none'` words are outside
- * the phrase span or unscoreable and excluded). Silent (no score possible)
- * falls back to how closely `takeDuration` matches the line's own duration,
- * a cheap on-device proxy, not a scored fact. A score with zero scoreable
- * words is treated as unscored.
+ * uses `scoredTier`. Silent (no score possible) falls back to how closely
+ * `takeDuration` matches the line's own duration, a cheap on-device proxy,
+ * not a scored fact. A score with zero scoreable words is treated as
+ * unscored.
  */
 export function resultTier(score: TakeScore | null, takeDuration: number, lineEnd: number): ResultTier {
-  const scored = score?.words.filter((w) => w !== 'none') ?? [];
-  if (scored.length > 0) {
-    const okRatio = scored.filter((w) => w === 'ok').length / scored.length;
-    if (okRatio >= 0.8) return 'great';
-    if (okRatio >= 0.5) return 'good';
-    return 'retry';
-  }
+  const tier = scoredTier(score);
+  if (tier) return tier;
   if (lineEnd > 0 && takeDuration > 0) {
     const ratio = takeDuration / lineEnd;
     if (ratio >= 0.85 && ratio <= 1.15) return 'great';
@@ -40,6 +50,76 @@ export function resultTier(score: TakeScore | null, takeDuration: number, lineEn
     return 'retry';
   }
   return 'retry';
+}
+
+/** A line's celebration tier for the lantern wheel, or `'none'` untaken. */
+export type LineTier = ResultTier | 'none';
+
+const TIER_ORDER: LineTier[] = ['none', 'retry', 'good', 'great'];
+
+/**
+ * Tier for every line of an island, read from the newest base take per
+ * index. A line with no take is `'none'`. A take with a scoreable score
+ * uses `scoredTier`; a take without one (or with zero scoreable words) is
+ * practiced but unscored, so it counts as `'good'` (the take's duration is
+ * not kept here, so the duration fallback in `resultTier` cannot run).
+ * Always returns exactly `lineCount` entries; an index past the last file
+ * is `'none'`. Reads the folder once; never throws.
+ */
+export function lineTiers(islandId: string, lineCount: number): LineTier[] {
+  const tiers: LineTier[] = new Array(lineCount).fill('none');
+  try {
+    const dir = takeDir(islandId);
+    if (!dir.exists) return tiers;
+    const newestByIdx = new Map<number, { ms: string; recordedAt: number }>();
+    const scoreByKey = new Map<string, TakeScore>();
+    for (const entry of dir.list()) {
+      const name = entry.name;
+      const dash = name.indexOf('-');
+      if (dash < 0) continue;
+      const idx = Number(name.slice(0, dash));
+      if (!Number.isInteger(idx) || idx < 0 || idx >= lineCount) continue;
+      const rest = name.slice(dash + 1);
+      if (rest.endsWith('.clean.wav')) continue;
+      if (rest.endsWith('.score.json')) {
+        const ms = rest.slice(0, -'.score.json'.length);
+        try {
+          scoreByKey.set(`${idx}-${ms}`, JSON.parse(new File(entry.uri).textSync()) as TakeScore);
+        } catch {
+          // Bad or half-written JSON: treat as no score for this take.
+        }
+        continue;
+      }
+      let ms: string | null = null;
+      if (rest.endsWith('.wav')) ms = rest.slice(0, -'.wav'.length);
+      else if (rest.endsWith('.m4a')) ms = rest.slice(0, -'.m4a'.length);
+      if (ms === null) continue;
+      const recordedAt = Number(ms);
+      if (!Number.isFinite(recordedAt)) continue;
+      const prev = newestByIdx.get(idx);
+      if (!prev || recordedAt > prev.recordedAt) newestByIdx.set(idx, { ms, recordedAt });
+    }
+    for (const [idx, base] of newestByIdx) {
+      const score = scoreByKey.get(`${idx}-${base.ms}`) ?? null;
+      tiers[idx] = scoredTier(score) ?? 'good';
+    }
+    return tiers;
+  } catch {
+    return tiers;
+  }
+}
+
+/**
+ * Index of the weakest line, the first at the lowest tier present in order
+ * none < retry < good < great. `-1` when every line is `'great'` (nothing
+ * to flicker) or there are no lines.
+ */
+export function weakestLine(tiers: LineTier[]): number {
+  for (const tier of TIER_ORDER) {
+    const idx = tiers.indexOf(tier);
+    if (idx >= 0) return tier === 'great' ? -1 : idx;
+  }
+  return -1;
 }
 
 /** Folder for one island's takes: <document>/takes/<islandId>. */

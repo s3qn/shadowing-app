@@ -18,3 +18,12 @@ export async function hapticImpact(
   if (!getSettingsSync().hapticsEnabled) return;
   await Haptics.impactAsync(style);
 }
+
+/**
+ * Fires the light selection tick used for a press-in, unless the Haptics
+ * setting is off. Same synchronous settings read as hapticImpact.
+ */
+export async function hapticSelection(): Promise<void> {
+  if (!getSettingsSync().hapticsEnabled) return;
+  await Haptics.selectionAsync();
+}

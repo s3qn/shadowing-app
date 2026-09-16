@@ -141,6 +141,9 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   active line on islands over 120 lines.
 - Opening an island has no dead frame: content staggers in as the card lands,
   the Cat Constellation loader covers slow loads, island data is cached.
+- Island wheel with lanterns: Home snaps one card to the middle; its lanterns
+  (one per line, coloured by the latest take) light once the wheel rests, the
+  weakest flickers; pressing a card gives a haptic and side cards flash.
 
 ## Next (approved, in order)
 

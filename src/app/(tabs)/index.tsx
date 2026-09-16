@@ -21,19 +21,24 @@ import Animated, {
   interpolate,
   interpolateColor,
   runOnJS,
+  useAnimatedReaction,
+  useAnimatedScrollHandler,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
   withDelay,
   withRepeat,
+  withSequence,
   withSpring,
   withTiming,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
 import { CatConstellation } from '@/components/cat-constellation';
 import { SheetAction } from '@/components/sheet/sheet-rows';
+import { LANTERN_FADE_MS, LANTERN_RISE_MS, LANTERN_STEP_MS, LanternRow } from '@/components/lantern-row';
 import { PracticeCard } from '@/components/practice-card';
 import { IslandSearch } from '@/components/island-search';
 import { PressScale } from '@/components/press-scale';
@@ -43,14 +48,14 @@ import { Radius, Spacing, tide } from '@/constants/theme';
 import { useSkyStyle, isNight } from '@/lib/sky';
 import * as api from '@/lib/api';
 import { registerCard, startOpen, unregisterCard, useMorphHidesTitle, type CardRect } from '@/lib/card-morph';
-import { hapticImpact } from '@/lib/haptics';
+import { hapticImpact, hapticSelection } from '@/lib/haptics';
 import { invalidateCachedIsland, prewarmIsland } from '@/lib/island-cache';
 import { LONG_ISLAND } from '@/components/tide/transcript-window';
 import { invalidateLineAudio } from '@/lib/line-audio-cache';
 import { forgetLastLine, getLastLine, peekLastLine } from '@/lib/last-line';
 import { forgetIsland, getPracticeLog, minutesOn, type PracticeLog } from '@/lib/practice';
 import { getSettings, setHomeWaveDate } from '@/lib/settings';
-import { deleteTakes } from '@/lib/takes';
+import { deleteTakes, lineTiers, weakestLine, type LineTier } from '@/lib/takes';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 // A long press holds this long before it counts, so it reads as deliberate
@@ -60,6 +65,13 @@ const LONG_PRESS_MS = 400;
 // the wave: staggering a whole long list would take too long to settle.
 const WAVE_MAX_CARDS = 10;
 const WAVE_STAGGER_MS = 40;
+// The wheel: one fixed card height, a gap between cards, and the step a
+// scroll of one card takes. Centring math and snapping both key off STEP.
+const CARD_H = 128;
+const GAP = 8;
+const STEP = CARD_H + GAP;
+/** How long the wheel has to stay at rest before the centred card lights. */
+const SETTLE_MS = 120;
 
 /** Today's date where the phone is, `YYYY-MM-DD`. Local, not UTC, so the wave
  * resets at midnight for the person holding the phone. */
@@ -111,6 +123,58 @@ export default function IslandsScreen() {
   const [sort, setSort] = useState<Sort>('newest');
   const [log, setLog] = useState<PracticeLog>(EMPTY_LOG);
   const reducedMotion = useReducedMotion();
+  // The wheel: scroll position and viewport height on the UI thread (for
+  // per-card scale and the centre reaction), and the viewport height again
+  // in JS state (for the content padding that centres the first and last
+  // card). centreIndex is the card nearest the centre right now, even
+  // mid-scroll; litIndex is the card whose lanterns are on, set only once
+  // the wheel has come to rest, and -1 while it moves.
+  const scrollY = useSharedValue(0);
+  const viewportH = useSharedValue(0);
+  const [viewportHState, setViewportHState] = useState(0);
+  const [centreIndex, setCentreIndex] = useState(0);
+  const [litIndex, setLitIndex] = useState(0);
+  const centreRef = useRef(0);
+  const moving = useRef(false);
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const updateCentre = useCallback((idx: number) => {
+    centreRef.current = idx;
+    setCentreIndex(idx);
+  }, []);
+  const cancelSettle = useCallback(() => {
+    if (settleTimer.current !== null) {
+      clearTimeout(settleTimer.current);
+      settleTimer.current = null;
+    }
+  }, []);
+  // Lights the centred card SETTLE_MS after the last scroll event that could
+  // end the motion. The centre is read when the timer fires, not when it is
+  // set, so a late centre update from the UI thread still lands.
+  const scheduleSettle = useCallback(() => {
+    cancelSettle();
+    settleTimer.current = setTimeout(() => {
+      settleTimer.current = null;
+      moving.current = false;
+      setLitIndex(centreRef.current);
+    }, SETTLE_MS);
+  }, [cancelSettle]);
+  // Any new motion puts every lantern out and drops a pending light.
+  const onScrollStart = useCallback(() => {
+    cancelSettle();
+    moving.current = true;
+    setLitIndex(-1);
+  }, [cancelSettle]);
+  // A drag that ends with momentum fires onMomentumScrollBegin within a
+  // frame, which cancels this; one that ends without momentum settles here.
+  const onDragEnd = scheduleSettle;
+  const onMomentumEnd = scheduleSettle;
+  useEffect(() => cancelSettle, [cancelSettle]);
+  const scrollHandler = useAnimatedScrollHandler((e) => {
+    scrollY.value = e.contentOffset.y;
+  });
+  // Tier per line for the centred card only, keyed by island id. Cleared on
+  // every focus: takes change in the player, never on Home.
+  const tiersCache = useRef<Map<string, LineTier[]>>(new Map());
   // True only for the first Home mount of the local day: the list waves in
   // once, then settles for every later visit until the date rolls over.
   // `getSettingsSync` falls back to defaults (homeWaveDate: '') before
@@ -153,12 +217,8 @@ export default function IslandsScreen() {
     afterSheet.current = null;
     if (fn) fn();
   }
-  // Stable, like openIsland below, so a render of Home leaves IslandRow's memo alone.
-  const openMenu = useCallback((item: api.IslandSummary) => {
-    setRenaming(false);
-    setDraftTitle(item.title);
-    setMenuItem(item);
-  }, []);
+  // Stable, like openRowMenu below, so a render of Home leaves IslandRow's memo
+  // alone. Each row passes its own item back.
   const openIsland = useCallback((item: api.IslandSummary, rect: CardRect) => {
     // The overlay pushes once it covers Home. The flying header shows the
     // line the player opens on: a long island resumes where it was left,
@@ -263,6 +323,7 @@ export default function IslandsScreen() {
   useFocusEffect(
     useCallback(() => {
       let alive = true;
+      tiersCache.current.clear();
       const tick = async () => {
         if (!alive) return;
         await load();
@@ -291,6 +352,51 @@ export default function IslandsScreen() {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
   }, [islands, query, sort, log]);
+
+  // The card count on the UI thread, so the centre reaction can clamp to it
+  // straight after a delete or a search that shrinks the list, without
+  // waiting on a JS round trip.
+  const countSV = useSharedValue(shown.length);
+  useEffect(() => {
+    countSV.value = shown.length;
+  }, [shown.length, countSV]);
+
+  useAnimatedReaction(
+    () => {
+      const n = countSV.value;
+      if (n <= 0) return 0;
+      return Math.min(n - 1, Math.max(0, Math.round(scrollY.value / STEP)));
+    },
+    (idx, prevIdx) => {
+      if (idx !== prevIdx) runOnJS(updateCentre)(idx);
+    },
+  );
+
+  // The centre can also move with no drag at all (a delete or a search that
+  // shortens the list). At rest, let the light follow it after the same
+  // settle delay.
+  useEffect(() => {
+    if (!moving.current && centreIndex !== litIndex) scheduleSettle();
+  }, [centreIndex, litIndex, scheduleSettle]);
+
+  /** Tier per line for one island, computed once per focus and cached: only
+   * the centred card needs it, and a folder listing is cheap but not free. */
+  function tiersFor(islandId: string, lineCount: number): LineTier[] {
+    const cached = tiersCache.current.get(islandId);
+    if (cached) return cached;
+    const computed = lineTiers(islandId, lineCount);
+    tiersCache.current.set(islandId, computed);
+    return computed;
+  }
+
+  // Stable across renders, like openIsland, so memo(IslandRow) can skip every
+  // row whose own props did not change: a centre change re-renders only the
+  // row leaving and the row arriving.
+  const openRowMenu = useCallback((item: api.IslandSummary) => {
+    setRenaming(false);
+    setDraftTitle(item.title);
+    setMenuItem(item);
+  }, []);
 
   if (!api.configured()) {
     return (
@@ -351,37 +457,51 @@ export default function IslandsScreen() {
         </>
       )}
       <IslandSearch open={searchOpen} query={query} onChangeQuery={setQuery} onClose={closeSearch} grow={searchGrow} />
+      <View style={styles.headerFixed}>
+        <PracticeCard log={log} />
+        <Animated.View layout={LinearTransition.duration(200)} style={styles.sortRow}>
+          {SORTS.map((s) => {
+            const on = sort === s;
+            return (
+              <Pressable
+                key={s}
+                onPress={() => setSort(s)}
+                style={[
+                  styles.pill,
+                  { backgroundColor: on ? tide.lang.ja : tide.water, borderColor: tide.waterline },
+                ]}>
+                <Text style={[styles.pillText, { color: on ? tide.sky[0] : tide.text }]}>
+                  {SORT_LABEL[s]}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </Animated.View>
+      </View>
       <Animated.FlatList
         data={shown}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingTop: Math.max(0, (viewportHState - CARD_H) / 2), paddingBottom: Math.max(0, (viewportHState - CARD_H) / 2) }]}
         keyboardShouldPersistTaps="handled"
         itemLayoutAnimation={LinearTransition.duration(220)}
+        onLayout={(e) => {
+          const h = e.nativeEvent.layout.height;
+          viewportH.value = h;
+          setViewportHState(h);
+        }}
+        onScroll={scrollHandler}
+        onScrollBeginDrag={onScrollStart}
+        onMomentumScrollBegin={onScrollStart}
+        onScrollEndDrag={onDragEnd}
+        onMomentumScrollEnd={onMomentumEnd}
+        scrollEventThrottle={16}
+        snapToInterval={STEP}
+        snapToAlignment="start"
+        decelerationRate="fast"
+        disableIntervalMomentum
+        getItemLayout={(_, index) => ({ length: STEP, offset: Math.max(0, (viewportHState - CARD_H) / 2) + index * STEP, index })}
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={load} tintColor={tide.textDim} />
-        }
-        ListHeaderComponent={
-          <View style={styles.header}>
-            <PracticeCard log={log} />
-            <Animated.View layout={LinearTransition.duration(200)} style={styles.sortRow}>
-              {SORTS.map((s) => {
-                const on = sort === s;
-                return (
-                  <Pressable
-                    key={s}
-                    onPress={() => setSort(s)}
-                    style={[
-                      styles.pill,
-                      { backgroundColor: on ? tide.lang.ja : tide.water, borderColor: tide.waterline },
-                    ]}>
-                    <Text style={[styles.pillText, { color: on ? tide.sky[0] : tide.text }]}>
-                      {SORT_LABEL[s]}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </Animated.View>
-          </View>
         }
         ListEmptyComponent={
           loading ? (
@@ -411,15 +531,26 @@ export default function IslandsScreen() {
               ? (api.STAGE_LABEL[item.stage] ?? 'Working…')
               : `${item.line_count} lines · ${item.complexity}${minutes >= 1 ? ` · ${minutes} min` : ''}`;
           const waveIndex = waveHome && !reducedMotion && index < WAVE_MAX_CARDS ? index : null;
+          const centred = index === centreIndex;
+          const lit = index === litIndex;
+          // Only the lit, ready card reads its takes: a busy or failed
+          // card never lights, so its tiers are never worth the folder read.
+          const tiers = lit && !busy && item.status !== 'failed' ? tiersFor(item.id, item.line_count) : null;
           return (
             <IslandRow
               item={item}
+              index={index}
+              scrollY={scrollY}
+              viewportH={viewportH}
+              centred={centred}
+              lit={lit}
+              tiers={tiers}
               busy={busy}
               fraction={fraction}
               meta={meta}
               waveIndex={waveIndex}
               onOpen={openIsland}
-              onMenu={openMenu}
+              onMenu={openRowMenu}
             />
           );
         }}
@@ -468,6 +599,24 @@ export default function IslandsScreen() {
 
 type IslandRowProps = {
   item: api.IslandSummary;
+  /** This card's position in `shown`, for the wheel's distance-from-centre
+   * maths. */
+  index: number;
+  /** The list's live scroll offset, shared with every card on the UI
+   * thread. */
+  scrollY: SharedValue<number>;
+  /** The FlatList's own measured height, shared with every card on the UI
+   * thread. */
+  viewportH: SharedValue<number>;
+  /** Whether this card currently sits in the centre slot. */
+  centred: boolean;
+  /** Whether this card's lanterns are on: the centred card, once the wheel
+   * has come to rest. */
+  lit: boolean;
+  /** Tier per line, only ever set for the lit, ready card. `null`
+   * elsewhere, when it has not loaded yet, or when there is nothing to
+   * light (busy or failed). */
+  tiers: LineTier[] | null;
   busy: boolean;
   fraction: number;
   meta: string;
@@ -478,7 +627,7 @@ type IslandRowProps = {
   /** A plain tap: always opens the island, with the card's on-screen rect for
    * the morph into the player. */
   onOpen: (item: api.IslandSummary, rect: CardRect) => void;
-  /** A held tap: opens the Rename/Delete sheet. */
+  /** A held tap: opens the Rename/Delete sheet for the given island. */
   onMenu: (item: api.IslandSummary) => void;
 };
 
@@ -496,10 +645,107 @@ type IslandRowProps = {
  * drops the sweep. The moment the card turns ready, it flashes the accent
  * once and gives a haptic.
  */
-const IslandRow = memo(function IslandRow({ item, busy, fraction, meta, waveIndex, onOpen, onMenu }: IslandRowProps) {
+const IslandRow = memo(function IslandRow({
+  item,
+  index,
+  scrollY,
+  viewportH,
+  centred,
+  lit,
+  tiers,
+  busy,
+  fraction,
+  meta,
+  waveIndex,
+  onOpen,
+  onMenu,
+}: IslandRowProps) {
   const pressed = useSharedValue(0);
   const reducedMotion = useReducedMotion();
   const cardRef = useRef<View>(null);
+  const showLanterns = !busy && item.status !== 'failed';
+  const weakest = tiers ? weakestLine(tiers) : -1;
+
+  // The centred tint: background and border ease toward the coral wash over
+  // 250ms as the card enters or leaves the centre slot.
+  const mid = useSharedValue(0);
+  useEffect(() => {
+    mid.value = withTiming(centred ? 1 : 0, { duration: 250 });
+  }, [centred, mid]);
+
+  // The lantern light sequence and the weakest lantern's flicker while this
+  // card is lit, and a plain fade to dark once it is not. litMs is elapsed
+  // ms since lighting started; power is 1 lit, 0 dark.
+  const totalMs = item.line_count * LANTERN_STEP_MS + LANTERN_RISE_MS;
+  const litMs = useSharedValue(reducedMotion && lit ? totalMs : 0);
+  const flick = useSharedValue(1);
+  const power = useSharedValue(lit ? 1 : 0);
+  // True once the card is dark and its fade has finished, so the lantern row
+  // drops its remembered colours and goes back to neutral.
+  const [settled, setSettled] = useState(!lit);
+  if (lit && settled) setSettled(false);
+  // Reduced motion has no fade: an unlit card is dark at once.
+  if (!lit && reducedMotion && !settled) setSettled(true);
+  useEffect(() => {
+    // Whatever was running (a light sequence, a flicker, a fade) stops
+    // before the next state starts.
+    cancelAnimation(litMs);
+    cancelAnimation(flick);
+    cancelAnimation(power);
+    if (lit) {
+      power.value = 1;
+      flick.value = 1;
+      if (reducedMotion) {
+        litMs.value = totalMs;
+        return;
+      }
+      // Always from the first lantern, never resuming half-way.
+      litMs.value = 0;
+      litMs.value = withTiming(totalMs, { duration: totalMs, easing: Easing.linear });
+      if (weakest !== -1) {
+        flick.value = withDelay(
+          weakest * LANTERN_STEP_MS + LANTERN_RISE_MS,
+          withRepeat(
+            withSequence(
+              withTiming(0.35, { duration: 600, easing: Easing.inOut(Easing.quad) }),
+              withTiming(0.9, { duration: 90 }),
+              withTiming(0.5, { duration: 240 }),
+              withTiming(1, { duration: 570 }),
+            ),
+            -1,
+          ),
+        );
+      }
+      return;
+    }
+    if (reducedMotion) {
+      power.value = 0;
+      litMs.value = 0;
+      flick.value = 1;
+      return;
+    }
+    // Every lantern fades together: power scales them all at once.
+    power.value = withTiming(0, { duration: LANTERN_FADE_MS, easing: Easing.out(Easing.quad) }, (finished) => {
+      'worklet';
+      // A fade cut short by the card lighting again leaves the new
+      // sequence alone.
+      if (!finished) return;
+      litMs.value = 0;
+      flick.value = 1;
+      runOnJS(setSettled)(true);
+    });
+  }, [lit, reducedMotion, weakest, totalMs, litMs, flick, power]);
+
+  // No light sequence, flicker loop or fade may outlive the card.
+  useEffect(
+    () => () => {
+      cancelAnimation(litMs);
+      cancelAnimation(flick);
+      cancelAnimation(power);
+    },
+    [litMs, flick, power],
+  );
+
   const itemId = item.id;
   useEffect(() => {
     registerCard(itemId, cardRef);
@@ -539,8 +785,19 @@ const IslandRow = memo(function IslandRow({ item, busy, fraction, meta, waveInde
     prevBusy.current = busy;
   }, [busy, item.status, flash]);
 
+  // The quick coral mark a press-in puts on a card that is not centred, so
+  // the press is visible even off the centre slot.
+  const tapFlash = useSharedValue(0);
+
   function handlePressIn() {
     longPressFired.current = false;
+    void hapticSelection();
+    if (!centred) {
+      tapFlash.value = withSequence(
+        withTiming(1, { duration: 60 }),
+        withTiming(0, { duration: 180, easing: Easing.out(Easing.quad) }),
+      );
+    }
     // Most presses become an open: start reading the island now, so it is
     // parsed by the time the morph has covered the screen.
     if (!busy) {
@@ -580,10 +837,30 @@ const IslandRow = memo(function IslandRow({ item, busy, fraction, meta, waveInde
     });
   }
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: reducedMotion ? 1 : 1 - pressed.value * 0.03 }],
-    borderTopColor: interpolateColor(pressed.value, [0, 1], [tide.waterline, tide.lang.ja]),
-  }));
+  const cardStyle = useAnimatedStyle(() => {
+    const restBorder = interpolateColor(mid.value, [0, 1], ['rgba(236,232,244,0.12)', tide.waterline]);
+    const restFill = interpolateColor(mid.value, [0, 1], ['rgba(255,255,255,0.06)', 'rgba(255,158,128,0.10)']);
+    const pressBorder = interpolateColor(pressed.value, [0, 1], [restBorder, tide.lang.ja]);
+    const t = Number.isFinite(tapFlash.value) ? Math.min(1, Math.max(0, tapFlash.value)) : 0;
+    return {
+      transform: [{ scale: reducedMotion ? 1 : 1 - pressed.value * 0.03 }],
+      backgroundColor: interpolateColor(t, [0, 1], [restFill, 'rgba(255,158,128,0.16)']),
+      borderColor: interpolateColor(t, [0, 1], [pressBorder, 'rgba(255,158,128,0.55)']),
+    };
+  });
+
+  // The wheel scale and dim: how far this card's centre sits from the
+  // viewport's own centre, at most one half-viewport away. Lives on the
+  // outer slot so it never fights the card's own press scale or its
+  // entering/exiting transform.
+  const slotStyle = useAnimatedStyle(() => {
+    const half = Math.max(1, viewportH.value / 2);
+    const d = Math.min(1, Math.abs(scrollY.value - index * STEP) / half);
+    return {
+      transform: [{ scale: reducedMotion ? 1 : 1 - d * 0.05 }],
+      opacity: 1 - d * 0.35,
+    };
+  });
 
   const sweepStyle = useAnimatedStyle(() => {
     const width = rowWidth.value;
@@ -599,48 +876,70 @@ const IslandRow = memo(function IslandRow({ item, busy, fraction, meta, waveInde
   const flashBorderStyle = useAnimatedStyle(() => ({ opacity: flash.value }));
 
   return (
-    <AnimatedPressable
-      ref={cardRef}
-      disabled={busy}
-      onPress={handlePress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      onLongPress={handleLongPress}
-      delayLongPress={LONG_PRESS_MS}
-      entering={waveIndex !== null ? waveEntering(waveIndex * WAVE_STAGGER_MS) : undefined}
-      exiting={FadeOut.duration(220)}
-      onLayout={(e) => {
-        rowWidth.value = e.nativeEvent.layout.width;
-      }}
-      style={[styles.row, animatedStyle]}>
-      <View
-        pointerEvents="none"
-        style={[styles.rowFill, { width: `${fraction * 100}%`, backgroundColor: tide.lang.ja }]}
-      />
-      {busy ? (
-        <Animated.View pointerEvents="none" style={[styles.sweepBand, sweepStyle]} />
-      ) : null}
-      <Animated.View pointerEvents="none" style={[styles.flashFill, { backgroundColor: tide.lang.ja }, flashFillStyle]} />
-      <Animated.View pointerEvents="none" style={[styles.flashBorder, { borderColor: tide.lang.ja }, flashBorderStyle]} />
-      <View style={styles.cardTop}>
-        <Text numberOfLines={2} style={[styles.cardTitle, { color: tide.text, opacity: titleHidden ? 0 : 1 }]}>
-          {item.title || 'Untitled island'}
-        </Text>
-      </View>
-      <View style={styles.metaRow}>
-        {busy ? <CatConstellation compact /> : null}
-        <Text style={[styles.cardMeta, { color: tide.textDim }]}>{meta}</Text>
-      </View>
-    </AnimatedPressable>
+    <Animated.View style={[styles.slot, slotStyle]}>
+      <AnimatedPressable
+        ref={cardRef}
+        disabled={busy}
+        onPress={handlePress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        onLongPress={handleLongPress}
+        delayLongPress={LONG_PRESS_MS}
+        entering={waveIndex !== null ? waveEntering(waveIndex * WAVE_STAGGER_MS) : undefined}
+        exiting={FadeOut.duration(220)}
+        onLayout={(e) => {
+          rowWidth.value = e.nativeEvent.layout.width;
+        }}
+        style={[styles.row, cardStyle]}>
+        <View
+          pointerEvents="none"
+          style={[styles.rowFill, { width: `${fraction * 100}%`, backgroundColor: tide.lang.ja }]}
+        />
+        {busy ? (
+          <Animated.View pointerEvents="none" style={[styles.sweepBand, sweepStyle]} />
+        ) : null}
+        <Animated.View pointerEvents="none" style={[styles.flashFill, { backgroundColor: tide.lang.ja }, flashFillStyle]} />
+        <Animated.View pointerEvents="none" style={[styles.flashBorder, { borderColor: tide.lang.ja }, flashBorderStyle]} />
+        <View style={styles.cardTop}>
+          <Text numberOfLines={2} style={[styles.cardTitle, { color: tide.text, opacity: titleHidden ? 0 : 1 }]}>
+            {item.title || 'Untitled island'}
+          </Text>
+        </View>
+        <View style={styles.metaRow}>
+          {busy ? <CatConstellation compact /> : null}
+          <Text style={[styles.cardMeta, { color: tide.textDim }]}>{meta}</Text>
+        </View>
+        {showLanterns ? (
+          <LanternRow count={item.line_count} tiers={tiers} holdColours={!settled} weakest={weakest} litMs={litMs} flick={flick} power={power} />
+        ) : (
+          <View style={styles.lanternSpacer} />
+        )}
+      </AnimatedPressable>
+    </Animated.View>
   );
 });
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   center: { alignItems: 'center', justifyContent: 'center', paddingTop: Spacing.xxl },
-  list: { padding: Spacing.lg, paddingBottom: 170, gap: Spacing.md },
+  // Horizontal padding only: the vertical padding that centres the first
+  // and last card is set at render time from the FlatList's own height.
+  list: { paddingHorizontal: Spacing.lg },
   empty: { fontSize: 15, lineHeight: 22, textAlign: 'center', paddingHorizontal: Spacing.xl, fontFamily: fonts.ui },
-  row: { borderTopWidth: 1, borderTopColor: tide.waterline, paddingVertical: Spacing.md, gap: Spacing.xs, overflow: 'hidden' },
+  // One wheel slot per card: a fixed height so snapping and the centring
+  // maths both key off the same STEP, independent of the card's own size.
+  slot: { height: CARD_H, marginBottom: GAP },
+  row: {
+    height: CARD_H,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(236,232,244,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    overflow: 'hidden',
+    gap: 4,
+  },
   rowFill: { position: 'absolute', left: 0, top: 0, bottom: 0, opacity: 0.16 },
   // Clipped by the row's own overflow:hidden, so it never spills past the card.
   sweepBand: {
@@ -651,14 +950,17 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.16)',
   },
   flashFill: { ...StyleSheet.absoluteFill },
-  flashBorder: { ...StyleSheet.absoluteFill, borderWidth: 2 },
+  flashBorder: { ...StyleSheet.absoluteFill, borderWidth: 2, borderRadius: 16 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   cardTitle: { flex: 1, fontSize: 17, fontWeight: '600', fontFamily: fonts.serifJp },
-  // minHeight matches the compact constellation's canvas (44pt cat + 6pt
-  // margin) so the row does not shift height when the island turns ready
-  // and the constellation disappears.
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, minHeight: 50 },
+  // No minHeight: the card has a fixed CARD_H, so the compact constellation
+  // leaving never changes the card's height, and a 50pt meta row would push
+  // a two-line title's lanterns past the card's clip.
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   cardMeta: { fontSize: 13, fontFamily: fonts.ui },
+  // Matches LanternRow's own height: a busy or failed card has no lanterns
+  // but still needs the row's height so every card lines up.
+  lanternSpacer: { height: 24 },
   sheetInput: {
     fontFamily: fonts.ui,
     fontSize: 16,
@@ -669,7 +971,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 8,
   },
-  header: { gap: Spacing.md, marginBottom: Spacing.md },
+  // Above the wheel, not inside it: the FlatList needs its own full
+  // viewport to centre the first card, same horizontal padding as the list.
+  headerFixed: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, gap: Spacing.md, marginBottom: Spacing.md },
   sortRow: { flexDirection: 'row', gap: Spacing.sm },
   pill: { borderWidth: 1, borderRadius: Radius.pill, paddingVertical: Spacing.xs + 2, paddingHorizontal: Spacing.md },
   pillText: { fontSize: 13, fontWeight: '700', fontFamily: fonts.ui },
