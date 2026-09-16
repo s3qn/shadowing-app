@@ -171,7 +171,14 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   Israeli friends can learn it with Hebrew as their language; Hebrew is not a
   learning language for now. VOICEVOX only speaks Japanese, so the other
   languages need another voice engine; the word timing and mora logic is
-  Japanese-specific today; Hebrew needs right-to-left layout.
+  Japanese-specific today; Hebrew needs right-to-left layout. Onboarding asks
+  for both languages, and a Languages screen in Settings changes either at any
+  time; switching the understood language between Hebrew and English flips
+  the layout direction, so the app restarts itself. Each island stores its own
+  learning language, so switching never breaks or deletes islands. Sean's
+  idea: islands in other learning languages are hidden by default (learning
+  Japanese hides the Spanish islands), with a toggle to show them all mixed
+  together. They are only hidden, never deleted.
 - Onboarding: a short, good onboarding that explains what shadowing is and
   teaches the user how to get the most out of the app.
 - Music: learn from songs (a friend's request). Integrate Apple Music or
