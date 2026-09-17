@@ -1,0 +1,54 @@
+/**
+ * The full catalogue of languages the app can show a picker for: three the
+ * backend can already generate islands in, one it can already explain in,
+ * and a spread of "coming soon" languages so picking one tells us what to
+ * build next. Adding a language later is one entry here.
+ *
+ * This stays the single source of truth for language ids: `LanguageId` is
+ * just `string`, not a TypeScript union, so a new catalogue entry never
+ * needs a type change anywhere else.
+ */
+
+export type Region = 'Europe' | 'Asia' | 'Middle East' | 'Africa' | 'Americas';
+
+export type LanguageId = string;
+
+export type LanguageEntry = {
+  id: LanguageId;
+  /** Name in the language's own script, shown as the row's main label. */
+  native: string;
+  /** English name, shown as the row's subtitle. */
+  english: string;
+  /** A flag emoji, shown as the row's badge. */
+  badge: string;
+  region: Region;
+  /** The backend can generate islands in this language today. */
+  learnable: boolean;
+  /** The app can show explanations and translations in this language today. */
+  understandable: boolean;
+  /** Written right to left. */
+  rtl: boolean;
+};
+
+export const LANGUAGES: LanguageEntry[] = [
+  { id: 'ja', native: '日本語', english: 'Japanese', badge: '🇯🇵', region: 'Asia', learnable: true, understandable: false, rtl: false },
+  { id: 'es', native: 'Español', english: 'Spanish', badge: '🇪🇸', region: 'Europe', learnable: true, understandable: false, rtl: false },
+  { id: 'en', native: 'English', english: 'English', badge: '🇬🇧', region: 'Europe', learnable: true, understandable: true, rtl: false },
+  { id: 'he', native: 'עברית', english: 'Hebrew', badge: '🇮🇱', region: 'Middle East', learnable: false, understandable: true, rtl: true },
+  { id: 'fr', native: 'Français', english: 'French', badge: '🇫🇷', region: 'Europe', learnable: false, understandable: false, rtl: false },
+  { id: 'de', native: 'Deutsch', english: 'German', badge: '🇩🇪', region: 'Europe', learnable: false, understandable: false, rtl: false },
+  { id: 'pt', native: 'Português', english: 'Portuguese', badge: '🇵🇹', region: 'Europe', learnable: false, understandable: false, rtl: false },
+  { id: 'it', native: 'Italiano', english: 'Italian', badge: '🇮🇹', region: 'Europe', learnable: false, understandable: false, rtl: false },
+  { id: 'ru', native: 'Русский', english: 'Russian', badge: '🇷🇺', region: 'Europe', learnable: false, understandable: false, rtl: false },
+  { id: 'ko', native: '한국어', english: 'Korean', badge: '🇰🇷', region: 'Asia', learnable: false, understandable: false, rtl: false },
+  { id: 'zh', native: '中文', english: 'Chinese', badge: '🇨🇳', region: 'Asia', learnable: false, understandable: false, rtl: false },
+  { id: 'hi', native: 'हिन्दी', english: 'Hindi', badge: '🇮🇳', region: 'Asia', learnable: false, understandable: false, rtl: false },
+  { id: 'ar', native: 'العربية', english: 'Arabic', badge: '🇸🇦', region: 'Middle East', learnable: false, understandable: false, rtl: true },
+];
+
+/** Looks up a catalogue entry by id, or `undefined` for an id the catalogue
+ * has never had (should not happen for anything read back out of settings,
+ * since `read()` validates against this same list). */
+export function getLanguage(id: LanguageId): LanguageEntry | undefined {
+  return LANGUAGES.find((l) => l.id === id);
+}
