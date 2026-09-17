@@ -44,6 +44,18 @@ function IslandsIcon({ color, size = ICON_SIZE }: TabIconProps) {
   );
 }
 
+// Antenna glyph for the Podcast tab, matched to this app's stroke width.
+function PodcastIcon({ color, size = ICON_SIZE }: TabIconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M12 12v9" stroke={color} strokeWidth={STROKE} strokeLinecap="round" />
+      <Circle cx={12} cy={9} r={2.6} stroke={color} strokeWidth={STROKE} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M7.5 5.5C5 8 5 12 7.5 14.5" stroke={color} strokeWidth={STROKE} strokeLinecap="round" />
+      <Path d="M16.5 5.5C19 8 19 12 16.5 14.5" stroke={color} strokeWidth={STROKE} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 // Lucide's "settings" gear glyph, matched to this app's stroke width.
 function SettingsIcon({ color, size = ICON_SIZE }: TabIconProps) {
   return (
@@ -62,6 +74,7 @@ function SettingsIcon({ color, size = ICON_SIZE }: TabIconProps) {
 
 const TAB_ICON: Record<string, (props: TabIconProps) => React.ReactElement> = {
   index: IslandsIcon,
+  podcast: PodcastIcon,
   settings: SettingsIcon,
 };
 

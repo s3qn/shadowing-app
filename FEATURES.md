@@ -163,12 +163,16 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Backend: island language, import from audio and SRT with English lines,
   podcasts from RSS, due-today scheduling, per-mora length and pitch analysis
   on takes.
+- Podcast tab: hand-picked Japanese shows in three sections with level tags,
+  search by name or Apple Podcasts link, tap an episode to build an island.
+- Due today on Home: a count on the practice card and an amber mark on due
+  islands; never practised islands count as due.
+- Mora length and pitch feedback after a take, on the sentence card and in
+  the Auto Echo sheet.
 
 ## Next (approved, in order)
 
-1. App screens for the backend already built: import from audio or SRT,
-   podcasts from RSS, islands due today on Home, and the mora length and pitch
-   feedback after a take.
+(empty: pick from Ideas)
 
 ## Ideas (not approved)
 

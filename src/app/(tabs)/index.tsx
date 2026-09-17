@@ -141,6 +141,10 @@ export default function IslandsScreen() {
   }));
   const [sort, setSort] = useState<Sort>('newest');
   const [log, setLog] = useState<PracticeLog>(EMPTY_LOG);
+  // Raw due set from the backend schedule: islands practiced before and now
+  // due again. `dueIds` below adds islands never practiced at all, which the
+  // backend never lists (schedule.py only tracks islands it has seen).
+  const [fetchedDueIds, setFetchedDueIds] = useState<Set<string>>(new Set());
   const reducedMotion = useReducedMotion();
   // The list has two shapes. The wheel (search closed): a pad above the first
   // card and below the last one centres any card, snapping, scale and dim,
@@ -357,6 +361,19 @@ export default function IslandsScreen() {
     return q ? sortedAll.filter((i) => i.title.toLowerCase().includes(q)) : sortedAll;
   }, [sortedAll, query]);
 
+  // An island is due if the backend schedule says so, or if it has never
+  // been practiced at all: schedule.py only tracks islands it has seen, so a
+  // brand new island is never in that list even though it is the most due
+  // thing on the island. The practice log Home already loads is the source
+  // of truth for "never practiced" (no entry under its id).
+  const dueIds = useMemo(() => {
+    const ids = new Set(fetchedDueIds);
+    for (const island of islands) {
+      if (island.status === 'ready' && !(island.id in log.islands)) ids.add(island.id);
+    }
+    return ids;
+  }, [islands, log, fetchedDueIds]);
+
   const requestShape = useCallback((next: Shape) => {
     wanted.current = next;
     setAnimLayout(false);
@@ -419,6 +436,9 @@ export default function IslandsScreen() {
       void getPracticeLog().then((next) => {
         if (alive) setLog(next);
       });
+      void api.getDueToday().then((rows) => {
+        if (alive) setFetchedDueIds(new Set(rows.map((r) => r.island_id)));
+      }).catch(() => {});
       const timer = setInterval(tick, 3000);
       return () => {
         alive = false;
@@ -626,7 +646,7 @@ export default function IslandsScreen() {
         rowH={searchRowH}
       />
       <View style={styles.headerFixed}>
-        <PracticeCard log={log} />
+        <PracticeCard log={log} dueCount={dueIds.size} />
         <View style={styles.sortRow}>
           {SORTS.map((s) => {
             const on = sort === s;
@@ -697,6 +717,7 @@ export default function IslandsScreen() {
         }
         renderItem={({ item, index }) => {
           const busy = item.status === 'pending' || item.status === 'working';
+          const due = dueIds.has(item.id);
           const minutes = minutesOn(log, item.id);
           const seconds = log.islands[item.id]?.seconds ?? 0;
           const fraction = Math.min(1, seconds / TIDE_TARGET_SECONDS);
@@ -723,6 +744,7 @@ export default function IslandsScreen() {
               lit={lit}
               tiers={tiers}
               busy={busy}
+              due={due}
               fraction={fraction}
               meta={meta}
               waveIndex={waveIndex}
@@ -798,6 +820,8 @@ type IslandRowProps = {
    * light (busy or failed). */
   tiers: LineTier[] | null;
   busy: boolean;
+  /** Whether this island is due for practice today, per `getDueToday`. */
+  due: boolean;
   fraction: number;
   meta: string;
   /** This card's place in the once-a-day Home wave, or `null` to appear
@@ -838,6 +862,7 @@ const IslandRow = memo(function IslandRow({
   lit,
   tiers,
   busy,
+  due,
   fraction,
   meta,
   waveIndex,
@@ -1118,6 +1143,9 @@ const IslandRow = memo(function IslandRow({
         </View>
         <View style={styles.metaRow}>
           {busy ? <CatConstellation compact /> : null}
+          {due ? (
+            <Text style={[styles.cardMeta, { color: tide.turn }]}>Due today · </Text>
+          ) : null}
           <Text style={[styles.cardMeta, { color: tide.textDim }]}>{meta}</Text>
         </View>
         {showLanterns ? (

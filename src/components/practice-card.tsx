@@ -176,7 +176,7 @@ function DayCell({ dayKey: key, minutes, isToday, reducedMotion }: {
   );
 }
 
-export function PracticeCard({ log }: { log: PracticeLog }) {
+export function PracticeCard({ log, dueCount }: { log: PracticeLog; dueCount: number }) {
   const reducedMotion = useReducedMotion();
   const today = new Date();
   const todayKey = dayKey(today);
@@ -194,6 +194,10 @@ export function PracticeCard({ log }: { log: PracticeLog }) {
         <View style={styles.stat}>
           <Odometer value={streak} reducedMotion={reducedMotion} textStyle={[styles.value, { color: tide.text }]} />
           <Text style={[styles.label, { color: tide.textDim }]}>Streak</Text>
+        </View>
+        <View style={styles.stat}>
+          <Odometer value={dueCount} reducedMotion={reducedMotion} textStyle={[styles.value, { color: tide.text }]} />
+          <Text style={[styles.label, { color: tide.textDim }]}>Due today</Text>
         </View>
       </View>
       <View style={styles.week}>

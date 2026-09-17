@@ -14,6 +14,7 @@ export default function TabsLayout() {
       }}
       tabBar={(props) => <PillTabBar {...props} />}>
       <Tabs.Screen name="index" options={{ title: 'Islands' }} />
+      <Tabs.Screen name="podcast" options={{ title: 'Podcast' }} />
       <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
     </Tabs>
   );

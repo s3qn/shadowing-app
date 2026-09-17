@@ -46,6 +46,7 @@ import export
 import generate
 import gloss as glossary
 import podcast
+import podcast_catalog
 import schedule
 import segment
 import store
@@ -1426,3 +1427,25 @@ def rename_island(
     title = title.strip() or "Untitled island"
     store.set_title(island_id, title)
     return {"id": island_id, "title": title}
+
+
+@app.get("/shadow/podcasts/catalog")
+def podcasts_catalog(language: str, authorization: str | None = Header(None)) -> dict:
+    """The hand-picked, editorial podcast catalog for one language."""
+    require_token(authorization)
+    try:
+        return podcast_catalog.catalog(language)
+    except KeyError:
+        raise HTTPException(404, f"no podcast catalog for language: {language}")
+
+
+@app.get("/shadow/podcasts/search")
+async def podcasts_search(q: str, language: str,
+                          authorization: str | None = Header(None)) -> dict:
+    """Resolve a pasted link or a plain query to a list of shows."""
+    require_token(authorization)
+    try:
+        results = await podcast_catalog.search(q, language)
+    except (podcast.PodcastError, ValueError) as exc:
+        raise HTTPException(400, str(exc))
+    return {"results": results}

@@ -62,6 +62,7 @@ import { useWordHighlight, type WordBox } from '@/components/word-highlight';
 import { WordOutline } from '@/components/word-outline';
 import { POPOVER_WIDTH, WordPanel } from '@/components/word-panel';
 import { SlideReveal } from '@/components/slide-reveal';
+import { TakeFeedback } from '@/components/take-feedback';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import {
@@ -2394,6 +2395,8 @@ export default function IslandScreen() {
   // How many of the last ready take's scoreable words were kept up with,
   // hidden until there is something to count.
   const keptUp = take.phase === 'ready' ? wordsKeptUp(take.take?.score ?? null) : null;
+  // The last ready take's mora feedback (length and pitch), same gate as marks.
+  const feedback = take.phase === 'ready' ? (take.take?.analysis ?? null) : null;
   // Under the sentence: the kana or romaji line by mode, nothing in Furigana
   // mode (the reading is on the kanji). Pitch is drawn over the words
   // themselves, in every mode.
@@ -2636,6 +2639,8 @@ export default function IslandScreen() {
           </Frost>
         ) : null}
 
+        {feedback && !hidden ? <TakeFeedback moras={line.timeline} analysis={feedback} /> : null}
+
         {keptUp !== null ? (
           <Text style={styles.keptUp}>{`Kept up with ${keptUp.kept} of ${keptUp.total} words`}</Text>
         ) : null}
@@ -2685,6 +2690,7 @@ export default function IslandScreen() {
     phrase.span,
     marks,
     keptUp,
+    feedback,
     pitches,
     glossData,
     explainContext,
@@ -3022,6 +3028,8 @@ export default function IslandScreen() {
         onDismissed={onSheetDismissed}
         sentence={blind ? null : (phrase.label ?? line.ja)}
         english={englishShown ? line.en : null}
+        moras={line.timeline}
+        analysis={blind ? null : feedback}
         step={echoStep}
         countdown={countdown}
         level={take.level}

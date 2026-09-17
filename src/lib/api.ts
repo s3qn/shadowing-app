@@ -206,6 +206,71 @@ export async function listSpeakers(): Promise<Speaker[]> {
   return json<Speaker[]>(await fetch(`${BASE}/speakers`, { headers: headers() }));
 }
 
+/** One item in a podcast feed, matching `podcast.py`'s `parse_feed()`. */
+export type PodcastEpisode = {
+  title: string;
+  published: string | null;
+  duration_s: number | null;
+  audio_url: string;
+  bytes: number | null;
+};
+
+/** Fetch and parse a podcast RSS feed so an episode can be picked to import. */
+export async function podcastEpisodes(url: string): Promise<{ title: string; episodes: PodcastEpisode[] }> {
+  return json<{ title: string; episodes: PodcastEpisode[] }>(
+    await fetch(`${BASE}/podcasts/episodes?url=${encodeURIComponent(url)}`, { headers: headers() }),
+  );
+}
+
+/** One show in the hand-picked podcast catalog, or one search result normalised to the same shape. */
+export type PodcastShow = {
+  collectionId: number | null;
+  title: string;
+  feedUrl: string;
+  artworkUrl: string | null;
+  level: 'beginner' | 'intermediate' | 'advanced' | null;
+  tagline: string | null;
+};
+
+export type PodcastSection = { id: string; title: string; subtitle: string; shows: PodcastShow[] };
+export type PodcastCatalog = { sections: PodcastSection[] };
+
+/** The hand-picked catalog of browsable shows for a language. */
+export async function podcastCatalog(language: Language): Promise<PodcastCatalog> {
+  return json<PodcastCatalog>(
+    await fetch(`${BASE}/podcasts/catalog?language=${encodeURIComponent(language)}`, { headers: headers() }),
+  );
+}
+
+/** Resolve a typed query, an Apple Podcasts link, or a raw feed URL to a list of shows. */
+export async function podcastSearch(q: string, language: Language): Promise<PodcastShow[]> {
+  const out = await json<{ results: PodcastShow[] }>(
+    await fetch(`${BASE}/podcasts/search?q=${encodeURIComponent(q)}&language=${encodeURIComponent(language)}`, {
+      headers: headers(),
+    }),
+  );
+  return out.results;
+}
+
+/** Download a podcast episode by URL and build an island from it. Poll getIsland until ready. */
+export async function importPodcastEpisode(
+  audioUrl: string,
+  title: string,
+  speaker: number,
+  startMin = 0,
+): Promise<{ id: string }> {
+  const form = new FormData();
+  form.append('audio_url', audioUrl);
+  form.append('title', title);
+  form.append('speaker', String(speaker));
+  form.append('language', 'ja');
+  form.append('start_min', String(startMin));
+
+  return json<{ id: string }>(
+    await expoFetch(`${BASE}/podcasts/import`, { method: 'POST', headers: headers(), body: form }),
+  );
+}
+
 /** Absolute URL for a style icon path returned by listSpeakers. */
 export function iconUrl(path: string): string {
   return `${ORIGIN}${path}?token=${encodeURIComponent(TOKEN)}`;
@@ -387,6 +452,45 @@ export type TakeScore = {
   note: string;
 };
 
+/** What makes a mora take longer to say than a plain short one, when known. */
+export type MoraKind = 'long' | 'geminate' | 'n' | null;
+
+/** How a mora's length compared to the line: `'ok'`, cut short (`'clipped'`),
+ * not said at all (`'none'`), or not judged (`null`). */
+export type LengthMark = 'ok' | 'clipped' | 'none' | null;
+
+/** Whether a phrase's pitch fall landed on this mora: `'hit'`, `'miss'`, not
+ * said (`'none'`), or not the phrase's nucleus (`null`). */
+export type NucleusMark = 'hit' | 'miss' | 'none' | null;
+
+/** One mora of a take's analysis, indexed into the line's `timeline` by `i`.
+ * `lineSt`/`takeSt` are mean semitones per mora, centred on that voice's own
+ * median, null where unvoiced. */
+export type AnalysedMora = {
+  i: number;
+  text: string | null;
+  kind: MoraKind;
+  lineMs: number;
+  takeMs: number | null;
+  length: LengthMark;
+  high: boolean | null;
+  lineSt: number | null;
+  takeSt: number | null;
+  nucleus: NucleusMark;
+};
+
+/** Length and pitch feedback for a take, per mora inside the take's span. A
+ * non-empty `note` ("Take too noisy to analyse", "No voice heard in the
+ * take", "Could not follow the take") means every mark is `'none'`. `curve`
+ * is deliberately left off this type: the row draws per mora and the stored
+ * copy must not carry two 10 ms point lists. */
+export type TakeAnalysis = {
+  note: string;
+  aligned: 'dtw' | 'offset' | null;
+  coverage: number;
+  moras: AnalysedMora[];
+};
+
 /** Result of an echo cancellation pass on an uploaded take, or a calibration recording. */
 export type TakeClean = {
   cleaned: boolean;
@@ -396,6 +500,8 @@ export type TakeClean = {
   note: string;
   /** Missing on a calibration upload. */
   score?: TakeScore;
+  /** Missing on a calibration upload. */
+  analysis?: TakeAnalysis;
 };
 
 /**

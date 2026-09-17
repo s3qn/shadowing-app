@@ -1,0 +1,269 @@
+{
+  "ja": {
+    "sections": [
+      {
+        "id": "easy-start",
+        "title": "An Easy Place to Begin",
+        "subtitle": "Clear, compact Japanese listening",
+        "shows": [
+          {
+            "collectionId": 1353032168,
+            "title": "Nihongo con Teppei",
+            "feedUrl": "http://teppeisensei.com/index20.rdf",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts113/v4/70/fc/43/70fc43c3-daa3-111d-bf5f-3f70676d8988/mza_4320301816157088475.png/600x600bb.jpg",
+            "level": "beginner",
+            "tagline": "Short daily talks in slow, plain Japanese for beginners."
+          },
+          {
+            "collectionId": 1471500012,
+            "title": "Japanese podcast for beginners (Nihongo con Teppei)",
+            "feedUrl": "http://nihongoconteppei.com/feed/podcast",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts123/v4/6a/30/4c/6a304ce0-6794-5472-f436-c687bdda2745/mza_7253643594919702969.png/600x600bb.jpg",
+            "level": "beginner",
+            "tagline": "The original beginner run: slow Japanese, one topic at a time."
+          },
+          {
+            "collectionId": 1867661540,
+            "title": "やさしい日本語じかん｜Easy Japanese Listening Podcast",
+            "feedUrl": "https://anchor.fm/s/10d869b5c/podcast/rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/3d/7b/7e/3d7b7e45-7a27-45ae-46e8-f7c00218cb3b/mza_16783701179725978113.jpg/600x600bb.jpg",
+            "level": "beginner",
+            "tagline": "Everyday stories told in easy Japanese, slowly and clearly."
+          },
+          {
+            "collectionId": 1613654560,
+            "title": "Slow Japanese - スロー・ジャパニーズ",
+            "feedUrl": "https://sbs-ondemand.streamguys1.com/suroziyapanizu/",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/27/17/4f/27174f8f-b2be-a320-8dae-193e09a9be20/mza_2331140253836084361.jpg/600x600bb.jpg",
+            "level": "beginner",
+            "tagline": "SBS Japanese read at a deliberately slow, learner-friendly pace."
+          },
+          {
+            "collectionId": 1681990488,
+            "title": "ゆっくり日本語ポッドキャスト / Slow Japanese Podcast",
+            "feedUrl": "https://anchor.fm/s/dc21a3a4/podcast/rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts126/v4/27/a8/1f/27a81f46-449b-5b07-fdc1-d87262295538/mza_6257160257437625929.jpg/600x600bb.jpg",
+            "level": "beginner",
+            "tagline": "Short slow-Japanese episodes on everyday topics."
+          },
+          {
+            "collectionId": 1689587805,
+            "title": "にほんごタイム | Learn Japanese with Sayuri",
+            "feedUrl": "https://anchor.fm/s/d9ef502c/podcast/rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/db/bf/5a/dbbf5a51-871b-ae94-44c1-7266ef9be42e/mza_15519062866875862114.jpg/600x600bb.jpg",
+            "level": "beginner",
+            "tagline": "Sayuri talks through daily life in simple, clear Japanese."
+          },
+          {
+            "collectionId": 1530999233,
+            "title": "MIKI senseiの にほんごラジオ",
+            "feedUrl": "https://anchor.fm/s/136212a0/podcast/rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts116/v4/5e/74/98/5e7498f4-f919-2b0c-db92-4bdabc0301c5/mza_11501537558363689340.jpg/600x600bb.jpg",
+            "level": "beginner",
+            "tagline": "A teacher's plain-Japanese radio for learners and teachers alike."
+          },
+          {
+            "collectionId": 1398931308,
+            "title": "AmaoJapan やさしい日本語",
+            "feedUrl": "https://anchor.fm/s/412c0ec/podcast/rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/74/c2/cc/74c2ccb8-0028-7d51-e220-44d95544a417/mza_2504191901726751688.jpg/600x600bb.jpg",
+            "level": "beginner",
+            "tagline": "Short easy-Japanese episodes on everyday Japanese life."
+          },
+          {
+            "collectionId": 1550709885,
+            "title": "Japanese with Shun",
+            "feedUrl": "https://feeds.redcircle.com/e8ab057c-683d-4375-a197-2dcc42d4f851",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/8a/8e/3e/8a8e3e9f-6810-1658-a4aa-a16bcef05960/mza_7363683509923378665.jpg/600x600bb.jpg",
+            "level": "beginner",
+            "tagline": "Shun's slow, friendly Japanese for new learners."
+          },
+          {
+            "collectionId": 1597613600,
+            "title": "みんなの日本語ポッドキャスト",
+            "feedUrl": "https://anchor.fm/s/75acb3d4/podcast/rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts116/v4/42/e2/3c/42e23cc1-a634-5c4d-1786-f6c79fb3251f/mza_13805542066595310510.jpg/600x600bb.jpg",
+            "level": "beginner",
+            "tagline": "Plain, everyday Japanese aimed squarely at new learners."
+          }
+        ]
+      },
+      {
+        "id": "stories-and-conversation",
+        "title": "Stories and Conversation",
+        "subtitle": "Folktales and natural talk at a moderate pace",
+        "shows": [
+          {
+            "collectionId": 1617855903,
+            "title": "蒐集・日本の昔話 Japanese old tales",
+            "feedUrl": "https://anchor.fm/s/8dcb51c8/podcast/rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts126/v4/dc/5d/7b/dc5d7b59-c0bf-a635-d480-8886fcc93c8a/mza_13198466493685783791.jpg/600x600bb.jpg",
+            "level": "intermediate",
+            "tagline": "Classic Japanese folktales read aloud, one story at a time."
+          },
+          {
+            "collectionId": 1462643107,
+            "title": "【民話朗読】おばあちゃんの日本昔ばなし",
+            "feedUrl": "https://anchor.fm/s/b15fc38/podcast/rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/a2/0d/1b/a20d1bcc-7f56-99a5-1df7-b51165460bbb/mza_10893461930493682762.jpg/600x600bb.jpg",
+            "level": "intermediate",
+            "tagline": "A grandmother's warm reading of traditional Japanese folktales."
+          },
+          {
+            "collectionId": 1656628405,
+            "title": "日本語の会話のpodcast −ことのは−",
+            "feedUrl": "https://anchor.fm/s/9e8ef8ac/podcast/rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts122/v4/c9/f1/dd/c9f1dd98-2ce7-5232-771c-ac402a5bc2a8/mza_1120689145064933152.jpg/600x600bb.jpg",
+            "level": "intermediate",
+            "tagline": "Natural two-person conversation about everyday topics."
+          },
+          {
+            "collectionId": 1840342783,
+            "title": "リアルな日本語会話｜Japanese Conversation with Meshclass",
+            "feedUrl": "https://anchor.fm/s/1093f564c/podcast/rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/ba/b6/e5/bab6e57b-0816-b938-7f38-171b554fba98/mza_9151410023380059165.jpg/600x600bb.jpg",
+            "level": "intermediate",
+            "tagline": "Real conversational Japanese at a friendly, listenable pace."
+          },
+          {
+            "collectionId": 1562799884,
+            "title": "\"日本語ペラペラ\" 聞くだけで日本語会話がうまくなるラジオ",
+            "feedUrl": "https://anchor.fm/s/567c067c/podcast/rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts126/v4/29/69/65/29696510-29dc-1d83-1444-d7d75172c58b/mza_3196198542734682169.jpg/600x600bb.jpg",
+            "level": "intermediate",
+            "tagline": "Listen-only practice built around natural spoken phrases."
+          },
+          {
+            "collectionId": 1592267847,
+            "title": "Nihongo con Teppei Z",
+            "feedUrl": "https://nihongoconteppeiz.com/feed/podcast/default-podcast/",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/58/c0/77/58c077f5-4c82-6aa7-bf95-7618760011ef/mza_7969789270731466871.png/600x600bb.jpg",
+            "level": "intermediate",
+            "tagline": "Teppei's second series, a step up in speed and vocabulary."
+          },
+          {
+            "collectionId": 1587644195,
+            "title": "Oyasumi Japanese with Shun",
+            "feedUrl": "https://feeds.redcircle.com/fe1d6a62-5655-4d08-8b11-8001116304ce",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/89/4a/4c/894a4c43-ab32-fba9-9490-ae48272ec3aa/mza_4443062711114303409.jpg/600x600bb.jpg",
+            "level": "intermediate",
+            "tagline": "Calm bedtime stories told in natural, unhurried Japanese."
+          },
+          {
+            "collectionId": 1701381299,
+            "title": "不思議な日本の昔話〜怪談、怪異、幽霊、妖怪の世界〜",
+            "feedUrl": "https://anchor.fm/s/e69f4a98/podcast/rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts116/v4/3f/56/d9/3f56d9a9-6337-45ee-024a-dc70854897e9/mza_14099956737874972119.jpg/600x600bb.jpg",
+            "level": "intermediate",
+            "tagline": "Ghost stories and folklore, narrated at a natural pace."
+          },
+          {
+            "collectionId": 1600655310,
+            "title": "教えて！ゆか先生 日本語会話表現 60",
+            "feedUrl": "https://anchor.fm/s/101b6e638/podcast/rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts126/v4/42/da/37/42da373f-358a-7985-070c-497967a7f018/mza_46669528660869011.jpg/600x600bb.jpg",
+            "level": "intermediate",
+            "tagline": "A teacher walks through 60 common conversational expressions."
+          },
+          {
+            "collectionId": 1789698128,
+            "title": "Nihongo con Teppei 波!",
+            "feedUrl": "http://nihongoconteppeiha.fukushuconteppei.com/feed/podcast/nihongo-con-teppei-ha/",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/91/ea/b9/91eab99d-1915-36b3-d836-180cc428b033/mza_12627277081429454367.jpg/600x600bb.jpg",
+            "level": "intermediate",
+            "tagline": "Teppei's third series, natural speed with everyday topics."
+          }
+        ]
+      },
+      {
+        "id": "native-pace",
+        "title": "Native Pace",
+        "subtitle": "Real Japanese radio and talk shows, full speed",
+        "shows": [
+          {
+            "collectionId": 1550243290,
+            "title": "ゆる言語学ラジオ",
+            "feedUrl": "https://api.robotstart.jp/api/v1/feeds/35d00481/get-feeds/podcast",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts114/v4/cc/37/04/cc370489-c6c8-9408-9347-59f1f65e74da/mza_10976010736501395871.jpg/600x600bb.jpg",
+            "level": "advanced",
+            "tagline": "Two friends talk linguistics at full native speed."
+          },
+          {
+            "collectionId": 1450522865,
+            "title": "歴史を面白く学ぶコテンラジオ（COTEN RADIO）",
+            "feedUrl": "https://anchor.fm/s/8c2088c/podcast/rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts115/v4/e3/bd/be/e3bdbe9a-ebe1-03be-2fd2-658c5e64825a/mza_10324805544078569436.jpg/600x600bb.jpg",
+            "level": "advanced",
+            "tagline": "Long-form native storytelling about world history."
+          },
+          {
+            "collectionId": 1546033052,
+            "title": "文化系トークラジオ Life～社会時評＆カルチャー",
+            "feedUrl": "https://feeds.megaphone.fm/TBS8950694698",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/58/f5/b5/58f5b582-a146-1f4f-d7a1-5d265f2cd63f/mza_9655314773391981197.jpg/600x600bb.jpg",
+            "level": "advanced",
+            "tagline": "TBS Radio's roundtable on culture and current events."
+          },
+          {
+            "collectionId": 1505337177,
+            "title": "アフター6ジャンクション 2",
+            "feedUrl": "https://feeds.megaphone.fm/TBS3753603712",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/df/a6/7b/dfa67bee-ebad-83e6-25a6-e0248398e5f4/mza_14678389558391108721.jpg/600x600bb.jpg",
+            "level": "advanced",
+            "tagline": "TBS Radio's evening culture and arts talk show."
+          },
+          {
+            "collectionId": 1647162986,
+            "title": "たまむすび",
+            "feedUrl": "https://anchor.fm/s/bbc93ff4/podcast/rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts122/v4/86/d9/f7/86d9f784-c2c7-c316-03fc-475807c5e17e/mza_17411969531237251018.jpg/600x600bb.jpg",
+            "level": "advanced",
+            "tagline": "A long-running daily talk radio show, native speed."
+          },
+          {
+            "collectionId": 1647162435,
+            "title": "森本毅郎・スタンバイ！",
+            "feedUrl": "https://feeds.megaphone.fm/TBS3478276531",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/e8/6b/dd/e86bdd16-d87b-c9ad-4e42-a1698147ac11/mza_17997555377437389610.jpg/600x600bb.jpg",
+            "level": "advanced",
+            "tagline": "A veteran host's morning news and talk radio show."
+          },
+          {
+            "collectionId": 1647162945,
+            "title": "問わず語りの神田伯山",
+            "feedUrl": "https://feeds.megaphone.fm/TBS7474162925",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/9e/50/01/9e50013c-0d0c-819a-624d-5eac34a8fb6b/mza_17621206430771841488.jpg/600x600bb.jpg",
+            "level": "advanced",
+            "tagline": "A rakugo storyteller talks at full native pace."
+          },
+          {
+            "collectionId": 1818025881,
+            "title": "毎日新聞ポッドキャスト -世の中の「いま」を記者が読み解く-",
+            "feedUrl": "https://anchor.fm/s/105aa6918/podcast/rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/8f/9e/17/8f9e178f-7c85-f69f-f8d8-7ba142a6a460/mza_2630215536151433214.jpg/600x600bb.jpg",
+            "level": "advanced",
+            "tagline": "Mainichi Shimbun reporters unpack the day's news."
+          },
+          {
+            "collectionId": 1528821800,
+            "title": "深夜3時の寝るまでラジオ",
+            "feedUrl": "https://anchor.fm/s/312b9518/podcast/rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/ac/59/0d/ac590dad-a2ed-ae11-7024-ee16ce10df4c/mza_2987970785130231238.jpg/600x600bb.jpg",
+            "level": "advanced",
+            "tagline": "Late-night rambling talk, unscripted and native paced."
+          },
+          {
+            "collectionId": 1754096624,
+            "title": "山崎怜奈の誰かに話したかったこと。",
+            "feedUrl": "https://feeds.megaphone.fm/TFM3146052363",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/14/94/74/14947451-ccef-19a7-7a38-24cddd690580/mza_336943894978675328.jpg/600x600bb.jpg",
+            "level": "advanced",
+            "tagline": "A former idol's personal talk show, native speed."
+          }
+        ]
+      }
+    ]
+  },
+  "es": {"sections": []},
+  "en": {"sections": []}
+}

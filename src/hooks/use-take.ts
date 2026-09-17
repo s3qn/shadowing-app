@@ -25,7 +25,7 @@ import {
   useSessionPlayer,
 } from '@/lib/audio-mode';
 import { addPass } from '@/lib/practice';
-import { cleanTakeFile, deleteTake, findTake, saveTake, saveTakeScore, type Take } from '@/lib/takes';
+import { cleanTakeFile, deleteTake, findTake, saveTake, saveTakeAnalysis, saveTakeScore, type Take } from '@/lib/takes';
 
 /** How often the recorder's meter is sampled into the level shared value. */
 const METER_MS = 50;
@@ -381,6 +381,23 @@ export function useTake(
         // a line switch and back, must not resurrect a stale score.
         updateTake(key, (onScreen) =>
           onScreen && onScreen.recordedAt === saved.recordedAt ? { ...onScreen, score } : onScreen,
+        );
+      }
+      if (result.analysis) {
+        // The wire payload still carries `curve` (two 10ms point lists): the
+        // row draws per mora instead, so strip it before it reaches disk or
+        // state and neither the saved file nor a re-render carries it.
+        const { note, aligned, coverage, moras } = result.analysis;
+        const analysis = { note, aligned, coverage, moras };
+        try {
+          saveTakeAnalysis(targetIslandId, targetIdx, saved.recordedAt, analysis);
+        } catch {
+          // Best effort: the row just won't survive a line switch and back.
+        }
+        // Same recordedAt guard as the score update above: a new take, or a
+        // line switch and back, must not resurrect a stale analysis.
+        updateTake(key, (onScreen) =>
+          onScreen && onScreen.recordedAt === saved.recordedAt ? { ...onScreen, analysis } : onScreen,
         );
       }
       if (!result.cleaned) {

@@ -18,10 +18,12 @@ import { LevelBars } from '@/components/level-bars';
 import { PressScale } from '@/components/press-scale';
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
 import { SheetToggle } from '@/components/sheet/sheet-rows';
+import { ROW_HEIGHT, TakeFeedback } from '@/components/take-feedback';
 import { SparkleResult, type SparkleResultData } from '@/components/tide/sparkle-result';
 import { STRIP_HEIGHT, VoiceRipples } from '@/components/tide/voice-ripples';
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
+import type { Mora, TakeAnalysis } from '@/lib/api';
 
 /** The four steps of one Echo pass, in order. `idle` is before Start and
  * `done` is after the last Play, both outside the segment row. */
@@ -56,6 +58,10 @@ type AutoEchoSheetProps = {
   onDismissed?: () => void;
   sentence: string | null;
   english: string | null;
+  /** The line's moras, for the feedback row's kana and phrase grouping. */
+  moras: Mora[] | null;
+  /** The last take's mora feedback, shown under the English at Play and Done. */
+  analysis: TakeAnalysis | null;
   step: EchoStep;
   countdown: number | null;
   /** 0..1 live meter level, read on the UI thread by the ripples and bars. */
@@ -95,6 +101,8 @@ function AutoEchoSheetBase({
   onDismissed,
   sentence,
   english,
+  moras,
+  analysis,
   step,
   countdown,
   level,
@@ -151,6 +159,9 @@ function AutoEchoSheetBase({
       <View style={styles.sentenceArea}>
         {sentence ? <Text style={styles.sentence}>{sentence}</Text> : null}
         {english ? <Text style={styles.english}>{english}</Text> : null}
+        <View style={styles.feedbackRow}>
+          {(step === 'play' || step === 'done') && moras ? <TakeFeedback moras={moras} analysis={analysis} /> : null}
+        </View>
         <SparkleResult result={result} />
       </View>
 
@@ -236,6 +247,10 @@ const styles = StyleSheet.create({
   sentenceArea: { minHeight: 56, justifyContent: 'center' },
   sentence: { fontFamily: fonts.serifJp, fontSize: 20, color: tide.text, textAlign: 'center' },
   english: { fontFamily: fonts.ui, fontSize: 13, color: tide.textDim, textAlign: 'center', marginTop: 4 },
+  // Reserved at this height on every step, not just play/done, so the row
+  // mounting in and out doesn't resize the sheet (bottom-sheet.tsx sizes to
+  // content) on every Play and every Echo.
+  feedbackRow: { minHeight: ROW_HEIGHT, justifyContent: 'center' },
   // Reserved at this height on every step, not just speak, so VoiceRipples
   // mounting in only doesn't move the segments and hint row below it.
   ripplesRow: { height: STRIP_HEIGHT },

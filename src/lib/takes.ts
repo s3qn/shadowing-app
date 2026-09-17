@@ -4,15 +4,23 @@
  * wins. Takes are wav (`<idx>-<ms>.wav`) and may have a cleaned sibling
  * (`<idx>-<ms>.clean.wav`) once the backend has removed the played line from
  * the recording, and a score sibling (`<idx>-<ms>.score.json`) with the
- * per-word timing marks. Older takes recorded before this change are `.m4a`;
- * they still play, just never have a cleaned counterpart or a score.
+ * per-word timing marks, plus an analysis sibling (`<idx>-<ms>.analysis.json`)
+ * with the per-mora length and pitch marks. Older takes recorded before this
+ * change are `.m4a`; they still play, just never have a cleaned counterpart,
+ * a score or an analysis.
  */
 
 import { Directory, File, Paths } from 'expo-file-system';
 
-import type { TakeScore } from '@/lib/api';
+import type { TakeAnalysis, TakeScore } from '@/lib/api';
 
-export type Take = { uri: string; recordedAt: number; cleanUri: string | null; score: TakeScore | null };
+export type Take = {
+  uri: string;
+  recordedAt: number;
+  cleanUri: string | null;
+  score: TakeScore | null;
+  analysis: TakeAnalysis | null;
+};
 
 /** How a finished Auto Echo take is celebrated at the end of the Play step. */
 export type ResultTier = 'great' | 'good' | 'retry';
@@ -201,10 +209,10 @@ export function cleanTakeFile(islandId: string, idx: number, recordedAt: number)
 }
 
 /**
- * Newest take for a line, or null. Pairs a take with its cleaned sibling and
- * its score sibling by the `<ms>` stamp in the filename; `cleanUri` and
- * `score` are set only when that file is actually present. Reads the
- * folder; never throws.
+ * Newest take for a line, or null. Pairs a take with its cleaned sibling, its
+ * score sibling and its analysis sibling by the `<ms>` stamp in the
+ * filename; `cleanUri`, `score` and `analysis` are set only when that file is
+ * actually present. Reads the folder; never throws.
  */
 export function findTake(islandId: string, idx: number): Take | null {
   const prefix = `${idx}-`;
@@ -214,6 +222,7 @@ export function findTake(islandId: string, idx: number): Take | null {
     const bases: { uri: string; recordedAt: number; ms: string }[] = [];
     const cleanByMs = new Map<string, string>();
     const scoreByMs = new Map<string, TakeScore>();
+    const analysisByMs = new Map<string, TakeAnalysis>();
     for (const entry of dir.list()) {
       const name = entry.name;
       if (!name.startsWith(prefix)) continue;
@@ -228,6 +237,15 @@ export function findTake(islandId: string, idx: number): Take | null {
           scoreByMs.set(ms, JSON.parse(new File(entry.uri).textSync()) as TakeScore);
         } catch {
           // Bad or half-written JSON: treat as no score for this take.
+        }
+        continue;
+      }
+      if (rest.endsWith('.analysis.json')) {
+        const ms = rest.slice(0, -'.analysis.json'.length);
+        try {
+          analysisByMs.set(ms, JSON.parse(new File(entry.uri).textSync()) as TakeAnalysis);
+        } catch {
+          // Bad or half-written JSON: treat as no analysis for this take.
         }
         continue;
       }
@@ -249,6 +267,7 @@ export function findTake(islandId: string, idx: number): Take | null {
       recordedAt: newest.recordedAt,
       cleanUri: cleanByMs.get(newest.ms) ?? null,
       score: scoreByMs.get(newest.ms) ?? null,
+      analysis: analysisByMs.get(newest.ms) ?? null,
     };
   } catch {
     return null;
@@ -260,6 +279,13 @@ export function saveTakeScore(islandId: string, idx: number, recordedAt: number,
   const dir = takeDir(islandId);
   if (!dir.exists) dir.create({ intermediates: true, idempotent: true });
   new File(dir, `${idx}-${recordedAt}.score.json`).write(JSON.stringify(score));
+}
+
+/** Write a take's mora length and pitch analysis beside `<idx>-<recordedAt>.wav`. */
+export function saveTakeAnalysis(islandId: string, idx: number, recordedAt: number, analysis: TakeAnalysis): void {
+  const dir = takeDir(islandId);
+  if (!dir.exists) dir.create({ intermediates: true, idempotent: true });
+  new File(dir, `${idx}-${recordedAt}.analysis.json`).write(JSON.stringify(analysis));
 }
 
 /**
@@ -286,7 +312,7 @@ export async function saveTake(islandId: string, idx: number, fromUri: string): 
       // Leftover file, not fatal: the newest take is what matters.
     }
   }
-  return { uri: dest.uri, recordedAt, cleanUri: null, score: null };
+  return { uri: dest.uri, recordedAt, cleanUri: null, score: null, analysis: null };
 }
 
 /** Remove every take of one line, raw, cleaned and scored. Never throws. */
