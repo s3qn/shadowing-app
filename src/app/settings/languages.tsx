@@ -1,28 +1,27 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { PrismButton } from '@/components/prism';
-import { SettingsSection } from '@/components/tide/settings-row';
+import { LanguagePicker } from '@/components/language-picker';
+import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
+import { LANGUAGES } from '@/lib/languages';
 import {
   getSettings,
-  LEARNING_LANGUAGE_OPTIONS,
   type LearningLanguage,
   setLearningLanguage,
   setUnderstoodLanguage,
-  UNDERSTOOD_LANGUAGE_OPTIONS,
   type UnderstoodLanguage,
 } from '@/lib/settings';
 
-const LEARN_LABEL: Record<LearningLanguage, string> = { ja: 'Japanese', es: 'Spanish', en: 'English' };
-const UNDERSTAND_LABEL: Record<UnderstoodLanguage, string> = { he: 'Hebrew', en: 'English' };
-
 /**
  * The two language pickers, same disabled-pair rule as onboarding's
- * languages step: understanding English cannot pair with learning English.
- * Writes each pick straight to settings, no confirm step.
+ * languages step: understanding a language cannot pair with learning the
+ * same one. Writes each pick straight to settings, no confirm step. Each
+ * `LanguagePicker` is a `SectionList` (see its own file), so this screen
+ * gives each one a fixed half of the height rather than nesting it in a
+ * `ScrollView`, which would collapse it to zero height.
  */
 export default function LanguagesSettingsScreen() {
   const [learning, setLearningState] = useState<LearningLanguage>('ja');
@@ -45,62 +44,48 @@ export default function LanguagesSettingsScreen() {
   function pickLearning(next: LearningLanguage) {
     setLearningState(next);
     void setLearningLanguage(next);
-    // English can only pair with Hebrew as the understood language: force it
-    // rather than let the invalid pair happen and error later.
-    if (next === 'en' && understand === 'en') {
-      setUnderstandState('he');
-      void setUnderstoodLanguage('he');
+    // The understand picker hides whatever is picked here, so a collision
+    // would leave it with nothing ticked: move it to another understandable
+    // language rather than let that happen.
+    if (next === understand) {
+      const fallback = LANGUAGES.find((l) => l.understandable && l.id !== next);
+      if (fallback) {
+        setUnderstandState(fallback.id);
+        void setUnderstoodLanguage(fallback.id);
+      }
     }
   }
 
   function pickUnderstand(next: UnderstoodLanguage) {
-    if (learning === 'en' && next === 'en') return;
     setUnderstandState(next);
     void setUnderstoodLanguage(next);
   }
 
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
-      <ScrollView contentContainerStyle={styles.list}>
-        <SettingsSection title="I want to learn">
-          <View style={styles.row}>
-            {LEARNING_LANGUAGE_OPTIONS.map((opt) => (
-              <PrismButton
-                key={opt}
-                shape="pill"
-                verb="read"
-                flat
-                label={LEARN_LABEL[opt]}
-                on={learning === opt}
-                onPress={() => pickLearning(opt)}
-              />
-            ))}
-          </View>
-        </SettingsSection>
-
-        <SettingsSection title="I understand">
-          <View style={styles.row}>
-            {UNDERSTOOD_LANGUAGE_OPTIONS.map((opt) => (
-              <PrismButton
-                key={opt}
-                shape="pill"
-                verb="read"
-                flat
-                label={UNDERSTAND_LABEL[opt]}
-                on={understand === opt}
-                disabled={learning === 'en' && opt === 'en'}
-                onPress={() => pickUnderstand(opt)}
-              />
-            ))}
-          </View>
-        </SettingsSection>
-      </ScrollView>
+      <View style={styles.half}>
+        <Text style={styles.label}>I want to learn</Text>
+        <LanguagePicker mode="learn" value={learning} onChange={pickLearning} exclude={understand} />
+      </View>
+      <View style={styles.half}>
+        <Text style={styles.label}>I understand</Text>
+        <LanguagePicker mode="understand" value={understand} onChange={pickUnderstand} exclude={learning} />
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  list: { padding: Spacing.lg, gap: Spacing.lg },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, padding: Spacing.md },
+  half: { flex: 1, paddingTop: Spacing.sm },
+  label: {
+    fontSize: 12,
+    fontFamily: fonts.uiMedium,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    color: tide.textDim,
+    marginLeft: Spacing.lg + Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
 });

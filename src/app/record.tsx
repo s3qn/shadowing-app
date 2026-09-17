@@ -38,6 +38,8 @@ import {
   getSettings,
   getVoice,
   setRegister as persistRegister,
+  toIslandLanguage,
+  toNativeLanguage,
 } from '@/lib/settings';
 
 // languages: full names for the record screen's hint, keyed the same as
@@ -151,8 +153,8 @@ export default function RecordScreen() {
   useEffect(() => {
     getRegister().then(setRegister);
     getSettings().then((s) => {
-      setLanguage(s.learningLanguage);
-      setNative(s.understoodLanguage);
+      setLanguage(toIslandLanguage(s.learningLanguage));
+      setNative(toNativeLanguage(s.understoodLanguage));
       void getVoice(s.learningLanguage).then(setVoice);
     });
   }, []);

@@ -8,6 +8,7 @@
 import { documentDirectory, getInfoAsync, readAsStringAsync, writeAsStringAsync } from 'expo-file-system/legacy';
 
 import { SPEED_MAX, SPEED_MIN } from '@/constants/theme';
+import { getLanguage } from '@/lib/languages';
 
 export const DEFAULT_VOICE = 3;
 // languages: VOICEVOX style id for Japanese, Kokoro voice ids for Spanish and
@@ -53,12 +54,21 @@ const DEFAULT_HAPTICS = true;
 const DEFAULT_SKY_ALWAYS_NIGHT = false;
 const DEFAULT_KEEP_AWAKE = true;
 
+// The three languages the backend can generate islands and pick a voice for
+// today (kept in sync with `backend/voices.py`'s `default_speaker`). Not the
+// full set a learner can choose: see `src/lib/languages.ts` for the catalogue,
+// which is the single source of truth for what `learningLanguage` can hold.
 export const LEARNING_LANGUAGE_OPTIONS = ['ja', 'es', 'en'] as const;
-export type LearningLanguage = (typeof LEARNING_LANGUAGE_OPTIONS)[number];
+// A plain string, not a union of `LEARNING_LANGUAGE_OPTIONS`: a "coming soon"
+// pick from the catalogue is stored here as-is, so it can hold any catalogue
+// id. Use `getLearningLanguageForIslands()` wherever the value has to be one
+// the backend can actually generate.
+export type LearningLanguage = string;
 const DEFAULT_LEARNING_LANGUAGE: LearningLanguage = 'ja';
 
 export const UNDERSTOOD_LANGUAGE_OPTIONS = ['he', 'en'] as const;
-export type UnderstoodLanguage = (typeof UNDERSTOOD_LANGUAGE_OPTIONS)[number];
+// Also widened to the catalogue: any id with `understandable: true`.
+export type UnderstoodLanguage = string;
 const DEFAULT_UNDERSTOOD_LANGUAGE: UnderstoodLanguage = 'en';
 
 export type Settings = {
@@ -230,12 +240,18 @@ async function read(): Promise<Settings> {
     skyAlwaysNight: parsed.skyAlwaysNight === true,
     keepAwake: parsed.keepAwake !== false,
     homeWaveDate: typeof parsed.homeWaveDate === 'string' ? parsed.homeWaveDate : '',
-    learningLanguage: LEARNING_LANGUAGE_OPTIONS.includes(parsed.learningLanguage as LearningLanguage)
-      ? (parsed.learningLanguage as LearningLanguage)
-      : DEFAULT_LEARNING_LANGUAGE,
-    understoodLanguage: UNDERSTOOD_LANGUAGE_OPTIONS.includes(parsed.understoodLanguage as UnderstoodLanguage)
-      ? (parsed.understoodLanguage as UnderstoodLanguage)
-      : DEFAULT_UNDERSTOOD_LANGUAGE,
+    // Validated against the catalogue, not the old 3/2-value unions: any
+    // language `src/lib/languages.ts` knows about is a valid pick. Islands
+    // already stored with `language: 'ja'` need no migration, since 'ja'
+    // stays a valid catalogue id forever.
+    learningLanguage:
+      typeof parsed.learningLanguage === 'string' && getLanguage(parsed.learningLanguage)
+        ? parsed.learningLanguage
+        : DEFAULT_LEARNING_LANGUAGE,
+    understoodLanguage:
+      typeof parsed.understoodLanguage === 'string' && getLanguage(parsed.understoodLanguage)?.understandable
+        ? parsed.understoodLanguage
+        : DEFAULT_UNDERSTOOD_LANGUAGE,
     // A file from before this key existed has no `onboarded` field at all:
     // that is Sean's phone and every install so far, so it counts as already
     // onboarded. Only a missing file (handled above) defaults to false.
@@ -303,10 +319,13 @@ export function getSettingsSync(): Settings {
 }
 
 /** Voice used for new islands in `language` (the current learning language by
- * default): a VOICEVOX style id for `ja`, a Kokoro voice id for `es`/`en`. */
+ * default): a VOICEVOX style id for `ja`, a Kokoro voice id for `es`/`en`. A
+ * "coming soon" language (see `src/lib/languages.ts`) narrows to `'ja'` here
+ * too, the same fallback `getLearningLanguageForIslands` uses, so a learner
+ * who picked one still gets a voice list instead of `undefined`. */
 export async function getVoice(language?: LearningLanguage): Promise<number> {
   const settings = await pending.then(readOrDefaults);
-  const lang = language ?? settings.learningLanguage;
+  const lang = toIslandLanguage(language ?? settings.learningLanguage);
   return settings.voices[lang] ?? DEFAULT_VOICE_BY_LANGUAGE[lang];
 }
 
@@ -316,10 +335,12 @@ export async function getRegister(): Promise<Register> {
 }
 
 /** Remembers `styleId` as the voice for `language` (the current learning
- * language by default), leaving every other language's pick alone. */
+ * language by default), leaving every other language's pick alone. Narrows a
+ * "coming soon" language to `'ja'` first, same as `getVoice`, so the pick
+ * lands on a language islands are actually built in. */
 export async function setVoice(styleId: number, language?: LearningLanguage): Promise<void> {
   const current = await pending.then(readOrDefaults);
-  const lang = language ?? current.learningLanguage;
+  const lang = toIslandLanguage(language ?? current.learningLanguage);
   await update({ voices: { ...current.voices, [lang]: styleId } });
 }
 
@@ -381,6 +402,33 @@ export async function setHomeWaveDate(homeWaveDate: string): Promise<void> {
 
 export async function setLearningLanguage(learningLanguage: LearningLanguage): Promise<void> {
   await update({ learningLanguage });
+}
+
+/** The learning language to actually send a new island's generation request
+ * in: the stored pick if the backend can generate it, `'ja'` otherwise. A
+ * "coming soon" pick (see `src/lib/languages.ts`) stays in `learningLanguage`
+ * as-is, so it still counts as demand, but `backend/main.py` only accepts
+ * `ja`/`es`/`en` for `language` (see its check near line 481). */
+export async function getLearningLanguageForIslands(): Promise<'ja' | 'es' | 'en'> {
+  const { learningLanguage } = await pending.then(readOrDefaults);
+  return toIslandLanguage(learningLanguage);
+}
+
+/** The synchronous half of `getLearningLanguageForIslands`, for a caller that
+ * already has a `LearningLanguage` value in hand (from a hook's state, or a
+ * `Settings` object already read) instead of needing to read settings itself.
+ * Also narrows the type back to what the backend's request functions expect,
+ * since a widened catalogue id otherwise only typechecks as `string`. */
+export function toIslandLanguage(id: LearningLanguage): 'ja' | 'es' | 'en' {
+  return (LEARNING_LANGUAGE_OPTIONS as readonly string[]).includes(id) ? (id as 'ja' | 'es' | 'en') : 'ja';
+}
+
+/** Same idea as `toIslandLanguage`, for the language the learner understands.
+ * Every catalogue entry marked `understandable: true` is already `he` or
+ * `en` (see `read()`'s validation), so this only matters if that ever
+ * changes without every backend call site widening in step. */
+export function toNativeLanguage(id: UnderstoodLanguage): 'he' | 'en' {
+  return (UNDERSTOOD_LANGUAGE_OPTIONS as readonly string[]).includes(id) ? (id as 'he' | 'en') : 'en';
 }
 
 export async function setUnderstoodLanguage(understoodLanguage: UnderstoodLanguage): Promise<void> {

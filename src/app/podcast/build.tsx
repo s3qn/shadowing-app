@@ -9,7 +9,7 @@ import { CatConstellation } from '@/components/cat-constellation';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
-import { getSettings, getVoice } from '@/lib/settings';
+import { getSettings, getVoice, toIslandLanguage, toNativeLanguage } from '@/lib/settings';
 
 const SIDE = 16;
 
@@ -49,7 +49,13 @@ export default function PodcastBuildScreen() {
       const { learningLanguage, understoodLanguage } = settings;
       const voice = await getVoice(learningLanguage);
       api
-        .importPodcastEpisode(audioUrl, title || 'Podcast episode', voice, learningLanguage, understoodLanguage)
+        .importPodcastEpisode(
+          audioUrl,
+          title || 'Podcast episode',
+          voice,
+          toIslandLanguage(learningLanguage),
+          toNativeLanguage(understoodLanguage),
+        )
         .then(({ id }) => {
           pollRef.current = setInterval(async () => {
             try {

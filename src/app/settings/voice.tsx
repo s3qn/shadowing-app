@@ -11,12 +11,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
+import { languageColor } from '@/components/language-picker';
 import { PressScale } from '@/components/press-scale';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
 import { applyPlaybackMode, scheduleAudioSessionRelease, startPlayback, useSessionPlayer } from '@/lib/audio-mode';
-import { LearningLanguage, getSettingsSync, getVoice, setVoice, subscribeSettings } from '@/lib/settings';
+import { getLanguage } from '@/lib/languages';
+import { LearningLanguage, getSettingsSync, getVoice, setVoice, subscribeSettings, toIslandLanguage } from '@/lib/settings';
 
 const LANGUAGE_NAME: Record<LearningLanguage, string> = { ja: 'Japanese', es: 'Spanish', en: 'English' };
 
@@ -30,6 +32,11 @@ export default function VoiceScreen() {
 
   const [learningLanguage, setLearningLanguageState] = useState(() => getSettingsSync().learningLanguage);
   useEffect(() => subscribeSettings(() => setLearningLanguageState(getSettingsSync().learningLanguage)), []);
+  // The language the voice list and the saved pick actually belong to: a
+  // "coming soon" pick from the catalogue (French, Korean and so on) falls
+  // back to Japanese, since that is the only one islands are built in today.
+  const island = toIslandLanguage(learningLanguage);
+  const comingSoonName = island !== learningLanguage ? (getLanguage(learningLanguage)?.english ?? learningLanguage) : null;
 
   useEffect(() => {
     void applyPlaybackMode();
@@ -50,8 +57,8 @@ export default function VoiceScreen() {
       (async () => {
         try {
           const [list, current] = await Promise.all([
-            api.listSpeakers(learningLanguage),
-            getVoice(learningLanguage),
+            api.listSpeakers(island),
+            getVoice(island),
           ]);
           if (!alive) return;
           setSpeakers(list);
@@ -63,13 +70,13 @@ export default function VoiceScreen() {
       return () => {
         alive = false;
       };
-    }, [learningLanguage]),
+    }, [island]),
   );
 
   // Tapping a style both previews it and makes it the voice for new islands.
   async function pick(styleId: number) {
     setChosen(styleId);
-    await setVoice(styleId, learningLanguage);
+    await setVoice(styleId, island);
     player.replace({ uri: api.voicePreviewUrl(styleId) });
     startPlayback(player);
   }
@@ -85,9 +92,14 @@ export default function VoiceScreen() {
         ListHeaderComponent={
           <View style={styles.header}>
             <Text style={[styles.title, { color: tide.text }]}>Voice</Text>
+            {comingSoonName ? (
+              <Text style={[styles.hint, { color: tide.textDim }]}>
+                {comingSoonName} is not ready yet. Islands are built in {LANGUAGE_NAME[island]} for now.
+              </Text>
+            ) : null}
             <Text style={[styles.hint, { color: tide.textDim }]}>
-              Voices for {LANGUAGE_NAME[learningLanguage]}. Tap one to hear it; the one you pick is used for new{' '}
-              {LANGUAGE_NAME[learningLanguage]} islands.
+              Voices for {LANGUAGE_NAME[island]}. Tap one to hear it; the one you pick is used for new{' '}
+              {LANGUAGE_NAME[island]} islands.
             </Text>
           </View>
         }
@@ -133,8 +145,8 @@ export default function VoiceScreen() {
                       style={[
                         styles.chip,
                         {
-                          backgroundColor: on ? tide.lang[learningLanguage] : 'rgba(255,255,255,0.08)',
-                          borderColor: on ? tide.lang[learningLanguage] : 'rgba(255,255,255,0.14)',
+                          backgroundColor: on ? languageColor(island) : 'rgba(255,255,255,0.08)',
+                          borderColor: on ? languageColor(island) : 'rgba(255,255,255,0.14)',
                         },
                       ]}>
                       <Text style={[styles.chipText, { color: on ? tide.sky[0] : tide.text }]}>

@@ -7,7 +7,7 @@ import { PILL_TAB_BAR_REACH } from '@/components/pill-tab-bar';
 import { SettingsRow, SettingsSection } from '@/components/tide/settings-row';
 import { Spacing, prism, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
-import { getSettings, getVoice, setHaptics, setShowAllLanguages, setSkyAlwaysNight } from '@/lib/settings';
+import { getSettings, getVoice, setHaptics, setShowAllLanguages, setSkyAlwaysNight, toIslandLanguage } from '@/lib/settings';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -33,7 +33,7 @@ export default function SettingsScreen() {
 
         try {
           const [speakers, voiceId] = await Promise.all([
-            api.listSpeakers(settings.learningLanguage),
+            api.listSpeakers(toIslandLanguage(settings.learningLanguage)),
             getVoice(settings.learningLanguage),
           ]);
           if (!alive) return;

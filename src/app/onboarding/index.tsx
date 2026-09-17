@@ -4,11 +4,13 @@ import { useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { LanguagePicker } from '@/components/language-picker';
 import { PassStep } from '@/components/onboarding/pass-step';
 import { WelcomeStep } from '@/components/onboarding/welcome-step';
 import { PrismButton } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
+import { LANGUAGES } from '@/lib/languages';
 import {
   type LearningLanguage,
   type UnderstoodLanguage,
@@ -17,17 +19,6 @@ import {
   setOnboarded,
   setUnderstoodLanguage,
 } from '@/lib/settings';
-
-const LEARN_OPTIONS: { value: LearningLanguage; label: string }[] = [
-  { value: 'ja', label: 'Japanese' },
-  { value: 'es', label: 'Spanish' },
-  { value: 'en', label: 'English' },
-];
-
-const UNDERSTAND_OPTIONS: { value: UnderstoodLanguage; label: string }[] = [
-  { value: 'he', label: 'Hebrew' },
-  { value: 'en', label: 'English' },
-];
 
 const STEP_WELCOME = 0;
 const STEP_LANGUAGES = 1;
@@ -55,9 +46,14 @@ export default function OnboardingScreen() {
 
   function selectLearning(value: LearningLanguage) {
     setLearning(value);
-    // English can only pair with Hebrew as the understood language: force it
-    // rather than let the invalid pair happen and error later.
-    if (value === 'en' && understand === 'en') setUnderstand('he');
+    // The understand picker hides whatever is picked here (its `exclude`
+    // prop), so a pick that collides with the current understood language
+    // would leave that screen with nothing ticked: move it to another
+    // understandable language rather than let that happen.
+    if (value === understand) {
+      const fallback = LANGUAGES.find((l) => l.understandable && l.id !== value);
+      if (fallback) setUnderstand(fallback.id);
+    }
   }
 
   // Saves, closes onboarding back to the one Home under it, then opens
@@ -112,36 +108,16 @@ export default function OnboardingScreen() {
 
       {step === STEP_WELCOME ? <WelcomeStep onNext={() => setStep(STEP_LANGUAGES)} /> : null}
 
+      {/* language-picker: start */}
       {step === STEP_LANGUAGES ? (
-        <View style={styles.content}>
-          <Text style={styles.rowLabel}>I want to learn</Text>
-          <View style={styles.row}>
-            {LEARN_OPTIONS.map((opt) => (
-              <PrismButton
-                key={opt.value}
-                shape="pill"
-                verb="read"
-                flat
-                label={opt.label}
-                on={learning === opt.value}
-                onPress={() => selectLearning(opt.value)}
-              />
-            ))}
+        <View style={styles.languageStep}>
+          <View style={styles.languageHalf}>
+            <Text style={styles.rowLabel}>I want to learn</Text>
+            <LanguagePicker mode="learn" value={learning} onChange={selectLearning} exclude={understand} />
           </View>
-          <Text style={styles.rowLabel}>I understand</Text>
-          <View style={styles.row}>
-            {UNDERSTAND_OPTIONS.map((opt) => (
-              <PrismButton
-                key={opt.value}
-                shape="pill"
-                verb="read"
-                flat
-                label={opt.label}
-                on={understand === opt.value}
-                disabled={learning === 'en' && opt.value === 'en'}
-                onPress={() => setUnderstand(opt.value)}
-              />
-            ))}
+          <View style={styles.languageHalf}>
+            <Text style={styles.rowLabel}>I understand</Text>
+            <LanguagePicker mode="understand" value={understand} onChange={setUnderstand} exclude={learning} />
           </View>
           <PrismButton
             shape="pill"
@@ -152,6 +128,7 @@ export default function OnboardingScreen() {
           />
         </View>
       ) : null}
+      {/* language-picker: end */}
 
       {step === STEP_MIC ? (
         <View style={styles.content}>
@@ -216,10 +193,13 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: tide.sky[0] },
   content: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, gap: Spacing.lg },
+  // language-picker: the language step needs top alignment and full width
+  // for its two catalogue lists, unlike the other steps' centered `content`.
+  languageStep: { flex: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, gap: Spacing.sm },
+  languageHalf: { flex: 1, gap: Spacing.xs },
   skip: { position: 'absolute', top: Spacing.lg, right: Spacing.lg, zIndex: 1 },
   title: { fontFamily: fonts.ui, fontSize: 20, lineHeight: 28, color: tide.text, textAlign: 'center' },
   rowLabel: { fontFamily: fonts.uiMedium, fontSize: 15, color: tide.textDim, alignSelf: 'flex-start' },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, justifyContent: 'center' },
   action: { marginTop: Spacing.md },
   notNow: { marginTop: Spacing.xs },
   error: {
