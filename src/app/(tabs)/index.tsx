@@ -60,7 +60,7 @@ import { PILL_TAB_BAR_REACH } from '@/components/pill-tab-bar';
 import { invalidateLineAudio } from '@/lib/line-audio-cache';
 import { forgetLastLine, getLastLine, peekLastLine } from '@/lib/last-line';
 import { forgetIsland, getPracticeLog, minutesOn, type PracticeLog } from '@/lib/practice';
-import { getSettingsSync, subscribeSettings } from '@/lib/settings';
+import { getSettingsSync, subscribeSettings, toIslandLanguage } from '@/lib/settings';
 import { getSettings, setHomeWaveDate } from '@/lib/settings';
 import { deleteTakes, keptUpTotal, lineTiers, weakestLine, type LineTier } from '@/lib/takes';
 
@@ -405,7 +405,7 @@ export default function IslandsScreen() {
   // otherwise only the ones matching the learning language. Sorting, search,
   // due counts and the practice card all read from this, not from `islands`.
   const visibleIslands = useMemo(
-    () => (showAllLanguages ? islands : islands.filter((i) => i.language === learningLanguage)),
+    () => (showAllLanguages ? islands : islands.filter((i) => i.language === toIslandLanguage(learningLanguage))),
     [islands, showAllLanguages, learningLanguage],
   );
 

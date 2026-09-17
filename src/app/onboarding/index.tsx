@@ -195,7 +195,9 @@ const styles = StyleSheet.create({
   content: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, gap: Spacing.lg },
   // language-picker: the language step needs top alignment and full width
   // for its two catalogue lists, unlike the other steps' centered `content`.
-  languageStep: { flex: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, gap: Spacing.sm },
+  // paddingTop clears the Skip pill (top 16, height 36) so a tap near its
+  // bottom edge cannot land on the learn picker's search row underneath.
+  languageStep: { flex: 1, paddingHorizontal: Spacing.lg, paddingTop: 56, gap: Spacing.sm },
   languageHalf: { flex: 1, gap: Spacing.xs },
   skip: { position: 'absolute', top: Spacing.lg, right: Spacing.lg, zIndex: 1 },
   title: { fontFamily: fonts.ui, fontSize: 20, lineHeight: 28, color: tide.text, textAlign: 'center' },

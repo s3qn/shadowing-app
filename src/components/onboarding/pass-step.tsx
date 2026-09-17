@@ -15,7 +15,7 @@ import {
 import { PrismButton, type Verb } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide, verb } from '@/constants/theme';
-import { type LearningLanguage, type UnderstoodLanguage } from '@/lib/settings';
+import { toIslandLanguage, toNativeLanguage, type LearningLanguage, type UnderstoodLanguage } from '@/lib/settings';
 
 const STAGE_HEIGHT = 300;
 
@@ -207,14 +207,14 @@ export function PassStep({
         {pass === 2 ? (
           <View style={styles.readArea}>
             <View style={styles.readRow}>
-              <ReadAlongRow words={READ_ALONG_WORDS[learning]} colour={info.colour} />
+              <ReadAlongRow words={READ_ALONG_WORDS[toIslandLanguage(learning)]} colour={info.colour} />
             </View>
             <Text
               style={[
                 styles.translation,
                 understood === 'he' ? styles.translationRtl : null,
               ]}>
-              {TRANSLATIONS[understood]}
+              {TRANSLATIONS[toNativeLanguage(understood)]}
             </Text>
           </View>
         ) : null}
