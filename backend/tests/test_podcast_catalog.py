@@ -36,9 +36,19 @@ def test_catalog_returns_the_ja_sections():
     assert first_show["level"] == "beginner"
 
 
-def test_catalog_es_and_en_are_empty_placeholders():
-    assert podcast_catalog.catalog("es") == {"sections": []}
-    assert podcast_catalog.catalog("en") == {"sections": []}
+def test_catalog_es_and_en_have_three_sections_of_verified_shows():
+    for language in ("es", "en"):
+        result = podcast_catalog.catalog(language)
+
+        assert len(result["sections"]) == 3
+        for section in result["sections"]:
+            assert section["shows"], f"{language}/{section['id']} has no shows"
+            for show in section["shows"]:
+                assert show["collectionId"]
+                assert show["feedUrl"]
+                assert show["artworkUrl"]
+                assert show["level"] in ("beginner", "intermediate", "advanced")
+                assert show["tagline"]
 
 
 def test_catalog_raises_key_error_on_an_unknown_language():

@@ -166,7 +166,7 @@ export const tide = {
   sky: tideSkies.night,                              // .d4 .sky4 gradient stops
   water: '#08131C',                                 // .d4 .water gradient stop
   waterline: 'rgba(255,158,128,0.55)',               // .d4 .water box-shadow, --cr for .ja
-  lang: { ja: '#FF9E80', es: '#7FE0D4' },            // .d4 --c / .d4.es --c
+  lang: { ja: '#FF9E80', es: '#7FE0D4', en: '#B9C6FF' }, // .d4 --c / .d4.es --c / languages: en
   listen: verb.listen.c1,   // prism verb alias, was :root --lav
   turn: verb.read.c1,       // prism verb alias, was :root --amber
   record: verb.speak.c1,    // prism verb alias, was :root --coral

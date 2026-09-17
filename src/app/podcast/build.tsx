@@ -9,7 +9,7 @@ import { CatConstellation } from '@/components/cat-constellation';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
-import { getVoice } from '@/lib/settings';
+import { getSettings, getVoice } from '@/lib/settings';
 
 const SIDE = 16;
 
@@ -17,7 +17,7 @@ const STAGE_LABEL: Record<string, string> = {
   queued: 'Queued…',
   downloading: 'Downloading the episode…',
   transcribing: 'Transcribing…',
-  writing: 'Writing Japanese…',
+  writing: 'Writing the lines…',
   speaking: 'Recording the voice…',
   ready: 'Ready.',
 };
@@ -45,9 +45,11 @@ export default function PodcastBuildScreen() {
     if (started.current || !audioUrl) return;
     started.current = true;
     setError('');
-    getVoice().then((voice) => {
+    getSettings().then(async (settings) => {
+      const { learningLanguage, understoodLanguage } = settings;
+      const voice = await getVoice(learningLanguage);
       api
-        .importPodcastEpisode(audioUrl, title || 'Podcast episode', voice)
+        .importPodcastEpisode(audioUrl, title || 'Podcast episode', voice, learningLanguage, understoodLanguage)
         .then(({ id }) => {
           pollRef.current = setInterval(async () => {
             try {

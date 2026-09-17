@@ -32,6 +32,7 @@ def _init_db():
 
 
 AUTH = f"Bearer {main.SHADOW_TOKEN}"
+DEV = "dddddddd-0000-4000-8000-00000000000d"
 
 
 def test_parse_feed_reads_the_fixture_in_order():
@@ -281,7 +282,8 @@ def test_import_podcast_episode_creates_a_podcast_island_and_hands_off(monkeypat
 
     captured = {}
 
-    async def fake_build_import(island_id, media, srt_text, title, start_s, tmp_dir=None):
+    async def fake_build_import(island_id, media, srt_text, title, start_s, tmp_dir=None,
+                                 language="ja", native="en"):
         captured["island_id"] = island_id
         captured["title"] = title
         captured["start_s"] = start_s
@@ -300,7 +302,9 @@ def test_import_podcast_episode_creates_a_podcast_island_and_hands_off(monkeypat
             start_min=5,
             speaker=3,
             language="ja",
+            native="en",
             authorization=AUTH,
+            x_shadow_device=DEV,
         )
     )
 
@@ -329,6 +333,7 @@ def test_import_podcast_episode_refuses_a_non_japanese_language():
                 audio_url="https://example.com/audio/episode-one.mp3",
                 language="en",
                 authorization=AUTH,
+                x_shadow_device=DEV,
             )
         )
 
@@ -344,6 +349,7 @@ def test_import_podcast_episode_refuses_a_negative_start_min():
                 start_min=-1,
                 language="ja",
                 authorization=AUTH,
+                x_shadow_device=DEV,
             )
         )
 
@@ -360,6 +366,7 @@ def test_import_podcast_episode_refuses_a_non_finite_start_min(start_min):
                 start_min=start_min,
                 language="ja",
                 authorization=AUTH,
+                x_shadow_device=DEV,
             )
         )
 
@@ -375,6 +382,7 @@ def test_import_podcast_episode_refuses_a_private_audio_url():
                 start_min=0,
                 language="ja",
                 authorization=AUTH,
+                x_shadow_device=DEV,
             )
         )
 

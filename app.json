@@ -2,18 +2,20 @@
   "expo": {
     "name": "Shadowing",
     "slug": "shadowing-app",
-    "version": "1.0.0",
+    "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/cat_icon_app.png",
     "scheme": "shadowing",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/images/cat_icon_app.png",
+      "bundleIdentifier": "build.sean.shadowing",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Shadowing records your voice so it can build a language island from what you say.",
         "UIBackgroundModes": [
           "audio"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {

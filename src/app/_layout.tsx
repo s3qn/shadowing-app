@@ -1,28 +1,64 @@
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useReducedMotion } from 'react-native-reanimated';
 
 import { CardMorphOverlay } from '@/components/card-morph-overlay';
 import { LoadingOverlay } from '@/components/loading-overlay';
 import { tide } from '@/constants/theme';
+import { loadDeviceId } from '@/lib/device';
 import { getSettings } from '@/lib/settings';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const reducedMotion = useReducedMotion();
+  const [ready, setReady] = useState(false);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const launched = useRef(false);
+  const router = useRouter();
   // No bundled fonts to load anymore (the app uses the platform's system
-  // fonts), so the splash screen just hides right away.
+  // fonts), so the app waits only on two small file reads: the device id,
+  // so every request has the header, then the settings, so the first render
+  // (Home's language filter, haptics, the sky) sees the saved values instead
+  // of the defaults.
   useEffect(() => {
-    void SplashScreen.hideAsync();
-    // Fills the settings sync cache before anything needs it, so the first
-    // press anywhere (haptics) and the first sky paint already see the
-    // saved settings instead of the defaults.
-    void getSettings();
+    void (async () => {
+      // A failed read or write still opens the app: requests then go out
+      // without the header and get a 401, which is better than a stuck splash.
+      try {
+        await loadDeviceId();
+      } catch (err: unknown) {
+        console.warn('loadDeviceId failed', err);
+      }
+      // getSettings falls back to defaults on its own; a throw here still
+      // opens the app, without sending anyone into onboarding.
+      let onboarded = true;
+      try {
+        onboarded = (await getSettings()).onboarded;
+      } catch (err: unknown) {
+        console.warn('getSettings failed', err);
+      }
+      setNeedsOnboarding(!onboarded);
+      setReady(true);
+    })();
   }, []);
+
+  // First run opens onboarding over Home once the Stack is mounted
+  // (navigating before the root layout renders throws). The splash hides a
+  // frame later, so a fresh install never shows Home first.
+  useEffect(() => {
+    if (!ready || launched.current) return;
+    launched.current = true;
+    if (needsOnboarding) router.push({ pathname: '/onboarding', params: { first: '1' } });
+    requestAnimationFrame(() => {
+      void SplashScreen.hideAsync();
+    });
+  }, [ready, needsOnboarding, router]);
+
+  if (!ready) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -38,6 +74,21 @@ export default function RootLayout() {
             this screen's own header is hidden: without it iOS falls back to
             the route segment, "(tabs)". */}
         <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Islands' }} />
+        {/* Full screen, no header, and no swipe to dismiss: it closes only
+            through its own buttons. On first launch (`first` param) it is
+            already in place when the splash hides, so it does not animate. */}
+        <Stack.Screen
+          name="onboarding/index"
+          options={({ route }) => {
+            const params = route.params as { first?: string } | undefined;
+            return {
+              headerShown: false,
+              presentation: 'fullScreenModal',
+              gestureEnabled: false,
+              animation: params?.first === '1' ? 'none' : 'default',
+            };
+          }}
+        />
         <Stack.Screen
           name="record"
           options={{ title: 'New island', presentation: 'modal' }}
@@ -64,6 +115,7 @@ export default function RootLayout() {
         <Stack.Screen name="settings/practice" options={{ title: 'Practice' }} />
         <Stack.Screen name="settings/data" options={{ title: 'Data' }} />
         <Stack.Screen name="settings/about" options={{ title: 'About' }} />
+        <Stack.Screen name="settings/languages" options={{ title: 'Language' }} />
         <Stack.Screen name="prism-lab" options={{ title: 'Prism lab' }} />
       </Stack>
       <CardMorphOverlay />

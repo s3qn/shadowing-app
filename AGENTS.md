@@ -11,6 +11,8 @@
 - **Reaching the backend from a phone**: cloudflared forwards
   `https://dev.sean.build/shadow/*` to `:8020`. The Expo client reads
   `EXPO_PUBLIC_SHADOW_API_URL` and `EXPO_PUBLIC_SHADOW_TOKEN` from `.env`.
+- **Prod backend**: 127.0.0.1:8030 from `~/shadow-prod`, public at
+  `https://shadow.sean.build/shadow`, deployed only by `backend/deploy-prod.sh`.
 - Typecheck with `npx tsc --noEmit`. Read the exact versioned Expo docs at
   https://docs.expo.dev/versions/v57.0.0/ before writing native-facing code.
 

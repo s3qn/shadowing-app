@@ -12,6 +12,14 @@ from pathlib import Path
 
 TEST_DATA_DIR = Path(tempfile.mkdtemp(prefix="shadow-tests-"))
 os.environ["SHADOW_DATA_DIR"] = str(TEST_DATA_DIR)
+# main._startup would otherwise load the Kokoro model in a thread.
+os.environ["SHADOW_KOKORO_WARMUP"] = "0"
+
+# main.py reads SHADOW_TOKEN at import time and refuses every request without
+# one. Pin a test token so the suite passes in a checkout with no backend/.env
+# (the prod worktree) and never uses a real token. load_dotenv() does not
+# override it.
+os.environ["SHADOW_TOKEN"] = "test-token"
 
 
 import subprocess

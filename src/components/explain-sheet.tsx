@@ -21,7 +21,7 @@ import { WordOutline } from '@/components/word-outline';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
-import type { ExplainAnswer, ExplainGrammarItem, ExplainVocabItem, Word } from '@/lib/api';
+import type { ExplainAnswer, ExplainGrammarItem, ExplainVocabItem, Language, NativeLanguage, Word } from '@/lib/api';
 
 const FALLBACK_SUMMARY = "Couldn't get an answer just now.";
 
@@ -75,6 +75,10 @@ type Props = {
   onDismissed?: () => void;
   sentenceJa: string;
   sentenceEn: string;
+  /** The island's learning language, sent to the explain endpoint. */
+  language: Language;
+  /** The island's understood language, sent to the explain endpoint. */
+  native: NativeLanguage;
   /** Words the drag selection marked, in line order. */
   marked: string[];
   /** True when the drag spanned every word of the line: reads as "whole
@@ -111,6 +115,8 @@ function ExplainSheetBase({
   onDismissed,
   sentenceJa,
   sentenceEn,
+  language,
+  native,
   marked,
   whole,
   generation,
@@ -140,6 +146,8 @@ function ExplainSheetBase({
           marked: whole ? [] : marked,
           question: EXPLAIN_QUESTION,
           history: [],
+          language,
+          native,
         });
         if (!cancelled) setAnswer(out);
       } catch {
@@ -166,6 +174,7 @@ function ExplainSheetBase({
       <SentenceHeader
         sentenceJa={sentenceJa}
         sentenceEn={sentenceEn}
+        native={native}
         words={words}
         span={whole ? null : span}
         highlight={highlight}
@@ -249,6 +258,7 @@ function splitOn(text: string, part: string): [string, string, string] {
 function SentenceHeader({
   sentenceJa,
   sentenceEn,
+  native,
   words,
   span,
   highlight,
@@ -257,6 +267,7 @@ function SentenceHeader({
 }: {
   sentenceJa: string;
   sentenceEn: string;
+  native: NativeLanguage;
   words: Word[];
   span: { from: number; to: number } | null;
   highlight: Highlight;
@@ -291,7 +302,9 @@ function SentenceHeader({
           <Text style={styles.headerJa}>{sentenceJa}</Text>
         )}
       </Frost>
-      {sentenceEn ? <Text style={styles.headerEn}>{sentenceEn}</Text> : null}
+      {sentenceEn ? (
+        <Text style={[styles.headerEn, native === 'he' && styles.headerEnRtl]}>{sentenceEn}</Text>
+      ) : null}
     </PressScale>
   );
 }
@@ -494,6 +507,7 @@ const styles = StyleSheet.create({
   headerWord: { flexShrink: 1, maxWidth: '100%' },
   headerJaMarked: { fontWeight: '700', backgroundColor: 'rgba(255,158,128,0.12)' },
   headerEn: { fontFamily: fonts.ui, fontSize: 13, lineHeight: 18, color: tide.textDim, marginTop: 4 },
+  headerEnRtl: { writingDirection: 'rtl' },
   markedWrap: { alignSelf: 'flex-start', marginBottom: Spacing.lg },
   marked: {
     fontFamily: fonts.uiMedium,

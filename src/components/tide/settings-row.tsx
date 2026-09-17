@@ -41,6 +41,7 @@ export function SettingsRow({
   last,
   dotColor,
   icon,
+  singleLineValue,
 }: {
   label: string;
   value?: string;
@@ -54,12 +55,14 @@ export function SettingsRow({
   dotColor?: string;
   /** Leading symbol. The row picks its tint so it always matches the label. */
   icon?: SheetIcon;
+  /** Keeps a long value on one line, truncated in the middle, with the label kept whole. */
+  singleLineValue?: boolean;
 }) {
   const hasSwitch = onSwitchChange !== undefined;
   const tint = destructive ? tide.record : tide.text;
   const content = (
     <View style={[styles.row, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: tide.waterline }]}>
-      <View style={styles.lead}>
+      <View style={[styles.lead, singleLineValue && styles.leadFixed]}>
         {icon ? (
           <View style={styles.iconSlot}>
             <SymbolView name={icon} size={20} weight="regular" tintColor={tint} />
@@ -74,9 +77,16 @@ export function SettingsRow({
           trackColor={{ false: 'rgba(255,255,255,0.14)', true: tide.lang.ja }}
         />
       ) : (
-        <View style={styles.rightGroup}>
+        <View style={[styles.rightGroup, singleLineValue && styles.shrink]}>
           {dotColor ? <View style={[styles.dot, { backgroundColor: dotColor }]} /> : null}
-          {value ? <Text style={[styles.value, { color: tide.textDim }]}>{value}</Text> : null}
+          {value ? (
+            <Text
+              style={[styles.value, { color: tide.textDim }, singleLineValue && styles.shrink]}
+              numberOfLines={singleLineValue ? 1 : undefined}
+              ellipsizeMode={singleLineValue ? 'middle' : undefined}>
+              {value}
+            </Text>
+          ) : null}
           {onPress ? <Text style={[styles.chevron, { color: tide.textDim }]}>{'›'}</Text> : null}
         </View>
       )}
@@ -111,6 +121,8 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   lead: { flexDirection: 'row', alignItems: 'center', gap: 12, flexShrink: 1 },
+  leadFixed: { flexShrink: 0 },
+  shrink: { flexShrink: 1 },
   iconSlot: {
     width: 26,
     height: 26,

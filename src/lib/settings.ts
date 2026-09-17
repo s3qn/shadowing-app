@@ -10,6 +10,13 @@ import { documentDirectory, getInfoAsync, readAsStringAsync, writeAsStringAsync 
 import { SPEED_MAX, SPEED_MIN } from '@/constants/theme';
 
 export const DEFAULT_VOICE = 3;
+// languages: VOICEVOX style id for Japanese, Kokoro voice ids for Spanish and
+// English. Kept in sync with `backend/voices.py`'s `default_speaker`.
+export const DEFAULT_VOICE_BY_LANGUAGE: Record<LearningLanguage, number> = {
+  ja: DEFAULT_VOICE,
+  en: 10001,
+  es: 10011,
+};
 const DEFAULT_BLIND = false;
 const DEFAULT_HIDE_ENGLISH = false;
 
@@ -46,8 +53,18 @@ const DEFAULT_HAPTICS = true;
 const DEFAULT_SKY_ALWAYS_NIGHT = false;
 const DEFAULT_KEEP_AWAKE = true;
 
+export const LEARNING_LANGUAGE_OPTIONS = ['ja', 'es', 'en'] as const;
+export type LearningLanguage = (typeof LEARNING_LANGUAGE_OPTIONS)[number];
+const DEFAULT_LEARNING_LANGUAGE: LearningLanguage = 'ja';
+
+export const UNDERSTOOD_LANGUAGE_OPTIONS = ['he', 'en'] as const;
+export type UnderstoodLanguage = (typeof UNDERSTOOD_LANGUAGE_OPTIONS)[number];
+const DEFAULT_UNDERSTOOD_LANGUAGE: UnderstoodLanguage = 'en';
+
 export type Settings = {
-  voice: number;
+  /** Voice remembered per learning language, so switching languages does not
+   * lose Japanese's pick. Missing entries fall back to `DEFAULT_VOICE_BY_LANGUAGE`. */
+  voices: Partial<Record<LearningLanguage, number>>;
   blind: boolean;
   hideEnglish: boolean;
   reading: ReadingMode;
@@ -72,11 +89,23 @@ export type Settings = {
   /** Local date (YYYY-MM-DD) Home last ran its opening wave-in animation, so
    * it only plays once per day. */
   homeWaveDate: string;
+  /** Language new islands are generated in. Fills the backend's `language` field. */
+  learningLanguage: LearningLanguage;
+  /** Language the learner already understands. Fills the backend's `native` field. */
+  understoodLanguage: UnderstoodLanguage;
+  /** Whether the first-run onboarding flow has been shown. False only for a
+   * truly fresh install; an existing settings file from before this key
+   * existed is treated as already onboarded. */
+  onboarded: boolean;
+  /** Home shows every island mixed together with a language pill, instead of
+   * only the ones matching `learningLanguage`. Off by default. */
+  showAllLanguages: boolean;
 };
 
 const FILE = `${documentDirectory ?? ''}settings.json`;
+const DEFAULT_SHOW_ALL_LANGUAGES = false;
 const DEFAULTS: Settings = {
-  voice: DEFAULT_VOICE,
+  voices: {},
   blind: DEFAULT_BLIND,
   hideEnglish: DEFAULT_HIDE_ENGLISH,
   reading: DEFAULT_READING,
@@ -91,7 +120,18 @@ const DEFAULTS: Settings = {
   skyAlwaysNight: DEFAULT_SKY_ALWAYS_NIGHT,
   keepAwake: DEFAULT_KEEP_AWAKE,
   homeWaveDate: '',
+  learningLanguage: DEFAULT_LEARNING_LANGUAGE,
+  understoodLanguage: DEFAULT_UNDERSTOOD_LANGUAGE,
+  // Only a missing settings file (a truly fresh install) defaults to false:
+  // see the `onboarded: true` overrides below for a file that exists but
+  // predates this key.
+  onboarded: false,
+  showAllLanguages: DEFAULT_SHOW_ALL_LANGUAGES,
 };
+// A file exists but is corrupt or not an object: it was written by some
+// earlier version of the app, so this is not a fresh install. Same defaults
+// as a missing file, except onboarded is already true.
+const EXISTING_FILE_DEFAULTS: Settings = { ...DEFAULTS, onboarded: true };
 
 // Last settings read from disk, kept for callers that need a value
 // synchronously (a `useState` initializer can't await). Starts at the
@@ -105,7 +145,8 @@ let cache: Settings = { ...DEFAULTS };
 // 5-minute poll).
 const listeners = new Set<() => void>();
 
-/** Runs `listener` once now and again after every settings write. Returns an unsubscribe function. */
+/** Runs `listener` after every settings write, and after a read that changes
+ * the cached values (the first read after launch). Returns an unsubscribe function. */
 export function subscribeSettings(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -113,6 +154,16 @@ export function subscribeSettings(listener: () => void): () => void {
 
 function notifySettingsChanged(): void {
   for (const listener of listeners) listener();
+}
+
+// Stores what a read found and tells subscribers when it differs from the
+// cache, so a screen that read `getSettingsSync()` before the first read
+// finished (Home's language filter at cold start) picks up the saved values.
+function fill(next: Settings): Settings {
+  const changed = JSON.stringify(next) !== JSON.stringify(cache);
+  cache = next;
+  if (changed) notifySettingsChanged();
+  return next;
 }
 
 // Files written before Times and Pause replaced the Repeat mode and Lag:
@@ -128,22 +179,36 @@ function migratePause(oldLag: unknown): number {
   return Math.min(PAUSE_MAX_MS, Math.max(0, ms));
 }
 
+// Files written before the voice picker split by learning language: the one
+// VOICEVOX id becomes `voices.ja`, since VOICEVOX only ever spoke Japanese.
+function parseVoices(raw: unknown, legacyVoice: unknown): Partial<Record<LearningLanguage, number>> {
+  const voices: Partial<Record<LearningLanguage, number>> = {};
+  if (raw && typeof raw === 'object') {
+    for (const lang of LEARNING_LANGUAGE_OPTIONS) {
+      const v = (raw as Record<string, unknown>)[lang];
+      if (typeof v === 'number') voices[lang] = v;
+    }
+  }
+  if (voices.ja === undefined && typeof legacyVoice === 'number') voices.ja = legacyVoice;
+  return voices;
+}
+
 // Defaults when there is no file yet, or when its JSON is corrupt (nothing in
 // it can be recovered then). An I/O error reading an existing file throws, so
 // a write never replaces a saved voice with defaults over a passing failure.
 async function read(): Promise<Settings> {
-  if (!(await getInfoAsync(FILE)).exists) return (cache = { ...DEFAULTS });
+  if (!(await getInfoAsync(FILE)).exists) return fill({ ...DEFAULTS });
   const raw = await readAsStringAsync(FILE);
-  // `lagMs` and `defaultRepeat` are only read to migrate an older file.
-  let parsed: (Partial<Settings> & { lagMs?: unknown; defaultRepeat?: unknown }) | null;
+  // `lagMs`, `defaultRepeat` and `voice` are only read to migrate an older file.
+  let parsed: (Partial<Settings> & { lagMs?: unknown; defaultRepeat?: unknown; voice?: unknown }) | null;
   try {
     parsed = JSON.parse(raw) as typeof parsed;
   } catch {
-    return (cache = { ...DEFAULTS });
+    return fill({ ...EXISTING_FILE_DEFAULTS });
   }
-  if (typeof parsed !== 'object' || parsed === null) return (cache = { ...DEFAULTS });
-  return (cache = {
-    voice: typeof parsed.voice === 'number' ? parsed.voice : DEFAULT_VOICE,
+  if (typeof parsed !== 'object' || parsed === null) return fill({ ...EXISTING_FILE_DEFAULTS });
+  return fill({
+    voices: parseVoices(parsed.voices, parsed.voice),
     blind: parsed.blind === true,
     hideEnglish: parsed.hideEnglish === true,
     reading: READING_OPTIONS.includes(parsed.reading as ReadingMode) ? (parsed.reading as ReadingMode) : DEFAULT_READING,
@@ -165,15 +230,28 @@ async function read(): Promise<Settings> {
     skyAlwaysNight: parsed.skyAlwaysNight === true,
     keepAwake: parsed.keepAwake !== false,
     homeWaveDate: typeof parsed.homeWaveDate === 'string' ? parsed.homeWaveDate : '',
+    learningLanguage: LEARNING_LANGUAGE_OPTIONS.includes(parsed.learningLanguage as LearningLanguage)
+      ? (parsed.learningLanguage as LearningLanguage)
+      : DEFAULT_LEARNING_LANGUAGE,
+    understoodLanguage: UNDERSTOOD_LANGUAGE_OPTIONS.includes(parsed.understoodLanguage as UnderstoodLanguage)
+      ? (parsed.understoodLanguage as UnderstoodLanguage)
+      : DEFAULT_UNDERSTOOD_LANGUAGE,
+    // A file from before this key existed has no `onboarded` field at all:
+    // that is Sean's phone and every install so far, so it counts as already
+    // onboarded. Only a missing file (handled above) defaults to false.
+    onboarded: typeof parsed.onboarded === 'boolean' ? parsed.onboarded : true,
+    showAllLanguages: parsed.showAllLanguages === true,
   });
 }
 
 // For display: a broken file shows the defaults instead of failing the screen.
+// A read that throws means the file is there, so this is not a fresh install:
+// onboarded stays true rather than sending the learner back to onboarding.
 async function readOrDefaults(): Promise<Settings> {
   try {
     return await read();
   } catch {
-    return { ...DEFAULTS };
+    return { ...EXISTING_FILE_DEFAULTS };
   }
 }
 
@@ -198,8 +276,8 @@ function update(patch: Partial<Settings>): Promise<void> {
     }
     const next = { ...current, ...patch };
     await write(next);
-    // read() above already refreshed the cache from disk, but that predates
-    // this patch: apply it too, so a sync reader (getSettingsSync, used on
+    // read() above already refreshed the cache from disk (notifying only if
+    // disk differed from it), but that predates this patch: apply it too, so a sync reader (getSettingsSync, used on
     // the haptics hot path) sees the change right after the setter returns
     // instead of waiting for the next getSettings() call.
     cache = next;
@@ -224,9 +302,12 @@ export function getSettingsSync(): Settings {
   return cache;
 }
 
-/** VOICEVOX style id used for new islands. */
-export async function getVoice(): Promise<number> {
-  return (await pending.then(readOrDefaults)).voice;
+/** Voice used for new islands in `language` (the current learning language by
+ * default): a VOICEVOX style id for `ja`, a Kokoro voice id for `es`/`en`. */
+export async function getVoice(language?: LearningLanguage): Promise<number> {
+  const settings = await pending.then(readOrDefaults);
+  const lang = language ?? settings.learningLanguage;
+  return settings.voices[lang] ?? DEFAULT_VOICE_BY_LANGUAGE[lang];
 }
 
 /** Speech register used for new islands. */
@@ -234,8 +315,12 @@ export async function getRegister(): Promise<Register> {
   return (await pending.then(readOrDefaults)).register;
 }
 
-export async function setVoice(voice: number): Promise<void> {
-  await update({ voice });
+/** Remembers `styleId` as the voice for `language` (the current learning
+ * language by default), leaving every other language's pick alone. */
+export async function setVoice(styleId: number, language?: LearningLanguage): Promise<void> {
+  const current = await pending.then(readOrDefaults);
+  const lang = language ?? current.learningLanguage;
+  await update({ voices: { ...current.voices, [lang]: styleId } });
 }
 
 export async function setBlind(blind: boolean): Promise<void> {
@@ -292,4 +377,20 @@ export async function setKeepAwake(keepAwake: boolean): Promise<void> {
 
 export async function setHomeWaveDate(homeWaveDate: string): Promise<void> {
   await update({ homeWaveDate });
+}
+
+export async function setLearningLanguage(learningLanguage: LearningLanguage): Promise<void> {
+  await update({ learningLanguage });
+}
+
+export async function setUnderstoodLanguage(understoodLanguage: UnderstoodLanguage): Promise<void> {
+  await update({ understoodLanguage });
+}
+
+export async function setOnboarded(onboarded: boolean): Promise<void> {
+  await update({ onboarded });
+}
+
+export async function setShowAllLanguages(showAllLanguages: boolean): Promise<void> {
+  await update({ showAllLanguages });
 }

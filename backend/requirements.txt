@@ -7,3 +7,4 @@ python-dotenv==1.0.1
 janome==0.5.0
 jamdict
 jamdict-data
+kokoro-onnx==0.6.1

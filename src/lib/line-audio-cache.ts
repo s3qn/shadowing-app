@@ -50,7 +50,7 @@ function cacheDir(): Directory {
 }
 
 function keyOf(url: string, tag: string): string {
-  return `${url.replace(/([?&])token=[^&]*&?/, '$1')}\n${tag}`;
+  return `${url.replace(/([?&])token=[^&]*&?/, '$1').replace(/([?&])device=[^&]*&?/, '$1')}\n${tag}`;
 }
 
 // Two FNV-1a passes with different seeds: 16 hex characters for a file name.

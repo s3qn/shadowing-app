@@ -16,7 +16,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
 import { LevelBars, meterLevel } from '@/components/level-bars';
-import { PressScale } from '@/components/press-scale';
 import { PrismButton } from '@/components/prism';
 import { Segmented, type SegmentOption } from '@/components/segmented';
 
@@ -36,9 +35,14 @@ import {
   DEFAULT_REGISTER,
   DEFAULT_VOICE,
   getRegister,
+  getSettings,
   getVoice,
   setRegister as persistRegister,
 } from '@/lib/settings';
+
+// languages: full names for the record screen's hint, keyed the same as
+// `LEARNING_LANGUAGE_OPTIONS` in settings.ts.
+const LANGUAGE_NAME: Record<api.Language, string> = { ja: 'Japanese', es: 'Spanish', en: 'English' };
 
 const MIN_SECONDS = 10;
 const MAX_SECONDS = 90;
@@ -53,7 +57,7 @@ type Phase = 'idle' | 'recording' | 'review' | 'building';
 const STAGE_LABEL: Record<string, string> = {
   queued: 'Queued…',
   transcribing: 'Transcribing…',
-  writing: 'Writing Japanese…',
+  writing: 'Writing the lines…',
   speaking: 'Recording the voice…',
   ready: 'Ready.',
 };
@@ -125,6 +129,10 @@ export default function RecordScreen() {
   // is kept separately for the review screen.
   const [taken, setTaken] = useState(0);
   const [voice, setVoice] = useState<number>(DEFAULT_VOICE);
+  // languages: the learner's current pick, so a new island is built in the
+  // right language with the right voice.
+  const [language, setLanguage] = useState<api.Language>('ja');
+  const [native, setNative] = useState<api.NativeLanguage>('en');
   // Every meter reading of the take in progress, squeezed into bars on stop.
   const samplesRef = useRef<number[]>([]);
   const [bars, setBars] = useState<number[]>([]);
@@ -141,8 +149,12 @@ export default function RecordScreen() {
   useSessionPlayer(player);
 
   useEffect(() => {
-    getVoice().then(setVoice);
     getRegister().then(setRegister);
+    getSettings().then((s) => {
+      setLanguage(s.learningLanguage);
+      setNative(s.understoodLanguage);
+      void getVoice(s.learningLanguage).then(setVoice);
+    });
   }, []);
 
   // Remembered for next time, same as the voice picker in island settings.
@@ -298,7 +310,17 @@ export default function RecordScreen() {
     setPhase('building');
     setError('');
     try {
-      const { id } = await api.createIsland(uri, complexity, voice, register);
+      // Register only means anything for Japanese: send it for ja, leave it
+      // out for every other learning language.
+      const { id } = await api.createIsland(
+        uri,
+        complexity,
+        voice,
+        language === 'ja' ? register : undefined,
+        8,
+        language,
+        native,
+      );
       pollRef.current = setInterval(async () => {
         try {
           const island = await api.getIsland(id);
@@ -372,8 +394,8 @@ export default function RecordScreen() {
               </Text>
               {phase !== 'review' ? (
                 <Text style={styles.hint}>
-                  Speak Hebrew or English, whichever comes naturally. What you say becomes
-                  Japanese sentences about your own life, so use real names and real places.
+                  Speak Hebrew or English, whichever comes naturally. What you say becomes{' '}
+                  {LANGUAGE_NAME[language]} sentences about your own life, so use real names and real places.
                 </Text>
               ) : null}
             </View>
@@ -408,12 +430,16 @@ export default function RecordScreen() {
                   value={complexity}
                   onChange={setComplexity}
                 />
-                <Segmented
-                  label="Style"
-                  options={REGISTER_CHOICES}
-                  value={register}
-                  onChange={chooseRegister}
-                />
+                {/* Register only applies to Japanese (there is no desu/masu
+                    style split in Spanish or English). */}
+                {language === 'ja' ? (
+                  <Segmented
+                    label="Style"
+                    options={REGISTER_CHOICES}
+                    value={register}
+                    onChange={chooseRegister}
+                  />
+                ) : null}
               </>
             ) : (
               <View style={styles.meter}>
@@ -438,26 +464,28 @@ export default function RecordScreen() {
           <View style={styles.actions}>
             {phase === 'review' ? (
               <>
-                <PressScale onPress={build} accessibilityRole="button" style={styles.primary}>
-                  <Text style={styles.primaryText}>Build the island</Text>
-                </PressScale>
+                <PrismButton
+                  shape="pill"
+                  verb="speak"
+                  on
+                  height={prism.sizes.bigRound}
+                  label="Build the island"
+                  onPress={build}
+                  accessibilityRole="button"
+                />
                 <View style={styles.secondaryRow}>
-                  {/* prism-record: edited region */}
-                  <View style={styles.secondary}>
-                    <PrismButton shape="pill" verb="tools" label="Record again" onPress={start} />
-                  </View>
-                  {/* prism-record: end */}
+                  {/* prism-record: edited region, one balanced group centred under the primary button */}
+                  <PrismButton shape="pill" verb="tools" label="Record again" onPress={start} />
                   {/* icon-buttons: Discard */}
-                  <View style={styles.secondaryIcon}>
-                    <PrismButton
-                      shape="round"
-                      size={prism.sizes.roundSm}
-                      verb="speak"
-                      onPress={cancel}
-                      accessibilityLabel="Discard">
-                      <SymbolView name={{ ios: 'trash', android: 'delete' }} size={16} weight="regular" tintColor={verbTokens.speak.c1} />
-                    </PrismButton>
-                  </View>
+                  <PrismButton
+                    shape="round"
+                    size={prism.sizes.roundSm}
+                    verb="speak"
+                    onPress={cancel}
+                    accessibilityLabel="Discard">
+                    <SymbolView name={{ ios: 'trash', android: 'delete' }} size={16} weight="regular" tintColor={verbTokens.speak.c1} />
+                  </PrismButton>
+                  {/* prism-record: end */}
                 </View>
               </>
             ) : (
@@ -568,15 +596,8 @@ const styles = StyleSheet.create({
   recordDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: tide.record },
   recordDotActive: { backgroundColor: verbTokens.speak.c1 },
   keepGoing: { fontSize: 14, lineHeight: 20, color: tide.textDim, fontFamily: fonts.ui },
-  primary: {
-    paddingVertical: Spacing.lg,
-    borderRadius: Radius.pill,
-    alignItems: 'center',
-    backgroundColor: tide.lang.ja,
-  },
-  primaryText: { fontSize: 17, color: tide.sky[0], fontFamily: fonts.uiMedium, fontWeight: '500' },
-  secondaryRow: { flexDirection: 'row' },
-  secondary: { flex: 1, paddingVertical: Spacing.md, alignItems: 'center' },
-  secondaryIcon: { flex: 1, alignItems: 'center' }, // icon-buttons: Discard
+  // One balanced row, both actions centred on the same line: no flex:1
+  // wrapper pushes either one off to a half of the row.
+  secondaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.lg, paddingTop: Spacing.sm },
   secondaryText: { fontSize: 15, fontFamily: fonts.uiMedium, fontWeight: '500' },
 });
