@@ -36,6 +36,8 @@ export const en = {
   'stage.working': 'Working…',
 
   // Error codes the backend sends as `detail.code` in an HTTPException.
+  'api.unreachable': 'The server is not reachable right now. Try again in a moment.',
+  'api.daily_limit_any': 'You have reached today\u2019s limit. Try again tomorrow.',
   'api.daily_limit': "You've reached today's limit of {limit}.",
   'api.voice_unreachable': 'The voice engine is unreachable.',
   'api.file_too_large': 'That file is too large to import.',

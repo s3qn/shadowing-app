@@ -46,6 +46,8 @@ export const he = {
   'stage.downloading': 'הורדה',
   'stage.working': 'בעבודה…',
 
+  'api.unreachable': '\u05d0\u05d9\u05df \u05db\u05e8\u05d2\u05e2 \u05d2\u05d9\u05e9\u05d4 \u05dc\u05e9\u05e8\u05ea. \u05db\u05d3\u05d0\u05d9 \u05dc\u05e0\u05e1\u05d5\u05ea \u05e9\u05d5\u05d1 \u05d1\u05e2\u05d5\u05d3 \u05e8\u05d2\u05e2.',
+  'api.daily_limit_any': '\u05d4\u05de\u05db\u05e1\u05d4 \u05d4\u05d9\u05d5\u05de\u05d9\u05ea \u05e0\u05d5\u05e6\u05dc\u05d4. \u05db\u05d3\u05d0\u05d9 \u05dc\u05e0\u05e1\u05d5\u05ea \u05e9\u05d5\u05d1 \u05de\u05d7\u05e8.',
   'api.daily_limit': 'מכסה יומית: {limit}.',
   'api.voice_unreachable': 'מנוע הקול לא זמין.',
   'api.file_too_large': 'הקובץ גדול מדי לייבוא.',

@@ -805,7 +805,7 @@ export default function IslandsScreen() {
           const meta = item.status === 'failed'
             ? 'Failed'
             : busy
-              ? (api.STAGE_LABEL[item.stage] ?? 'Working…')
+              ? api.stageLabel(item.stage)
               : `${item.line_count} lines · ${item.complexity}${minutes >= 1 ? ` · ${minutes} min` : ''}${keptUp && keptUp.total > 0 ? ` · kept up ${keptUp.kept}/${keptUp.total}` : ''}`;
           return (
             <IslandRow

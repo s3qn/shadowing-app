@@ -2984,7 +2984,7 @@ export default function IslandScreen() {
         <View style={[styles.fill, styles.center]}>
           <CatConstellation
             label={
-              revoicing ? 'Re-voicing' : (api.STAGE_LABEL[buildStage] ?? 'Rebuilding this island').replace(/…$/, '')
+              revoicing ? 'Re-voicing' : api.stageLabel(buildStage).replace(/…$/, '')
             }
           />
         </View>
