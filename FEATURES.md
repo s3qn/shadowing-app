@@ -147,6 +147,9 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Smoother player and Home: recording no longer re-renders the player, React
   Compiler compiles most of Home and the player parts, lighter lanterns and
   search, water shader compiled once, transcript windowed from 30 lines.
+- Island menu icons: SF Symbols on each row (Material icons on Android).
+- Re-voice stays on the player with the Cat Constellation and Re-voicing
+  until the new voice lands, on the same line, with no old clips.
 
 ## Next (approved, in order)
 

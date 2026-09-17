@@ -612,6 +612,15 @@ export default function IslandScreen() {
   // A message set just before a deliberate reload survives that reload. Every
   // other error is cleared once the island loads.
   const carryError = useRef('');
+  // Opened while a re-voice is still running on the server (a second way in,
+  // or Retry): wait for it with the same loader rather than show lines whose
+  // audio is half old voice, half new. An effect event, so the load effect
+  // does not depend on awaitRevoice, a new function every render.
+  const resumeRevoice = useEffectEvent((islandId: string) => {
+    if (revoicing || regenerating) return;
+    setRevoicing(true);
+    void awaitRevoice(islandId);
+  });
   useEffect(() => {
     let alive = true;
     // The raw text of what is on screen, once something is: the local copy
@@ -674,6 +683,8 @@ export default function IslandScreen() {
           return;
         }
         const data = JSON.parse(text) as api.Island;
+        // Lines with a working status: a re-voice is running on the server.
+        if (data.status === 'working' && data.lines.length > 0) resumeRevoice(id);
         if (shownText === null && (await show(data, text))) {
           // Nothing left to do here: show() already put the island on screen.
         } else if (!alive) {
@@ -835,26 +846,62 @@ export default function IslandScreen() {
     return null;
   }
 
+  // The backend replaces the lines' audio one by one and flips the island to
+  // working meanwhile. The scene and dock leave the screen for the wait (the
+  // `revoicing` render branch), so no old clip can start, and the screen
+  // comes back on the same line with the new voice.
   async function doRevoice() {
     if (!island || voice === null || revoicing || regenerating) return;
     setRevoicing(true);
     setPlayWhenLoaded(false);
     dropTake();
     stopPlayback(player);
+    closePanel();
+    setDragSpan(null);
+    try {
+      await api.revoice(island.id, voice);
+    } catch (e) {
+      // Nothing was started, so the island on the server still matches what
+      // is on screen. Say why and go back to it.
+      setRevoicing(false);
+      setError(e instanceof Error ? e.message : 'Re-voicing failed');
+      return;
+    }
+    invalidateLineAudio(island.id);
+    invalidateCachedIsland(island.id);
+    await awaitRevoice(island.id);
+  }
+
+  // Waits for a running re-voice to land, then swaps the fresh island in on
+  // the same line. Shared by doRevoice and the load effect, which finds an
+  // island still being re-voiced when the player is opened again mid-way.
+  // A failure or the 60 s timeout drops to the error screen, whose Retry
+  // reloads (and waits again if the server is still working).
+  async function awaitRevoice(islandId: string) {
     // A promise finally, not a try finally: the compiler does not lower those.
     const run = async () => {
       try {
-        await api.revoice(island.id, voice);
-        invalidateLineAudio(island.id);
-        invalidateCachedIsland(island.id);
-        const data = await waitForIsland(island.id, 60, undefined, 'Re-voicing failed');
-        if (data) {
-          setIsland(data);
-          resetForNewAudio();
-          setIdx(0);
-          setError('');
+        const data = await waitForIsland(islandId, 60, undefined, 'Re-voicing failed');
+        if (!mountedRef.current) return;
+        // Once more after the wait: a clip fetched while the server was
+        // still speaking would be the old voice.
+        invalidateLineAudio(islandId);
+        invalidateCachedIsland(islandId);
+        if (!data) {
+          setIsland(null);
+          setError('Re-voicing is taking longer than expected. Retry to check again.');
+          return;
         }
+        // A new generation gives the player a new source URL, so the native
+        // player drops the old clip instead of keeping it.
+        setGeneration((g) => g + 1);
+        resetForNewAudio();
+        setIdx((i) => Math.max(0, Math.min(i, data.lines.length - 1)));
+        setIsland(data);
+        setError('');
       } catch (e) {
+        if (!mountedRef.current) return;
+        setIsland(null);
         setError(e instanceof Error ? e.message : 'Re-voicing failed');
       }
     };
@@ -1616,7 +1663,7 @@ export default function IslandScreen() {
   // holds the Skia water and nested entering views, and mounting all of that
   // under a layout animation during the push is the likeliest cause of the
   // native crash on open.
-  const sceneShown = (!island || !!line) && !regenerating;
+  const sceneShown = (!island || !!line) && !regenerating && !revoicing;
   const sceneIn = useSharedValue(0);
   useEffect(() => {
     if (!sceneShown) {
@@ -2182,7 +2229,7 @@ export default function IslandScreen() {
     // The header `…` also shows while the island loads, where there is no
     // sheet to open yet. Without this guard, a tap there sets `sheet` to
     // 'island' and the menu pops open once the island lands.
-    if (!line || regenerating) return;
+    if (!line || regenerating || revoicing) return;
     setSheet('island');
   }
 
@@ -2657,7 +2704,7 @@ export default function IslandScreen() {
       return;
     }
     // The same `…` slot rule as the header calls below.
-    const menu = island ? !!line && !regenerating : !error;
+    const menu = island ? !!line && !regenerating && !revoicing : !error;
     const chrome = {
       title: headerTitleText,
       lineIndex: headerLineIndex,
@@ -2799,12 +2846,16 @@ export default function IslandScreen() {
     );
   }
 
-  if (regenerating) {
+  if (regenerating || revoicing) {
     return (
       <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: sky.top }])}>
         {header(false)}
         <View style={[styles.fill, styles.center]}>
-          <CatConstellation label={(api.STAGE_LABEL[buildStage] ?? 'Rebuilding this island').replace(/…$/, '')} />
+          <CatConstellation
+            label={
+              revoicing ? 'Re-voicing' : (api.STAGE_LABEL[buildStage] ?? 'Rebuilding this island').replace(/…$/, '')
+            }
+          />
         </View>
       </SafeAreaView>
     );

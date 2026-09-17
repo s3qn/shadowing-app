@@ -2,10 +2,20 @@ import { memo, useEffect, useState } from 'react';
 import { StyleSheet, TextInput } from 'react-native';
 
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
-import { SheetAction } from '@/components/sheet/sheet-rows';
+import { SheetAction, type SheetIcon } from '@/components/sheet/sheet-rows';
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
 import type { Complexity } from '@/lib/api';
+
+/** Row icons: SF Symbol on iOS, the matching Material Symbol on Android. */
+const ICONS = {
+  rename: { ios: 'pencil', android: 'edit' },
+  export: { ios: 'square.and.arrow.up', android: 'ios_share' },
+  revoice: { ios: 'person.wave.2', android: 'record_voice_over' },
+  regenerate: { ios: 'arrow.clockwise', android: 'refresh' },
+  calibrate: { ios: 'speaker.wave.2', android: 'volume_up' },
+  delete: { ios: 'trash', android: 'delete' },
+} satisfies Record<string, SheetIcon>;
 
 type Props = {
   open: boolean;
@@ -83,26 +93,29 @@ function IslandMenuSheetBase({
         </>
       ) : (
         <>
-          <SheetAction label="Rename" onPress={() => setRenaming(true)} />
+          <SheetAction label="Rename" icon={ICONS.rename} onPress={() => setRenaming(true)} />
           <SheetAction
             label={exporting ? 'Exporting…' : 'Export as audio'}
+            icon={ICONS.export}
             disabled={exporting || busy}
             onPress={onExport}
           />
           {revoiceName ? (
             <SheetAction
               label={busy ? 'Re-voicing…' : `Re-voice in ${revoiceName}`}
+              icon={ICONS.revoice}
               disabled={busy}
               onPress={onRevoice}
             />
           ) : null}
           <SheetAction
             label={complexity === 'simple' ? 'Regenerate with complex patterns' : 'Regenerate one sentence at a time'}
+            icon={ICONS.regenerate}
             disabled={busy}
             onPress={onRegenerate}
           />
-          <SheetAction label="Calibrate speaker" disabled={recording} onPress={onCalibrate} />
-          <SheetAction label="Delete island" destructive disabled={busy} onPress={onDelete} />
+          <SheetAction label="Calibrate speaker" icon={ICONS.calibrate} disabled={recording} onPress={onCalibrate} />
+          <SheetAction label="Delete island" icon={ICONS.delete} destructive disabled={busy} onPress={onDelete} />
         </>
       )}
     </BottomSheet>
