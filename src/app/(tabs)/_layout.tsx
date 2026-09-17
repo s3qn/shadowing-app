@@ -2,8 +2,10 @@ import { Tabs } from 'expo-router';
 
 import { PillTabBar } from '@/components/pill-tab-bar';
 import { tide } from '@/constants/theme';
+import { useT } from '@/lib/i18n';
 
 export default function TabsLayout() {
+  const { t } = useT();
   return (
     <Tabs
       screenOptions={{
@@ -13,9 +15,9 @@ export default function TabsLayout() {
         sceneStyle: { backgroundColor: tide.sky[0] },
       }}
       tabBar={(props) => <PillTabBar {...props} />}>
-      <Tabs.Screen name="index" options={{ title: 'Islands' }} />
-      <Tabs.Screen name="podcast" options={{ title: 'Podcast' }} />
-      <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
+      <Tabs.Screen name="index" options={{ title: t('tab.islands') }} />
+      <Tabs.Screen name="podcast" options={{ title: t('tab.podcast') }} />
+      <Tabs.Screen name="settings" options={{ title: t('tab.settings') }} />
     </Tabs>
   );
 }

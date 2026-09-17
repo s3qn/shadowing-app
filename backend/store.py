@@ -146,6 +146,9 @@ def init() -> None:
         # Databases created before islands remembered their understood language lack it.
         if "native" not in island_cols:
             conn.execute("ALTER TABLE islands ADD COLUMN native TEXT NOT NULL DEFAULT 'en'")
+        # Databases created before failures carried a machine-readable code lack it.
+        if "error_code" not in island_cols:
+            conn.execute("ALTER TABLE islands ADD COLUMN error_code TEXT NOT NULL DEFAULT ''")
         # device-scope: databases created before per-device islands existed
         # lack the column that scopes an island to the phone that made it.
         # Rows without it (device='') belong to nobody until claimed.
@@ -177,11 +180,11 @@ def set_stage(island_id: str, stage: str) -> None:
         )
 
 
-def set_failed(island_id: str, error: str) -> None:
+def set_failed(island_id: str, error: str, code: str = "") -> None:
     with connect() as conn:
         conn.execute(
-            "UPDATE islands SET status='failed', stage='', error=? WHERE id=?",
-            (error, island_id),
+            "UPDATE islands SET status='failed', stage='', error=?, error_code=? WHERE id=?",
+            (error, code, island_id),
         )
 
 

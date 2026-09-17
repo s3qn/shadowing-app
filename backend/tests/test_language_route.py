@@ -122,6 +122,7 @@ def test_build_island_marks_failed_when_generation_returns_no_lines(monkeypatch,
     island = store.get_island(island_id)
     assert island["status"] == "failed"
     assert island["error"] == "No lines could be generated."
+    assert island["error_code"] == "no_lines"
 
 
 # ---------------------------------------------------------------------------

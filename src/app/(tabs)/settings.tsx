@@ -7,15 +7,18 @@ import { PILL_TAB_BAR_REACH } from '@/components/pill-tab-bar';
 import { SettingsRow, SettingsSection } from '@/components/tide/settings-row';
 import { Spacing, prism, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
-import { getSettings, getVoice, setHaptics, setShowAllLanguages, setSkyAlwaysNight, toIslandLanguage } from '@/lib/settings';
+import { LOCALES, type Lang, useT } from '@/lib/i18n';
+import { type AppLanguage, getSettings, getVoice, setHaptics, setShowAllLanguages, setSkyAlwaysNight, toIslandLanguage } from '@/lib/settings';
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const { t } = useT();
   const [voiceName, setVoiceName] = useState('');
   const [haptics, setHapticsState] = useState(true);
   const [skyAlwaysNight, setSkyAlwaysNightState] = useState(false);
   // languages: Home's show-all toggle, default off.
   const [showAllLanguages, setShowAllLanguagesState] = useState(false);
+  const [appLanguage, setAppLanguageState] = useState<AppLanguage>('auto');
 
   useFocusEffect(
     useCallback(() => {
@@ -30,6 +33,7 @@ export default function SettingsScreen() {
         setHapticsState(settings.hapticsEnabled);
         setSkyAlwaysNightState(settings.skyAlwaysNight);
         setShowAllLanguagesState(settings.showAllLanguages);
+        setAppLanguageState(settings.appLanguage);
 
         try {
           const [speakers, voiceId] = await Promise.all([
@@ -90,13 +94,19 @@ export default function SettingsScreen() {
           {/* languages: Home shows every language's islands when on. */}
           <SettingsRow
             label="Show all languages"
-            last
             icon={{ ios: 'globe', android: 'language' }}
             switchValue={showAllLanguages}
             onSwitchChange={(next) => {
               setShowAllLanguagesState(next);
               void setShowAllLanguages(next);
             }}
+          />
+          <SettingsRow
+            label={t('settings.appLanguage')}
+            value={appLanguage === 'auto' ? t('settings.appLanguageAuto') : (LOCALES[appLanguage as Lang]?.native ?? t('settings.appLanguageAuto'))}
+            last
+            icon={{ ios: 'textformat', android: 'translate' }}
+            onPress={() => router.push('/settings/app-language')}
           />
         </SettingsSection>
 

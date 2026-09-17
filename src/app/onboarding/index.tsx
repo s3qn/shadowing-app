@@ -1,6 +1,6 @@
 import { requestRecordingPermissionsAsync } from 'expo-audio';
 import { useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -10,6 +10,7 @@ import { WelcomeStep } from '@/components/onboarding/welcome-step';
 import { PrismButton } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
+import { previewAppLanguage } from '@/lib/i18n';
 import { LANGUAGES } from '@/lib/languages';
 import {
   type LearningLanguage,
@@ -43,6 +44,15 @@ export default function OnboardingScreen() {
   const [understand, setUnderstand] = useState<UnderstoodLanguage>(() => getSettingsSync().understoodLanguage);
   const [micError, setMicError] = useState(false);
   const leaving = useRef(false);
+
+  // Previews the interface in whichever language is picked as "understood",
+  // so the languages step flips the rest of onboarding at once (decision 1,
+  // soft RTL: no restart needed). Only 'en'/'he' have a catalogue today; any
+  // other pick clears the preview and falls back to the saved app language.
+  useEffect(() => {
+    previewAppLanguage(understand === 'en' || understand === 'he' ? understand : null);
+    return () => previewAppLanguage(null);
+  }, [understand]);
 
   function selectLearning(value: LearningLanguage) {
     setLearning(value);

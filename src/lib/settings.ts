@@ -71,6 +71,14 @@ export const UNDERSTOOD_LANGUAGE_OPTIONS = ['he', 'en'] as const;
 export type UnderstoodLanguage = string;
 const DEFAULT_UNDERSTOOD_LANGUAGE: UnderstoodLanguage = 'en';
 
+// The interface language: 'auto' follows `understoodLanguage`, or an explicit
+// pick from `src/lib/i18n.ts`'s `LOCALES` ('en' | 'he' today). A plain string
+// rather than that union, so `src/lib/i18n.ts` (which needs `Settings`) is
+// not imported back into this file.
+export type AppLanguage = string;
+const DEFAULT_APP_LANGUAGE: AppLanguage = 'auto';
+const APP_LANGUAGE_OPTIONS = ['en', 'he'] as const;
+
 export type Settings = {
   /** Voice remembered per learning language, so switching languages does not
    * lose Japanese's pick. Missing entries fall back to `DEFAULT_VOICE_BY_LANGUAGE`. */
@@ -103,6 +111,9 @@ export type Settings = {
   learningLanguage: LearningLanguage;
   /** Language the learner already understands. Fills the backend's `native` field. */
   understoodLanguage: UnderstoodLanguage;
+  /** Interface language: `'auto'` follows `understoodLanguage`, or an
+   * explicit `LOCALES` key. Learning content is never translated. */
+  appLanguage: AppLanguage;
   /** Whether the first-run onboarding flow has been shown. False only for a
    * truly fresh install; an existing settings file from before this key
    * existed is treated as already onboarded. */
@@ -132,6 +143,7 @@ const DEFAULTS: Settings = {
   homeWaveDate: '',
   learningLanguage: DEFAULT_LEARNING_LANGUAGE,
   understoodLanguage: DEFAULT_UNDERSTOOD_LANGUAGE,
+  appLanguage: DEFAULT_APP_LANGUAGE,
   // Only a missing settings file (a truly fresh install) defaults to false:
   // see the `onboarded: true` overrides below for a file that exists but
   // predates this key.
@@ -252,6 +264,13 @@ async function read(): Promise<Settings> {
       typeof parsed.understoodLanguage === 'string' && getLanguage(parsed.understoodLanguage)?.understandable
         ? parsed.understoodLanguage
         : DEFAULT_UNDERSTOOD_LANGUAGE,
+    // 'auto' or a key of `LOCALES` (kept as a local list here, see the
+    // `AppLanguage` comment above): anything else falls back to 'auto'.
+    appLanguage:
+      typeof parsed.appLanguage === 'string' &&
+      (parsed.appLanguage === 'auto' || (APP_LANGUAGE_OPTIONS as readonly string[]).includes(parsed.appLanguage))
+        ? parsed.appLanguage
+        : DEFAULT_APP_LANGUAGE,
     // A file from before this key existed has no `onboarded` field at all:
     // that is Sean's phone and every install so far, so it counts as already
     // onboarded. Only a missing file (handled above) defaults to false.
@@ -433,6 +452,12 @@ export function toNativeLanguage(id: UnderstoodLanguage): 'he' | 'en' {
 
 export async function setUnderstoodLanguage(understoodLanguage: UnderstoodLanguage): Promise<void> {
   await update({ understoodLanguage });
+}
+
+/** Sets the interface language: `'auto'` to follow `understoodLanguage`
+ * again, or an explicit `LOCALES` key. */
+export async function setAppLanguage(appLanguage: AppLanguage): Promise<void> {
+  await update({ appLanguage });
 }
 
 export async function setOnboarded(onboarded: boolean): Promise<void> {

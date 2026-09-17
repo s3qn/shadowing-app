@@ -9,11 +9,13 @@ import { CardMorphOverlay } from '@/components/card-morph-overlay';
 import { LoadingOverlay } from '@/components/loading-overlay';
 import { tide } from '@/constants/theme';
 import { loadDeviceId } from '@/lib/device';
+import { useT } from '@/lib/i18n';
 import { getSettings } from '@/lib/settings';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const { t } = useT();
   const reducedMotion = useReducedMotion();
   const [ready, setReady] = useState(false);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
@@ -73,7 +75,7 @@ export default function RootLayout() {
         {/* title names the back button the next screen shows, even though
             this screen's own header is hidden: without it iOS falls back to
             the route segment, "(tabs)". */}
-        <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Islands' }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false, title: t('tab.islands') }} />
         {/* Full screen, no header, and no swipe to dismiss: it closes only
             through its own buttons. On first launch (`first` param) it is
             already in place when the splash hides, so it does not animate. */}
@@ -91,7 +93,7 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="record"
-          options={{ title: 'New island', presentation: 'modal' }}
+          options={{ title: t('title.newIsland'), presentation: 'modal' }}
         />
         {/* The player draws its own header. Opened from a Home card (the
             `morph` param), the card morph overlay is the whole transition
@@ -110,12 +112,14 @@ export default function RootLayout() {
             };
           }}
         />
-        <Stack.Screen name="settings/voice" options={{ title: 'Voice' }} />
-        <Stack.Screen name="settings/playback" options={{ title: 'Playback' }} />
-        <Stack.Screen name="settings/practice" options={{ title: 'Practice' }} />
-        <Stack.Screen name="settings/data" options={{ title: 'Data' }} />
-        <Stack.Screen name="settings/about" options={{ title: 'About' }} />
-        <Stack.Screen name="settings/languages" options={{ title: 'Language' }} />
+        <Stack.Screen name="settings/voice" options={{ title: t('title.voice') }} />
+        <Stack.Screen name="settings/playback" options={{ title: t('title.playback') }} />
+        <Stack.Screen name="settings/practice" options={{ title: t('title.practice') }} />
+        <Stack.Screen name="settings/data" options={{ title: t('title.data') }} />
+        <Stack.Screen name="settings/about" options={{ title: t('title.about') }} />
+        <Stack.Screen name="settings/languages" options={{ title: t('title.language') }} />
+        <Stack.Screen name="settings/app-language" options={{ title: t('settings.appLanguage') }} />
+        {/* Dev-only screen, excluded from the app-language inventory. */}
         <Stack.Screen name="prism-lab" options={{ title: 'Prism lab' }} />
       </Stack>
       <CardMorphOverlay />
