@@ -2,8 +2,7 @@
  * The few settings the app keeps on the device, as one JSON file in the app's
  * document directory. Small enough that a storage library would be overkill.
  * Keeps the voice, blind mode, the reading display, pitch marks, the player's
- * default repeat count and pause, the speech register for new islands, and the Auto Echo toggles
- * (including whether the line plays under the Speak step).
+ * default repeat count and pause, the speech register for new islands, and the Auto Echo toggles.
  */
 
 import { documentDirectory, getInfoAsync, readAsStringAsync, writeAsStringAsync } from 'expo-file-system/legacy';
@@ -16,7 +15,7 @@ const DEFAULT_HIDE_ENGLISH = false;
 
 /** How many times the player plays each line before moving to the next. */
 export const TIMES_MIN = 1;
-export const TIMES_MAX = 9;
+export const TIMES_MAX = 5;
 /** Silence after every play, in ms: between the repeats of a line and before
  * the next line. It is also Auto Echo's Echo step (it replaced the old Lag
  * setting). The backend's line audio pad allows up to the same maximum. */
@@ -58,9 +57,6 @@ export type Settings = {
   register: Register;
   autoEcho: boolean;
   autoRecord: boolean;
-  /** Auto Echo's Speak step plays the line under the voice. Off by default:
-   * without headphones the phone speaker bleeds into the take. */
-  playLineWhileSpeaking: boolean;
   /** Playback speed a new island's player opens at, `SPEED_MIN`-`SPEED_MAX`. */
   defaultSpeed: number;
   /** Plays per line a new island's player opens with. */
@@ -88,7 +84,6 @@ const DEFAULTS: Settings = {
   register: DEFAULT_REGISTER,
   autoEcho: true,
   autoRecord: true,
-  playLineWhileSpeaking: false,
   defaultSpeed: DEFAULT_DEFAULT_SPEED,
   defaultTimes: DEFAULT_DEFAULT_TIMES,
   defaultPauseMs: DEFAULT_DEFAULT_PAUSE,
@@ -156,12 +151,15 @@ async function read(): Promise<Settings> {
     register: REGISTER_OPTIONS.includes(parsed.register as Register) ? (parsed.register as Register) : DEFAULT_REGISTER,
     autoEcho: parsed.autoEcho !== false,
     autoRecord: parsed.autoRecord !== false,
-    playLineWhileSpeaking: parsed.playLineWhileSpeaking === true,
     defaultSpeed:
       typeof parsed.defaultSpeed === 'number' && parsed.defaultSpeed >= SPEED_MIN && parsed.defaultSpeed <= SPEED_MAX
         ? parsed.defaultSpeed
         : DEFAULT_DEFAULT_SPEED,
-    defaultTimes: isTimes(parsed.defaultTimes) ? parsed.defaultTimes : migrateTimes(parsed.defaultRepeat),
+    defaultTimes: isTimes(parsed.defaultTimes)
+      ? parsed.defaultTimes
+      : typeof parsed.defaultTimes === 'number' && parsed.defaultTimes > TIMES_MAX
+        ? TIMES_MAX
+        : migrateTimes(parsed.defaultRepeat),
     defaultPauseMs: isPause(parsed.defaultPauseMs) ? parsed.defaultPauseMs : migratePause(parsed.lagMs),
     hapticsEnabled: parsed.hapticsEnabled !== false,
     skyAlwaysNight: parsed.skyAlwaysNight === true,
@@ -266,10 +264,6 @@ export async function setAutoEcho(autoEcho: boolean): Promise<void> {
 
 export async function setAutoRecord(autoRecord: boolean): Promise<void> {
   await update({ autoRecord });
-}
-
-export async function setPlayLineWhileSpeaking(playLineWhileSpeaking: boolean): Promise<void> {
-  await update({ playLineWhileSpeaking });
 }
 
 export async function setDefaultSpeed(defaultSpeed: number): Promise<void> {

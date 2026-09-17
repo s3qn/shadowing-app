@@ -43,14 +43,23 @@ type SheetToggleProps = {
   hint?: string;
   value: boolean;
   onValueChange: (value: boolean) => void;
+  /** Leading symbol, never destructive or disabled so it always uses `tide.text`. */
+  icon?: SheetIcon;
 };
 
-export function SheetToggle({ label, hint, value, onValueChange }: SheetToggleProps) {
+export function SheetToggle({ label, hint, value, onValueChange, icon }: SheetToggleProps) {
   return (
     <View style={styles.row}>
-      <View style={styles.text}>
-        <Text style={styles.label}>{label}</Text>
-        {hint ? <Text style={styles.hint}>{hint}</Text> : null}
+      <View style={styles.lead}>
+        {icon ? (
+          <View style={styles.iconSlot}>
+            <SymbolView name={icon} size={20} weight="regular" tintColor={tide.text} />
+          </View>
+        ) : null}
+        <View style={styles.text}>
+          <Text style={styles.label}>{label}</Text>
+          {hint ? <Text style={styles.hint}>{hint}</Text> : null}
+        </View>
       </View>
       <Switch
         value={value}

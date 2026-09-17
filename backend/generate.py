@@ -196,3 +196,59 @@ def generate_lines(transcript: str, complexity: str = "simple", count: int = 8,
 
     log.info("generate: %d lines at complexity=%s register=%s", len(lines), complexity, register)
     return {"title": (parsed.get("title") or "").strip(), "lines": lines}
+
+
+TRANSLATE_BATCH = 40
+
+TRANSLATE_PROMPT_TEMPLATE = """Translate these {language} sentences to natural, \
+idiomatic English, one translation per sentence.
+
+{numbered}
+
+OUTPUT: reply with a RAW JSON array of exactly {count} strings, same order as \
+the sentences above, nothing else. No prose, no markdown code fences."""
+
+
+def translate_lines(ja: list[str], language: str = "ja") -> list[str]:
+    """Translate a batch of lines to English through the claude CLI.
+
+    Returns a list the same length and order as `ja`, or [] on any failure or
+    a length mismatch in the CLI's reply. Never raises.
+    """
+    if not ja:
+        return []
+
+    numbered = "\n".join(f"{i + 1}. {line}" for i, line in enumerate(ja))
+    prompt = TRANSLATE_PROMPT_TEMPLATE.format(
+        language=LANGUAGE_NAMES.get(language, "Japanese"),
+        numbered=numbered,
+        count=len(ja),
+    )
+
+    try:
+        proc = subprocess.run(
+            _cli_argv(),
+            input=prompt,
+            capture_output=True,
+            text=True,
+            timeout=CLI_TIMEOUT_S,
+        )
+    except FileNotFoundError:
+        log.warning("translate_lines: `%s` not found on PATH", CLI_BINARY)
+        return []
+    except subprocess.TimeoutExpired:
+        log.warning("translate_lines: CLI timed out after %ss", CLI_TIMEOUT_S)
+        return []
+
+    if proc.returncode != 0:
+        log.warning("translate_lines: CLI exited %s: %s", proc.returncode, (proc.stderr or "")[:400])
+        return []
+
+    parsed = _extract_json(proc.stdout or "")
+    if not isinstance(parsed, list) or len(parsed) != len(ja):
+        log.warning("translate_lines: bad shape from CLI output: %s", (proc.stdout or "")[:400])
+        return []
+
+    result = [str(item).strip() for item in parsed]
+    log.info("translate_lines: translated %d lines", len(result))
+    return result

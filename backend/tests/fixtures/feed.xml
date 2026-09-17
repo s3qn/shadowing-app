@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+  <channel>
+    <title>Test Japanese Podcast</title>
+    <link>https://example.com/podcast</link>
+    <description>A feed used only by backend/tests/test_podcast.py.</description>
+    <item>
+      <title>Episode One: The Long One</title>
+      <pubDate>Mon, 01 Jan 2024 09:00:00 GMT</pubDate>
+      <itunes:duration>1:02:03</itunes:duration>
+      <enclosure url="https://example.com/audio/episode-one.mp3" length="59000000" type="audio/mpeg" />
+    </item>
+    <item>
+      <title>Episode Two: Seconds Only</title>
+      <pubDate>Mon, 08 Jan 2024 09:00:00 GMT</pubDate>
+      <itunes:duration>1830</itunes:duration>
+      <enclosure url="https://example.com/audio/episode-two.mp3" length="18300000" type="audio/mpeg" />
+    </item>
+    <item>
+      <title>Episode Three: No Audio</title>
+      <pubDate>Mon, 15 Jan 2024 09:00:00 GMT</pubDate>
+      <description>An item with no enclosure, like a text-only post mixed into a feed.</description>
+    </item>
+  </channel>
+</rss>

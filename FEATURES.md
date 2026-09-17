@@ -60,8 +60,8 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   line subtracted and only your voice left. A take through headphones has no
   bleed to remove, and is detected and kept exactly as recorded.
 - Blind mode and lag: a Blind pill hides the Japanese, the reading and the
-  English so you shadow by ear, with a Tap to peek placeholder that shows the
-  text for the current line only. A Lag setting (Off, 0.3s, 0.5s, 1s) lengthens
+  English so you shadow by ear, and a finger drag over the blurred sentence or
+  English reveals only the words under it. A Lag setting (Off, 0.3s, 0.5s, 1s) lengthens
   the Record my take tail and the loop breath by that much, so speaking a beat
   behind the voice is not cut off or talked over. Both are remembered on the
   phone. The highlight and Compare are not shifted.
@@ -119,13 +119,13 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Player dock of tiles with accent highlight, Repeat cycle defaulting to
   Island, tidy sheets
 - One control per function: take row and quick chips removed, record button
-  opens Auto Echo, silent Speak setting
+  opens Auto Echo; with headphones the line plays under your voice during Speak, on the speaker Speak is silent
 - Explain: word meaning in context and one-tap phrase explanations
 - Record page in the Tide look
 - Pill tab bar and system fonts
 - Repeat popover: the island always plays on line after line and wraps until
   paused. The Repeat tile opens two tick rulers that snap with a haptic per
-  step: Times (Off, 2× to 9× per line) and Pause (0–10s in 0.5s steps after
+  step: Times (Off, at most 5× per line) and Pause (0–10s in 0.5s steps after
   every play, with the countdown). Decision: Lag and the loop breath were the
   same thing, so Pause replaces both and the Lag tile is gone; Auto Echo's
   Echo step uses the same Pause, and a take's tail grows by it up to 1s. The
@@ -150,6 +150,19 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Island menu icons: SF Symbols on each row (Material icons on Android).
 - Re-voice stays on the player with the Cat Constellation and Re-voicing
   until the new voice lands, on the same line, with no old clips.
+- SF Symbols on every sheet, popover and Settings row.
+- Slide to reveal: in Blind and Hide EN a finger drag sharpens only the words
+  under it.
+- Simultaneous Speak: with headphones the line plays under your voice in Auto
+  Echo; Times capped at 5.
+- Kept up with X of Y words after a take and on the centred Home card.
+- Suggest a feature in Settings, stored on the backend with an optional
+  Discord webhook.
+- Streak counts shadowing passes (10 a day); older days keep the 60 second
+  rule.
+- Backend: island language, import from audio and SRT with English lines,
+  podcasts from RSS, due-today scheduling, per-mora length and pitch analysis
+  on takes.
 
 ## Next (approved, in order)
 

@@ -18,6 +18,7 @@ import copy
 import hashlib
 import json
 import logging
+import math
 import os
 import secrets
 import os
@@ -39,12 +40,16 @@ from pydantic import BaseModel
 # from the environment at import time.
 load_dotenv()
 
+import cues
 import explain
 import export
 import generate
 import gloss as glossary
+import podcast
+import schedule
 import segment
 import store
+import suggest
 import transcribe
 import voicevox
 
@@ -55,6 +60,10 @@ log = logging.getLogger("shadow")
 
 SHADOW_TOKEN = os.getenv("SHADOW_TOKEN", "")
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+IMPORT_MAX_BYTES = 300 * 1024 * 1024
+IMPORT_MAX_SECONDS = 1800  # 30 minutes: how much of an import an island keeps
+SRT_MAX_BYTES = 2 * 1024 * 1024
+SLICE_RATE = 24000  # aec.SR: VOICEVOX's rate, which the take cleaner and slicer assume
 
 app = FastAPI(title="Shadowing Islands", version="0.1.0")
 
@@ -67,6 +76,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(schedule.router)
+app.include_router(suggest.router)
 
 
 def require_token(authorization: str | None) -> None:
@@ -84,12 +96,19 @@ def require_token(authorization: str | None) -> None:
 @app.on_event("startup")
 def _startup() -> None:
     store.init()
+    schedule.init()
     log.info("store ready at %s", store.DB_PATH)
     # Background work dies with the process. Anything still marked as working
     # was interrupted, and must not sit in that state forever.
     for island in store.list_islands():
         if island["status"] in ("pending", "working"):
-            if island["line_count"] > 0:
+            if island["source"] != "voice":
+                # An import or podcast build has no partial-progress state
+                # worth keeping: the source media is a temp file that is
+                # already gone, so it cannot resume or be regenerated.
+                store.set_failed(island["id"], "Import was interrupted. Delete it and import again.")
+                log.warning("island %s (%s) was interrupted; marked failed", island["id"], island["source"])
+            elif island["line_count"] > 0:
                 store.set_ready(island["id"], island["title"] or "Untitled island")
                 log.warning("island %s was interrupted; kept its %d lines", island["id"], island["line_count"])
             else:
@@ -194,6 +213,184 @@ def _to_wav(src: Path, dst: Path) -> bool:
         return False
 
 
+JAPANESE_TAGS = ("jpn", "ja")
+
+
+def pick_audio_stream(probe: dict) -> int | None:
+    """The ffprobe stream index of the audio track to import, from ffprobe's
+    parsed `-of json` output. Dual-audio releases often put an English dub
+    first, so the first audio stream tagged `jpn` or `ja` wins; with no such
+    tag, the first audio stream. None when there is no audio stream."""
+    audio = [s for s in probe.get("streams", []) if s.get("codec_type") == "audio"]
+    for stream in audio:
+        language = str((stream.get("tags") or {}).get("language", "")).lower()
+        if language in JAPANESE_TAGS:
+            return int(stream["index"])
+    return int(audio[0]["index"]) if audio else None
+
+
+def _probe_streams(path: Path) -> dict:
+    """ffprobe's stream list for a media file as parsed JSON, {} on failure.
+    Blocking; callers use asyncio.to_thread."""
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "error",
+                "-show_entries", "stream=index,codec_type:stream_tags=language",
+                "-of", "json", str(path),
+            ],
+            capture_output=True,
+            check=True,
+            timeout=60,
+            text=True,
+        )
+        return json.loads(result.stdout)
+    except Exception:
+        log.exception("ffprobe streams failed for %s", path)
+        return {}
+
+
+def _unique_tmp(dst: Path) -> Path:
+    """A tmp path beside dst that no other call shares, so two ffmpeg runs
+    for the same target never write into one file."""
+    return dst.with_name(f".{dst.stem}.{secrets.token_hex(6)}.tmp")
+
+
+def _extract_audio(src: Path, dst: Path, stream: int, start_s: float = 0.0,
+                   max_s: float | None = None) -> bool:
+    """Pull audio stream `stream` (an ffprobe index, see pick_audio_stream)
+    out of an imported file, as 24kHz mono 16-bit PCM: VOICEVOX's rate, which
+    aec.SR and the take cleaner already assume. `start_s` and `max_s` trim
+    the source in the same ffmpeg call, which is how the 30-minute import
+    cap and a `start_min` offset are applied. Blocking; callers use
+    asyncio.to_thread."""
+    tmp = dst.with_suffix(".tmp")
+    cmd = ["ffmpeg", "-y"]
+    if start_s > 0:
+        cmd += ["-ss", f"{start_s:.3f}"]
+    cmd += ["-i", str(src)]
+    if max_s is not None:
+        cmd += ["-t", f"{max_s:.3f}"]
+    cmd += [
+        "-map", f"0:{stream}", "-ac", "1", "-ar", str(SLICE_RATE), "-c:a", "pcm_s16le",
+        "-f", "wav", str(tmp),
+    ]
+    try:
+        subprocess.run(cmd, capture_output=True, check=True, timeout=1200)
+        if not tmp.exists():
+            return False
+        os.replace(tmp, dst)
+        return dst.exists()
+    except Exception:
+        log.exception("ffmpeg extract failed for %s", src)
+        tmp.unlink(missing_ok=True)
+        return False
+
+
+def _slice(src: Path, dst: Path, start: float, end: float) -> bool:
+    """Cut one line's audio out of source.wav. `-ss` before `-i` on a wav is
+    sample-accurate. Blocking; callers use asyncio.to_thread."""
+    tmp = dst.with_suffix(".tmp")
+    try:
+        subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-ss", f"{start:.3f}", "-i", str(src),
+                "-t", f"{end - start:.3f}", "-c:a", "pcm_s16le",
+                "-f", "wav", str(tmp),
+            ],
+            capture_output=True,
+            check=True,
+            timeout=120,
+        )
+        if not tmp.exists():
+            return False
+        os.replace(tmp, dst)
+        return dst.exists()
+    except Exception:
+        log.exception("ffmpeg slice failed for %s [%.3f, %.3f)", src, start, end)
+        tmp.unlink(missing_ok=True)
+        return False
+
+
+def _stretch(src: Path, dst: Path, speed: float) -> bool:
+    """Slow (or speed up) a slice of imported audio with rubberband, pitch
+    preserved. Output length is 1/speed of the input, which is what the
+    client's w.start / speed assumes. Blocking; callers use asyncio.to_thread.
+
+    Two requests for the same line and speed can both miss the cache and get
+    here at once. Each writes its own tmp file and swaps it in with
+    os.replace, so both finish with a whole file at dst and neither can
+    read, move or delete the other's half-written output."""
+    tmp = _unique_tmp(dst)
+    try:
+        subprocess.run(
+            [
+                "ffmpeg", "-y", "-i", str(src),
+                "-filter:a", f"rubberband=tempo={speed}",
+                "-c:a", "pcm_s16le",
+                "-f", "wav", str(tmp),
+            ],
+            capture_output=True,
+            check=True,
+            timeout=120,
+        )
+        if not tmp.exists():
+            return False
+        os.replace(tmp, dst)
+        return dst.exists()
+    except Exception:
+        log.exception("ffmpeg stretch failed for %s at %s", src, speed)
+        tmp.unlink(missing_ok=True)
+        return False
+
+
+def _probe_duration(path: Path) -> float:
+    """The duration of an audio file in seconds, 0.0 on failure."""
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
+            capture_output=True,
+            check=True,
+            timeout=30,
+            text=True,
+        )
+        return float(result.stdout.strip())
+    except Exception:
+        log.exception("ffprobe failed for %s", path)
+        return 0.0
+
+
+def _read_srt(path: Path) -> str:
+    """Japanese subtitle files show up as utf-8-sig or, less often, Shift-JIS
+    (cp932). Falls back to utf-8 with replacement rather than raising, so a
+    stranger encoding imports as garbage text instead of failing the import."""
+    raw = path.read_bytes()[:SRT_MAX_BYTES]
+    for encoding in ("utf-8-sig", "cp932"):
+        try:
+            return raw.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return raw.decode("utf-8", errors="replace")
+
+
+def _stream_upload(upload: UploadFile, dst: Path, max_bytes: int) -> int:
+    """Copy an UploadFile to disk in chunks, so a large import is never held
+    whole in memory. Raises HTTPException(413) past `max_bytes`. Blocking;
+    callers use asyncio.to_thread."""
+    size = 0
+    with open(dst, "wb") as out:
+        while True:
+            chunk = upload.file.read(1024 * 1024)
+            if not chunk:
+                break
+            size += len(chunk)
+            if size > max_bytes:
+                raise HTTPException(413, "that file is too large to import")
+            out.write(chunk)
+    return size
+
+
 async def _synthesize_lines(island_id: str, lines: list[dict], speaker: int) -> int:
     """Render every line to its own wav. Returns how many succeeded."""
     done = 0
@@ -270,6 +467,7 @@ async def create_island(
     audio: UploadFile = File(...),
     complexity: str = Form("simple"),
     register: str = Form("polite"),
+    language: str = Form("ja"),
     speaker: int = Form(voicevox.DEFAULT_SPEAKER),
     count: int = Form(8),
     authorization: str | None = Header(None),
@@ -279,6 +477,8 @@ async def create_island(
         raise HTTPException(400, "complexity must be 'simple' or 'complex'")
     if register not in generate.REGISTER_RULES:
         raise HTTPException(400, "register must be 'polite' or 'casual'")
+    if language not in ("ja", "es", "en"):
+        raise HTTPException(400, "language must be 'ja', 'es' or 'en'")
 
     raw = await audio.read()
     if not raw:
@@ -286,7 +486,7 @@ async def create_island(
     if len(raw) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, "recording too large")
 
-    island_id = store.create_island(complexity, speaker, register)
+    island_id = store.create_island(complexity, speaker, register, language)
     suffix = Path(audio.filename or "rec.m4a").suffix or ".m4a"
     tmp_dir = Path(tempfile.mkdtemp(prefix=f"island-{island_id}-"))
     src = tmp_dir / f"input{suffix}"
@@ -300,6 +500,267 @@ async def create_island(
     shutil.rmtree(tmp_dir, ignore_errors=True)
 
     background.add_task(_build_island, island_id, wav, complexity, speaker, count, register)
+    return {"id": island_id, "status": "pending"}
+
+
+async def _build_from_cues(island_id: str, source_wav: Path, cue_list: list[dict],
+                           title: str, total: float) -> None:
+    """The shared tail of the import pipeline: slice one wav per cue out of
+    source_wav, give each line its reading and word timings, and mark the
+    island ready. `total` is source_wav's duration, the same value the words
+    were attached with (cues.attach_words), so every attached word lies
+    inside its line's slice. `made` may be less than len(cue_list) when a
+    slice fails, so lines stay contiguously indexed from 0."""
+    store.set_stage(island_id, "slicing")
+    made = 0
+    with_words = 0
+    ja_texts: list[str] = []
+    for i, cue in enumerate(cue_list):
+        start, end = cues.slice_bounds(cue_list, i, total)
+        target = store.line_audio_path(island_id, made)
+        ok = await asyncio.to_thread(_slice, source_wav, target, start, end)
+        if not ok:
+            continue
+        duration = round(end - start, 3)
+        pieces = [
+            {"text": w["text"], "start": w["start"] - start, "end": w["end"] - start}
+            for w in cue.get("words", [])
+        ]
+        words = await asyncio.to_thread(segment.align_pieces, cue["text"], pieces, duration)
+        line = {"ja": cue["text"], "kana": segment.reading(cue["text"]), "romaji": "", "en": ""}
+        store.add_line(island_id, made, line, duration, [], words, offset=start)
+        if cue.get("words"):
+            with_words += 1
+        ja_texts.append(cue["text"])
+        made += 1
+    if made == 0:
+        store.set_failed(island_id, "No line could be cut from that audio.")
+        return
+    store.set_ready(island_id, title)
+    log.info(
+        "island %s ready: %d lines, %d with whisper words (%d fell back to a steady pace)",
+        island_id, made, with_words, made - with_words,
+    )
+
+    # The island is already ready, so a translation error only costs the
+    # English. It must never reach _build_import's handler, which would mark
+    # the island failed.
+    try:
+        for batch_start in range(0, len(ja_texts), generate.TRANSLATE_BATCH):
+            batch = ja_texts[batch_start:batch_start + generate.TRANSLATE_BATCH]
+            translations = await asyncio.to_thread(generate.translate_lines, batch)
+            for offset, en in enumerate(translations):
+                if en:
+                    store.set_en(island_id, batch_start + offset, en)
+            log.info(
+                "island %s translated lines %d..%d (%d ok)",
+                island_id, batch_start, batch_start + len(batch), len(translations),
+            )
+    except Exception:
+        log.exception("island %s: translation stopped early, the island stays ready", island_id)
+
+
+async def _build_import(island_id: str, media: Path, srt_text: str | None,
+                        title: str, start_s: float, tmp_dir: Path | None = None) -> None:
+    """The import pipeline, run in the background so the upload returns at
+    once: pull the audio out (trimmed to the 30-minute cap from `start_s`),
+    run whisper once over the whole clip for word timings, get cues from the
+    .srt if one was given (whisper's own segments otherwise), then slice."""
+    try:
+        store.set_stage(island_id, "extracting")
+        probe = await asyncio.to_thread(_probe_streams, media)
+        if not probe.get("streams"):
+            store.set_failed(island_id, "That media file could not be decoded.")
+            return
+        stream = pick_audio_stream(probe)
+        if stream is None:
+            store.set_failed(island_id, "That media file has no audio track.")
+            return
+        source_total = await asyncio.to_thread(_probe_duration, media)
+        if source_total > 0 and start_s >= source_total:
+            store.set_failed(
+                island_id,
+                f"The start time ({start_s / 60.0:.0f} min) is past the end of the media"
+                f" ({source_total / 60.0:.0f} min).",
+            )
+            return
+        wav = store.AUDIO_DIR / island_id / "source.wav"
+        ok = await asyncio.to_thread(
+            _extract_audio, media, wav, stream, start_s, IMPORT_MAX_SECONDS
+        )
+        if not ok:
+            store.set_failed(island_id, "That media file could not be decoded.")
+            return
+        total = await asyncio.to_thread(_probe_duration, wav)
+        if total <= 0:
+            store.set_failed(island_id, "That media file could not be decoded.")
+            return
+
+        # A suffix whenever the island does not cover the source from its
+        # very start to its very end, so the range is never a silent surprise.
+        trimmed = start_s > 0 or (source_total > 0 and source_total - start_s > total + 0.5)
+        if trimmed:
+            start_min, end_min = start_s / 60.0, (start_s + total) / 60.0
+            title = f"{title} ({start_min:.0f}–{end_min:.0f} min)"
+
+        store.set_stage(island_id, "transcribing")
+        result = await asyncio.to_thread(transcribe.transcribe, wav, "ja", True, True)
+        if not result.get("ok"):
+            store.set_failed(
+                island_id,
+                "Whisper could not transcribe that audio, so the lines would have no word"
+                " timings. Check the backend log, then delete this island and import again.",
+            )
+            return
+        if not result["words"]:
+            log.warning(
+                "island %s: whisper heard no words in %s; every line falls back to a steady pace",
+                island_id, wav,
+            )
+
+        if srt_text:
+            cue_list = cues.parse_srt(srt_text)
+            cue_list = cues.window(cue_list, start_s, total)
+            if not cue_list:
+                store.set_failed(island_id, "No subtitle lines fall inside that time range.")
+                return
+            cue_list = cues.attach_words(cue_list, result["words"], total)
+        else:
+            seg_cues = [
+                {"start": s["start"], "end": s["end"], "text": s["text"], "words": s["words"]}
+                for s in result["segments"]
+                if s["text"]
+            ]
+            cue_list = cues.split_long(seg_cues, max_seconds=8.0)
+            if not cue_list:
+                store.set_failed(island_id, "Nothing could be transcribed from that audio.")
+                return
+
+        await _build_from_cues(island_id, wav, cue_list, title, total)
+    except Exception as exc:
+        log.exception("import %s failed", island_id)
+        store.set_failed(island_id, str(exc))
+    finally:
+        if tmp_dir is not None:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+@app.post("/shadow/islands/import")
+async def create_import_island(
+    background: BackgroundTasks,
+    audio: UploadFile = File(...),
+    subtitles: UploadFile | None = File(None),
+    title: str = Form(""),
+    speaker: int = Form(voicevox.DEFAULT_SPEAKER),
+    language: str = Form("ja"),
+    start_min: float = Form(0),
+    authorization: str | None = Header(None),
+) -> dict:
+    """Import an audio file (plus an optional .srt) as an island that plays
+    the original audio, sliced per line."""
+    require_token(authorization)
+    if language != "ja":
+        raise HTTPException(400, "imports are Japanese only for now")
+    if not math.isfinite(start_min) or start_min < 0:
+        raise HTTPException(400, "start_min must be a finite number >= 0")
+
+    tmp_dir = Path(tempfile.mkdtemp(prefix="import-"))
+    suffix = Path(audio.filename or "audio").suffix or ".bin"
+    media = tmp_dir / f"media{suffix}"
+    try:
+        size = await asyncio.to_thread(_stream_upload, audio, media, IMPORT_MAX_BYTES)
+    except HTTPException:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise
+    if size == 0:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise HTTPException(400, "empty upload")
+
+    srt_text = None
+    if subtitles is not None:
+        srt_raw = await subtitles.read()
+        if srt_raw:
+            srt_path = tmp_dir / "subs.srt"
+            srt_path.write_bytes(srt_raw[:SRT_MAX_BYTES])
+            srt_text = await asyncio.to_thread(_read_srt, srt_path)
+
+    island_title = title.strip() or Path(audio.filename or "import").stem
+    island_id = store.create_island(
+        "simple", speaker, language=language, source="import",
+        source_name=audio.filename or "import",
+    )
+    background.add_task(
+        _build_import, island_id, media, srt_text, island_title, float(start_min) * 60.0, tmp_dir,
+    )
+    return {"id": island_id, "status": "pending"}
+
+
+@app.get("/shadow/podcasts/episodes")
+async def podcast_episodes(url: str, authorization: str | None = Header(None)) -> dict:
+    """List a podcast feed's episodes so one can be handed to the importer."""
+    require_token(authorization)
+    try:
+        await podcast.check_url(url)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    try:
+        xml = await podcast.fetch(url, None, podcast.FEED_MAX_BYTES)
+    except podcast.PodcastError as exc:
+        raise HTTPException(502, str(exc))
+    return podcast.parse_feed(xml)
+
+
+async def _build_podcast(island_id: str, audio_url: str, title: str, start_s: float,
+                         tmp_dir: Path) -> None:
+    """Download the episode audio into `tmp_dir`, then hand off to the same
+    pipeline a file import uses. `_build_import` owns `tmp_dir` once it takes
+    over; this only cleans up itself if the download never gets that far."""
+    try:
+        store.set_stage(island_id, "downloading")
+        media = tmp_dir / "episode"
+        await podcast.fetch(audio_url, media, IMPORT_MAX_BYTES)
+    except podcast.PodcastError:
+        store.set_failed(island_id, "The episode could not be downloaded.")
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        return
+    except Exception as exc:
+        log.exception("podcast download %s failed", island_id)
+        store.set_failed(island_id, str(exc))
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        return
+    await _build_import(island_id, media, None, title, start_s, tmp_dir)
+
+
+@app.post("/shadow/podcasts/import")
+async def import_podcast_episode(
+    background: BackgroundTasks,
+    audio_url: str = Form(...),
+    title: str = Form(""),
+    start_min: float = Form(0),
+    speaker: int = Form(voicevox.DEFAULT_SPEAKER),
+    language: str = Form("ja"),
+    authorization: str | None = Header(None),
+) -> dict:
+    """Download a podcast episode by URL and import it the same way an
+    uploaded file is imported."""
+    require_token(authorization)
+    if language != "ja":
+        raise HTTPException(400, "imports are Japanese only for now")
+    if not math.isfinite(start_min) or start_min < 0:
+        raise HTTPException(400, "start_min must be a finite number >= 0")
+    try:
+        await podcast.check_url(audio_url)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    tmp_dir = Path(tempfile.mkdtemp(prefix="podcast-"))
+    island_title = title.strip() or "Podcast episode"
+    island_id = store.create_island(
+        "simple", speaker, language=language, source="podcast", source_name=title,
+    )
+    background.add_task(
+        _build_podcast, island_id, audio_url, island_title, float(start_min) * 60.0, tmp_dir,
+    )
     return {"id": island_id, "status": "pending"}
 
 
@@ -449,11 +910,21 @@ async def _resolve_line_audio(island: dict, idx: int, speed: float,
             line = next((l for l in island.get("lines", []) if l["idx"] == idx), None)
             if line is None:
                 raise HTTPException(404, "no such line")
-            try:
-                wav, _, _, _ = await voicevox.speak(line["ja"], island["speaker"], speed)
-            except voicevox.VoicevoxError as exc:
-                raise HTTPException(502, str(exc)) from exc
-            await asyncio.to_thread(_write_atomic, path, wav)
+            if island["source"] != "voice":
+                # Imported islands play the source recording, not VOICEVOX:
+                # slow it down (pitch preserved) instead of re-synthesizing.
+                base = store.line_audio_path(island["id"], idx)
+                if not await asyncio.to_thread(base.exists):
+                    raise HTTPException(404, "no audio for that line")
+                ok = await asyncio.to_thread(_stretch, base, path, speed)
+                if not ok:
+                    raise HTTPException(502, "could not change the playback speed")
+            else:
+                try:
+                    wav, _, _, _ = await voicevox.speak(line["ja"], island["speaker"], speed)
+                except voicevox.VoicevoxError as exc:
+                    raise HTTPException(502, str(exc)) from exc
+                await asyncio.to_thread(_write_atomic, path, wav)
     if span:
         sliced = path.with_name(_variant(idx, speed, span) + ".wav")
         try:
@@ -585,10 +1056,11 @@ def _run_calibration(src: Path, ref_path: Path) -> dict:
 def _run_clean(src: Path, ref_path: Path, profile, island_id: str, idx: int,
                line: dict, speed: float, span: tuple[int, int] | None,
                lag_ms: int, line_start_ms: int) -> dict:
-    """Take the played line back out of a take, store both versions, and
-    score the take's timing against the line's words. Blocking, for the
-    same reasons as _run_calibration."""
+    """Take the played line back out of a take, store both versions, score
+    the take's timing against the line's words, and analyse mora length and
+    pitch accent. Blocking, for the same reasons as _run_calibration."""
     import aec
+    import take_analysis
     import take_score
 
     ref_audio = aec.decode(ref_path)
@@ -628,6 +1100,21 @@ def _run_clean(src: Path, ref_path: Path, profile, island_id: str, idx: int,
             "note": "Could not score the take",
         }
 
+    try:
+        analysis = take_analysis.analyse(
+            ref_audio, take_for_score, aec.SR, line.get("timeline") or [],
+            speed, span, anchor_ms, result.cleaned, result.erle_db,
+        )
+    except Exception:
+        log.exception("take analysis failed island=%s idx=%d", island_id, idx)
+        analysis = {
+            "note": "Could not analyse the take",
+            "aligned": None,
+            "coverage": 0.0,
+            "moras": [],
+            "curve": {"line": [], "take": []},
+        }
+
     return {
         "cleaned": result.cleaned,
         "erleDb": _round(result.erle_db),
@@ -636,6 +1123,7 @@ def _run_clean(src: Path, ref_path: Path, profile, island_id: str, idx: int,
         "frozenBlocks": result.frozen_blocks,
         "note": result.note,
         "score": score,
+        "analysis": analysis,
     }
 
 
@@ -661,10 +1149,12 @@ async def upload_take(
     echo to find the anchor in) feed the take's timing score; both are
     ignored for a calibration upload.
 
-    Calibration has to happen once per phone before any take can be cleaned,
-    which is why a take without a stored profile is refused with a 409 rather
-    than quietly kept as recorded: the difference matters to the caller. See
-    aec.py for how the path is learned and applied."""
+    A take uploaded before the phone has a stored profile is kept as
+    recorded and scored on `line_start` rather than refused: with headphones
+    there is nothing to clean, and Speak-with-headset is now the common
+    first upload on a new phone. Calibration still learns the speaker-to-mic
+    path for anyone who later shadows over the speaker. See aec.py for how
+    the path is learned and applied."""
     require_token(authorization)
     began_at = time.monotonic()
     is_calibration = calibrate == "1"
@@ -692,8 +1182,6 @@ async def upload_take(
     profile = None
     if not is_calibration:
         profile = aec.load_profile(TAKE_PROFILE)
-        if profile is None:
-            raise HTTPException(409, "calibrate first")
 
     raw = await take.read()
     if not raw:
@@ -760,6 +1248,8 @@ async def regenerate(
     island = await asyncio.to_thread(store.get_island, island_id)
     if island is None:
         raise HTTPException(404, "no such island")
+    if island["source"] != "voice":
+        raise HTTPException(409, "regenerate is only for a recorded island")
 
     wav = store.AUDIO_DIR / island_id / "source.wav"
     if not wav.exists():
@@ -806,6 +1296,8 @@ async def revoice(
         raise HTTPException(404, "no such island")
     if island["status"] != "ready":
         raise HTTPException(409, "the island is still being built")
+    if island["source"] != "voice":
+        raise HTTPException(409, "revoice is only for a recorded island")
     lines = [
         {"ja": l["ja"], "kana": l["kana"], "romaji": l["romaji"], "en": l["en"]}
         for l in island["lines"]

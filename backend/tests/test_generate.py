@@ -183,3 +183,72 @@ def test_generate_lines_casual_register_instructs_plain_form(monkeypatch):
 def test_generate_lines_unknown_register_falls_back_to_polite(monkeypatch):
     prompt = _captured_prompt(monkeypatch, complexity="simple", register="rude")
     assert generate.REGISTER_RULES["polite"] in prompt
+
+
+# -- translate_lines --------------------------------------------------------
+
+
+def test_translate_lines_empty_input_never_calls_cli(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("subprocess.run should not run for an empty batch")
+
+    monkeypatch.setattr(generate.subprocess, "run", fail_if_called)
+
+    assert generate.translate_lines([]) == []
+
+
+def test_translate_lines_parses_json_array(monkeypatch):
+    monkeypatch.setattr(
+        generate.subprocess, "run",
+        lambda *a, **k: FakeCompleted(returncode=0, stdout=json.dumps(["I get up", "I sleep"])),
+    )
+
+    result = generate.translate_lines(["起きます", "寝ます"])
+    assert result == ["I get up", "I sleep"]
+
+
+def test_translate_lines_parses_fenced_array(monkeypatch):
+    stdout = '```json\n["I get up", "I sleep"]\n```'
+    monkeypatch.setattr(
+        generate.subprocess, "run",
+        lambda *a, **k: FakeCompleted(returncode=0, stdout=stdout),
+    )
+
+    result = generate.translate_lines(["起きます", "寝ます"])
+    assert result == ["I get up", "I sleep"]
+
+
+def test_translate_lines_garbage_output_returns_empty(monkeypatch):
+    monkeypatch.setattr(
+        generate.subprocess, "run",
+        lambda *a, **k: FakeCompleted(returncode=0, stdout="not json"),
+    )
+
+    assert generate.translate_lines(["起きます", "寝ます"]) == []
+
+
+def test_translate_lines_wrong_length_returns_empty(monkeypatch):
+    monkeypatch.setattr(
+        generate.subprocess, "run",
+        lambda *a, **k: FakeCompleted(returncode=0, stdout=json.dumps(["only one"])),
+    )
+
+    assert generate.translate_lines(["起きます", "寝ます"]) == []
+
+
+def test_translate_lines_cli_not_found_returns_empty(monkeypatch):
+    def fake_run(*args, **kwargs):
+        raise FileNotFoundError()
+
+    monkeypatch.setattr(generate.subprocess, "run", fake_run)
+
+    assert generate.translate_lines(["起きます"]) == []
+
+
+def test_translate_lines_nonzero_exit_returns_empty(monkeypatch):
+    monkeypatch.setattr(
+        generate.subprocess, "run",
+        lambda *a, **k: FakeCompleted(returncode=1, stderr="boom"),
+    )
+
+    assert generate.translate_lines(["起きます"]) == []

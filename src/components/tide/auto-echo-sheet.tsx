@@ -74,9 +74,10 @@ type AutoEchoSheetProps = {
   autoRecord: boolean;
   onToggleAutoEcho: () => void;
   onToggleAutoRecord: () => void;
-  /** Speak plays the line under the voice; off records with the line silent. */
-  playLineWhileSpeaking: boolean;
-  onTogglePlayLineWhileSpeaking: () => void;
+  /** Whether the current recording input is a headset mic: Speak plays the
+   * line under the voice with one in, and stays silent without. `null` means
+   * not probed yet this app run. */
+  headset: boolean | null;
   onStart: () => void;
   onRecord: () => void;
   onStop: () => void;
@@ -105,8 +106,7 @@ function AutoEchoSheetBase({
   autoRecord,
   onToggleAutoEcho,
   onToggleAutoRecord,
-  playLineWhileSpeaking,
-  onTogglePlayLineWhileSpeaking,
+  headset,
   onStart,
   onRecord,
   onStop,
@@ -208,16 +208,19 @@ function AutoEchoSheetBase({
         label="Go on to the next line, and start over after the last"
         value={autoEcho}
         onValueChange={onToggleAutoEcho}
+        icon={{ ios: 'forward.end', android: 'skip_next' }}
       />
-      <SheetToggle label="Speak opens the microphone on its own" value={autoRecord} onValueChange={onToggleAutoRecord} />
       <SheetToggle
-        label="Play the line while I speak"
-        value={playLineWhileSpeaking}
-        onValueChange={onTogglePlayLineWhileSpeaking}
+        label="Speak opens the microphone on its own"
+        value={autoRecord}
+        onValueChange={onToggleAutoRecord}
+        icon={{ ios: 'mic', android: 'mic' }}
       />
-      {playLineWhileSpeaking ? (
-        <Text style={styles.note}>Use headphones, the phone speaker bleeds into your take.</Text>
-      ) : null}
+      <Text style={styles.note}>
+        {headset === true
+          ? 'Headphones in: the line plays under your voice.'
+          : 'Put headphones on and the line plays under your voice.'}
+      </Text>
       {error ? <Text style={styles.error}>{error}</Text> : null}
     </BottomSheet>
   );

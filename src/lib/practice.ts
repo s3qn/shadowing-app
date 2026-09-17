@@ -14,14 +14,24 @@ import {
   writeAsStringAsync,
 } from 'expo-file-system/legacy';
 
+import { postPracticeEvent } from './api';
+
 export type PracticeLog = {
   days: Record<string, number>; // 'YYYY-MM-DD' -> seconds
   islands: Record<string, { seconds: number; lastAt: number }>; // islandId -> total seconds, Date.now() of last count
+  passes: Record<string, number>; // 'YYYY-MM-DD' -> count of full plays + takes
 };
 
-// A day counts toward the streak once it holds at least this many seconds.
-// One named constant so the threshold is easy to change later.
+// A day with no `passes` entry (every day logged before this counter
+// existed) still counts toward the streak by this old rule: at least this
+// many seconds of playback. A day that does have a `passes` entry counts by
+// STREAK_THRESHOLD_PASSES instead. This keeps a streak built before this
+// change intact instead of resetting it to 0.
 export const STREAK_THRESHOLD_SECONDS = 60;
+
+// A day with a `passes` entry counts toward the streak once it holds at
+// least this many full plays and takes.
+export const STREAK_THRESHOLD_PASSES = 10;
 
 // A stretch of playback under 15s of buffered seconds waits for the next
 // natural flush point (a pause); past that it flushes on its own, so a
@@ -32,7 +42,7 @@ const FILE = `${documentDirectory ?? ''}practice.json`;
 const TMP_FILE = `${FILE}.tmp`;
 
 function emptyLog(): PracticeLog {
-  return { days: {}, islands: {} };
+  return { days: {}, islands: {}, passes: {} };
 }
 
 // Returns undefined for anything that isn't a parseable PracticeLog shell
@@ -63,7 +73,13 @@ function normalize(parsed: Partial<PracticeLog>): PracticeLog {
       }
     }
   }
-  return { days, islands };
+  const passes: Record<string, number> = {};
+  if (parsed.passes && typeof parsed.passes === 'object') {
+    for (const [key, value] of Object.entries(parsed.passes)) {
+      if (typeof value === 'number') passes[key] = value;
+    }
+  }
+  return { days, islands, passes };
 }
 
 // Defaults when there is no file yet, or when it is genuinely empty. A file
@@ -115,7 +131,11 @@ let pending: Promise<void> = Promise.resolve();
 // memory only; flushPractice() is what puts it on disk. Kept at module level
 // (not in the hook) so a screen can mount and unmount many players across one
 // island session without losing anything between them.
-let buffer: { days: Record<string, number>; islands: Record<string, number> } = { days: {}, islands: {} };
+let buffer: { days: Record<string, number>; islands: Record<string, number>; passes: Record<string, number> } = {
+  days: {},
+  islands: {},
+  passes: {},
+};
 let unflushed = 0;
 
 /** Local calendar date, zero padded ('YYYY-MM-DD'). */
@@ -142,15 +162,30 @@ export function addPractice(islandId: string, seconds: number): void {
 }
 
 /**
+ * Adds one pass (a full line play or a saved take) to the in-memory buffer
+ * for today. No disk write; flushPractice() merges it. A missing islandId is
+ * a no-op, the same truthiness gate addPractice() uses; islandId is not
+ * stored per-island for passes.
+ */
+export function addPass(islandId: string): void {
+  if (!islandId) return;
+  const key = dayKey(new Date());
+  buffer.passes[key] = (buffer.passes[key] ?? 0) + 1;
+}
+
+/**
  * Merges the buffer into the file (days and islands both += seconds,
- * lastAt = Date.now() for any island touched) and clears the buffer. Never
- * rejects, so a caller never needs to catch it.
+ * lastAt = Date.now() for any island touched, passes += count) and clears
+ * the buffer. Never rejects, so a caller never needs to catch it.
  */
 export function flushPractice(): Promise<void> {
   const toMerge = buffer;
-  buffer = { days: {}, islands: {} };
+  buffer = { days: {}, islands: {}, passes: {} };
   unflushed = 0;
-  const hasWork = Object.keys(toMerge.days).length > 0 || Object.keys(toMerge.islands).length > 0;
+  const hasWork =
+    Object.keys(toMerge.days).length > 0 ||
+    Object.keys(toMerge.islands).length > 0 ||
+    Object.keys(toMerge.passes).length > 0;
   const run = pending
     .then(async () => {
       if (!hasWork) return;
@@ -171,7 +206,14 @@ export function flushPractice(): Promise<void> {
       for (const [id, seconds] of Object.entries(toMerge.islands)) {
         islands[id] = { seconds: (islands[id]?.seconds ?? 0) + seconds, lastAt: now };
       }
-      await write({ days, islands });
+      const passes = { ...current.passes };
+      for (const [key, count] of Object.entries(toMerge.passes)) {
+        passes[key] = (passes[key] ?? 0) + count;
+      }
+      await write({ days, islands, passes });
+      for (const [id, seconds] of Object.entries(toMerge.islands)) {
+        void postPracticeEvent(id, seconds).catch(() => {});
+      }
     })
     .catch(() => {});
   pending = run;
@@ -215,18 +257,27 @@ export function minutesOn(log: PracticeLog, key: string): number {
   return Math.round(seconds / 60);
 }
 
+// A day with a `passes` entry qualifies on passes (STREAK_THRESHOLD_PASSES);
+// a day with no `passes` entry at all (every day logged before passes
+// existed) falls back to the old seconds rule, so a streak built before this
+// change stays intact instead of resetting to 0.
+function dayQualifies(log: PracticeLog, key: string): boolean {
+  if (key in log.passes) return log.passes[key] >= STREAK_THRESHOLD_PASSES;
+  return (log.days[key] ?? 0) >= STREAK_THRESHOLD_SECONDS;
+}
+
 /**
- * Run of qualifying days (>= STREAK_THRESHOLD_SECONDS) ending today, or
- * ending yesterday if today has not reached the threshold yet (today still
- * in progress does not break it).
+ * Run of qualifying days (see dayQualifies()) ending today, or ending
+ * yesterday if today has not reached the threshold yet (today still in
+ * progress does not break it).
  */
 export function streakDays(log: PracticeLog, today: Date): number {
   const cursor = new Date(today);
-  if ((log.days[dayKey(cursor)] ?? 0) < STREAK_THRESHOLD_SECONDS) {
+  if (!dayQualifies(log, dayKey(cursor))) {
     cursor.setDate(cursor.getDate() - 1);
   }
   let streak = 0;
-  while ((log.days[dayKey(cursor)] ?? 0) >= STREAK_THRESHOLD_SECONDS) {
+  while (dayQualifies(log, dayKey(cursor))) {
     streak += 1;
     cursor.setDate(cursor.getDate() - 1);
   }

@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, Switch, Text, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
 
 import { PressScale } from '@/components/press-scale';
+import type { SheetIcon } from '@/components/sheet/sheet-rows';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
 
@@ -38,6 +40,7 @@ export function SettingsRow({
   destructive,
   last,
   dotColor,
+  icon,
 }: {
   label: string;
   value?: string;
@@ -49,11 +52,21 @@ export function SettingsRow({
   last?: boolean;
   /** Small status dot before the value, for things like a live connection check. */
   dotColor?: string;
+  /** Leading symbol. The row picks its tint so it always matches the label. */
+  icon?: SheetIcon;
 }) {
   const hasSwitch = onSwitchChange !== undefined;
+  const tint = destructive ? tide.record : tide.text;
   const content = (
     <View style={[styles.row, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: tide.waterline }]}>
-      <Text style={[styles.label, { color: destructive ? tide.record : tide.text }]}>{label}</Text>
+      <View style={styles.lead}>
+        {icon ? (
+          <View style={styles.iconSlot}>
+            <SymbolView name={icon} size={20} weight="regular" tintColor={tint} />
+          </View>
+        ) : null}
+        <Text style={[styles.label, { color: destructive ? tide.record : tide.text }]}>{label}</Text>
+      </View>
       {hasSwitch ? (
         <Switch
           value={switchValue}
@@ -97,6 +110,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     gap: Spacing.md,
   },
+  lead: { flexDirection: 'row', alignItems: 'center', gap: 12, flexShrink: 1 },
+  iconSlot: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   label: { fontSize: 16, fontFamily: fonts.ui },
   rightGroup: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   dot: { width: 8, height: 8, borderRadius: 4 },

@@ -9,6 +9,7 @@ import type { Complexity } from '@/lib/api';
 
 /** Row icons: SF Symbol on iOS, the matching Material Symbol on Android. */
 const ICONS = {
+  save: { ios: 'checkmark', android: 'check' },
   rename: { ios: 'pencil', android: 'edit' },
   export: { ios: 'square.and.arrow.up', android: 'ios_share' },
   revoice: { ios: 'person.wave.2', android: 'record_voice_over' },
@@ -89,7 +90,7 @@ function IslandMenuSheetBase({
             returnKeyType="done"
             style={styles.input}
           />
-          <SheetAction label="Save" onPress={saveRename} />
+          <SheetAction label="Save" icon={ICONS.save} onPress={saveRename} />
         </>
       ) : (
         <>

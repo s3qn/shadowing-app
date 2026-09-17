@@ -47,20 +47,37 @@ export default function SettingsScreen() {
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       <ScrollView contentContainerStyle={styles.list}>
         <SettingsSection title="Practice">
-          <SettingsRow label="Reading, pitch, defaults" last onPress={() => router.push('/settings/practice')} />
+          <SettingsRow
+            label="Reading, pitch, defaults"
+            last
+            icon={{ ios: 'book.closed', android: 'menu_book' }}
+            onPress={() => router.push('/settings/practice')}
+          />
         </SettingsSection>
 
         <SettingsSection title="Playback">
-          <SettingsRow label="Speed, repeat, pause, Auto Echo" last onPress={() => router.push('/settings/playback')} />
+          <SettingsRow
+            label="Speed, repeat, pause, Auto Echo"
+            last
+            icon={{ ios: 'gauge', android: 'speed' }}
+            onPress={() => router.push('/settings/playback')}
+          />
         </SettingsSection>
 
         <SettingsSection title="Voice">
-          <SettingsRow label="Voice" value={voiceName} last onPress={() => router.push('/settings/voice')} />
+          <SettingsRow
+            label="Voice"
+            value={voiceName}
+            last
+            icon={{ ios: 'person.wave.2', android: 'record_voice_over' }}
+            onPress={() => router.push('/settings/voice')}
+          />
         </SettingsSection>
 
         <SettingsSection title="Appearance">
           <SettingsRow
             label="Haptics"
+            icon={{ ios: 'iphone.radiowaves.left.and.right', android: 'vibration' }}
             switchValue={haptics}
             onSwitchChange={(next) => {
               setHapticsState(next);
@@ -70,6 +87,7 @@ export default function SettingsScreen() {
           <SettingsRow
             label="Always night sky"
             last
+            icon={{ ios: 'moon.stars', android: 'nightlight' }}
             switchValue={skyAlwaysNight}
             onSwitchChange={(next) => {
               setSkyAlwaysNightState(next);
@@ -79,11 +97,30 @@ export default function SettingsScreen() {
         </SettingsSection>
 
         <SettingsSection title="Data">
-          <SettingsRow label="Storage, delete takes" last onPress={() => router.push('/settings/data')} />
+          <SettingsRow
+            label="Storage, delete takes"
+            last
+            icon={{ ios: 'internaldrive', android: 'storage' }}
+            onPress={() => router.push('/settings/data')}
+          />
         </SettingsSection>
 
         <SettingsSection title="About">
-          <SettingsRow label="Version, credits" last onPress={() => router.push('/settings/about')} />
+          <SettingsRow
+            label="Version, credits"
+            last
+            icon={{ ios: 'info.circle', android: 'info' }}
+            onPress={() => router.push('/settings/about')}
+          />
+        </SettingsSection>
+
+        <SettingsSection title="Feedback">
+          <SettingsRow
+            label="Suggest a feature"
+            last
+            icon={{ ios: 'lightbulb', android: 'lightbulb' }}
+            onPress={() => router.push('/settings/suggest')}
+          />
         </SettingsSection>
       </ScrollView>
     </SafeAreaView>

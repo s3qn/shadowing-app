@@ -1,6 +1,8 @@
+import { SymbolView } from 'expo-symbols';
 import { type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { type SheetIcon } from '@/components/sheet/sheet-rows';
 import { PopoverBubble } from '@/components/tide/popover-bubble';
 import { TICK_RULER_H, TickRuler } from '@/components/tide/tick-ruler';
 import { fonts } from '@/constants/fonts';
@@ -65,7 +67,7 @@ export function RepeatPopover({ anchorX, anchorTop, width, times, pauseMs, onTim
       radius={20}
       bodyStyle={styles.body}
       onClose={onClose}>
-      <RulerRow label="Times" readout={timesLabel(times)}>
+      <RulerRow label="Times" icon={{ ios: 'repeat', android: 'repeat' }} readout={timesLabel(times)}>
         <TickRuler
           width={RULER_W}
           steps={TIMES_STEPS}
@@ -76,7 +78,7 @@ export function RepeatPopover({ anchorX, anchorTop, width, times, pauseMs, onTim
           accessibilityLabel={`Times, ${timesLabel(times)}`}
         />
       </RulerRow>
-      <RulerRow label="Pause" readout={pauseLabel(pauseMs)}>
+      <RulerRow label="Pause" icon={{ ios: 'pause', android: 'pause' }} readout={pauseLabel(pauseMs)}>
         <TickRuler
           width={RULER_W}
           steps={PAUSE_STEPS}
@@ -92,11 +94,24 @@ export function RepeatPopover({ anchorX, anchorTop, width, times, pauseMs, onTim
   );
 }
 
-function RulerRow({ label, readout, children }: { label: string; readout: string; children: ReactNode }) {
+function RulerRow({
+  label,
+  icon,
+  readout,
+  children,
+}: {
+  label: string;
+  icon: SheetIcon;
+  readout: string;
+  children: ReactNode;
+}) {
   return (
     <View style={styles.row}>
       <View style={styles.head}>
-        <Text style={styles.label}>{label}</Text>
+        <View style={styles.labelRow}>
+          <SymbolView name={icon} size={14} weight="regular" tintColor={tide.textDim} />
+          <Text style={styles.label}>{label}</Text>
+        </View>
         <Text style={styles.readout}>{readout}</Text>
         <View style={styles.labelSpacer} />
       </View>
@@ -109,7 +124,8 @@ const styles = StyleSheet.create({
   body: { padding: PAD, gap: ROW_GAP },
   row: { height: ROW_H, gap: 2 },
   head: { height: HEAD_H, flexDirection: 'row', alignItems: 'center' },
-  label: { width: 52, fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 12, color: tide.textDim },
+  labelRow: { width: 52, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  label: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 12, color: tide.textDim },
   labelSpacer: { width: 52 },
   readout: {
     flex: 1,

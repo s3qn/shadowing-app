@@ -61,6 +61,7 @@ import { SELECTION_POPUP_WIDTH, SelectionPopup } from '@/components/selection-po
 import { useWordHighlight, type WordBox } from '@/components/word-highlight';
 import { WordOutline } from '@/components/word-outline';
 import { POPOVER_WIDTH, WordPanel } from '@/components/word-panel';
+import { SlideReveal } from '@/components/slide-reveal';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import {
@@ -104,13 +105,14 @@ import {
   getSettingsSync,
   setAutoEcho as persistAutoEcho,
   setAutoRecord as persistAutoRecord,
-  setPlayLineWhileSpeaking as persistPlayLineWhileSpeaking,
   setBlind as persistBlind,
   setReading as persistReading,
+  TIMES_MAX,
   type ReadingMode,
 } from '@/lib/settings';
-import { deleteTakes, resultTier } from '@/lib/takes';
+import { deleteTakes, resultTier, wordsKeptUp } from '@/lib/takes';
 import { invalidateLineAudio, localLineAudio, prefetchLineAudio } from '@/lib/line-audio-cache';
+import { useSlideReveal } from '@/lib/slide-reveal';
 
 // Expo Go on Android does not ship the AudioControlsService, and activating
 // the lock screen there logs a service binding error; a dev build has it
@@ -193,6 +195,10 @@ function useStableHandler<A extends unknown[], R>(fn: (...args: A) => R): (...ar
   });
   return useCallback((...args: A) => ref.current(...args), []);
 }
+
+// Stands in for a real onLayout on the plain (non-reveal) path, where no
+// chunk needs to measure itself into a box.
+const noopLayout = () => {};
 
 // A setDragSpan updater that hands back the previous span when nothing moved,
 // so React skips the render. Module level: the pan gesture is built once and
@@ -369,17 +375,12 @@ export default function IslandScreen() {
   // loads a new source only when the URL changes: the same URL would keep the
   // old wav loaded under the new text.
   const [generation, setGeneration] = useState(0);
-  // The line a finger is holding to peek at in Blind mode; every other moment
-  // Blind is on, the Japanese is frosted. Keyed on generation and idx, so a
-  // line that changes under the finger (the island moving on) is frosted in
-  // the same render that shows it.
+  // Keyed on generation and idx, so a line change (the island moving on,
+  // even mid drag-select) clears any held phrase span in the same render
+  // instead of carrying an old selection onto the new line.
   const lineKey = `${generation}:${idx}`;
-  const [peekKey, setPeekKey] = useState<string | null>(null);
-  const hidden = blind && peekKey !== lineKey;
-  // A press held on the frosted English shows it until the finger lifts. Keyed
-  // like peekKey, so a line change under the finger frosts again.
-  const [enPeekKey, setEnPeekKey] = useState<string | null>(null);
-  const enFrosted = !englishShown && enPeekKey !== lineKey;
+  const hidden = blind;
+  const enFrosted = !englishShown;
   // The tapped word, its dictionary result, and the timer that ends Hear it.
   const [selected, setSelected] = useState<number | null>(null);
   const [glossData, setGlossData] = useState<api.Gloss | null>(null);
@@ -536,9 +537,6 @@ export default function IslandScreen() {
   const [autoRecord, setAutoRecordState] = useState(true);
   const autoEchoTouched = useRef(false);
   const autoRecordTouched = useRef(false);
-  // Off: the Speak step records with the line silent, so no speaker bleed.
-  const [playLineWhileSpeaking, setPlayLineWhileSpeakingState] = useState(false);
-  const playLineTouched = useRef(false);
   // When the Speak take was started, so the take-saved effect below only
   // reacts to a take recorded during this pass (see that effect's comment).
   const speakStartedAt = useRef(0);
@@ -773,7 +771,6 @@ export default function IslandScreen() {
       if (!englishTouched.current) setEnglishShown(!settings.hideEnglish);
       if (!autoEchoTouched.current) setAutoEchoState(settings.autoEcho);
       if (!autoRecordTouched.current) setAutoRecordState(settings.autoRecord);
-      if (!playLineTouched.current) setPlayLineWhileSpeakingState(settings.playLineWhileSpeaking);
       if (!readingTouched.current) setReadingMode(settings.reading);
       if (!pitchTouched.current) setPitchOn(settings.pitch);
       if (!speedTouched.current) {
@@ -1423,7 +1420,6 @@ export default function IslandScreen() {
     setPlayWhenLoaded(true);
     resetHighlight();
     resetForNewAudio();
-    setPeekKey(null);
     setIdx((i) => (i + 1) % island.lines.length);
   });
   useEffect(() => {
@@ -1581,11 +1577,9 @@ export default function IslandScreen() {
   // change takes over from there) or springs back with high damping (the
   // swipe fell short).
   //
-  // Blind mode's only gesture on the sentence is `peek`: hold to see it, let
-  // go to frost it again. No word taps, no selection and no swipes while it is
-  // frosted. `peekOff` stands in for it on a line without words when Blind is
-  // off.
-  const { sentenceGesture, peek, peekOff } = useMemo(() => {
+  // Blind mode's only gesture on the sentence is the reveal drag: no word
+  // taps, no selection and no swipes while it is frosted.
+  const { sentenceGesture } = useMemo(() => {
     const pan = Gesture.Pan()
       .activateAfterLongPress(450)
       .runOnJS(true)
@@ -1637,18 +1631,10 @@ export default function IslandScreen() {
           void l.playFromTop();
         }
       });
-    const peekGesture = Gesture.LongPress()
-      .minDuration(120)
-      .maxDistance(10000)
-      .runOnJS(true)
-      .onStart(() => setPeekKey(live.current.lineKey))
-      .onFinalize(() => setPeekKey(null));
-    return {
-      sentenceGesture: Gesture.Exclusive(pan, swipe, tap),
-      peek: peekGesture,
-      peekOff: Gesture.LongPress().enabled(false),
-    };
+    return { sentenceGesture: Gesture.Exclusive(pan, swipe, tap) };
   }, [dragY]);
+  const jaReveal = useSlideReveal(blind, scrollRef);
+  const enReveal = useSlideReveal(!englishShown, scrollRef);
   // Follows dragY while a swipe drags the card, with a slight scale down so
   // it reads as lifting off the waterline rather than just sliding.
   const cardDragStyle = useAnimatedStyle(() => ({
@@ -1841,7 +1827,6 @@ export default function IslandScreen() {
     resetHighlight();
     resetForNewAudio();
     setPlayWhenLoaded(wasActive);
-    setPeekKey(null);
     setIdx(clamped);
   }
   const next = () => go(idx + 1);
@@ -1897,7 +1882,6 @@ export default function IslandScreen() {
     const next = !blind;
     blindTouched.current = true;
     setBlind(next);
-    setPeekKey(null);
     if (next) {
       closePanel();
       setDragSpan(null);
@@ -1911,7 +1895,6 @@ export default function IslandScreen() {
   // saved; the Settings default decides how the next visit starts.
   function toggleEnglish() {
     englishTouched.current = true;
-    setEnPeekKey(null);
     setEnglishShown((v) => !v);
   }
 
@@ -1919,7 +1902,7 @@ export default function IslandScreen() {
   // next finish counts against the new value.
   function pickTimes(next: number) {
     timesTouched.current = true;
-    setTimes(next);
+    setTimes(Math.min(TIMES_MAX, next));
   }
 
   // Every step of the Pause ruler: the readout and the tile follow at once.
@@ -1967,13 +1950,6 @@ export default function IslandScreen() {
     persistAutoRecord(next).catch(() => {});
   }
 
-  function togglePlayLineWhileSpeaking() {
-    const next = !playLineWhileSpeaking;
-    playLineTouched.current = true;
-    setPlayLineWhileSpeakingState(next);
-    persistPlayLineWhileSpeaking(next).catch(() => {});
-  }
-
   // The Speed popover's ruler follows every step live; only used to update
   // the readout and the tile, never the audio.
   function pickSpeed(next: number) {
@@ -2006,9 +1982,11 @@ export default function IslandScreen() {
   // differs between a take and a speaker calibration, so both go through the
   // same cancel, close, drop, seek and play sequence and cannot drift apart.
   // `silent` records without starting the line: the take then ends on its own
-  // timer in useTake instead of the line's end.
-  async function beginRecording(mode: TakeMode, silent = false): Promise<boolean> {
-    if (!line || startingTake.current) return false;
+  // timer in useTake instead of the line's end. `'auto'` (Speak) probes the
+  // input route once the recorder starts and resolves to whichever the
+  // headset check decides.
+  async function beginRecording(mode: TakeMode, silent: boolean | 'auto' = false): Promise<{ silent: boolean } | null> {
+    if (!line || startingTake.current) return null;
     startingTake.current = true;
     // A promise finally, not a try finally: the compiler does not lower those.
     const run = async () => {
@@ -2028,10 +2006,11 @@ export default function IslandScreen() {
       // phrase first): the speaker profile is global and a slice is too short
       // to learn it from.
       const span = mode === 'calibrate' ? null : phrase.audio;
-      if (!(await take.startTake(lineEnd || undefined, speed, mode, takeLagMs, span, silent))) return false;
+      const result = await take.startTake(lineEnd || undefined, speed, mode, takeLagMs, span, silent);
+      if (!result) return null;
       crossed.current = false;
-      if (!silent) startPlayback(player);
-      return true;
+      if (!result.silent) startPlayback(player);
+      return result;
     };
     return run().finally(() => {
       startingTake.current = false;
@@ -2077,10 +2056,11 @@ export default function IslandScreen() {
     calibrateOnLoaded();
   }, [sourceUri]);
 
-  // The Speak step's take: opens the mic with the line playing under it,
-  // exactly like Record my take, so the recording is scored and cleaned the
-  // same way. With Play the line while I speak off, the line stays silent and
-  // the take is neither cleaned nor scored (see useTake's `silent`). `speakStartedAt` marks the moment so the take-saved effect
+  // The Speak step's take: with a headset mic as the input it opens the mic
+  // with the line playing under it, exactly like Record my take, so the
+  // recording is scored and cleaned the same way. On the speaker the line
+  // stays silent and the take is neither cleaned nor scored (see useTake's
+  // `silent`). `speakStartedAt` marks the moment so the take-saved effect
   // below only reacts to a take from this pass, not a stale or cancelled one.
   async function startSpeak() {
     // A second tap while the mic is still opening: the first start carries
@@ -2090,12 +2070,12 @@ export default function IslandScreen() {
     setSpeakStopped(false);
     setEchoStep('speak');
     setEchoResult(null);
-    speakSilent.current = !playLineWhileSpeaking;
-    const ok = await beginRecording('take', speakSilent.current);
-    if (!ok) {
+    const started = await beginRecording('take', 'auto');
+    if (!started) {
       setEchoStep('idle');
       return;
     }
+    speakSilent.current = started.silent;
     // The sheet closed (or the app went to the background) while the mic was
     // opening: stopEcho found nothing to cancel yet, so drop this take now.
     if (echoRef.current !== 'speak') {
@@ -2383,7 +2363,6 @@ export default function IslandScreen() {
   const onEchoStart = useStableHandler(startEcho);
   const onToggleAutoEchoStable = useStableHandler(toggleAutoEcho);
   const onToggleAutoRecordStable = useStableHandler(toggleAutoRecord);
-  const onTogglePlayLineStable = useStableHandler(togglePlayLineWhileSpeaking);
   const onSheetDismissed = useStableHandler(runAfterSheet);
   const onMenuClose = useStableHandler(() => setSheet(null));
   const onMenuRename = useStableHandler((t: string) => closeSheetThen(() => void renameTitle(t)));
@@ -2412,6 +2391,9 @@ export default function IslandScreen() {
   // Only shown once that take is ready: otherwise the old take's marks would
   // stay up while a new one is recording.
   const marks = take.phase === 'ready' ? (take.take?.score?.words ?? null) : null;
+  // How many of the last ready take's scoreable words were kept up with,
+  // hidden until there is something to count.
+  const keptUp = take.phase === 'ready' ? wordsKeptUp(take.take?.score ?? null) : null;
   // Under the sentence: the kana or romaji line by mode, nothing in Furigana
   // mode (the reading is on the kanji). Pitch is drawn over the words
   // themselves, in every mode.
@@ -2443,10 +2425,6 @@ export default function IslandScreen() {
   const onBlockTouch = useCallback(() => {
     blockTouched.current = true;
   }, []);
-  const onEnPressIn = useStableHandler(() => {
-    if (!englishShown) setEnPeekKey(lineKey);
-  });
-  const onEnPressOut = useCallback(() => setEnPeekKey(null), []);
   // Each word's box lands in wordBoxes at once, for the JS hit-testing, and
   // reaches the UI thread's copy once per frame, after the whole batch of word
   // layouts, instead of rebuilding and writing the full array for every word.
@@ -2517,12 +2495,20 @@ export default function IslandScreen() {
       : 0;
     const dragPopTop = dragUnion ? dragUnion.bottom + SELECTION_HANDLE_CLEARANCE : 0;
 
+    // Chunks for the wordless fallback's per-character reveal and the
+    // English strip's per-word reveal.
+    const jaChars = Array.from(line.ja);
+    const enWords = line.en ? line.en.split(' ') : [];
+
     // The sentence sits on the waterline: the tappable block when words are
     // known, the fallback line when they are not, then the reading row and the
     // English strip, all inside one card. Blind keeps all of it in place and
-    // frosts the Japanese; holding it peeks. The gesture sits outside the Frost
-    // because the frosted copy takes no touches; the Frost adds no offset, so
-    // the gesture's coordinates still match the word boxes.
+    // frosts the Japanese; dragging a finger across it sharpens whichever
+    // words sit under the touch, live, so a line change mid-drag (the island
+    // moving on) shows the new line's word under the finger sharp right away.
+    // The gesture sits outside the Frost because the frosted copy takes no
+    // touches; the Frost adds no offset, so the gesture's coordinates still
+    // match the word boxes.
     return (
       <Animated.View style={[styles.activeCard, cardDragStyle]}>
         {line.words.length > 0 ? (
@@ -2541,28 +2527,52 @@ export default function IslandScreen() {
               style={styles.block}
               onLayout={onBlockLayout}
               onTouchStart={onBlockTouch}>
-              <GestureDetector gesture={blind ? peek : sentenceGesture}>
+              <GestureDetector gesture={blind ? jaReveal.gesture : sentenceGesture}>
                 <View collapsable={false}>
-                  <Frost frosted={hidden} blur={4.5}>
-                    <View style={styles.words}>
-                      {line.words.map((w, i) => (
+                  {hidden ? (
+                    <SlideReveal
+                      finger={jaReveal.finger}
+                      count={line.words.length}
+                      rowStyle={styles.words}
+                      blur={4.5}
+                      renderChunk={(i, sharp) => (
                         <RubyWord
                           key={i}
-                          word={w}
+                          word={line.words[i]!}
                           showRuby={readingMode === 'furigana'}
                           index={i}
                           highlight={highlight}
-                          concealed={hidden}
-                          selected={i === selected || (!!dragSpan && i >= dragSpan.from && i <= dragSpan.to)}
+                          concealed={!sharp}
+                          selected={false}
                           dimmed={!!phrase.span && (i < phrase.span.from || i > phrase.span.to)}
                           mark={marks && marks[i] !== 'ok' && marks[i] !== 'none' ? marks[i] : null}
                           pitch={pitches?.[i]}
-                          onLayout={onWordLayout}
+                          onLayout={noopLayout}
                         />
-                      ))}
-                    </View>
-                    {hidden ? null : <WordOutline highlight={highlight} boxes={wordBoxesUI} />}
-                  </Frost>
+                      )}
+                    />
+                  ) : (
+                    <>
+                      <View style={styles.words}>
+                        {line.words.map((w, i) => (
+                          <RubyWord
+                            key={i}
+                            word={w}
+                            showRuby={readingMode === 'furigana'}
+                            index={i}
+                            highlight={highlight}
+                            concealed={hidden}
+                            selected={i === selected || (!!dragSpan && i >= dragSpan.from && i <= dragSpan.to)}
+                            dimmed={!!phrase.span && (i < phrase.span.from || i > phrase.span.to)}
+                            mark={marks && marks[i] !== 'ok' && marks[i] !== 'none' ? marks[i] : null}
+                            pitch={pitches?.[i]}
+                            onLayout={onWordLayout}
+                          />
+                        ))}
+                      </View>
+                      <WordOutline highlight={highlight} boxes={wordBoxesUI} />
+                    </>
+                  )}
                 </View>
               </GestureDetector>
               {dragSpan && wordBoxes.current[dragSpan.from] && wordBoxes.current[dragSpan.to] ? (
@@ -2599,11 +2609,23 @@ export default function IslandScreen() {
             </View>
           </>
         ) : (
-          <GestureDetector gesture={blind ? peek : peekOff}>
-            <View>
-              <Frost frosted={hidden} blur={4.5}>
+          <GestureDetector gesture={jaReveal.gesture}>
+            <View collapsable={false}>
+              {hidden ? (
+                <SlideReveal
+                  finger={jaReveal.finger}
+                  count={jaChars.length}
+                  rowStyle={styles.words}
+                  blur={4.5}
+                  renderChunk={(i) => (
+                    <Text key={i} style={styles.ja}>
+                      {jaChars[i]}
+                    </Text>
+                  )}
+                />
+              ) : (
                 <Text style={styles.ja}>{line.ja}</Text>
-              </Frost>
+              )}
             </View>
           </GestureDetector>
         )}
@@ -2614,19 +2636,40 @@ export default function IslandScreen() {
           </Frost>
         ) : null}
 
-        {/* The English in its own inset strip at the foot of the card. The
-            Blind popover frosts or clears it; a press held on the frosted
-            English only peeks, and it frosts again on release. The strip sits
-            above the card's tap-to-play fill, so a press here never plays. */}
+        {keptUp !== null ? (
+          <Text style={styles.keptUp}>{`Kept up with ${keptUp.kept} of ${keptUp.total} words`}</Text>
+        ) : null}
+
+        {/* The English in its own inset strip at the foot of the card. Blind
+            frosts it; dragging a finger across the words sharpens whichever
+            ones sit under it and the rest frost again once the finger lifts.
+            The Pressable stays outermost (its padding would otherwise offset
+            the gesture's x/y from the word boxes, which measure from the
+            content inside that padding) and the strip sits above the card's
+            tap-to-play fill, so a press here never plays. */}
         {line.en ? (
-          <Pressable
-            onPressIn={onEnPressIn}
-            onPressOut={onEnPressOut}
-            style={styles.enStrip}
-            accessibilityLabel={englishShown ? line.en : 'English translation, hidden'}>
-            <Frost frosted={enFrosted} ink={tide.textDim} blur={3.5}>
-              <Text style={styles.en}>{line.en}</Text>
-            </Frost>
+          <Pressable style={styles.enStrip} accessibilityLabel={englishShown ? line.en : 'English translation, hidden'}>
+            <GestureDetector gesture={enReveal.gesture}>
+              <View collapsable={false}>
+                {enFrosted ? (
+                  <SlideReveal
+                    finger={enReveal.finger}
+                    count={enWords.length}
+                    rowStyle={styles.words}
+                    ink={tide.textDim}
+                    blur={3.5}
+                    renderChunk={(i) => (
+                      <Text key={i} style={styles.en}>
+                        {enWords[i]}
+                        {i < enWords.length - 1 ? ' ' : ''}
+                      </Text>
+                    )}
+                  />
+                ) : (
+                  <Text style={styles.en}>{line.en}</Text>
+                )}
+              </View>
+            </GestureDetector>
           </Pressable>
         ) : null}
       </Animated.View>
@@ -2641,6 +2684,7 @@ export default function IslandScreen() {
     dragSpan,
     phrase.span,
     marks,
+    keptUp,
     pitches,
     glossData,
     explainContext,
@@ -2651,8 +2695,8 @@ export default function IslandScreen() {
     englishShown,
     cardDragStyle,
     sentenceGesture,
-    peek,
-    peekOff,
+    jaReveal,
+    enReveal,
     // Stable for the screen's life: handlers from useStableHandler or an
     // empty useCallback, and a shared value.
     onBlockLayout,
@@ -2660,8 +2704,6 @@ export default function IslandScreen() {
     onClosePanel,
     onCopySelection,
     onDragHandle,
-    onEnPressIn,
-    onEnPressOut,
     onGrabHandle,
     onHearWord,
     onOpenExplain,
@@ -2990,8 +3032,7 @@ export default function IslandScreen() {
         autoRecord={autoRecord}
         onToggleAutoEcho={onToggleAutoEchoStable}
         onToggleAutoRecord={onToggleAutoRecordStable}
-        playLineWhileSpeaking={playLineWhileSpeaking}
-        onTogglePlayLineWhileSpeaking={onTogglePlayLineStable}
+        headset={take.headset}
         onStart={onEchoStart}
         onRecord={onEchoRecord}
         stopping={speakStopped && !take.error}
@@ -3136,6 +3177,7 @@ const styles = StyleSheet.create({
   block: { position: 'relative', zIndex: 5 },
   words: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
   reading: { fontFamily: fonts.serifJp, fontSize: 16, lineHeight: 24, textAlign: 'center', color: tide.textDim },
+  keptUp: { fontFamily: fonts.ui, fontSize: 12, textAlign: 'center', color: tide.textDim, marginTop: 2 },
   enStrip: {
     marginTop: 10,
     paddingVertical: 6,

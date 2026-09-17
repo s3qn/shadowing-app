@@ -24,6 +24,7 @@ import {
   stopPlayback,
   useSessionPlayer,
 } from '@/lib/audio-mode';
+import { addPass } from '@/lib/practice';
 import { cleanTakeFile, deleteTake, findTake, saveTake, saveTakeScore, type Take } from '@/lib/takes';
 
 /** How often the recorder's meter is sampled into the level shared value. */
@@ -48,6 +49,25 @@ export type TakePhase = 'idle' | 'recording' | 'ready';
 
 /** What mode a recording in progress, or the most recent one, was made in. */
 export type TakeMode = 'take' | 'calibrate';
+
+// Input route types that mean an actual headset mic, checked as an allowlist
+// rather than a blocklist: CarAudio, LineIn and Bluetooth car kits must count
+// as no headset (line plays out loud into the phone mic), not fall through as
+// one just because they are not the built-in mic. Exact strings expo-audio
+// reports: iOS returns the raw AVAudioSession.Port value ('MicrophoneWired'
+// for a wired headset mic, 'BluetoothHFP' for a Bluetooth headset, 'USBAudio'
+// for USB audio; node_modules/expo-audio/ios/AudioUtils.swift). Android maps
+// AudioDeviceInfo.TYPE_WIRED_HEADSET to the same 'MicrophoneWired' string and
+// TYPE_BLUETOOTH_SCO to 'BluetoothSCO', with everything else (including USB
+// and car audio) falling through to 'Unknown device type'
+// (node_modules/expo-audio/android/.../AudioUtils.kt). Known limit: on
+// Android only a 3.5 mm headset with a mic reports as a headset today; USB-C
+// and Bluetooth need setInput with SCO forced on, a later task.
+const HEADSET_INPUTS = new Set(['MicrophoneWired', 'BluetoothHFP', 'USBAudio', 'BluetoothSCO']);
+
+// Remembered for the app run so reopening an island after a headset probe
+// does not show the no-headset nudge to someone still wearing them.
+let lastHeadset: boolean | null = null;
 
 /**
  * Status of the backend echo cleanup for the current take, or for a speaker
@@ -143,6 +163,7 @@ export function useTake(
     };
   }, [recording, recorder, level]);
   const [mode, setMode] = useState<TakeMode>('take');
+  const [headset, setHeadset] = useState<boolean | null>(lastHeadset);
 
   // Everything below belongs to one line of one generation. The take, an
   // error and a clean result are each stored with the key of the line they
@@ -404,9 +425,18 @@ export function useTake(
             // Stored for the line it was recorded on, which shows it only
             // while that line is on screen.
             putTake(savedFor.key, saved);
-            // A silent take has no line in it to remove, and nothing to time
-            // the words against, so it is not uploaded and has no score.
             if (savedFor.silent) {
+              // A silent take never plays the line (island/[id].tsx only
+              // startPlayback(player)s the line when the take is not
+              // silent), so usePracticeClock's didJustFinish listener on
+              // that same line player never fires for it and this is the
+              // only place its pass is counted. A non-silent take does play
+              // the line, and that listener already adds the pass when it
+              // finishes: adding one here too would count the same take
+              // twice.
+              addPass(savedFor.islandId);
+              // It also has no line in it to remove, and nothing to time
+              // the words against, so it is not uploaded and has no score.
               if (seq === takeSeq.current) setClean({ state: 'skipped', erleDb: null, note: '' }, savedFor.key);
               return;
             }
@@ -462,6 +492,26 @@ export function useTake(
   }
 
   /**
+   * Reads the recorder's current input route and reports whether it is a
+   * headset mic (wired, Bluetooth or USB) rather than the phone's own mic.
+   * Valid only once the recorder is actually recording, on both platforms.
+   * Any throw (older Android, a route that fails to report) counts as no
+   * headset: a false negative here means a silent Speak, never bleed.
+   */
+  async function probeHeadset(): Promise<boolean> {
+    let isHeadset = false;
+    try {
+      const input = await recorder.getCurrentInput();
+      isHeadset = HEADSET_INPUTS.has(input.type);
+    } catch {
+      isHeadset = false;
+    }
+    lastHeadset = isHeadset;
+    setHeadset(isHeadset);
+    return isHeadset;
+  }
+
+  /**
    * Opens the microphone for a take, or for a speaker calibration recording
    * when `mode` is `'calibrate'`. `lineSeconds` is the line's own duration,
    * used only for the watchdog that ends a take the line never ends itself.
@@ -472,7 +522,10 @@ export function useTake(
    * plays under the take, passed on to the cleaner so its reference is the
    * same audio. `silent` means the line is not played under the take: the
    * take then stops itself after the line's length plus the tail and lag,
-   * and is saved without cleanup or a score.
+   * and is saved without cleanup or a score. `'auto'` probes the input route
+   * right after the recorder starts: a headset resolves to `silent = false`,
+   * anything else to `silent = true`. Resolves to `{ silent }` describing
+   * what was actually used, or `null` if the take never started.
    */
   async function startTake(
     lineSeconds: number | undefined,
@@ -480,22 +533,24 @@ export function useTake(
     mode: TakeMode,
     lagMs = 0,
     span: AudioSpan | null = null,
-    silent = false,
-  ): Promise<boolean> {
-    if (!islandId) return false;
+    silent: boolean | 'auto' = false,
+  ): Promise<{ silent: boolean } | null> {
+    if (!islandId) return null;
     setError('');
     let perm = await getRecordingPermissionsAsync();
     if (!perm.granted) perm = await requestRecordingPermissionsAsync();
     if (!perm.granted) {
       setError('Microphone access is off. Turn it on in Settings and try again.');
-      return false;
+      return null;
     }
     takeSeq.current += 1;
     try {
       await applyRecordingMode();
       await recorder.prepareToRecordAsync();
       recorder.record();
-      target.current = { key: lineKey, islandId, idx, mode, speed, lagMs, span, recordStartedAt: Date.now(), lineStartMs: null, silent };
+      const recordStartedAt = Date.now();
+      const isSilent = silent === 'auto' ? !(await probeHeadset()) : silent;
+      target.current = { key: lineKey, islandId, idx, mode, speed, lagMs, span, recordStartedAt, lineStartMs: null, silent: isSilent };
       setMode(mode);
       // Nothing else should be pending here, but a leftover timer would end
       // this take early.
@@ -510,14 +565,14 @@ export function useTake(
       }, lineMs + TAIL_MS + lagMs + WATCHDOG_SLACK_MS);
       // No line end will call scheduleStop, so the take ends at the length
       // it would have had with the line playing.
-      if (silent) {
+      if (isSilent) {
         tail.current = setTimeout(() => {
           tail.current = null;
           void finish();
         }, lineMs + TAIL_MS + lagMs);
       }
       setRecording(true);
-      return true;
+      return { silent: isSilent };
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not start recording.');
       try {
@@ -525,7 +580,7 @@ export function useTake(
       } catch {
         // Best effort: the mode is already broken, nothing more to try here.
       }
-      return false;
+      return null;
     }
   }
 
@@ -616,6 +671,7 @@ export function useTake(
   return {
     phase,
     mode,
+    headset,
     level,
     take,
     takePlaying: takeStatus.playing,

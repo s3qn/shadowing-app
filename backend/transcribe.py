@@ -49,28 +49,54 @@ def _get_model():
     return _MODEL
 
 
-def transcribe(audio_path: Path, language: str | None = None) -> dict:
+def transcribe(
+    audio_path: Path,
+    language: str | None = None,
+    word_timestamps: bool = False,
+    vad: bool = False,
+) -> dict:
     """Transcribe a local audio file.
 
     With language=None whisper detects the language itself, so Sean can talk
     about his day in Hebrew or English without telling the app which. The
     detected language is returned so the generator can be told.
 
-    Returns {"text": str, "language": str, "segments": [{"start","end","text"}, ...]}.
-    Returns empty values on any failure, never raises.
+    `word_timestamps` also asks whisper for per-word timing, carried on each
+    segment's `"words"` and flattened onto the top-level `"words"` list (both
+    `[{"start", "end", "text"}, ...]`), for the import pipeline's aligner.
+    `vad` filters silence before transcription, useful on a whole imported
+    file rather than a short recording.
+
+    Returns {"ok": bool, "text": str, "language": str,
+    "segments": [{"start", "end", "text", "words"}, ...], "words": [...]}.
+    `ok` is False on a missing file, a whisper crash or a model load
+    failure; every other field is then empty. Never raises.
     """
     try:
         if not audio_path.exists():
             log.warning("transcribe: missing file %s", audio_path)
-            return {"text": "", "language": "", "segments": []}
+            return {"ok": False, "text": "", "language": "", "segments": [], "words": []}
 
         model = _get_model()
         start = time.monotonic()
-        segments, info = model.transcribe(str(audio_path), language=language)
-        seg_list = [
-            {"start": float(s.start), "end": float(s.end), "text": s.text.strip()}
-            for s in segments
-        ]
+        kwargs = {"language": language, "vad_filter": vad, "word_timestamps": word_timestamps}
+        if word_timestamps:
+            kwargs["condition_on_previous_text"] = False
+        segments, info = model.transcribe(str(audio_path), **kwargs)
+        seg_list = []
+        words: list[dict] = []
+        for s in segments:
+            seg_words = [
+                {"start": float(w.start), "end": float(w.end), "text": w.word}
+                for w in (s.words or [])
+            ] if word_timestamps else []
+            seg_list.append({
+                "start": float(s.start),
+                "end": float(s.end),
+                "text": s.text.strip(),
+                "words": seg_words,
+            })
+            words.extend(seg_words)
         text = " ".join(s["text"] for s in seg_list if s["text"]).strip()
 
         log.info(
@@ -81,7 +107,13 @@ def transcribe(audio_path: Path, language: str | None = None) -> dict:
             len(text),
             len(seg_list),
         )
-        return {"text": text, "language": getattr(info, "language", "") or "", "segments": seg_list}
+        return {
+            "ok": True,
+            "text": text,
+            "language": getattr(info, "language", "") or "",
+            "segments": seg_list,
+            "words": words,
+        }
     except Exception:
         log.exception("transcribe failed for %s", audio_path)
-        return {"text": "", "language": "", "segments": []}
+        return {"ok": False, "text": "", "language": "", "segments": [], "words": []}

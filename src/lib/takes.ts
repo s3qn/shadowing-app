@@ -34,6 +34,19 @@ function scoredTier(score: TakeScore | null): ResultTier | null {
 }
 
 /**
+ * How many of a take's scoreable words were kept up with (`ok` marks only;
+ * `early`/`late`/`dropped` do not count). `none` words are excluded from
+ * both `kept` and `total`, the same filtering `scoredTier` uses, so the two
+ * never disagree about which words count. `null` when there is nothing
+ * scoreable to count.
+ */
+export function wordsKeptUp(score: TakeScore | null): { kept: number; total: number } | null {
+  const scored = score?.words.filter((w) => w !== 'none') ?? [];
+  if (scored.length === 0) return null;
+  return { kept: scored.filter((w) => w === 'ok').length, total: scored.length };
+}
+
+/**
  * Judge one Play-step take: scored (Speak played the line under the voice)
  * uses `scoredTier`. Silent (no score possible) falls back to how closely
  * `takeDuration` matches the line's own duration, a cheap on-device proxy,
@@ -106,6 +119,59 @@ export function lineTiers(islandId: string, lineCount: number): LineTier[] {
     return tiers;
   } catch {
     return tiers;
+  }
+}
+
+/**
+ * Island total for the "kept up with X of Y words" count: same newest
+ * base take per line index and same `.score.json` lookup as `lineTiers`
+ * above (a future change to the take file naming scheme has to be made in
+ * both places), but sums `wordsKeptUp` per line instead of tiering it.
+ * Lines with no scoreable take are skipped. Never throws.
+ */
+export function keptUpTotal(islandId: string, lineCount: number): { kept: number; total: number } {
+  const total = { kept: 0, total: 0 };
+  try {
+    const dir = takeDir(islandId);
+    if (!dir.exists) return total;
+    const newestByIdx = new Map<number, { ms: string; recordedAt: number }>();
+    const scoreByKey = new Map<string, TakeScore>();
+    for (const entry of dir.list()) {
+      const name = entry.name;
+      const dash = name.indexOf('-');
+      if (dash < 0) continue;
+      const idx = Number(name.slice(0, dash));
+      if (!Number.isInteger(idx) || idx < 0 || idx >= lineCount) continue;
+      const rest = name.slice(dash + 1);
+      if (rest.endsWith('.clean.wav')) continue;
+      if (rest.endsWith('.score.json')) {
+        const ms = rest.slice(0, -'.score.json'.length);
+        try {
+          scoreByKey.set(`${idx}-${ms}`, JSON.parse(new File(entry.uri).textSync()) as TakeScore);
+        } catch {
+          // Bad or half-written JSON: treat as no score for this take.
+        }
+        continue;
+      }
+      let ms: string | null = null;
+      if (rest.endsWith('.wav')) ms = rest.slice(0, -'.wav'.length);
+      else if (rest.endsWith('.m4a')) ms = rest.slice(0, -'.m4a'.length);
+      if (ms === null) continue;
+      const recordedAt = Number(ms);
+      if (!Number.isFinite(recordedAt)) continue;
+      const prev = newestByIdx.get(idx);
+      if (!prev || recordedAt > prev.recordedAt) newestByIdx.set(idx, { ms, recordedAt });
+    }
+    for (const [idx, base] of newestByIdx) {
+      const score = scoreByKey.get(`${idx}-${base.ms}`) ?? null;
+      const line = wordsKeptUp(score);
+      if (line === null) continue;
+      total.kept += line.kept;
+      total.total += line.total;
+    }
+    return total;
+  } catch {
+    return total;
   }
 }
 

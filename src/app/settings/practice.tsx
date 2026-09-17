@@ -81,6 +81,7 @@ export default function PracticeSettingsScreen() {
         <SettingsSection title="Practice defaults" footnote="Default for new sessions. Change it per session from the player.">
           <SettingsRow
             label="Pitch marks"
+            icon={{ ios: 'textformat', android: 'text_fields' }}
             switchValue={pitch}
             onSwitchChange={(next) => {
               setPitchState(next);
@@ -89,6 +90,7 @@ export default function PracticeSettingsScreen() {
           />
           <SettingsRow
             label="Hide English by default"
+            icon={{ ios: 'text.badge.xmark', android: 'subtitles_off' }}
             switchValue={hideEnglish}
             onSwitchChange={(next) => {
               setHideEnglishState(next);
@@ -98,6 +100,7 @@ export default function PracticeSettingsScreen() {
           <SettingsRow
             label="Blind by default"
             last
+            icon={{ ios: 'eye.slash', android: 'visibility_off' }}
             switchValue={blind}
             onSwitchChange={(next) => {
               setBlindState(next);

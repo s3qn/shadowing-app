@@ -25,6 +25,9 @@ export type Complexity = 'simple' | 'complex';
  * form. Keep in sync with `Register` in `src/lib/settings.ts`. */
 export type Register = 'polite' | 'casual';
 
+/** The learning language an island was built in. */
+export type Language = 'ja' | 'es' | 'en';
+
 /** One syllable of the synthesized line, with the timing VOICEVOX reported. */
 export type Mora = {
   text: string;
@@ -71,6 +74,7 @@ export type IslandSummary = {
   status: 'pending' | 'working' | 'ready' | 'failed';
   stage: string;
   complexity: Complexity;
+  language: Language;
   created_at: string;
   line_count: number;
 };
@@ -224,6 +228,20 @@ export async function revoice(id: string, speaker: number): Promise<void> {
   await json<unknown>(res);
 }
 
+export async function postPracticeEvent(islandId: string, seconds: number): Promise<void> {
+  const form = new FormData();
+  form.append('island_id', islandId);
+  form.append('seconds', String(seconds));
+  const res = await expoFetch(`${BASE}/schedule/practice`, { method: 'POST', headers: headers(), body: form });
+  await json<unknown>(res);
+}
+
+export type DueIsland = { island_id: string; level: number; due_on: string; last_practiced_on: string };
+
+export async function getDueToday(): Promise<DueIsland[]> {
+  return json<DueIsland[]>(await fetch(`${BASE}/schedule/due-today`, { headers: headers() }));
+}
+
 export type GlossSense = { pos: string[]; glosses: string[] };
 export type GlossEntry = { kanji: string[]; kana: string[]; senses: GlossSense[] };
 export type Gloss = { word: string; base: string; reading: string; entries: GlossEntry[]; found: boolean };
@@ -292,6 +310,17 @@ export async function explainChat(body: {
         question: body.question,
         history: body.history,
       }),
+    }),
+  );
+}
+
+/** Posts a feature idea from the Settings feedback screen. */
+export async function suggestFeature(text: string): Promise<void> {
+  await json(
+    await fetch(`${BASE}/suggestions`, {
+      method: 'POST',
+      headers: { ...headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
     }),
   );
 }

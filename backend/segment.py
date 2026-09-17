@@ -16,6 +16,7 @@ anything unexpected the whole line becomes one chunk. Every word also carries
 its furigana segments, dropped where they disagree with what was spoken.
 """
 
+import difflib
 import logging
 import re
 import threading
@@ -345,3 +346,136 @@ def align(text: str, timeline: list[dict]) -> list[dict]:
 def is_fallback(text: str, words: list[dict]) -> bool:
     """True when align gave up and returned the whole line as one chunk."""
     return len(words) == 1 and words[0]["text"] == text and len(tokenize(text)) > 1
+
+
+def reading(text: str) -> str:
+    """Hiragana reading of a line from janome, for the reading line under
+    imported text (which has no VOICEVOX mora timeline to read moras off of)."""
+    out = []
+    for tok in _tokenizer().tokenize(text):
+        r = tok.reading
+        out.append(tok.surface if r == "*" else to_hiragana(r))
+    return "".join(out)
+
+
+def align_pieces(text: str, pieces: list[dict], duration: float) -> list[dict]:
+    """Second input path into word highlighting, alongside align().
+
+    align() anchors a line against VOICEVOX's own mora timeline. This anchors
+    it against pieces instead: timed fragments of the line (whisper words,
+    seconds relative to the line's own slice of audio), possibly none at all.
+    A chunk whose characters match a piece (by difflib, so a kanji the source
+    text uses and a piece spelled in kana can still anchor on the characters
+    they share) is anchored to that piece's time; the rest are spread
+    proportionally to mora count between whatever anchors exist. With no
+    usable pieces every chunk is spread, which is the same constant mora-rate
+    result as when nothing anchors at all: that is the fallback, and only the
+    fallback. Same output shape and guarantees as align(): contiguous
+    [{text, start, end, pos, ruby}], first start 0, last end = duration,
+    whole line as one chunk on any failure. `ruby` here is not checked
+    against a mora timeline (there is none), unlike align()'s `checked_ruby`.
+    """
+    if duration <= 0:
+        return []
+    whole = [{"text": text, "start": 0.0, "end": duration, "pos": "other", "ruby": ruby(text)}]
+    try:
+        chunks = [c for c in tokenize(text) if c["text"]]
+        if not chunks or "".join(c["text"] for c in chunks) != text:
+            return whole
+
+        weights = []
+        for c in chunks:
+            w = len(c["moras"])
+            if w == 0:
+                w = sum(1 for ch in c["text"] if ch not in _PUNCT and not ch.isspace())
+            weights.append(w or 1)
+
+        # Character ranges per chunk: text characters that are punctuation or
+        # whitespace never take part in matching.
+        text_chars: list[str] = []
+        char_chunk: list[int] = []
+        for i, c in enumerate(chunks):
+            for ch in c["text"]:
+                if ch in _PUNCT or ch.isspace():
+                    continue
+                text_chars.append(ch)
+                char_chunk.append(i)
+
+        # Piece characters: each piece's text, punctuation and whitespace
+        # dropped, spread linearly across the piece's clamped time span.
+        piece_chars: list[str] = []
+        piece_times: list[tuple[float, float]] = []
+        for p in pieces:
+            ps = max(0.0, min(duration, p["start"]))
+            pe = max(0.0, min(duration, p["end"]))
+            if pe <= ps:
+                continue
+            filtered = [ch for ch in p["text"] if ch not in _PUNCT and not ch.isspace()]
+            n = len(filtered)
+            if n == 0:
+                continue
+            span = pe - ps
+            for k, ch in enumerate(filtered):
+                piece_chars.append(ch)
+                piece_times.append((ps + span * k / n, ps + span * (k + 1) / n))
+
+        starts: list[float | None] = [None] * len(chunks)
+        ends: list[float | None] = [None] * len(chunks)
+        if text_chars and piece_chars:
+            matcher = difflib.SequenceMatcher(None, text_chars, piece_chars, autojunk=False)
+            for a, b, size in matcher.get_matching_blocks():
+                for k in range(size):
+                    i = char_chunk[a + k]
+                    s, e = piece_times[b + k]
+                    starts[i] = s if starts[i] is None else min(starts[i], s)
+                    ends[i] = e if ends[i] is None else max(ends[i], e)
+
+        spans: list[list[float] | None] = [
+            None if starts[i] is None else [starts[i], ends[i]] for i in range(len(chunks))
+        ]
+
+        # Fill each run of unanchored chunks proportionally to weight,
+        # between whichever anchors (or the line's own edges) bound it.
+        i = 0
+        n = len(chunks)
+        while i < n:
+            if spans[i] is not None:
+                i += 1
+                continue
+            j = i
+            while j < n and spans[j] is None:
+                j += 1
+            lo = spans[i - 1][1] if i > 0 else 0.0
+            hi = spans[j][0] if j < n else duration
+            run_weight = sum(weights[i:j])
+            t = lo
+            for k in range(i, j):
+                share = (hi - lo) * (weights[k] / run_weight) if run_weight else 0.0
+                spans[k] = [t, t + share]
+                t += share
+            i = j
+
+        # Make monotonic, then contiguous, then pin the edges.
+        prev_end = 0.0
+        for span in spans:
+            span[0] = max(span[0], prev_end)
+            span[1] = max(span[1], span[0])
+            prev_end = span[1]
+        for a, b in zip(spans, spans[1:]):
+            a[1] = b[0]
+        spans[0][0] = 0.0
+        spans[-1][1] = duration
+
+        return [
+            {
+                "text": c["text"],
+                "start": round(s, 3),
+                "end": round(e, 3),
+                "pos": c["pos"],
+                "ruby": ruby(c["text"]),
+            }
+            for c, (s, e) in zip(chunks, spans)
+        ]
+    except Exception:
+        log.exception("segment: align_pieces failed for %r", text)
+        return whole

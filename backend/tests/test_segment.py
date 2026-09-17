@@ -281,3 +281,102 @@ def test_ensure_ruby_fills_only_missing():
     assert words[0]["ruby"] == segment.ruby("今日")
     assert words[1]["ruby"] == []
     assert segment.ensure_ruby(words) is False
+
+
+# ---------------------------------------------------------------------------
+# align_pieces / reading
+# ---------------------------------------------------------------------------
+
+def _assert_contiguous(words, duration):
+    assert words[0]["start"] == 0.0
+    assert words[-1]["end"] == duration
+    for a, b in zip(words, words[1:]):
+        assert a["end"] == b["start"]
+
+
+def test_align_pieces_with_no_pieces_spreads_by_mora_count():
+    text = "今日は学校に行きます。"
+    duration = 1.2
+
+    words = segment.align_pieces(text, [], duration)
+
+    assert [w["text"] for w in words] == ["今日", "は", "学校", "に", "行きます。"]
+    assert [w["start"] for w in words] == [0, 0.2, 0.3, 0.7, 0.8]
+    _assert_contiguous(words, duration)
+
+
+def test_align_pieces_anchors_on_exact_pieces():
+    text = "今日は学校に行きます。"
+    pieces = [
+        {"text": "今日は", "start": 0.2, "end": 0.6},
+        {"text": "学校に", "start": 0.7, "end": 1.2},
+        {"text": "行きます", "start": 1.3, "end": 1.9},
+    ]
+    duration = 2.2
+
+    words = segment.align_pieces(text, pieces, duration)
+
+    assert [w["text"] for w in words] == ["今日", "は", "学校", "に", "行きます。"]
+    by_text = {w["text"]: w for w in words}
+    assert by_text["学校"]["start"] == 0.7
+    assert by_text["行きます。"]["start"] == 1.3
+    _assert_contiguous(words, duration)
+
+
+def test_align_pieces_anchors_through_different_spelling():
+    text = "今日は学校に行きます。"
+    pieces = [
+        {"text": "きょうは", "start": 0.2, "end": 0.6},
+        {"text": "学校に", "start": 0.7, "end": 1.2},
+        {"text": "いきます", "start": 1.3, "end": 1.9},
+    ]
+    duration = 2.2
+
+    words = segment.align_pieces(text, pieces, duration)
+
+    by_text = {w["text"]: w for w in words}
+    assert by_text["学校"]["start"] == 0.7
+    _assert_contiguous(words, duration)
+
+
+def test_align_pieces_ignores_pieces_that_match_nothing():
+    text = "今日は学校に行きます。"
+    duration = 1.2
+    pieces = [{"text": "ペラペラ", "start": 0.1, "end": 0.5}]
+
+    with_junk = segment.align_pieces(text, pieces, duration)
+    without = segment.align_pieces(text, [], duration)
+
+    assert with_junk == without
+
+
+def test_align_pieces_zero_duration_returns_empty():
+    assert segment.align_pieces("今日は学校に行きます。", [], 0.0) == []
+    assert segment.align_pieces("今日は学校に行きます。", [], -1.0) == []
+
+
+def test_align_pieces_falls_back_to_whole_line_on_garbage_text():
+    text = "?"
+    duration = 1.5
+
+    words = segment.align_pieces(text, [], duration)
+
+    assert words == [{"text": text, "start": 0.0, "end": duration, "pos": "other", "ruby": segment.ruby(text)}]
+
+
+def test_align_pieces_every_word_has_pos_and_ruby():
+    text = "今日は学校に行きます。"
+    words = segment.align_pieces(text, [], 1.2)
+
+    for w in words:
+        assert isinstance(w["pos"], str) and w["pos"]
+        assert w["ruby"] == segment.ruby(w["text"])
+
+
+def test_reading_gives_hiragana_and_keeps_unreadable_surface():
+    assert segment.reading("今日は学校に行きます。") == "きょうはがっこうにいきます。"
+
+    mixed = segment.reading("Tokyoに行きます")
+    assert "Tokyo" in mixed
+    assert mixed.startswith("Tokyo")
+    assert mixed.endswith("いきます")

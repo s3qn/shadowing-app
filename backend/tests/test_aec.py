@@ -179,6 +179,19 @@ def test_clean_no_bleed_leaves_take_unchanged(
     assert np.array_equal(result.output, mic_phones)
 
 
+def test_clean_without_profile_keeps_take(room_case: SimpleNamespace):
+    # no stored profile yet (a headset take on a new phone): kept as
+    # recorded, not run through the delay search at all
+    mic = room_case.mic_clean
+
+    result = aec.clean(room_case.line, mic, None)
+
+    assert result.cleaned is False
+    assert "profile" in result.note.lower()
+    assert np.array_equal(result.output, mic)
+    assert result.output is not mic
+
+
 def test_decode_encode_round_trip(tmp_path):
     rng = np.random.default_rng(6)
     n = int(0.5 * SR)

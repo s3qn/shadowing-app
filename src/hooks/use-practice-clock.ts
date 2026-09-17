@@ -1,7 +1,12 @@
 import { type AudioPlayer, type AudioStatus } from 'expo-audio';
 import { useEffect, useRef } from 'react';
 
-import { addPractice, flushPractice } from '@/lib/practice';
+import { addPass, addPractice, flushPractice } from '@/lib/practice';
+
+// Matches island/[id].tsx's guard of the same name and value for the same
+// signal: a native status can fire didJustFinish: true more than once for
+// the same finish.
+const FINISH_GUARD_MS = 250;
 
 /**
  * Counts seconds the line player was audibly playing as shadowing practice,
@@ -17,6 +22,7 @@ export function usePracticeClock(islandId: string | undefined, player: AudioPlay
   const prev = useRef<{ player: AudioPlayer; time: number; playing: boolean } | null>(null);
   const idRef = useRef(islandId);
   idRef.current = islandId;
+  const lastPassAt = useRef(0);
 
   useEffect(() => {
     // A new player starts without a baseline: its first update is the one
@@ -28,6 +34,12 @@ export function usePracticeClock(islandId: string | undefined, player: AudioPlay
       if (!wasPlaying) void flushPractice();
     }
     const sub = player.addListener('playbackStatusUpdate', (s: AudioStatus) => {
+      // A finish can land on a status that otherwise looks unchanged by the
+      // dedup check below, so this runs before it.
+      if (s.didJustFinish && idRef.current && Date.now() - lastPassAt.current >= FINISH_GUARD_MS) {
+        lastPassAt.current = Date.now();
+        addPass(idRef.current);
+      }
       const p = prev.current;
       // Only a change of position or playing counts, as an effect keyed on
       // those two would.

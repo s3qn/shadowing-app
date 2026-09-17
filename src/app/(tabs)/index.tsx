@@ -57,7 +57,7 @@ import { invalidateLineAudio } from '@/lib/line-audio-cache';
 import { forgetLastLine, getLastLine, peekLastLine } from '@/lib/last-line';
 import { forgetIsland, getPracticeLog, minutesOn, type PracticeLog } from '@/lib/practice';
 import { getSettings, setHomeWaveDate } from '@/lib/settings';
-import { deleteTakes, lineTiers, weakestLine, type LineTier } from '@/lib/takes';
+import { deleteTakes, keptUpTotal, lineTiers, weakestLine, type LineTier } from '@/lib/takes';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 // A long press holds this long before it counts, so it reads as deliberate
@@ -118,7 +118,7 @@ function waveEntering(delayMs: number) {
 const SORTS = ['newest', 'least'] as const;
 type Sort = (typeof SORTS)[number];
 const SORT_LABEL: Record<Sort, string> = { newest: 'Newest', least: 'Least practiced' };
-const EMPTY_LOG: PracticeLog = { days: {}, islands: {} };
+const EMPTY_LOG: PracticeLog = { days: {}, islands: {}, passes: {} };
 // 20 minutes of shadowing fills an island's ownership band.
 const TIDE_TARGET_SECONDS = 20 * 60;
 
@@ -214,6 +214,9 @@ export default function IslandsScreen() {
   // Tier per line for the centred card only, keyed by island id. Cleared on
   // every focus: takes change in the player, never on Home.
   const tiersCache = useRef<Map<string, LineTier[]>>(new Map());
+  // Kept-up total per island, same cache shape and same clearing as
+  // `tiersCache` above.
+  const keptUpCache = useRef<Map<string, { kept: number; total: number }>>(new Map());
   // True only for the first Home mount of the local day: the list waves in
   // once, then settles for every later visit until the date rolls over.
   // `getSettingsSync` falls back to defaults (homeWaveDate: '') before
@@ -407,6 +410,7 @@ export default function IslandsScreen() {
     useCallback(() => {
       let alive = true;
       tiersCache.current.clear();
+      keptUpCache.current.clear();
       const tick = async () => {
         if (!alive) return;
         await load();
@@ -522,6 +526,16 @@ export default function IslandsScreen() {
     if (cached) return cached;
     const computed = lineTiers(islandId, lineCount);
     tiersCache.current.set(islandId, computed);
+    return computed;
+  }
+
+  /** Island kept-up total, same cache and same one-read-per-focus shape as
+   * `tiersFor` above. */
+  function keptUpFor(islandId: string, lineCount: number): { kept: number; total: number } {
+    const cached = keptUpCache.current.get(islandId);
+    if (cached) return cached;
+    const computed = keptUpTotal(islandId, lineCount);
+    keptUpCache.current.set(islandId, computed);
     return computed;
   }
 
@@ -686,17 +700,18 @@ export default function IslandsScreen() {
           const minutes = minutesOn(log, item.id);
           const seconds = log.islands[item.id]?.seconds ?? 0;
           const fraction = Math.min(1, seconds / TIDE_TARGET_SECONDS);
-          const meta = item.status === 'failed'
-            ? 'Failed'
-            : busy
-              ? (api.STAGE_LABEL[item.stage] ?? 'Working…')
-              : `${item.line_count} lines · ${item.complexity}${minutes >= 1 ? ` · ${minutes} min` : ''}`;
           const waveIndex = waveHome && !reducedMotion && index < WAVE_MAX_CARDS ? index : null;
           const centred = shape.wheel && index === centreIndex;
           const lit = shape.wheel && index === litIndex;
           // Only the lit, ready card reads its takes: a busy or failed
           // card never lights, so its tiers are never worth the folder read.
           const tiers = lit && !busy && item.status !== 'failed' ? tiersFor(item.id, item.line_count) : null;
+          const keptUp = tiers ? keptUpFor(item.id, item.line_count) : null;
+          const meta = item.status === 'failed'
+            ? 'Failed'
+            : busy
+              ? (api.STAGE_LABEL[item.stage] ?? 'Working…')
+              : `${item.line_count} lines · ${item.complexity}${minutes >= 1 ? ` · ${minutes} min` : ''}${keptUp && keptUp.total > 0 ? ` · kept up ${keptUp.kept}/${keptUp.total}` : ''}`;
           return (
             <IslandRow
               item={item}
@@ -739,13 +754,14 @@ export default function IslandsScreen() {
               returnKeyType="done"
               style={styles.sheetInput}
             />
-            <SheetAction label="Save" onPress={saveRename} />
+            <SheetAction label="Save" icon={{ ios: 'checkmark', android: 'check' }} onPress={saveRename} />
           </>
         ) : (
           <>
-            <SheetAction label="Rename" onPress={() => setRenaming(true)} />
+            <SheetAction label="Rename" icon={{ ios: 'pencil', android: 'edit' }} onPress={() => setRenaming(true)} />
             <SheetAction
               label="Delete island"
+              icon={{ ios: 'trash', android: 'delete' }}
               destructive
               onPress={() => {
                 const item = menuItem;

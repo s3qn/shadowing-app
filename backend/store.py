@@ -31,6 +31,9 @@ CREATE TABLE IF NOT EXISTS islands (
   error       TEXT NOT NULL DEFAULT '',
   complexity  TEXT NOT NULL DEFAULT 'simple',
   register    TEXT NOT NULL DEFAULT 'polite',
+  language    TEXT NOT NULL DEFAULT 'ja',
+  source      TEXT NOT NULL DEFAULT 'voice',
+  source_name TEXT NOT NULL DEFAULT '',
   speaker     INTEGER NOT NULL DEFAULT 3,
   transcript  TEXT NOT NULL DEFAULT '',
   created_at  TEXT NOT NULL
@@ -45,6 +48,7 @@ CREATE TABLE IF NOT EXISTS lines (
   duration    REAL NOT NULL DEFAULT 0,
   timeline    TEXT NOT NULL DEFAULT '[]',
   words       TEXT NOT NULL DEFAULT '[]',
+  offset      REAL NOT NULL DEFAULT 0,
   PRIMARY KEY (island_id, idx),
   FOREIGN KEY (island_id) REFERENCES islands(id) ON DELETE CASCADE
 );
@@ -113,19 +117,36 @@ def init() -> None:
         cols = {row["name"] for row in conn.execute("PRAGMA table_info(lines)")}
         if "words" not in cols:
             conn.execute("ALTER TABLE lines ADD COLUMN words TEXT NOT NULL DEFAULT '[]'")
+        # Databases created before imported islands existed lack the offset
+        # a line's slice starts at in its source audio.
+        if "offset" not in cols:
+            conn.execute("ALTER TABLE lines ADD COLUMN offset REAL NOT NULL DEFAULT 0")
         # Databases created before the speech register choice existed lack it.
         island_cols = {row["name"] for row in conn.execute("PRAGMA table_info(islands)")}
         if "register" not in island_cols:
             conn.execute("ALTER TABLE islands ADD COLUMN register TEXT NOT NULL DEFAULT 'polite'")
+        # Databases created before islands remembered their learning language lack it.
+        if "language" not in island_cols:
+            conn.execute("ALTER TABLE islands ADD COLUMN language TEXT NOT NULL DEFAULT 'ja'")
+        # Databases created before imports and podcasts existed lack where an
+        # island's audio came from and the uploaded file name or episode title.
+        if "source" not in island_cols:
+            conn.execute("ALTER TABLE islands ADD COLUMN source TEXT NOT NULL DEFAULT 'voice'")
+        if "source_name" not in island_cols:
+            conn.execute("ALTER TABLE islands ADD COLUMN source_name TEXT NOT NULL DEFAULT ''")
 
 
-def create_island(complexity: str, speaker: int, register: str = "polite") -> str:
+def create_island(
+    complexity: str, speaker: int, register: str = "polite", language: str = "ja",
+    source: str = "voice", source_name: str = "",
+) -> str:
     island_id = uuid.uuid4().hex[:12]
     with connect() as conn:
         conn.execute(
-            "INSERT INTO islands (id, status, stage, complexity, register, speaker, created_at)"
-            " VALUES (?, 'pending', 'queued', ?, ?, ?, ?)",
-            (island_id, complexity, register, speaker, _now()),
+            "INSERT INTO islands (id, status, stage, complexity, register, language, source,"
+            " source_name, speaker, created_at)"
+            " VALUES (?, 'pending', 'queued', ?, ?, ?, ?, ?, ?, ?)",
+            (island_id, complexity, register, language, source, source_name, speaker, _now()),
         )
     (AUDIO_DIR / island_id).mkdir(parents=True, exist_ok=True)
     return island_id
@@ -173,12 +194,12 @@ def set_title(island_id: str, title: str) -> None:
 
 
 def add_line(island_id: str, idx: int, line: dict, duration: float, timeline: list,
-             words: list | None = None) -> None:
+             words: list | None = None, offset: float = 0.0) -> None:
     with connect() as conn:
         conn.execute(
             "INSERT OR REPLACE INTO lines"
-            " (island_id, idx, ja, kana, romaji, en, duration, timeline, words)"
-            " VALUES (?,?,?,?,?,?,?,?,?)",
+            " (island_id, idx, ja, kana, romaji, en, duration, timeline, words, offset)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?)",
             (
                 island_id,
                 idx,
@@ -189,7 +210,18 @@ def add_line(island_id: str, idx: int, line: dict, duration: float, timeline: li
                 duration,
                 json.dumps(timeline, ensure_ascii=False),
                 json.dumps(words or [], ensure_ascii=False),
+                offset,
             ),
+        )
+
+
+def set_en(island_id: str, idx: int, en: str) -> None:
+    """Plain overwrite of one line's English translation, no expected-value
+    check: the translator (Task 2) fills this in after the island is ready
+    and already usable, so there is no concurrent writer to race against."""
+    with connect() as conn:
+        conn.execute(
+            "UPDATE lines SET en=? WHERE island_id=? AND idx=?", (en, island_id, idx)
         )
 
 
@@ -310,8 +342,8 @@ def get_island(island_id: str) -> dict | None:
 def list_islands() -> list[dict]:
     with connect() as conn:
         rows = conn.execute(
-            "SELECT i.id, i.title, i.status, i.stage, i.complexity, i.created_at,"
-            " COUNT(l.idx) AS line_count"
+            "SELECT i.id, i.title, i.status, i.stage, i.complexity, i.language, i.source,"
+            " i.created_at, COUNT(l.idx) AS line_count"
             " FROM islands i LEFT JOIN lines l ON l.island_id = i.id"
             " GROUP BY i.id ORDER BY i.created_at DESC"
         ).fetchall()

@@ -281,8 +281,12 @@ def _drift_samples(ref: np.ndarray, mic: np.ndarray, d: int) -> int:
     return int((d_last - tail_start) - d_first)
 
 
-def clean(ref: np.ndarray, mic: np.ndarray, profile: Profile) -> Result:
+def clean(ref: np.ndarray, mic: np.ndarray, profile: Profile | None) -> Result:
     """Subtract the line from a take using a stored, frozen profile.
+
+    If there is no profile, the take is kept as recorded: nothing to
+    subtract, and callers score it on the clock anchor as they do for any
+    uncleaned take.
 
     Steps, in order: find the delay and bail out if there is no
     correlation peak worth trusting; align the reference; use the
@@ -294,6 +298,13 @@ def clean(ref: np.ndarray, mic: np.ndarray, profile: Profile) -> Result:
     untouched; report the drift between the delay estimated on the first
     and last second of the line.
     """
+    if profile is None:
+        return Result(
+            cleaned=False,
+            note="No speaker profile: kept as recorded",
+            output=mic.copy(),
+        )
+
     ref = np.asarray(ref, dtype=np.float64)
     mic = np.asarray(mic, dtype=np.float64)
 

@@ -72,18 +72,30 @@ export default function DataSettingsScreen() {
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       <ScrollView contentContainerStyle={styles.list}>
         <SettingsSection title="Storage" footnote="Every recording made while shadowing, across every island.">
-          <SettingsRow label="Takes on this device" value={humanBytes(storageBytes)} last />
+          <SettingsRow
+            label="Takes on this device"
+            value={humanBytes(storageBytes)}
+            last
+            icon={{ ios: 'internaldrive', android: 'storage' }}
+          />
         </SettingsSection>
 
         <SettingsSection title="Takes">
-          <SettingsRow label="Delete all takes" destructive last onPress={confirmDeleteAll} />
+          <SettingsRow
+            label="Delete all takes"
+            destructive
+            last
+            icon={{ ios: 'trash', android: 'delete' }}
+            onPress={confirmDeleteAll}
+          />
         </SettingsSection>
 
         <SettingsSection title="Backend">
-          <SettingsRow label="Server" value={BACKEND_URL} />
+          <SettingsRow label="Server" value={BACKEND_URL} icon={{ ios: 'server.rack', android: 'dns' }} />
           <SettingsRow
             label="Connection"
             last
+            icon={{ ios: 'wifi', android: 'wifi' }}
             value={connected === null ? 'Checking…' : connected ? 'Connected' : 'Offline'}
             dotColor={connected === null ? undefined : connected ? CONNECTED_COLOR : tide.record}
           />

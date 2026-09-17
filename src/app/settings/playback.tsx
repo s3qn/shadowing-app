@@ -18,7 +18,6 @@ import {
   setDefaultSpeed,
   setDefaultTimes,
   setKeepAwake,
-  setPlayLineWhileSpeaking,
   TIMES_MIN,
 } from '@/lib/settings';
 
@@ -32,7 +31,6 @@ export default function PlaybackSettingsScreen() {
   const [rulerW, setRulerW] = useState(0);
   const [autoEcho, setAutoEchoState] = useState(true);
   const [autoRecord, setAutoRecordState] = useState(true);
-  const [playLineWhileSpeaking, setPlayLineWhileSpeakingState] = useState(false);
   const [keepAwake, setKeepAwakeState] = useState(true);
 
   useFocusEffect(
@@ -45,7 +43,6 @@ export default function PlaybackSettingsScreen() {
         setDefaultPauseMsState(s.defaultPauseMs);
         setAutoEchoState(s.autoEcho);
         setAutoRecordState(s.autoRecord);
-        setPlayLineWhileSpeakingState(s.playLineWhileSpeaking);
         setKeepAwakeState(s.keepAwake);
       });
       return () => {
@@ -129,6 +126,7 @@ export default function PlaybackSettingsScreen() {
         <SettingsSection title="Auto Echo">
           <SettingsRow
             label="Auto Echo"
+            icon={{ ios: 'arrow.triangle.2.circlepath', android: 'repeat' }}
             switchValue={autoEcho}
             onSwitchChange={(next) => {
               setAutoEchoState(next);
@@ -137,19 +135,12 @@ export default function PlaybackSettingsScreen() {
           />
           <SettingsRow
             label="Auto record"
+            last
+            icon={{ ios: 'record.circle', android: 'fiber_manual_record' }}
             switchValue={autoRecord}
             onSwitchChange={(next) => {
               setAutoRecordState(next);
               void setAutoRecord(next);
-            }}
-          />
-          <SettingsRow
-            label="Play line while speaking"
-            last
-            switchValue={playLineWhileSpeaking}
-            onSwitchChange={(next) => {
-              setPlayLineWhileSpeakingState(next);
-              void setPlayLineWhileSpeaking(next);
             }}
           />
         </SettingsSection>
@@ -161,6 +152,7 @@ export default function PlaybackSettingsScreen() {
           <SettingsRow
             label="Keep screen awake"
             last
+            icon={{ ios: 'sun.max', android: 'light_mode' }}
             switchValue={keepAwake}
             onSwitchChange={(next) => {
               setKeepAwakeState(next);
