@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedReaction,
@@ -7,6 +6,7 @@ import Animated, {
   useSharedValue,
   withDelay,
   withTiming,
+  type SharedValue,
 } from 'react-native-reanimated';
 
 import { tide } from '@/constants/theme';
@@ -32,8 +32,9 @@ const PEAK_SCALE_MAX = 1.9;
 const RING_COUNT = 3;
 
 type VoiceRipplesProps = {
-  /** 0..1, already noise-gated meter level from the take's recorder. */
-  level: number;
+  /** 0..1, already noise-gated meter level from the take's recorder, read
+   * on the UI thread. */
+  level: SharedValue<number>;
 };
 
 /**
@@ -41,13 +42,8 @@ type VoiceRipplesProps = {
  * louder speech spawns bigger, more frequent rings. Mount only during the
  * speak step so there is no animation cost the rest of the time.
  */
-export function VoiceRipples({ level: levelProp }: VoiceRipplesProps) {
+export function VoiceRipples({ level }: VoiceRipplesProps) {
   const reducedMotion = useReducedMotion();
-
-  const level = useSharedValue(0);
-  useEffect(() => {
-    level.value = levelProp;
-  }, [levelProp, level]);
 
   const ringIndex = useSharedValue(0);
   const spawnLock = useSharedValue(0);
@@ -67,6 +63,7 @@ export function VoiceRipples({ level: levelProp }: VoiceRipplesProps) {
   useAnimatedReaction(
     () => level.value,
     (current) => {
+      if (!Number.isFinite(current)) return;
       if (reducedMotion || current < SPAWN_GATE || spawnLock.value === 1) return;
 
       const t = Math.min(1, (current - SPAWN_GATE) / (1 - SPAWN_GATE));

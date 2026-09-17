@@ -4,6 +4,7 @@ import {
   type RefObject,
   useCallback,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -43,7 +44,7 @@ import { useSkyStyle, isNight, currentPeriod } from '@/lib/sky';
 import { useWaterSim } from '@/components/tide/use-water-sim';
 import { WaterSurface } from '@/components/tide/water-surface';
 import { WaterCanvas } from '@/components/tide/water-canvas';
-import { isWindowed, useTranscriptWindow } from '@/components/tide/transcript-window';
+import { isWindowed, LONG_ISLAND, useTranscriptWindow } from '@/components/tide/transcript-window';
 import { type ContentReveal, PIECE_RISE, usePieceStyle } from '@/components/tide/use-content-reveal';
 
 /** Temporary kill switch for bisecting the device crash: false skips the
@@ -86,7 +87,7 @@ const MARK_STRETCH_UP_MS = 120;
 const WL_MAX = 0.62;
 const WL_MIN = 0.42;
 
-/** On a windowed island (see isWindowed) the tide marks stop being one per
+/** Past LONG_ISLAND lines the tide marks stop being one per
  * line and become this many bucketed marks instead, so a long island doesn't
  * rebuild hundreds of Views on every line change. */
 const MARK_CAP = 40;
@@ -212,14 +213,16 @@ export const TideScene = memo(function TideScene({
   // first follows the direction of travel. The band's first width is not a
   // line change, so it only records the index.
   const prevLine = useRef(lineIndex);
+  // An effect event: only a genuine line change should slosh, and the sim's
+  // sloshAt is a new function each render.
+  const slosh = useEffectEvent((direction: number) => {
+    runOnUI(waterSim.sloshAt)(direction);
+  });
   useEffect(() => {
     const from = prevLine.current;
     prevLine.current = lineIndex;
     if (bandWidth <= 0 || from === lineIndex) return;
-    runOnUI(waterSim.sloshAt)(lineIndex > from ? 1 : -1);
-    // waterSim.sloshAt is a stable worklet reference from useWaterSim; only
-    // a genuine line change should slosh.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    slosh(lineIndex > from ? 1 : -1);
   }, [lineIndex, bandWidth]);
 
   // Returns whether it actually issued a scrollTo, so callers that only
@@ -244,22 +247,25 @@ export const TideScene = memo(function TideScene({
       synced.current = true;
     }
   }
+  // The effects below call syncNow through this, so they run only for the
+  // deps they list (re-running for an autoScroll toggle, say, would fight
+  // the pill's own scrollTo) and still read this render's lineIndex,
+  // lineCount and sceneH.
+  const syncFromEffect = useEffectEvent(() => {
+    syncNow();
+  });
 
+  // lineIndex is handled by the line change effect below.
   useEffect(() => {
     if (arrivalPending.current) {
       const t = setTimeout(() => {
         if (!arrivalPending.current) return;
         arrivalPending.current = false;
-        syncNow();
+        syncFromEffect();
       }, SYNC_FALLBACK_MS);
       return () => clearTimeout(t);
     }
-    syncNow();
-    // syncNow reads lineIndex, lineCount and sceneH through closures that are
-    // already current on every render; re-running it for any other reason
-    // (an autoScroll toggle, say) would fight the pill's own scrollTo.
-    // lineIndex is handled by the line change effect below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    syncFromEffect();
   }, [lineCount, sceneH]);
 
   // The active line's card stays mounted across a line change: remounting the
@@ -305,21 +311,23 @@ export const TideScene = memo(function TideScene({
   }
   const hasLines = lineCount > 0;
   const reveal = useSharedValue(hasLines ? 1 : 0);
-  useEffect(() => {
-    if (!hasLines) {
+  // Only the lines landing decide; instantReveal is read at that moment.
+  const revealLines = useEffectEvent((shown: boolean) => {
+    if (!shown) {
       cancelAnimation(reveal);
-      reveal.value = 0;
+      reveal.set(0);
       return;
     }
     if (instantReveal?.()) {
       cancelAnimation(reveal);
-      reveal.value = 1;
+      reveal.set(1);
       return;
     }
-    reveal.value = withTiming(1, { duration: REVEAL_MS });
-    // Only the lines landing decide; instantReveal is read at that moment.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasLines, reveal]);
+    reveal.set(withTiming(1, { duration: REVEAL_MS }));
+  });
+  useEffect(() => {
+    revealLines(hasLines);
+  }, [hasLines]);
   const revealStyle = useAnimatedStyle(() => ({ opacity: reveal.value }));
   const noRise = useSharedValue(0);
   const cardIn = contentReveal?.card ?? reveal;
@@ -348,8 +356,9 @@ export const TideScene = memo(function TideScene({
       riseScale.value = withSpring(1, RISE_SPRING);
       outLift.value = withTiming(1, { duration: LIFT_MS });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lineIndex]);
+    // The shared values never change identity, and risenIndex above keeps a
+    // reduced-motion flip from rising the line again.
+  }, [lineIndex, reducedMotion, riseOpacity, riseY, riseScale, outLift]);
   useEffect(() => {
     if (syncedIndex.current === lineIndex) return;
     syncedIndex.current = lineIndex;
@@ -359,10 +368,9 @@ export const TideScene = memo(function TideScene({
     const t = setTimeout(() => {
       if (!syncPending.current) return;
       syncPending.current = false;
-      syncNow();
+      syncFromEffect();
     }, SYNC_FALLBACK_MS);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lineIndex]);
   const cardRise = contentReveal?.rise ?? noRise;
   const riseStyle = useAnimatedStyle(() => {
@@ -390,7 +398,9 @@ export const TideScene = memo(function TideScene({
   // never changes, so the memoised TranscriptLine rows below don't re-render
   // on every render this component gets from an audio tick.
   const onLineTapRef = useRef(onLineTap);
-  onLineTapRef.current = onLineTap;
+  useLayoutEffect(() => {
+    onLineTapRef.current = onLineTap;
+  });
 
   const tapLine = useCallback((i: number) => {
     autoScroll.current = true;
@@ -421,7 +431,7 @@ export const TideScene = memo(function TideScene({
   };
 
   const marks = useMemo(() => {
-    if (!isWindowed(lineCount) || lineCount <= MARK_CAP) {
+    if (lineCount <= LONG_ISLAND) {
       return Array.from({ length: lineCount }, (_, i) => lineCount - 1 - i).map((i) => (
         <View key={i} style={[styles.mark, i < lineIndex ? styles.markDone : styles.markPending]} />
       ));
@@ -728,7 +738,6 @@ const TranscriptLine = memo(function TranscriptLine({
         { scaleY: 1 + 0.012 * Math.sin(0.3 * t + d) },
       ],
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wobble, time]);
 
   const row = (

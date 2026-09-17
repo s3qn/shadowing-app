@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import Animated, {
   Easing,
@@ -78,7 +78,11 @@ type Props = {
  */
 export function IslandSearch({ open, query, onChangeQuery, onClose, grow, rowH }: Props) {
   const reducedMotion = useReducedMotion();
+  // The field has to exist before the animation that reveals it, so an open
+  // mounts the pill in the same commit. Closing unmounts it later, once the
+  // close motion has finished (partDone).
   const [mounted, setMounted] = useState(open);
+  if (open && !mounted) setMounted(true);
   const fade = useSharedValue(open ? 1 : 0);
   const content = useSharedValue(open ? 1 : 0);
   const trackWidth = useSharedValue(0);
@@ -128,22 +132,20 @@ export function IslandSearch({ open, query, onChangeQuery, onClose, grow, rowH }
     Keyboard.dismiss();
   }
 
-  useEffect(() => {
+  // Before the first paint of an open, so the pill never shows a frame at
+  // the fade the last close left. The shared values are stable, so `open`
+  // is the only dependency that ever changes.
+  useLayoutEffect(() => {
     openRef.current = open;
     if (!open) return;
     closeGen.current += 1;
-    // The field has to exist before the animation that reveals it.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMounted(true);
     content.set(1);
     if (reducedMotion) fade.set(withTiming(1, { duration: FADE_MS }));
     else fade.set(1);
     // Reopened before the close finished: the reaction below will not see a
     // fresh crossing, so focus here.
-    if (grow.value >= FOCUS_AT) input.current?.focus();
-    // Only `open` drives this; the shared values are stable refs.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+    if (grow.get() >= FOCUS_AT) input.current?.focus();
+  }, [open, reducedMotion, content, fade, grow]);
 
   useAnimatedReaction(
     () => grow.value >= FOCUS_AT,
@@ -176,7 +178,7 @@ export function IslandSearch({ open, query, onChangeQuery, onClose, grow, rowH }
       <View
         style={styles.track}
         onLayout={(e) => {
-          trackWidth.value = e.nativeEvent.layout.width;
+          trackWidth.set(e.nativeEvent.layout.width);
         }}
       />
       {mounted ? (

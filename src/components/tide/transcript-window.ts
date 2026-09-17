@@ -1,7 +1,12 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react';
 import { type NativeScrollEvent, type NativeSyntheticEvent, useWindowDimensions } from 'react-native';
 
-export const LONG_ISLAND = 120; // fewer lines: mount everything, as now
+// An island this long remembers the line it was left on (see [id].tsx and
+// Home) and draws bucketed tide marks instead of one per line.
+export const LONG_ISLAND = 120;
+// An island with more lines than this mounts only a window of transcript
+// rows, and opens on the narrow window under the card morph. Fewer: every row.
+export const WINDOWED_ISLAND = 30;
 export const PAST_ROWS = 24; // mounted rows above the active line
 export const NEXT_ROWS = 40; // mounted rows below it
 export const EDGE = 8; // recentre when the active line gets this close to an edge
@@ -27,7 +32,7 @@ const NEXT_ROW = { base: 30, inset: 96 };
 
 /** Whether windowing is on for an island of this many lines. */
 export function isWindowed(lineCount: number): boolean {
-  return lineCount > LONG_ISLAND;
+  return lineCount > WINDOWED_ISLAND;
 }
 
 /** Mounted rows are `start..end-1`. The active line is always inside it. */

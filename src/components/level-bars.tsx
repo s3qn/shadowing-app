@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
+import type { SharedValue } from 'react-native-reanimated';
 
 import { Radius, tide } from '@/constants/theme';
 
@@ -21,8 +22,10 @@ export function meterLevel(db: number | undefined): number {
 }
 
 type Props = {
-  /** Current loudness, 0..1, already noise-gated by the caller. */
-  level: number;
+  /** Current loudness, 0..1, already noise-gated by the caller. A shared
+   * value so the caller's meter never renders this component; the interval
+   * below reads it from JS. */
+  level: SharedValue<number>;
   /** While true the history scrolls; when false it flattens out. */
   live: boolean;
 };
@@ -38,8 +41,6 @@ export function LevelBars({ level, live }: Props) {
     Array.from({ length: BARS }, () => new Animated.Value(MIN_H)),
   ).current;
   const history = useRef<number[]>(new Array<number>(BARS).fill(0));
-  const levelRef = useRef(level);
-  levelRef.current = level;
 
   useEffect(() => {
     const paint = () => {
@@ -58,11 +59,12 @@ export function LevelBars({ level, live }: Props) {
       return;
     }
     const timer = setInterval(() => {
-      history.current = [...history.current.slice(1), levelRef.current];
+      const v = level.value;
+      history.current = [...history.current.slice(1), Number.isFinite(v) ? v : 0];
       paint();
     }, PUSH_MS);
     return () => clearInterval(timer);
-  }, [live, heights]);
+  }, [live, heights, level]);
 
   return (
     <View style={styles.row} accessibilityLabel="Microphone level">

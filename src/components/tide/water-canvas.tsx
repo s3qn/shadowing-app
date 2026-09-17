@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useState } from 'react';
 import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import { BlurMask, Canvas, Group, LinearGradient, Oval, Path, Rect, Shader, Skia, vec } from '@shopify/react-native-skia';
 import { useDerivedValue, type SharedValue } from 'react-native-reanimated';
@@ -46,6 +46,16 @@ half4 main(vec2 p) {
   return half4(tint * v, v);
 }
 `;
+
+/** Compiled once, when this module loads, not once per player mount. Null
+ * when the SkSL fails to compile: the caustics are then left out. */
+const CAUSTICS_EFFECT = (() => {
+  try {
+    return Skia.RuntimeEffect.Make(CAUSTICS_SKSL);
+  } catch {
+    return null;
+  }
+})();
 
 /** Six rising bubbles, drawn as one filled path so a single derived value
  * (not six) moves them each frame. Fixed per-bubble x fraction, rise speed
@@ -164,7 +174,6 @@ export const WaterCanvas = memo(function WaterCanvas({
   const gradientColors: string[] = [palette.shallow, palette.mid, palette.deep];
   const gradientPositions: number[] = [0, 0.35, 1];
 
-  const causticsEffect = useMemo(() => Skia.RuntimeEffect.Make(CAUSTICS_SKSL), []);
   // Plain arrays, not Skia point host objects: the native uniform reader
   // takes an array as is, with no property probing.
   const causticsUniforms = useDerivedValue(() => ({
@@ -172,7 +181,6 @@ export const WaterCanvas = memo(function WaterCanvas({
     time: finiteOr(time.value, 0) * 0.25,
     tint: [0.63, 0.9, 0.94],
     intensity,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [width, height, intensity]);
 
   // One path draws all six bubbles, so a single derived value moves them
@@ -191,7 +199,6 @@ export const WaterCanvas = memo(function WaterCanvas({
       d += `M ${(cx - r).toFixed(2)} ${cy.toFixed(2)} a ${r} ${r} 0 1 0 ${2 * r} 0 a ${r} ${r} 0 1 0 ${-2 * r} 0 `;
     }
     return d;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [width, height]);
 
   return (
@@ -235,9 +242,9 @@ export const WaterCanvas = memo(function WaterCanvas({
           {/* Caustics and bubbles live inside the water body's own path, so
              their top edge is the live surface curve wherever it moves. */}
           <Group clip={bodyPathD}>
-            {causticsEffect ? (
+            {CAUSTICS_EFFECT ? (
               <Rect x={0} y={0} width={width} height={height}>
-                <Shader source={causticsEffect} uniforms={causticsUniforms} />
+                <Shader source={CAUSTICS_EFFECT} uniforms={causticsUniforms} />
               </Rect>
             ) : null}
             {reducedMotion ? null : <Path path={bubblesPath} color="rgba(255,255,255,0.25)" />}

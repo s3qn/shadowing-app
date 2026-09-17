@@ -274,7 +274,7 @@ export default function IslandsScreen() {
       },
       { lineIndex, lineCount },
     );
-  }, []);
+  }, [router]);
   function saveRename() {
     const item = menuItem;
     if (!item) return;
@@ -294,9 +294,9 @@ export default function IslandsScreen() {
         setIslands(next);
       }
       setError('');
+      setLoading(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not reach the server');
-    } finally {
       setLoading(false);
     }
   }, []);
@@ -335,22 +335,44 @@ export default function IslandsScreen() {
     }
   }
 
-  function requestShape(next: Shape) {
+  // Sorted before filtering, so closing search can find where the centred
+  // island sits in the full list.
+  const sortedAll = useMemo(
+    () =>
+      [...islands].sort((a, b) => {
+        if (sort === 'least') {
+          const diff = (log.islands[a.id]?.seconds ?? 0) - (log.islands[b.id]?.seconds ?? 0);
+          if (diff !== 0) return diff;
+        }
+        // Newest first: the tie break above, and the "Newest" sort itself.
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }),
+    [islands, sort, log],
+  );
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q ? sortedAll.filter((i) => i.title.toLowerCase().includes(q)) : sortedAll;
+  }, [sortedAll, query]);
+
+  const requestShape = useCallback((next: Shape) => {
     wanted.current = next;
     setAnimLayout(false);
     setShapeReq((n) => n + 1);
-  }
+  }, []);
 
-  function openSearch() {
-    const n = shown.length;
+  // Search opens from the closed state, where `shown` is `sortedAll`. Keyed
+  // on `sortedAll` (a poll, a sort or a fresh practice log) rather than on
+  // `shown`, so the header options it sits in hold across keystrokes.
+  const openSearch = useCallback(() => {
+    const n = sortedAll.length;
     const at = n > 0 ? Math.min(n - 1, Math.max(0, centreRef.current)) : 0;
-    preSearchId.current = shown[at]?.id ?? null;
+    preSearchId.current = sortedAll[at]?.id ?? null;
     startSearchOpen(searchGrow, searchRowH, reducedMotion);
     searchOpenRef.current = true;
     cancelSettle();
     setSearchOpen(true);
     requestShape({ ...wanted.current, wheel: false });
-  }
+  }, [sortedAll, reducedMotion, searchGrow, searchRowH, cancelSettle, requestShape]);
 
   // IslandSearch has already started the close motion; the keyboard hides
   // after this returns.
@@ -401,31 +423,12 @@ export default function IslandsScreen() {
     }, [load]),
   );
 
-  // Sorted before filtering, so closing search can find where the centred
-  // island sits in the full list.
-  const sortedAll = useMemo(
-    () =>
-      [...islands].sort((a, b) => {
-        if (sort === 'least') {
-          const diff = (log.islands[a.id]?.seconds ?? 0) - (log.islands[b.id]?.seconds ?? 0);
-          if (diff !== 0) return diff;
-        }
-        // Newest first: the tie break above, and the "Newest" sort itself.
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      }),
-    [islands, sort, log],
-  );
-  const shown = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return q ? sortedAll.filter((i) => i.title.toLowerCase().includes(q)) : sortedAll;
-  }, [sortedAll, query]);
-
   // The card count on the UI thread, so the centre reaction can clamp to it
   // straight after a delete or a search that shrinks the list, without
   // waiting on a JS round trip.
   const countSV = useSharedValue(shown.length);
   useEffect(() => {
-    countSV.value = shown.length;
+    countSV.set(shown.length);
   }, [shown.length, countSV]);
 
   // -1 in the plain list, so the first real index after the wheel comes
@@ -461,15 +464,15 @@ export default function IslandsScreen() {
   // The new pad is committed: place the offset before the frame shows, then
   // turn the layout animation back on in the next commit.
   useLayoutEffect(() => {
-    wheelOn.value = shape.wheel;
-    viewportH.value = shape.wheelH > 0 ? visibleOf(shape.wheelH) : 0;
+    wheelOn.set(shape.wheel);
+    viewportH.set(shape.wheelH > 0 ? visibleOf(shape.wheelH) : 0);
     const idx = pendingPlace.current;
     if (shape.wheel && shape.wheelH > 0 && idx !== null) {
       pendingPlace.current = null;
       const n = shown.length;
       const at = n > 0 ? Math.min(n - 1, Math.max(0, idx)) : 0;
       const offset = at * STEP;
-      scrollY.value = offset;
+      scrollY.set(offset);
       listRef.current?.scrollToOffset({ offset, animated: false });
       cancelSettle();
       moving.current = false;
@@ -478,13 +481,15 @@ export default function IslandsScreen() {
     }
   }, [shape, shown.length, wheelOn, viewportH, scrollY, cancelSettle, updateCentre, scheduleSettle]);
   useEffect(() => {
-    if (shape.wheelH > 0) setAnimLayout(true);
+    // The wanted shape is on screen and measured: cells may animate their
+    // layout again.
+    setAnimLayout(wanted.current.wheelH > 0);
   }, [shape]);
 
   // Typing in the plain list shows the results from the top.
   useEffect(() => {
     if (!searchOpenRef.current) return;
-    scrollY.value = 0;
+    scrollY.set(0);
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, [query, scrollY]);
 
@@ -529,6 +534,24 @@ export default function IslandsScreen() {
     setMenuItem(item);
   }, []);
 
+  // Built once per change of what it shows, not per Home render: the header
+  // re-renders whenever it gets new options.
+  const screenOptions = useMemo(
+    () => ({
+      headerStyle: { backgroundColor: sky.top },
+      headerTintColor: tide.text,
+      headerShadowVisible: false,
+      headerLeft: () => (
+        <Animated.View style={searchButtonStyle} pointerEvents={searchOpen ? 'none' : 'auto'}>
+          <PressScale onPress={openSearch} hitSlop={12} accessibilityLabel="Search islands">
+            <SearchIcon color={tide.text} size={22} />
+          </PressScale>
+        </Animated.View>
+      ),
+    }),
+    [sky.top, searchOpen, openSearch, searchButtonStyle],
+  );
+
   // Top pad centres card 0 in the visible part; the bottom pad adds the
   // covered part back so the last card can centre there too.
   const wheelPad = Math.max(0, (visibleOf(shape.wheelH) - CARD_H) / 2);
@@ -568,20 +591,7 @@ export default function IslandsScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: sky.top }])}>
       <StatusBar style="light" />
-      <Tabs.Screen
-        options={{
-          headerStyle: { backgroundColor: sky.top },
-          headerTintColor: tide.text,
-          headerShadowVisible: false,
-          headerLeft: () => (
-            <Animated.View style={searchButtonStyle} pointerEvents={searchOpen ? 'none' : 'auto'}>
-              <PressScale onPress={openSearch} hitSlop={12} accessibilityLabel="Search islands">
-                <SearchIcon color={tide.text} size={22} />
-              </PressScale>
-            </Animated.View>
-          ),
-        }}
-      />
+      <Tabs.Screen options={screenOptions} />
       <View style={[StyleSheet.absoluteFill, sky.from]} />
       <Animated.View style={[StyleSheet.absoluteFill, sky.to, sky.fadeStyle]} />
       {night && (
@@ -631,7 +641,9 @@ export default function IslandsScreen() {
         ListHeaderComponent={<View style={{ height: shape.wheel ? wheelPad : LIST_TOP }} />}
         ListFooterComponent={<View style={{ height: shape.wheel ? wheelPadBottom : LIST_BOTTOM }} />}
         keyboardShouldPersistTaps="handled"
-        itemLayoutAnimation={animLayout ? LinearTransition.duration(220) : undefined}
+        // Off while search is open: a keystroke changes most rows' places,
+        // and the results should simply appear where they land.
+        itemLayoutAnimation={animLayout && !searchOpen ? LinearTransition.duration(220) : undefined}
         onLayout={(e) => {
           // With search open, or its row still moving, the height is not the
           // wheel's.
@@ -699,6 +711,7 @@ export default function IslandsScreen() {
               fraction={fraction}
               meta={meta}
               waveIndex={waveIndex}
+              exitFade={!searchOpen}
               onOpen={openIsland}
               onMenu={openRowMenu}
             />
@@ -775,6 +788,9 @@ type IslandRowProps = {
    * instantly: past the first `WAVE_MAX_CARDS` cards, outside the first
    * visit of the day, or with reduced motion on. */
   waveIndex: number | null;
+  /** Whether a row leaving the list fades out. Off while search is open: a
+   * row a keystroke filters away just goes. */
+  exitFade: boolean;
   /** A plain tap: always opens the island, with the card's on-screen rect for
    * the morph into the player. */
   onOpen: (item: api.IslandSummary, rect: CardRect) => void;
@@ -809,6 +825,7 @@ const IslandRow = memo(function IslandRow({
   fraction,
   meta,
   waveIndex,
+  exitFade,
   onOpen,
   onMenu,
 }: IslandRowProps) {
@@ -825,13 +842,17 @@ const IslandRow = memo(function IslandRow({
     mid.value = withTiming(centred ? 1 : 0, { duration: 250 });
   }, [centred, mid]);
 
-  // The lantern light sequence and the weakest lantern's flicker while this
-  // card is lit, and a plain fade to dark once it is not. litMs is elapsed
-  // ms since lighting started; power is 1 lit, 0 dark.
+  // The lantern light sequence while this card is lit, and a plain fade to
+  // dark once it is not. litMs is elapsed ms since lighting started; power
+  // is 1 lit, 0 dark. The weakest lantern's flicker is the focus effect
+  // below.
   const totalMs = item.line_count * LANTERN_STEP_MS + LANTERN_RISE_MS;
   const litMs = useSharedValue(reducedMotion && lit ? totalMs : 0);
   const flick = useSharedValue(1);
   const power = useSharedValue(lit ? 1 : 0);
+  // When the light sequence started, on the JS clock, so a flicker started
+  // on refocus waits only for what is left of the weakest lantern's rise.
+  const litSince = useRef(0);
   // True once the card is dark and its fade has finished, so the lantern row
   // drops its remembered colours and goes back to neutral.
   const [settled, setSettled] = useState(!lit);
@@ -847,27 +868,15 @@ const IslandRow = memo(function IslandRow({
     if (lit) {
       power.value = 1;
       flick.value = 1;
+      litSince.current = Date.now();
       if (reducedMotion) {
         litMs.value = totalMs;
         return;
       }
-      // Always from the first lantern, never resuming half-way.
+      // Always from the first lantern, never resuming half-way. A change of
+      // the weakest line (new takes) restarts it too, through the deps.
       litMs.value = 0;
       litMs.value = withTiming(totalMs, { duration: totalMs, easing: Easing.linear });
-      if (weakest !== -1) {
-        flick.value = withDelay(
-          weakest * LANTERN_STEP_MS + LANTERN_RISE_MS,
-          withRepeat(
-            withSequence(
-              withTiming(0.35, { duration: 600, easing: Easing.inOut(Easing.quad) }),
-              withTiming(0.9, { duration: 90 }),
-              withTiming(0.5, { duration: 240 }),
-              withTiming(1, { duration: 570 }),
-            ),
-            -1,
-          ),
-        );
-      }
       return;
     }
     if (reducedMotion) {
@@ -887,6 +896,38 @@ const IslandRow = memo(function IslandRow({
       runOnJS(setSettled)(true);
     });
   }, [lit, reducedMotion, weakest, totalMs, litMs, flick, power]);
+
+  // The weakest lantern's flicker, only while Home is on screen. It stops
+  // when an island opens (Home blurs) instead of running under the player,
+  // and starts again on the way back if this card is still lit, waiting
+  // only for what is left of that lantern's rise. Declared after the light
+  // sequence effect so a fresh `litSince` is what it reads.
+  useFocusEffect(
+    useCallback(() => {
+      if (!lit || reducedMotion || weakest === -1) return;
+      const riseEnd = weakest * LANTERN_STEP_MS + LANTERN_RISE_MS;
+      const wait = Math.max(0, riseEnd - (Date.now() - litSince.current));
+      flick.set(
+        withDelay(
+          wait,
+          withRepeat(
+            withSequence(
+              withTiming(0.35, { duration: 600, easing: Easing.inOut(Easing.quad) }),
+              withTiming(0.9, { duration: 90 }),
+              withTiming(0.5, { duration: 240 }),
+              withTiming(1, { duration: 570 }),
+            ),
+            -1,
+          ),
+        ),
+      );
+      return () => {
+        // Eases to rest on a blur. A card losing the light cancels this at
+        // once and fades from wherever the flicker was.
+        flick.set(withTiming(1, { duration: LANTERN_FADE_MS }));
+      };
+    }, [lit, reducedMotion, weakest, flick]),
+  );
 
   // No light sequence, flicker loop or fade may outlive the card.
   useEffect(
@@ -1040,7 +1081,7 @@ const IslandRow = memo(function IslandRow({
         onLongPress={handleLongPress}
         delayLongPress={LONG_PRESS_MS}
         entering={waveIndex !== null ? waveEntering(waveIndex * WAVE_STAGGER_MS) : undefined}
-        exiting={FadeOut.duration(220)}
+        exiting={exitFade ? FadeOut.duration(220) : undefined}
         onLayout={(e) => {
           rowWidth.value = e.nativeEvent.layout.width;
         }}

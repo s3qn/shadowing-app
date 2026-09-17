@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
@@ -58,7 +58,8 @@ type AutoEchoSheetProps = {
   english: string | null;
   step: EchoStep;
   countdown: number | null;
-  level: number;
+  /** 0..1 live meter level, read on the UI thread by the ripples and bars. */
+  level: SharedValue<number>;
   /** 0..1, animated on the UI thread by the screen: how far the current
    * step's segment has filled. Steps before it are always full, steps after
    * it are always empty; this only drives the one that is active now. */
@@ -87,7 +88,7 @@ type AutoEchoSheetProps = {
  * it back (recorded), then play the take back. Runs on its own while the
  * sheet is open; closing it stops everything.
  */
-export function AutoEchoSheet({
+function AutoEchoSheetBase({
   open,
   onClose,
   onDismissed,
@@ -221,6 +222,10 @@ export function AutoEchoSheet({
     </BottomSheet>
   );
 }
+
+/** Memoised: the player screen renders often, and a closed sheet has
+ * nothing to redraw. Its handler props come through useStableHandler. */
+export const AutoEchoSheet = memo(AutoEchoSheetBase);
 
 const styles = StyleSheet.create({
   // minHeight keeps room for the SparkleResult overlay even when Blind hides

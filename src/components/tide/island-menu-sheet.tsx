@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { StyleSheet, TextInput } from 'react-native';
 
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
@@ -34,7 +34,7 @@ type Props = {
  * to `onDismissed`, so an Alert or a share sheet never races the Modal
  * dismissing.
  */
-export function IslandMenuSheet({
+function IslandMenuSheetBase({
   open,
   onClose,
   onDismissed,
@@ -108,6 +108,10 @@ export function IslandMenuSheet({
     </BottomSheet>
   );
 }
+
+/** Memoised: the player screen renders often, and a closed sheet has
+ * nothing to redraw. Its handler props come through useStableHandler. */
+export const IslandMenuSheet = memo(IslandMenuSheetBase);
 
 const styles = StyleSheet.create({
   input: {

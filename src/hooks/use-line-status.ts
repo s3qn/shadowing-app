@@ -1,5 +1,5 @@
 import { type AudioPlayer, type AudioStatus } from 'expo-audio';
-import { type RefObject, useEffect, useRef, useState } from 'react';
+import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 /**
  * The line player's status without a render on every native update.
@@ -33,11 +33,13 @@ export function useLineStatus(
   // Read through refs, so the listener below is subscribed once per player
   // and still calls this render's handlers.
   const onStatusRef = useRef(onStatus);
-  onStatusRef.current = onStatus;
   const renderKeyRef = useRef(renderKey);
-  renderKeyRef.current = renderKey;
   const acceptRef = useRef(accept);
-  acceptRef.current = accept;
+  useLayoutEffect(() => {
+    onStatusRef.current = onStatus;
+    renderKeyRef.current = renderKey;
+    acceptRef.current = accept;
+  });
 
   useEffect(() => {
     const sub = player.addListener('playbackStatusUpdate', (s: AudioStatus) => {

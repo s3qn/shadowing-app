@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { memo, type ReactNode, useEffect, useRef, useState } from 'react';
 import { type LayoutChangeEvent, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
@@ -105,7 +105,7 @@ type Props = {
  * no question to type, no thread, just a loading state and then the answer,
  * laid out as vocabulary, grammar and a summary instead of one paragraph.
  */
-export function ExplainSheet({
+function ExplainSheetBase({
   open,
   onClose,
   onDismissed,
@@ -223,6 +223,10 @@ export function ExplainSheet({
     </BottomSheet>
   );
 }
+
+/** Memoised: the player screen renders often, and a closed sheet has
+ * nothing to redraw. Its handler props come through useStableHandler. */
+export const ExplainSheet = memo(ExplainSheetBase);
 
 /** Splits `text` on the first occurrence of `part` into [before, part,
  * after]. `part` empty or not found returns [text, '', ''], so a caller can

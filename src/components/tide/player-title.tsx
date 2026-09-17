@@ -44,21 +44,17 @@ export function PlayerTitle({ title, lineIndex, lineCount, hidden = false, onTit
   const dir = useSharedValue<1 | -1>(1);
 
   // Real measured widths per number value, filled in by the invisible
-  // measurement copies below. Cached across renders so a number we've
+  // measurement copies below. Kept across renders so a number we've
   // already seen (e.g. rolling back to it) doesn't flash the estimate again.
-  const widthCache = useRef<Map<number, number>>(new Map());
-  const [, bumpMeasured] = useState(0);
+  const [widths, setWidths] = useState<ReadonlyMap<number, number>>(() => new Map());
 
   const measureWidth = (value: number) => (event: LayoutChangeEvent) => {
     const width = Math.ceil(event.nativeEvent.layout.width);
-    if (widthCache.current.get(value) !== width) {
-      widthCache.current.set(value, width);
-      bumpMeasured((n) => n + 1);
-    }
+    setWidths((prev) => (prev.get(value) === width ? prev : new Map(prev).set(value, width)));
   };
 
   const widthFor = (value: number) =>
-    widthCache.current.get(value) ?? Math.max(MIN_NUMBER_WIDTH, String(value).length * DIGIT_WIDTH);
+    widths.get(value) ?? Math.max(MIN_NUMBER_WIDTH, String(value).length * DIGIT_WIDTH);
 
   // While the island loads there is no line count yet and the line row is
   // invisible; the line it then opens on (a resumed one, say) lands without a roll.

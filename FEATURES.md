@@ -144,6 +144,9 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Island wheel with lanterns: Home snaps one card to the middle; its lanterns
   (one per line, coloured by the latest take) light once the wheel rests, the
   weakest flickers; pressing a card gives a haptic and side cards flash.
+- Smoother player and Home: recording no longer re-renders the player, React
+  Compiler compiles most of Home and the player parts, lighter lanterns and
+  search, water shader compiled once, transcript windowed from 30 lines.
 
 ## Next (approved, in order)
 

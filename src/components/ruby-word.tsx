@@ -98,13 +98,15 @@ export const RubyWord = memo(function RubyWord({
   const fits = !!pitch && !!runs && runs.reduce((n, r) => n + moraCells(r), 0) === pitch.length;
   const even: PitchCell[] = pitch ? pitch.map(() => ({ w: 1, mora: true })) : [];
   const perColumn = !!segments && fits;
-
-  let column = 0;
-  let nextMora = 0;
-  function columnStrip(cells: PitchCell[]) {
-    const from = nextMora;
-    nextMora += moraCells(cells);
-    return <PitchStrip cells={cells} pitch={pitch!.slice(from, nextMora)} concealed={concealed} />;
+  // Where each column's moras start in `pitch`: `runs` is built from the same
+  // ruby segments the columns map over, so column i reads runs[i].
+  const columnStarts: number[] = [];
+  if (perColumn && runs) {
+    let n = 0;
+    for (const cells of runs) {
+      columnStarts.push(n);
+      n += moraCells(cells);
+    }
   }
 
   let wordStrip: ReactNode = null;
@@ -132,10 +134,13 @@ export const RubyWord = memo(function RubyWord({
       <View style={segments ? styles.rubyRow : styles.plain}>
         {segments ? (
           segments.map((seg, i) => {
-            const cells = perColumn ? runs![column++]! : null;
+            const cells = perColumn ? runs![i]! : null;
+            const from = columnStarts[i] ?? 0;
             return (
               <View key={i} style={styles.segment}>
-                {cells ? columnStrip(cells) : null}
+                {cells ? (
+                  <PitchStrip cells={cells} pitch={pitch!.slice(from, from + moraCells(cells))} concealed={concealed} />
+                ) : null}
                 <Animated.Text style={[styles.rt, rubyInk]}>{seg.rt}</Animated.Text>
                 <Animated.Text style={baseStyle}>{seg.text}</Animated.Text>
               </View>
@@ -180,11 +185,18 @@ const STROKE = 1.5;
  * draws nothing. */
 function PitchStrip({ cells, pitch, concealed }: { cells: PitchCell[]; pitch: MoraPitch[]; concealed?: boolean }) {
   if (concealed) return <View style={styles.strip} pointerEvents="none" />;
+  // Which mora each cell shows, -1 for a cell with none.
+  const moraAt: number[] = [];
   let k = 0;
+  for (const cell of cells) {
+    moraAt.push(cell.mora ? k : -1);
+    if (cell.mora) k += 1;
+  }
   return (
     <View style={styles.strip} pointerEvents="none">
       {cells.map((cell, i) => {
-        const p = cell.mora ? pitch[k++] : undefined;
+        const m = moraAt[i] ?? -1;
+        const p = m >= 0 ? pitch[m] : undefined;
         return (
           <View key={i} style={{ flex: cell.w }}>
             {p ? (

@@ -1,19 +1,20 @@
 import {
+  type AudioStatus,
   AudioQuality,
   getRecordingPermissionsAsync,
   IOSOutputFormat,
   requestRecordingPermissionsAsync,
   RecordingPresets,
   useAudioPlayer,
-  useAudioPlayerStatus,
   useAudioRecorder,
-  useAudioRecorderState,
   type RecordingOptions,
 } from 'expo-audio';
 import { File } from 'expo-file-system';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useSharedValue } from 'react-native-reanimated';
 
 import { meterLevel } from '@/components/level-bars';
+import { useLineStatus } from '@/hooks/use-line-status';
 import { cleanTakeUrl, uploadTake, type AudioSpan } from '@/lib/api';
 import {
   applyPlaybackMode,
@@ -24,6 +25,9 @@ import {
   useSessionPlayer,
 } from '@/lib/audio-mode';
 import { cleanTakeFile, deleteTake, findTake, saveTake, saveTakeScore, type Take } from '@/lib/takes';
+
+/** How often the recorder's meter is sampled into the level shared value. */
+const METER_MS = 50;
 
 // Exported so the Auto Echo sheet's Speak fill can aim at the same expected
 // take length this hook's own watchdog uses, instead of a second guess.
@@ -107,11 +111,37 @@ export function useTake(
   /** Delays the first disk read (it returns a cancel): the player passes the
    * open morph's cover-gone here, so the read stays out of the landing. */
   firstReadAfter?: (run: () => void) => () => void,
+  /** Runs for every take player status update (each 50ms position tick
+   * while a take plays) without a render; the screen aims the Auto Echo
+   * Play fill from it. */
+  onStatus?: (s: AudioStatus) => void,
 ) {
   const recorder = useAudioRecorder(WAV_RECORDING_OPTIONS);
-  const recorderState = useAudioRecorderState(recorder, 50);
 
   const [recording, setRecording] = useState(false);
+
+  // Live meter level, 0..1, written from a timer and read on the UI thread
+  // by the dock glow, the ripples and the level bars. A shared value so a
+  // meter sample never renders the screen.
+  const level = useSharedValue(0);
+  useEffect(() => {
+    if (!recording) {
+      level.value = 0;
+      return;
+    }
+    const timer = setInterval(() => {
+      try {
+        level.value = meterLevel(recorder.getStatus().metering);
+      } catch {
+        // The recorder is released on unmount before this cleanup runs.
+        level.value = 0;
+      }
+    }, METER_MS);
+    return () => {
+      clearInterval(timer);
+      level.value = 0;
+    };
+  }, [recording, recorder, level]);
   const [mode, setMode] = useState<TakeMode>('take');
 
   // Everything below belongs to one line of one generation. The take, an
@@ -167,7 +197,20 @@ export function useTake(
   // take player is paused right before a take starts, so without this the
   // teardown lands on the recorder that has just been prepared.
   const takePlayer = useAudioPlayer(null, { keepAudioSessionActive: true });
-  const takeStatus = useAudioPlayerStatus(takePlayer);
+  // Read through a ref so the listener is subscribed once per player and
+  // still calls this render's handler.
+  const onStatusRef = useRef(onStatus);
+  useLayoutEffect(() => {
+    onStatusRef.current = onStatus;
+  });
+  // The screen renders only when the take loads or its playing flag flips,
+  // not on each position tick: the status committed on the playing flip
+  // carries the duration the play-end result needs.
+  const { status: takeStatus } = useLineStatus(
+    takePlayer,
+    (s) => onStatusRef.current?.(s),
+    (s) => `${s.isLoaded}:${s.playing}`,
+  );
   useSessionPlayer(takePlayer);
 
   // Plays take.cleanUri once cleanTake has set it; until then, or if cleanup
@@ -573,15 +616,12 @@ export function useTake(
   return {
     phase,
     mode,
-    level: recording ? meterLevel(recorderState.metering) : 0,
+    level,
     take,
     takePlaying: takeStatus.playing,
     // The status keeps the previous item's values until the new take (or its
     // cleaned file) reports, so it counts only once readyUri is this take.
     takeLoaded: takeReady && takeStatus.isLoaded,
-    // For the Auto Echo sheet's Play step fill: real progress through the
-    // take, the same way the line player drives Listen.
-    takeCurrentTime: takeReady ? takeStatus.currentTime : 0,
     takeDuration: takeReady ? takeStatus.duration : 0,
     error,
     clean,

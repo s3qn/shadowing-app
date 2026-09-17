@@ -2,9 +2,11 @@ import { memo, useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   interpolate,
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
+  type SharedValue,
 } from 'react-native-reanimated';
 
 import { fonts } from '@/constants/fonts';
@@ -20,8 +22,9 @@ type Props = {
   prevDisabled: boolean;
   nextDisabled: boolean;
   recording: boolean;
-  /** 0..1 live meter level from the take's recorder, 0 when not recording. */
-  level: number;
+  /** 0..1 live meter level from the take's recorder, written on a timer and
+   * read here on the UI thread, so a meter sample never renders the dock. */
+  level: SharedValue<number>;
   onRecord: () => void;
 };
 
@@ -47,9 +50,15 @@ export const BottomRow = memo(function BottomRow({
   const smoothLevel = useSharedValue(0);
   const active = useSharedValue(0);
 
-  useEffect(() => {
-    smoothLevel.value = withTiming(recording ? level : 0, { duration: 80 });
-  }, [level, recording, smoothLevel]);
+  useAnimatedReaction(
+    () => (recording ? level.value : 0),
+    (v, prev) => {
+      if (v === prev) return;
+      const safe = Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0;
+      smoothLevel.value = withTiming(safe, { duration: 80 });
+    },
+    [recording]
+  );
 
   useEffect(() => {
     active.value = withTiming(recording ? 1 : 0, { duration: 200 });

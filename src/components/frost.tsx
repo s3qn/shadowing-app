@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { type LayoutChangeEvent, Platform, type StyleProp, StyleSheet, View, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -41,9 +41,12 @@ export function Frost({ frosted, children, style, ink = tide.text, blur = 4 }: P
   // The children's width, kept in a ref: only a frosted row draws from it, so
   // a clear row's first layout (every transcript row on open) never renders.
   const widthRef = useRef(0);
-  const [widthState, setWidth] = useState(0);
-  // The ref holds the latest layout; the state only asks for the render.
-  const width = widthRef.current > 0 ? widthRef.current : widthState;
+  const [width, setWidth] = useState(0);
+  // A row that measured while clear and then frosts: the state catches up
+  // with the ref before paint, so the frosted copy never shows at width 0.
+  useLayoutEffect(() => {
+    if (frosted && widthRef.current > 0 && widthRef.current !== width) setWidth(widthRef.current);
+  }, [frosted, width]);
   const fade = useSharedValue(1);
   // Only a change fades: a row that mounts frosted is simply frosted.
   const shownFrosted = useRef(frosted);
@@ -62,7 +65,7 @@ export function Frost({ frosted, children, style, ink = tide.text, blur = 4 }: P
     const w = e.nativeEvent.layout.width;
     if (!Number.isFinite(w)) return;
     widthRef.current = w;
-    if (frosted && w !== widthState) setWidth(w);
+    if (frosted && w !== width) setWidth(w);
   };
 
   let inner: ViewStyle | null = null;

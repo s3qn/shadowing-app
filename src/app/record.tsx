@@ -10,6 +10,7 @@ import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
@@ -153,6 +154,13 @@ export default function RecordScreen() {
   useEffect(() => {
     if (recording) samplesRef.current.push(meterLevel(state.metering));
   }, [recording, state.durationMillis, state.metering]);
+
+  // The bars read a shared value; this screen keeps its recorder state and
+  // copies each sample across.
+  const barLevel = useSharedValue(0);
+  useEffect(() => {
+    barLevel.value = recording ? meterLevel(state.metering) : 0;
+  }, [recording, state.metering, barLevel]);
 
   // Back to the start once the take has played through, and the volume goes
   // back to other apps.
@@ -408,7 +416,7 @@ export default function RecordScreen() {
                 <Text style={[styles.timer, { color: recording ? tide.record : tide.textDim }]}>
                   {clock(elapsed)}
                 </Text>
-                <LevelBars level={recording ? meterLevel(state.metering) : 0} live={recording} />
+                <LevelBars level={barLevel} live={recording} />
                 <View style={styles.track}>
                   <View
                     style={[

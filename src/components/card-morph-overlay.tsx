@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, useWindowDimensions } from 'react-native';
 import Animated, {
   cancelAnimation,
@@ -149,9 +149,9 @@ function MorphRun({ state }: { state: MorphState }) {
 
   function shrink() {
     if (!alive.current) return;
-    t.value = withTiming(0, { duration: BACK_MS, easing: MORPH_EASING }, (backDone) => {
+    t.set(withTiming(0, { duration: BACK_MS, easing: MORPH_EASING }, (backDone) => {
       if (backDone) runOnJS(land)();
-    });
+    }));
   }
 
   // Pops the player under the full cover, and shrinks into the card only once
@@ -218,20 +218,26 @@ function MorphRun({ state }: { state: MorphState }) {
     runOnUI(landOnUI)(phase === 'open', nextFrame);
   }
 
+  // The store keeps the landing handler for the whole morph, so it reads
+  // this render's startLanding through a ref. Once per morph: the component
+  // is keyed by its serial.
+  const startLandingRef = useRef(startLanding);
+  useLayoutEffect(() => {
+    startLandingRef.current = startLanding;
+  });
   useEffect(() => {
-    setLandHandler(startLanding);
+    setLandHandler((nextFrame) => startLandingRef.current(nextFrame));
     return () => setLandHandler(null);
-    // Once per morph: the component is keyed by its serial.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    alive.current = true;
+  // The morph's start. An effect event, so the mount effect below reads
+  // this render's phase and handlers without listing them as deps.
+  const startMorph = useEffectEvent(() => {
     if (phase === 'open') {
       pushTimer.current = setTimeout(() => {
         openPush();
       }, PUSH_AT_MS);
-      t.value = withTiming(1, { duration: MORPH_MS, easing: MORPH_EASING }, (done) => {
+      t.set(withTiming(1, { duration: MORPH_MS, easing: MORPH_EASING }, (done) => {
         if (done) {
           // The player already reported ready: land right here, on the UI
           // thread, so the fade never waits on a busy JS thread. Otherwise
@@ -241,12 +247,18 @@ function MorphRun({ state }: { state: MorphState }) {
           else loaderRequest.value = 1;
           runOnJS(onOpenCovered)();
         }
-      });
+      }));
     } else {
-      boxOpacity.value = withTiming(1, { duration: COVER_MS }, (coverDone) => {
+      boxOpacity.set(withTiming(1, { duration: COVER_MS }, (coverDone) => {
         if (coverDone) runOnJS(onBackCovered)();
-      });
+      }));
     }
+  });
+  // Runs once per morph: the component is keyed by its serial, and the
+  // shared values it lists never change identity.
+  useEffect(() => {
+    alive.current = true;
+    startMorph();
     return () => {
       alive.current = false;
       if (pushTimer.current !== null) clearTimeout(pushTimer.current);
@@ -257,17 +269,17 @@ function MorphRun({ state }: { state: MorphState }) {
       cancelAnimation(boxOpacity);
       cancelAnimation(landFrame);
     };
-    // Runs once per morph: the component is keyed by its serial.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [t, boxOpacity, landFrame]);
 
   // A fallback only: `land` already called startLanding through the handler,
   // and the UI-thread guard makes this a no-op then.
+  const landFallback = useEffectEvent(() => {
+    runOnUI(landOnUI)(phase === 'open', false);
+  });
   useEffect(() => {
     if (stage !== 'landed') return;
-    runOnUI(landOnUI)(phase === 'open', false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stage, phase]);
+    landFallback();
+  }, [stage]);
 
   const fromX = finite(rect.x);
   const fromY = finite(rect.y);
@@ -423,9 +435,9 @@ function MorphRun({ state }: { state: MorphState }) {
               const height = finite(event.nativeEvent.layout.height);
               if (height <= 0) return;
               blockSizes.set(blockKey, { x, height });
-              blockX.value = x;
-              blockH.value = height;
-              blockMeasured.value = 1;
+              blockX.set(x);
+              blockH.set(height);
+              blockMeasured.set(1);
             }}>
             <PlayerTitle
               title={title}

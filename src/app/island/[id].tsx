@@ -3,13 +3,12 @@ import {
   type AudioMetadata,
   type AudioStatus,
   useAudioPlayer,
-  useAudioPlayerStatus,
 } from 'expo-audio';
 import * as Clipboard from 'expo-clipboard';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   AppState,
@@ -187,9 +186,21 @@ function breathOf(s: AudioStatus, breathMs: number, stopsAtLineEnd: boolean) {
 // rendered again.
 function useStableHandler<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R {
   const ref = useRef(fn);
-  ref.current = fn;
+  // Written at commit, not during render: nothing calls a handler between
+  // the two, and the compiler needs refs left alone while rendering.
+  useLayoutEffect(() => {
+    ref.current = fn;
+  });
   return useCallback((...args: A) => ref.current(...args), []);
 }
+
+// A setDragSpan updater that hands back the previous span when nothing moved,
+// so React skips the render. Module level: the pan gesture is built once and
+// must not close over a render-scoped function.
+const spanUpdate = (from: number, to: number) => (prev: PhraseSpan | null) =>
+  prev && prev.from === from && prev.to === to ? prev : { from, to };
+
+const noop = () => {};
 
 export default function IslandScreen() {
   const { id, morph } = useLocalSearchParams<{ id: string; morph?: string }>();
@@ -277,7 +288,9 @@ export default function IslandScreen() {
   // An open popover reads those refs at render time, so a tile, dock or width
   // change while one is open renders the screen once more. Closed, it is free.
   const popOpenRef = useRef(false);
-  popOpenRef.current = speedPopOpen || repeatPopOpen || blindPopOpen || readingPopOpen;
+  useLayoutEffect(() => {
+    popOpenRef.current = speedPopOpen || repeatPopOpen || blindPopOpen || readingPopOpen;
+  }, [speedPopOpen, repeatPopOpen, blindPopOpen, readingPopOpen]);
   const [, bumpAnchors] = useState(0);
   const anchorMoved = useCallback((moved: boolean) => {
     if (moved && popOpenRef.current) bumpAnchors((n) => n + 1);
@@ -471,13 +484,37 @@ export default function IslandScreen() {
     (run: () => void) => afterCoverGone(id, run, TAKE_READ_AFTER_COVER_MS),
     [id],
   );
-  const take = useTake(island?.id, idx, generation, coveredAtMount ? firstTakeRead : undefined);
+  // The take player's status updates run this (each 50ms tick while a take
+  // plays) without a render; assigned below, once the fill it moves exists.
+  const takeStatusHandler = useRef<(s: AudioStatus) => void>(() => {});
+  const take = useTake(island?.id, idx, generation, coveredAtMount ? firstTakeRead : undefined, (s) =>
+    takeStatusHandler.current(s),
+  );
   // Auto Echo's own step, and a ref mirror so the effects and listeners below
   // (some subscribed once, some reading state a render behind) always see the
   // current step rather than the one closed over when they were set up.
   const [echoStep, setEchoStep] = useState<EchoStep>('idle');
   const echoRef = useRef<EchoStep>('idle');
-  echoRef.current = echoStep;
+  useLayoutEffect(() => {
+    echoRef.current = echoStep;
+  }, [echoStep]);
+  // The Play step's fill: aimed from the take player's status updates rather
+  // than a render per tick. Aims once from 0, then re-aims only if the fill
+  // has drifted from the real position by more than 0.08.
+  const aimTakeFill = (s: AudioStatus) => {
+    if (echoRef.current !== 'play' || !s.isLoaded) return;
+    if (!Number.isFinite(s.duration) || !Number.isFinite(s.currentTime) || s.duration <= 0) return;
+    const target = Math.min(1, Math.max(0, s.currentTime / s.duration));
+    if (echoFill.value === 0 || Math.abs(echoFill.value - target) > 0.08) {
+      cancelAnimation(echoFill);
+      echoFill.value = target;
+      const remaining = Math.max(0, (s.duration - s.currentTime) * 1000);
+      echoFill.value = withTiming(1, { duration: remaining, easing: Easing.linear });
+    }
+  };
+  useLayoutEffect(() => {
+    takeStatusHandler.current = aimTakeFill;
+  });
   // The last Play step's outcome, shown as a sparkle and word by AutoEchoSheet.
   const [echoResult, setEchoResult] = useState<SparkleResultData>(null);
   // Holds Auto Echo's advance to the next line until the result has had time
@@ -487,7 +524,9 @@ export default function IslandScreen() {
   const [autoEcho, setAutoEchoState] = useState(true);
   // Read when the hold ends, so turning Auto Echo off during it is honoured.
   const autoEchoRef = useRef(autoEcho);
-  autoEchoRef.current = autoEcho;
+  useLayoutEffect(() => {
+    autoEchoRef.current = autoEcho;
+  }, [autoEcho]);
   useEffect(
     () => () => {
       if (advanceHoldRef.current) clearTimeout(advanceHoldRef.current);
@@ -548,7 +587,8 @@ export default function IslandScreen() {
   // pauses this one just before a take starts, and a pause tears the audio
   // session down 100ms later, which would land on the prepared recorder.
   const wordPlayer = useAudioPlayer(wordSource, { keepAudioSessionActive: true });
-  const wordStatus = useAudioPlayerStatus(wordPlayer);
+  // Rendered only when the word loads or its playing flag flips, not per tick.
+  const { status: wordStatus } = useLineStatus(wordPlayer, noop, (s) => `${s.isLoaded}:${s.playing}`);
   useSessionPlayer(wordPlayer);
   const autoPlayed = useRef<string | null>(null);
 
@@ -566,8 +606,7 @@ export default function IslandScreen() {
       stop();
       void releaseAudioSession();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [id]);
 
   const [attempt, setAttempt] = useState(0);
   // A message set just before a deliberate reload survives that reload. Every
@@ -682,13 +721,16 @@ export default function IslandScreen() {
   // whole JS backlog, and the morph's landing worklet does the rest on the UI
   // thread. The ref makes it once per mount (a StrictMode re-run sends
   // nothing new).
-  useLayoutEffect(() => {
+  // An effect event: island and error are read once, at the first content.
+  const sendReady = useEffectEvent(() => {
     if (!firstContent || readySentRef.current) return;
     const waiting = island === null && !error;
     readySentRef.current = true;
     playerReady(id, { waiting });
     if (!waiting) requestLoader(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- island and error are read once, at the first content
+  });
+  useLayoutEffect(() => {
+    sendReady();
   }, [firstContent, id]);
 
   // A back morph waits for this before it shrinks into the card.
@@ -799,22 +841,24 @@ export default function IslandScreen() {
     setPlayWhenLoaded(false);
     dropTake();
     stopPlayback(player);
-    try {
-      await api.revoice(island.id, voice);
-      invalidateLineAudio(island.id);
-      invalidateCachedIsland(island.id);
-      const data = await waitForIsland(island.id, 60, undefined, 'Re-voicing failed');
-      if (data) {
-        setIsland(data);
-        resetForNewAudio();
-        setIdx(0);
-        setError('');
+    // A promise finally, not a try finally: the compiler does not lower those.
+    const run = async () => {
+      try {
+        await api.revoice(island.id, voice);
+        invalidateLineAudio(island.id);
+        invalidateCachedIsland(island.id);
+        const data = await waitForIsland(island.id, 60, undefined, 'Re-voicing failed');
+        if (data) {
+          setIsland(data);
+          resetForNewAudio();
+          setIdx(0);
+          setError('');
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Re-voicing failed');
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Re-voicing failed');
-    } finally {
-      setRevoicing(false);
-    }
+    };
+    await run().finally(() => setRevoicing(false));
   }
 
   async function renameTitle(title: string) {
@@ -857,43 +901,45 @@ export default function IslandScreen() {
     stopPlayback(player);
     closePanel();
     setDragSpan(null);
-    try {
+    // A promise finally, not a try finally: the compiler does not lower those.
+    const run = async () => {
       try {
-        await api.regenerate(island.id, target);
-        invalidateLineAudio(island.id);
-        invalidateCachedIsland(island.id);
+        try {
+          await api.regenerate(island.id, target);
+          invalidateLineAudio(island.id);
+          invalidateCachedIsland(island.id);
+        } catch (e) {
+          // Nothing was started, so the island on the server still matches what
+          // is on screen. Say why and go back to it.
+          setError(e instanceof Error ? e.message : 'Regenerating failed');
+          return;
+        }
+        deleteTakes(island.id);
+        const data = await waitForIsland(island.id, 240, setBuildStage);
+        resetHighlight();
+        setGeneration((g) => g + 1);
+        resetForNewAudio();
+        setIdx(0);
+        if (!data) {
+          // Each new line is written over the same audio path, so by now the
+          // server has already replaced the lines this screen is holding.
+          // Reload onto whatever it has rather than showing old text.
+          const message = 'Still building. This shows what the server has so far.';
+          carryError.current = message;
+          setError(message);
+          setAttempt((n) => n + 1);
+          return;
+        }
+        setIsland(data);
+        setError('');
       } catch (e) {
-        // Nothing was started, so the island on the server still matches what
-        // is on screen. Say why and go back to it.
+        // The server now holds a failed island with no lines. Reloading shows
+        // the failed screen, which already offers Regenerate.
         setError(e instanceof Error ? e.message : 'Regenerating failed');
-        return;
-      }
-      deleteTakes(island.id);
-      const data = await waitForIsland(island.id, 240, setBuildStage);
-      resetHighlight();
-      setGeneration((g) => g + 1);
-      resetForNewAudio();
-      setIdx(0);
-      if (!data) {
-        // Each new line is written over the same audio path, so by now the
-        // server has already replaced the lines this screen is holding.
-        // Reload onto whatever it has rather than showing old text.
-        const message = 'Still building. This shows what the server has so far.';
-        carryError.current = message;
-        setError(message);
         setAttempt((n) => n + 1);
-        return;
       }
-      setIsland(data);
-      setError('');
-    } catch (e) {
-      // The server now holds a failed island with no lines. Reloading shows
-      // the failed screen, which already offers Regenerate.
-      setError(e instanceof Error ? e.message : 'Regenerating failed');
-      setAttempt((n) => n + 1);
-    } finally {
-      setRegenerating(false);
-    }
+    };
+    await run().finally(() => setRegenerating(false));
   }
 
   // Speed is baked into the audio by VOICEVOX, so the player always runs at
@@ -957,7 +1003,9 @@ export default function IslandScreen() {
       }
     }
   }
-  useEffect(() => {
+  // An effect event, so the effect below runs for the deps it lists and
+  // reads everything else as of that render.
+  const aimEchoStep = useEffectEvent(() => {
     if (echoFillStep.current !== echoStep) {
       echoFillStep.current = echoStep;
       cancelAnimation(echoFill);
@@ -982,30 +1030,15 @@ export default function IslandScreen() {
       return;
     }
 
-    if (echoStep === 'play') {
-      if (take.takeDuration <= 0) return;
-      const target = Math.min(1, take.takeCurrentTime / take.takeDuration);
-      if (echoFill.value === 0 || Math.abs(echoFill.value - target) > 0.08) {
-        cancelAnimation(echoFill);
-        echoFill.value = target;
-        const remaining = Math.max(0, (take.takeDuration - take.takeCurrentTime) * 1000);
-        echoFill.value = withTiming(1, { duration: remaining, easing: Easing.linear });
-      }
-      return;
-    }
+    // play: takeStatusHandler aims the fill from the take player's own
+    // status updates, so nothing to do here.
     // idle, armed, done: nothing to animate. Armed holds at the 0 the step
     // change above just set (Speak has not started yet); done and idle show
     // through the sheet's static full/empty rule instead of this value.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    echoStep,
-    lineEnd,
-    breathSec,
-    take.phase,
-    take.takeCurrentTime,
-    take.takeDuration,
-    takeLagMs,
-  ]);
+  });
+  useEffect(() => {
+    aimEchoStep();
+  }, [echoStep, lineEnd, breathSec, take.phase, takeLagMs]);
 
   // After a line switch that should keep playing, start the new source as
   // soon as it is swapped in; the native player begins when the item is ready.
@@ -1032,7 +1065,6 @@ export default function IslandScreen() {
     if (!pendingPlay) return;
     const t = setTimeout(() => setPendingPlay(false), PENDING_PLAY_MS);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingPlay]);
 
   // Loads a new source into the one player, and starts it when a line switch
@@ -1041,14 +1073,9 @@ export default function IslandScreen() {
   // the play count, the last tick and the highlight.
   // Under the open morph's cover the first load waits until the cover is gone
   // (a Play tap before that loads it at once, see playFromTop).
-  useEffect(() => {
-    if (!sourceUri || sourceUri === loadedUri.current) return;
-    if (openCoverUp(id)) return afterCoverGone(id, loadSource);
-    loadSource();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourceUri, player]);
   // Loads this render's source if the player does not hold it yet. Safe to
-  // call more than once.
+  // call more than once. Declared before the effect that runs it so the
+  // effect can list it (its identity never changes).
   const loadSource = useStableHandler(() => {
     if (!sourceUri || sourceUri === loadedUri.current) return;
     const first = loadedUri.current === null;
@@ -1074,6 +1101,14 @@ export default function IslandScreen() {
     kickUri.current = sourceUri;
     startPlayback(player);
   });
+  // A continuous run stops the player between plays: see setPendingPlay.
+  // Under the open morph's cover the first load waits until the cover is gone
+  // (a Play tap before that loads it at once, see playFromTop).
+  useEffect(() => {
+    if (!sourceUri || sourceUri === loadedUri.current) return;
+    if (openCoverUp(id)) return afterCoverGone(id, loadSource);
+    loadSource();
+  }, [sourceUri, player, id, loadSource]);
   // The lines around the current one download in the background, so the next
   // line change (or a step back) loads a local file. It runs after the change
   // has committed, and a new line, speed or pause replaces what is still
@@ -1110,18 +1145,20 @@ export default function IslandScreen() {
   // either way, so a tap on the button always does something.
   async function seekTop() {
     let timer: ReturnType<typeof setTimeout> | undefined;
-    try {
-      await Promise.race([
-        player.seekTo(0),
-        new Promise<void>((resolve) => {
-          timer = setTimeout(resolve, SEEK_WAIT_MS);
-        }),
-      ]);
-    } catch {
-      // A seek can fail while the item is still loading; play anyway.
-    } finally {
-      clearTimeout(timer);
-    }
+    // A promise finally, not a try finally: the compiler does not lower those.
+    const run = async () => {
+      try {
+        await Promise.race([
+          player.seekTo(0),
+          new Promise<void>((resolve) => {
+            timer = setTimeout(resolve, SEEK_WAIT_MS);
+          }),
+        ]);
+      } catch {
+        // A seek can fail while the item is still loading; play anyway.
+      }
+    };
+    await run().finally(() => clearTimeout(timer));
   }
 
   // A status the old source sent just before a swap and delivered after it:
@@ -1155,16 +1192,20 @@ export default function IslandScreen() {
     if (!lockScreen || !island || !line) return;
     player.setActiveForLockScreen(true, lockMeta(), { showSeekForward: false, showSeekBackward: false });
   });
-  useEffect(() => {
+  // Effect events: each effect runs for the deps it lists and reads the
+  // rest as of that render.
+  const activateOnCoverGone = useEffectEvent(() => {
     if (!lockScreen || !island || !line) return;
     return afterCoverGone(id, activateLockScreen);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [player, lockScreen, island?.id, generation]);
+  });
+  useEffect(() => activateOnCoverGone(), [player, island?.id, generation]);
 
-  useEffect(() => {
+  const updateLockMeta = useEffectEvent(() => {
     if (!lockScreen || !island || !line || openCoverUp(id)) return;
     player.updateLockScreenMetadata(lockMeta());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => {
+    updateLockMeta();
   }, [blind, idx, island?.title, island?.lines.length, line?.ja, phrase.label]);
 
   // A take made with the phone in a pocket is not a take, and the microphone
@@ -1174,7 +1215,9 @@ export default function IslandScreen() {
   // ref: the first render's dropTake would close over a take whose cancel()
   // still sees `recording` as false and leaves the microphone running.
   const backgroundRef = useRef({ take, player, dropTake, stopEcho, echoRef });
-  backgroundRef.current = { take, player, dropTake, stopEcho, echoRef };
+  useLayoutEffect(() => {
+    backgroundRef.current = { take, player, dropTake, stopEcho, echoRef };
+  });
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state !== 'background') return;
@@ -1194,7 +1237,6 @@ export default function IslandScreen() {
       }
     });
     return () => sub.remove();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // The moment the spoken line ends and the pad's silence begins is the "line
@@ -1272,7 +1314,9 @@ export default function IslandScreen() {
   // before it renders, by isStaleStatus).
   const lastFinish = useRef(0);
   const finishUri = useRef<string | null>(null);
-  useEffect(() => {
+  // An effect event: only the finish flag re-runs it; everything else is
+  // read as of that render.
+  const onLineFinish = useEffectEvent(() => {
     if (!status.didJustFinish || !island || playWhenLoaded.current) return;
     if (finishUri.current !== sourceUri) return;
     const now = Date.now();
@@ -1334,7 +1378,9 @@ export default function IslandScreen() {
     resetForNewAudio();
     setPeekKey(null);
     setIdx((i) => (i + 1) % island.lines.length);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => {
+    onLineFinish();
   }, [status.didJustFinish]);
 
   function closePanel() {
@@ -1468,7 +1514,9 @@ export default function IslandScreen() {
     line,
   };
   const live = useRef(liveNow);
-  live.current = liveNow;
+  useLayoutEffect(() => {
+    live.current = liveNow;
+  });
   // A drag picks the phrase, snapped to whole words: hold still for the pan
   // to activate (the ScrollView is free to claim a vertical drag until then),
   // then the highlight follows the touch as `dragSpan`. A plain tap falls
@@ -1500,13 +1548,13 @@ export default function IslandScreen() {
         if (i === null) return;
         l.closePanel();
         anchorWord.current = i;
-        setDragSpan({ from: i, to: i });
+        setDragSpan(spanUpdate(i, i));
       })
       .onUpdate((e) => {
         const i = live.current.hitTest(e.x, e.y);
         if (i === null) return;
         const a = anchorWord.current;
-        setDragSpan({ from: Math.min(a, i), to: Math.max(a, i) });
+        setDragSpan(spanUpdate(Math.min(a, i), Math.max(a, i)));
       });
     const tap = Gesture.Tap()
       .runOnJS(true)
@@ -1637,7 +1685,7 @@ export default function IslandScreen() {
     const i = hitTest(x, y);
     if (i === null) return;
     const f = handleFixed.current;
-    setDragSpan({ from: Math.min(f, i), to: Math.max(f, i) });
+    setDragSpan(spanUpdate(Math.min(f, i), Math.max(f, i)));
   }
 
   function releaseHandle() {
@@ -1915,7 +1963,8 @@ export default function IslandScreen() {
   async function beginRecording(mode: TakeMode, silent = false): Promise<boolean> {
     if (!line || startingTake.current) return false;
     startingTake.current = true;
-    try {
+    // A promise finally, not a try finally: the compiler does not lower those.
+    const run = async () => {
       setPlayWhenLoaded(false);
       closePanel();
       setDragSpan(null);
@@ -1936,9 +1985,10 @@ export default function IslandScreen() {
       crossed.current = false;
       if (!silent) startPlayback(player);
       return true;
-    } finally {
+    };
+    return run().finally(() => {
       startingTake.current = false;
-    }
+    });
   }
 
   // Stamps where line time 0 sits in the take (see markLineStart) the first
@@ -1951,9 +2001,11 @@ export default function IslandScreen() {
       take.markLineStart(s.currentTime);
     }
   }
-  useEffect(() => {
+  const markTakeLineStartNow = useEffectEvent(() => {
     markTakeLineStart(latestStatus.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => {
+    markTakeLineStartNow();
   }, [take.phase, take.mode]);
 
   // Calibrating with a phrase set goes back to the whole line first and
@@ -1969,11 +2021,13 @@ export default function IslandScreen() {
     }
     await beginRecording('calibrate');
   }
-  useEffect(() => {
+  const calibrateOnLoaded = useEffectEvent(() => {
     if (!calibrateWhenLoaded.current || !sourceUri) return;
     calibrateWhenLoaded.current = false;
     void beginRecording('calibrate');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => {
+    calibrateOnLoaded();
   }, [sourceUri]);
 
   // The Speak step's take: opens the mic with the line playing under it,
@@ -2058,7 +2112,7 @@ export default function IslandScreen() {
   // take, and neither should be mistaken for the one just recorded. It also
   // waits out the echo cleanup: the cleaned file landing swaps the take
   // player, which would cut a take already playing off mid-word.
-  useEffect(() => {
+  const playSavedTake = useEffectEvent(() => {
     if (
       echoRef.current === 'speak' &&
       take.phase === 'ready' &&
@@ -2070,7 +2124,9 @@ export default function IslandScreen() {
       setEchoStep('play');
       take.playTake();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => {
+    playSavedTake();
   }, [take.phase, take.take?.recordedAt, take.takeLoaded, take.clean.state]);
 
   // The Play step's take finishing on its own is a stop point: Android gives
@@ -2087,7 +2143,7 @@ export default function IslandScreen() {
   // The Play step's take finishing on its own moves the loop on: Auto Echo on
   // advances to the next line (wrapping like the player does), off ends the
   // pass at Pass complete.
-  useEffect(() => {
+  const onEchoTakeStopped = useEffectEvent(() => {
     if (wasEchoTakePlaying.current && !take.takePlaying && echoRef.current === 'play') {
       const expectedSec =
         speakSilent.current && lineEnd > 0 ? lineEnd + (TAIL_MS + takeLagMs) / 1000 : lineEnd;
@@ -2108,7 +2164,9 @@ export default function IslandScreen() {
       }
     }
     wasEchoTakePlaying.current = take.takePlaying;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => {
+    onEchoTakeStopped();
   }, [take.takePlaying]);
 
   // The word player finishing on its own is also a stop point: Hear it never
@@ -2259,6 +2317,36 @@ export default function IslandScreen() {
   const onNext = useStableHandler(next);
   const onDockRecord = useStableHandler(() => void (take.phase === 'recording' ? toggle() : openEcho()));
   const onClearPhrase = useStableHandler(clearPhrase);
+  // The three sheets and the header are memoised; these keep their handler
+  // props at one identity so a screen render does not render a closed sheet.
+  const onEchoClose = useStableHandler(() => {
+    stopEcho();
+    setSheet(null);
+  });
+  const onEchoRecord = useStableHandler(() => void startSpeak());
+  const onEchoStop = useStableHandler(() => {
+    // Before the mic is open there is nothing to stop yet.
+    if (take.phase !== 'recording') return;
+    setSpeakStopped(true);
+    stopPlayback(player);
+    void player.seekTo(0);
+    take.finishNow();
+  });
+  const onEchoRetry = useStableHandler(() => void startSpeak());
+  const onEchoStart = useStableHandler(startEcho);
+  const onToggleAutoEchoStable = useStableHandler(toggleAutoEcho);
+  const onToggleAutoRecordStable = useStableHandler(toggleAutoRecord);
+  const onTogglePlayLineStable = useStableHandler(togglePlayLineWhileSpeaking);
+  const onSheetDismissed = useStableHandler(runAfterSheet);
+  const onMenuClose = useStableHandler(() => setSheet(null));
+  const onMenuRename = useStableHandler((t: string) => closeSheetThen(() => void renameTitle(t)));
+  const onMenuExport = useStableHandler(() => closeSheetThen(() => void exportNow()));
+  const onMenuRevoice = useStableHandler(() => closeSheetThen(() => void doRevoice()));
+  const onMenuRegenerate = useStableHandler(() => closeSheetThen(confirmRegenerate));
+  const onMenuCalibrate = useStableHandler(() => closeSheetThen(() => void calibrateSpeaker()));
+  const onMenuDelete = useStableHandler(() => closeSheetThen(confirmDelete));
+  const onExplainClose = useStableHandler(closeExplain);
+  const onExplainPlay = useStableHandler(() => void playFromTop());
   const banner = useMemo(
     () =>
       error ? (
@@ -2496,7 +2584,6 @@ export default function IslandScreen() {
         ) : null}
       </Animated.View>
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     line,
     blind,
@@ -2519,6 +2606,23 @@ export default function IslandScreen() {
     sentenceGesture,
     peek,
     peekOff,
+    // Stable for the screen's life: handlers from useStableHandler or an
+    // empty useCallback, and a shared value.
+    onBlockLayout,
+    onBlockTouch,
+    onClosePanel,
+    onCopySelection,
+    onDragHandle,
+    onEnPressIn,
+    onEnPressOut,
+    onGrabHandle,
+    onHearWord,
+    onOpenExplain,
+    onReleaseHandle,
+    onRepeatSelection,
+    onTapEmpty,
+    onWordLayout,
+    wordBoxesUI,
   ]);
 
   // Leaves without the card morph. A route opened by the morph does not
@@ -2821,11 +2925,8 @@ export default function IslandScreen() {
 
       <AutoEchoSheet
         open={sheet === 'echo'}
-        onClose={() => {
-          stopEcho();
-          setSheet(null);
-        }}
-        onDismissed={runAfterSheet}
+        onClose={onEchoClose}
+        onDismissed={onSheetDismissed}
         sentence={blind ? null : (phrase.label ?? line.ja)}
         english={englishShown ? line.en : null}
         step={echoStep}
@@ -2836,43 +2937,36 @@ export default function IslandScreen() {
         error={take.error}
         autoEcho={autoEcho}
         autoRecord={autoRecord}
-        onToggleAutoEcho={toggleAutoEcho}
-        onToggleAutoRecord={toggleAutoRecord}
+        onToggleAutoEcho={onToggleAutoEchoStable}
+        onToggleAutoRecord={onToggleAutoRecordStable}
         playLineWhileSpeaking={playLineWhileSpeaking}
-        onTogglePlayLineWhileSpeaking={togglePlayLineWhileSpeaking}
-        onStart={startEcho}
-        onRecord={() => void startSpeak()}
+        onTogglePlayLineWhileSpeaking={onTogglePlayLineStable}
+        onStart={onEchoStart}
+        onRecord={onEchoRecord}
         stopping={speakStopped && !take.error}
-        onStop={() => {
-          // Before the mic is open there is nothing to stop yet.
-          if (take.phase !== 'recording') return;
-          setSpeakStopped(true);
-          stopPlayback(player);
-          void player.seekTo(0);
-          take.finishNow();
-        }}
-        onRetry={() => void startSpeak()}
+        onStop={onEchoStop}
+        onRetry={onEchoRetry}
       />
       <IslandMenuSheet
         open={sheet === 'island'}
-        onClose={() => setSheet(null)}
-        onDismissed={runAfterSheet}
+        onClose={onMenuClose}
+        onDismissed={onSheetDismissed}
         title={island.title}
         complexity={island.complexity}
         busy={revoicing || regenerating}
         recording={take.phase === 'recording'}
         exporting={exporting}
         revoiceName={voice !== null && island.speaker !== voice ? voiceName || 'the chosen voice' : null}
-        onRename={(t) => closeSheetThen(() => void renameTitle(t))}
-        onExport={() => closeSheetThen(() => void exportNow())}
-        onRevoice={() => closeSheetThen(() => void doRevoice())}
-        onRegenerate={() => closeSheetThen(confirmRegenerate)}
-        onCalibrate={() => closeSheetThen(() => void calibrateSpeaker())}
-        onDelete={() => closeSheetThen(confirmDelete)}
+        onRename={onMenuRename}
+        onExport={onMenuExport}
+        onRevoice={onMenuRevoice}
+        onRegenerate={onMenuRegenerate}
+        onCalibrate={onMenuCalibrate}
+        onDelete={onMenuDelete}
       />
       <ExplainSheet
         open={explainOpen}
-        onClose={closeExplain}
+        onClose={onExplainClose}
         sentenceJa={line?.ja ?? ''}
         sentenceEn={line?.en ?? ''}
         words={line.words}
@@ -2882,7 +2976,7 @@ export default function IslandScreen() {
         marked={explainMarked}
         whole={explainWhole}
         generation={chatGeneration}
-        onPlaySentence={() => void playFromTop()}
+        onPlaySentence={onExplainPlay}
       />
     </SafeAreaView>
   );
@@ -2913,7 +3007,16 @@ type PlayerHeaderProps = {
  * animation whenever the options change). The title stays hidden while the
  * card morph's flying title stands in for it.
  */
-function PlayerHeader({ id, title, lineIndex, lineCount, placeholder, background, onBack, onMenu }: PlayerHeaderProps) {
+const PlayerHeader = memo(function PlayerHeader({
+  id,
+  title,
+  lineIndex,
+  lineCount,
+  placeholder,
+  background,
+  onBack,
+  onMenu,
+}: PlayerHeaderProps) {
   const insets = useSafeAreaInsets();
   // The title and both buttons: the overlay draws them while a morph runs.
   const titleHidden = useMorphHidesTitle(id, 'header');
@@ -2948,7 +3051,7 @@ function PlayerHeader({ id, title, lineIndex, lineCount, placeholder, background
       )}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },

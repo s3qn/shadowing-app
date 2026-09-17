@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { interpolate, useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 
@@ -48,8 +48,11 @@ export type LanternRowProps = {
   power: SharedValue<number>;
 };
 
-/** One card's row of paper lanterns, one per line, lighting in sequence. */
-export function LanternRow({ count, tiers, holdColours, weakest, litMs, flick, power }: LanternRowProps) {
+/** One card's row of paper lanterns, one per line, lighting in sequence.
+ * Memoised: the row's props are primitives, a cached tiers array and shared
+ * values, so a card re-rendering for its index or meta leaves the lanterns
+ * alone. */
+export const LanternRow = memo(function LanternRow({ count, tiers, holdColours, weakest, litMs, flick, power }: LanternRowProps) {
   const shown = Math.min(count, MAX_LANTERNS);
   const gap = shown > 14 ? 4 : 9;
   // A card losing the light gets tiers=null on the same render its fade
@@ -74,9 +77,9 @@ export function LanternRow({ count, tiers, holdColours, weakest, litMs, flick, p
       })}
     </View>
   );
-}
+});
 
-function Lantern({
+const Lantern = memo(function Lantern({
   index,
   color,
   isWeakest,
@@ -91,21 +94,24 @@ function Lantern({
   flick: SharedValue<number>;
   power: SharedValue<number>;
 }) {
+  // Only opacities move per frame. The glow's radius stays at the fixed 9
+  // in `body`: a radius that changes every frame re-rasterises the shadow
+  // for each of up to 24 lanterns.
   const style = useAnimatedStyle(() => {
-    const p = Math.min(1, Math.max(0, (litMs.value - index * LANTERN_STEP_MS) / LANTERN_RISE_MS));
+    const raw = (litMs.value - index * LANTERN_STEP_MS) / LANTERN_RISE_MS;
+    const p = Number.isFinite(raw) ? Math.min(1, Math.max(0, raw)) : 0;
     const e = 1 - (1 - p) * (1 - p);
     let litOpacity = interpolate(e, [0, 0.5, 1], [NEUTRAL_OPACITY, 1, 1]);
     let litShadowOpacity = interpolate(e, [0, 0.5, 1], [0, 1, 0.7]);
-    const shadowRadius = interpolate(e, [0, 0.5, 1], [0, 16, 9]);
     if (isWeakest) {
-      litOpacity *= flick.value;
-      litShadowOpacity *= flick.value;
+      const f = Number.isFinite(flick.value) ? flick.value : 1;
+      litOpacity *= f;
+      litShadowOpacity *= f;
     }
-    const pw = power.value;
+    const pw = Number.isFinite(power.value) ? power.value : 0;
     return {
       opacity: NEUTRAL_OPACITY + (litOpacity - NEUTRAL_OPACITY) * pw,
       shadowOpacity: litShadowOpacity * pw,
-      shadowRadius,
     };
   });
   return (
@@ -115,7 +121,7 @@ function Lantern({
       </Animated.View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   // 24 tall so a two-line title, the meta line and this row fit the 128px card.
@@ -132,6 +138,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 5,
     borderBottomRightRadius: 5,
     shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 9,
   },
   cap: {
     position: 'absolute',
