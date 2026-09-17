@@ -2,21 +2,27 @@ import { StyleSheet, View } from 'react-native';
 import Svg, { Circle, Line, Path, Text as SvgText } from 'react-native-svg';
 
 import { fonts } from '@/constants/fonts';
+import { type Verb } from '@/constants/theme';
+
+import { VerbGradient, verbPaint } from '@/components/prism/verb-gradient';
 
 /** Five 24-viewbox stroke icons for the player toolbar. Stroke 1.8, round
  * caps, no fill (the reading glyph is filled text instead, since a stroked
- * character is unreadable at this size). */
+ * character is unreadable at this size). Each can take a `verb` instead of a
+ * plain `color`, which paints it with that verb's prism gradient. */
 
-type IconProps = { color: string; size?: number };
+type IconProps = { color: string; size?: number; verb?: Verb };
 
 const STROKE = 1.8;
 
-export function SpeedIcon({ color, size = 24 }: IconProps) {
+export function SpeedIcon({ color, size = 24, verb }: IconProps) {
+  const paint = verb ? verbPaint(verb) : color;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path d="M4 16a8 8 0 1 1 16 0" stroke={color} strokeWidth={STROKE} strokeLinecap="round" />
-      <Path d="M12 16 16 10" stroke={color} strokeWidth={STROKE} strokeLinecap="round" />
-      <Circle cx={12} cy={16} r={1.4} stroke={color} strokeWidth={STROKE} />
+      {verb ? <VerbGradient verb={verb} /> : null}
+      <Path d="M4 16a8 8 0 1 1 16 0" stroke={paint} strokeWidth={STROKE} strokeLinecap="round" />
+      <Path d="M12 16 16 10" stroke={paint} strokeWidth={STROKE} strokeLinecap="round" />
+      <Circle cx={12} cy={16} r={1.4} stroke={paint} strokeWidth={STROKE} />
     </Svg>
   );
 }
@@ -29,21 +35,23 @@ export function SpeedIcon({ color, size = 24 }: IconProps) {
  * "repeat" keeps its loop as one clean rectangle with a chevron at each end,
  * so it stays legible at 22px and matches the classic media-player repeat
  * glyph better. */
-export function RepeatIcon({ color, size = 24 }: IconProps) {
+export function RepeatIcon({ color, size = 24, verb }: IconProps) {
+  const paint = verb ? verbPaint(verb) : color;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path d="m17 2 4 4-4 4" stroke={color} strokeWidth={STROKE} strokeLinecap="round" strokeLinejoin="round" />
+      {verb ? <VerbGradient verb={verb} /> : null}
+      <Path d="m17 2 4 4-4 4" stroke={paint} strokeWidth={STROKE} strokeLinecap="round" strokeLinejoin="round" />
       <Path
         d="M3 11v-1a4 4 0 0 1 4-4h14"
-        stroke={color}
+        stroke={paint}
         strokeWidth={STROKE}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <Path d="m7 22-4-4 4-4" stroke={color} strokeWidth={STROKE} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="m7 22-4-4 4-4" stroke={paint} strokeWidth={STROKE} strokeLinecap="round" strokeLinejoin="round" />
       <Path
         d="M21 13v1a4 4 0 0 1-4 4H3"
-        stroke={color}
+        stroke={paint}
         strokeWidth={STROKE}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -52,37 +60,43 @@ export function RepeatIcon({ color, size = 24 }: IconProps) {
   );
 }
 
-export function ReadingIcon({ color, size = 24 }: IconProps) {
+export function ReadingIcon({ color, size = 24, verb }: IconProps) {
+  const paint = verb ? verbPaint(verb) : color;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <SvgText x={12} y={17.5} fontSize={17} fontFamily={fonts.serifJp} fill={color} textAnchor="middle">
+      {verb ? <VerbGradient verb={verb} /> : null}
+      <SvgText x={12} y={17.5} fontSize={17} fontFamily={fonts.serifJp} fill={paint} textAnchor="middle">
         あ
       </SvgText>
     </Svg>
   );
 }
 
-export function BlindIcon({ color, size = 24 }: IconProps) {
+export function BlindIcon({ color, size = 24, verb }: IconProps) {
+  const paint = verb ? verbPaint(verb) : color;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      {verb ? <VerbGradient verb={verb} /> : null}
       <Path
         d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"
-        stroke={color}
+        stroke={paint}
         strokeWidth={STROKE}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <Circle cx={12} cy={12} r={2.6} stroke={color} strokeWidth={STROKE} />
-      <Line x1={3.5} y1={20.5} x2={20.5} y2={3.5} stroke={color} strokeWidth={STROKE} strokeLinecap="round" />
+      <Circle cx={12} cy={12} r={2.6} stroke={paint} strokeWidth={STROKE} />
+      <Line x1={3.5} y1={20.5} x2={20.5} y2={3.5} stroke={paint} strokeWidth={STROKE} strokeLinecap="round" />
     </Svg>
   );
 }
 
-export function SearchIcon({ color, size = 24 }: IconProps) {
+export function SearchIcon({ color, size = 24, verb }: IconProps) {
+  const paint = verb ? verbPaint(verb) : color;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Circle cx={10.5} cy={10.5} r={6.5} stroke={color} strokeWidth={STROKE} />
-      <Line x1={15.5} y1={15.5} x2={20.5} y2={20.5} stroke={color} strokeWidth={STROKE} strokeLinecap="round" />
+      {verb ? <VerbGradient verb={verb} /> : null}
+      <Circle cx={10.5} cy={10.5} r={6.5} stroke={paint} strokeWidth={STROKE} />
+      <Line x1={15.5} y1={15.5} x2={20.5} y2={20.5} stroke={paint} strokeWidth={STROKE} strokeLinecap="round" />
     </Svg>
   );
 }

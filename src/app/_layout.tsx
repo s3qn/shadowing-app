@@ -64,6 +64,7 @@ export default function RootLayout() {
         <Stack.Screen name="settings/practice" options={{ title: 'Practice' }} />
         <Stack.Screen name="settings/data" options={{ title: 'Data' }} />
         <Stack.Screen name="settings/about" options={{ title: 'About' }} />
+        <Stack.Screen name="prism-lab" options={{ title: 'Prism lab' }} />
       </Stack>
       <CardMorphOverlay />
       <LoadingOverlay />

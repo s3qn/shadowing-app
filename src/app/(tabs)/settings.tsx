@@ -108,10 +108,18 @@ export default function SettingsScreen() {
         <SettingsSection title="About">
           <SettingsRow
             label="Version, credits"
-            last
+            last={!__DEV__}
             icon={{ ios: 'info.circle', android: 'info' }}
             onPress={() => router.push('/settings/about')}
           />
+          {__DEV__ ? (
+            <SettingsRow
+              label="Prism lab"
+              last
+              icon={{ ios: 'sparkles', android: 'auto_awesome' }}
+              onPress={() => router.push('/prism-lab')}
+            />
+          ) : null}
         </SettingsSection>
 
         <SettingsSection title="Feedback">

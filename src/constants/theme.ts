@@ -41,14 +41,123 @@ export const tideWaters = {
   night: { shallow: '#173247', mid: '#0E2233', deep: '#07131D', glint: 'rgba(255,225,200' },
 } as const;
 
+/** The four verbs a button can stand for. Every prism surface picks its colours from `verb[v]`. */
+export type Verb = 'listen' | 'speak' | 'read' | 'tools';
+
+/**
+ * Per-verb colour set for the prism kit: `c1` and `c2` are the icon and sheen
+ * gradient stops, `glow` is the halo that appears when the button is on, and
+ * `lip` is the water base a pressed face sinks onto. `lip` is `c2` at 45%
+ * mixed with `prism.lipBase` (55%), worked out here so nothing mixes colour
+ * at runtime.
+ */
+export const verb: Record<Verb, { c1: string; c2: string; glow: string; lip: string }> = {
+  listen: { c1: '#7CC8FF', c2: '#A9B8FF', glow: 'rgba(124,200,255,0.40)', lip: '#52678D' },
+  speak: { c1: '#FF5468', c2: '#FF8A70', glow: 'rgba(255,84,104,0.42)', lip: '#79524D' },
+  read: { c1: '#FFC857', c2: '#FFE9A8', glow: 'rgba(255,200,87,0.38)', lip: '#797D66' },
+  tools: { c1: '#F4F2F8', c2: '#B9C2D6', glow: 'rgba(244,242,248,0.28)', lip: '#596B7B' },
+} as const;
+
+/**
+ * Tokens for the prism kit (PrismFace, PrismButton, GlassPanel): the glass
+ * fill and blur, the chromatic fringe on the rim, the sheen sweep, the press
+ * sink and ripple timings, and the fixed sizes the kit's shapes come in.
+ * Plain values only, read as they are, nothing computed at runtime.
+ */
+export const prism = {
+  fill: 'rgba(255,255,255,0.08)',
+  blur: { intensity: 40, tint: 'systemUltraThinMaterialDark' },
+  fringe: {
+    left: 'rgba(255,70,110,0.35)',
+    right: 'rgba(70,170,255,0.40)',
+    top: 'rgba(255,255,255,0.40)',
+    bottom: 'rgba(120,255,210,0.20)',
+    leftOn: 'rgba(255,70,110,0.55)',
+    rightOn: 'rgba(70,170,255,0.60)',
+    side: 1.5,
+    line: 1,
+  },
+  shadow: '0 6 16 rgba(0,0,0,0.32)',
+  sheen: {
+    colors: ['#ff4d6d', '#ffc857', '#7cffb2', '#7cc8ff', '#b58cff', '#ff4d6d'],
+    start: 210,
+    opacity: 0.10,
+    opacityOn: 0.30,
+  },
+  glow: { radius: 16 },
+  lipBase: '#0B2430',
+  press: {
+    sinkMin: 3,
+    sinkMax: 6,
+    sinkReduced: 1.5,
+    sinkInMs: 90,
+    spring: { damping: 14, stiffness: 260, mass: 0.6 },
+  },
+  ripple: { rings: 3, width: 1.5, scale: 1.7, ms: 750, delays: [60, 200, 340], opacity: 0.9 },
+  sizes: {
+    sheetIcon: 30,
+    roundSm: 36,
+    round: 44,
+    bigRound: 56,
+    bigRoundLg: 64,
+    tile: { w: 56, h: 60, r: 18 },
+    pill: { h: 36, padX: 14 },
+  },
+  panel: { fill: 'rgba(255,255,255,0.06)', rim: 'rgba(255,255,255,0.12)', radius: 20 },
+  tray: {
+    pad: 5,
+    rim: 'rgba(255,255,255,0.14)',
+    pane: { dx: 5, dy: 6, color: 'rgba(124,200,255,0.09)' },
+    pillFill: 'rgba(255,255,255,0.055)',
+    lit: { from: 0.40, to: 0.20, rim: 1, label: '#FFFFFF' },
+  },
+} as const;
+
+/**
+ * Returns a colour at the given alpha as an rgba string. Takes `#rgb`,
+ * `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb(...)` or `rgba(...)` (an rgba input
+ * has its alpha replaced). Used for the lit pill gradient (a verb colour
+ * fading from 40% to 20%) and anywhere else that needs a verb colour at an
+ * opacity it was not given. Runs on either thread and never returns NaN: an
+ * unreadable colour comes back as black at that alpha.
+ */
+export function withAlpha(colour: string, alpha: number): string {
+  'worklet';
+  const a = Number.isFinite(alpha) ? Math.min(Math.max(alpha, 0), 1) : 1;
+  const c = colour.trim();
+  const open = c.indexOf('(');
+  if (open > 0) {
+    const parts = c.slice(open + 1, c.lastIndexOf(')')).split(',');
+    const ch = [0, 0, 0];
+    for (let i = 0; i < 3; i++) {
+      const n = parseFloat(parts[i] ?? '');
+      ch[i] = Number.isFinite(n) ? n : 0;
+    }
+    return `rgba(${ch[0]},${ch[1]},${ch[2]},${a})`;
+  }
+  let hex = c.charAt(0) === '#' ? c.slice(1) : c;
+  if (hex.length === 3 || hex.length === 4) {
+    hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+  }
+  let r = parseInt(hex.slice(0, 2), 16);
+  let g = parseInt(hex.slice(2, 4), 16);
+  let b = parseInt(hex.slice(4, 6), 16);
+  if (!Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b) || hex.length < 6) {
+    r = 0;
+    g = 0;
+    b = 0;
+  }
+  return `rgba(${r},${g},${b},${a})`;
+}
+
 export const tide = {
   sky: tideSkies.night,                              // .d4 .sky4 gradient stops
   water: '#08131C',                                 // .d4 .water gradient stop
   waterline: 'rgba(255,158,128,0.55)',               // .d4 .water box-shadow, --cr for .ja
   lang: { ja: '#FF9E80', es: '#7FE0D4' },            // .d4 --c / .d4.es --c
-  listen: '#B9A8F0',   // :root --lav
-  turn: '#F4C86A',     // :root --amber
-  record: '#FF8F7A',   // :root --coral
+  listen: verb.listen.c1,   // prism verb alias, was :root --lav
+  turn: verb.read.c1,       // prism verb alias, was :root --amber
+  record: verb.speak.c1,    // prism verb alias, was :root --coral
   text: '#ECE8F4',     // :root --ink
   textDim: '#B7B1C6',  // :root --ink2
   pos: {
