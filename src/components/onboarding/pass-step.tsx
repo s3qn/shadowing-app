@@ -15,7 +15,9 @@ import {
 import { PrismButton, type Verb } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide, verb } from '@/constants/theme';
+import { useDir, useT } from '@/lib/i18n';
 import { type LearningLanguage, type UnderstoodLanguage } from '@/lib/settings';
+import { type Key } from '@/locales/en';
 
 const STAGE_HEIGHT = 300;
 
@@ -31,62 +33,56 @@ const TRANSLATIONS: Record<UnderstoodLanguage, string> = {
 };
 
 type PassInfo = {
-  title: string;
-  line: string;
+  titleKey: Key;
+  lineKey: Key;
   colour: string;
   a: number;
   discTop: number;
   nextVerb: Verb;
-  nextLabel: string;
 };
 
 const PASSES: PassInfo[] = [
   {
-    title: 'Listen',
-    line: 'Hear the sentence first. Just the voice, no reading.',
+    titleKey: 'settings.onboarding.passListenTitle',
+    lineKey: 'settings.onboarding.passListenLine',
     colour: verb.listen.c1,
     a: 84,
     discTop: 0.46,
     nextVerb: 'listen',
-    nextLabel: 'Next',
   },
   {
-    title: 'Mumble',
-    line: 'Hum along under your breath. Rhythm before words.',
+    titleKey: 'settings.onboarding.passMumbleTitle',
+    lineKey: 'settings.onboarding.passMumbleLine',
     colour: verb.speak.c2,
     a: 84,
     discTop: 0.46,
     nextVerb: 'speak',
-    nextLabel: 'Next',
   },
   {
-    title: 'Read along',
-    line: 'Say it with the text in view, in step with the voice.',
+    titleKey: 'settings.onboarding.passReadTitle',
+    lineKey: 'settings.onboarding.passReadLine',
     colour: verb.read.c1,
     a: 102,
     discTop: 0.34,
     nextVerb: 'read',
-    nextLabel: 'Next',
   },
   {
-    title: 'Shadow',
-    line: 'Say it a beat behind the voice, text hidden.',
+    titleKey: 'settings.onboarding.passShadowTitle',
+    lineKey: 'settings.onboarding.passShadowLine',
     colour: verb.speak.c1,
     a: 102,
     discTop: 0.46,
     nextVerb: 'speak',
-    nextLabel: 'Next',
   },
   {
-    title: 'Compare',
-    line: 'Hear the voice and your take together. Next time, a little faster.',
+    titleKey: 'settings.onboarding.passCompareTitle',
+    lineKey: 'settings.onboarding.passCompareLine',
     colour: tide.pos.verb,
     // The disc itself keeps the base art size (120, so D = 180); the two
     // Lotties inside are smaller (56 each), set directly where they render.
     a: 120,
     discTop: 0.34,
     nextVerb: 'tools',
-    nextLabel: 'Next',
   },
 ];
 
@@ -138,6 +134,8 @@ export function PassStep({
   understood: UnderstoodLanguage;
   onNext: () => void;
 }) {
+  const { t } = useT();
+  const dir = useDir();
   const { width: windowWidth } = useWindowDimensions();
   const reducedMotion = useReducedMotion();
   const info = PASSES[pass];
@@ -148,13 +146,13 @@ export function PassStep({
 
   return (
     <View style={styles.content}>
-      <View style={styles.dots}>
+      <View style={[styles.dots, dir.row]}>
         {PASSES.map((p, i) => (
-          <PassDot key={p.title} active={i === pass} colour={info.colour} />
+          <PassDot key={p.titleKey} active={i === pass} colour={info.colour} />
         ))}
       </View>
-      <Text style={styles.title}>{info.title}</Text>
-      <Text style={styles.line}>{info.line}</Text>
+      <Text style={styles.title}>{t(info.titleKey)}</Text>
+      <Text style={styles.line}>{t(info.lineKey)}</Text>
       <View style={[styles.stage, { width: stageWidth, height: STAGE_HEIGHT }]}>
         <View
           style={[
@@ -221,9 +219,9 @@ export function PassStep({
 
         {pass === 3 ? (
           <View style={styles.lanesArea}>
-            <Text style={styles.laneLabel}>voice</Text>
+            <Text style={styles.laneLabel}>{t('settings.onboarding.voiceLane')}</Text>
             <WaveLane colour={verb.listen.c1} />
-            <Text style={styles.laneLabel}>you</Text>
+            <Text style={styles.laneLabel}>{t('settings.onboarding.youLane')}</Text>
             <WaveLane colour={info.colour} opacity={0.8} lagMs={250} />
           </View>
         ) : null}
@@ -233,14 +231,14 @@ export function PassStep({
             <View style={styles.lanesArea}>
               <CompareLanes topColour={verb.listen.c1} bottomColour={verb.speak.c1} />
             </View>
-            <Text style={styles.kept}>10 of 12 kept up</Text>
+            <Text style={styles.kept}>{t('settings.onboarding.keptUp')}</Text>
           </>
         ) : null}
       </View>
       <PrismButton
         shape="pill"
         verb={info.nextVerb}
-        label={info.nextLabel}
+        label={t('settings.onboarding.next')}
         onPress={onNext}
         containerStyle={styles.action}
       />

@@ -4,6 +4,7 @@ import { SymbolView } from 'expo-symbols'; // icon-buttons: Whole line
 import { PrismButton } from '@/components/prism'; // icon-buttons: Whole line
 import { fonts } from '@/constants/fonts'; // icon-buttons: Whole line
 import { Radius, Spacing, tide, verb as verbTokens, prism } from '@/constants/theme'; // icon-buttons: Whole line
+import { useDir, useT } from '@/lib/i18n';
 
 type Props = {
   label: string | null; // "first 〜 last" when a phrase is set
@@ -16,20 +17,31 @@ type Props = {
  * mode) and a button back to the whole line. Renders nothing with no phrase set.
  */
 export function PhraseBar({ label, hidden, onClear }: Props) {
+  const { t } = useT();
+  const dir = useDir();
   if (!label) return null;
 
   return (
     <View style={styles.container}>
-      <View style={styles.row}>
+      <View style={[styles.row, dir.row]}>
         <View style={[styles.pill, { backgroundColor: tide.lang.ja }]}>
-          <Text style={[styles.pillText, { color: tide.sky[0] }]}>{hidden ? 'Phrase' : `Phrase: ${label}`}</Text>
+          <Text style={[styles.pillText, dir.text, { color: tide.sky[0] }]}>
+            {hidden ? t('player.phrase') : t('player.phraseWith', { label })}
+          </Text>
         </View>
         {/* icon-buttons: Whole line */}
         <View style={{ alignItems: 'center' }}>
-          <PrismButton shape="round" size={prism.sizes.roundSm} verb="listen" onPress={onClear} accessibilityLabel="Whole line">
+          <PrismButton
+            shape="round"
+            size={prism.sizes.roundSm}
+            verb="listen"
+            onPress={onClear}
+            accessibilityLabel={t('player.wholeLine')}>
             <SymbolView name={{ ios: 'arrow.left.and.right', android: 'swap_horiz' }} size={16} weight="regular" tintColor={verbTokens.listen.c1} />
           </PrismButton>
-          <Text style={{ fontFamily: fonts.ui, fontSize: 11, color: tide.textDim, marginTop: 4, textAlign: 'center' }}>Whole line</Text>
+          <Text style={{ fontFamily: fonts.ui, fontSize: 11, color: tide.textDim, marginTop: 4, textAlign: 'center' }}>
+            {t('player.wholeLine')}
+          </Text>
         </View>
       </View>
     </View>

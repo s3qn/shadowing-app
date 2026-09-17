@@ -5,6 +5,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } fr
 import { fonts } from '@/constants/fonts';
 import { Spacing, prism, tide } from '@/constants/theme';
 import { LitPillFill, LitPillRim, PILL_H, PILL_ICON_OFF, PILL_LABEL_SIZE, PillTrayShell } from '@/components/prism/pill-tray';
+import { useDir } from '@/lib/i18n';
 
 export type SegmentOption<T extends string> = {
   value: T;
@@ -76,10 +77,11 @@ function SegmentPill({ on, label, onPress }: { on: boolean; label: string; onPre
  */
 export function Segmented<T extends string>({ label, options, value, onChange }: Props<T>) {
   const index = Math.max(0, options.findIndex((o) => o.value === value));
+  const dir = useDir();
 
   return (
     <View style={styles.section}>
-      <View style={styles.row}>
+      <View style={[styles.row, dir.row]}>
         <Text style={styles.label}>{label}</Text>
         <View style={styles.trayWrap} accessibilityRole="tablist">
           <PillTrayShell style={styles.tray}>

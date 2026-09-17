@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
+import { useDir, useT } from '@/lib/i18n';
 
 const OPEN_MS = 240;
 const CLOSE_MS = 200;
@@ -45,6 +46,8 @@ type BottomSheetProps = {
  */
 export function BottomSheet({ open, onClose, onDismissed, title, hint, avoidKeyboard, children }: BottomSheetProps) {
   const insets = useSafeAreaInsets();
+  const { t } = useT();
+  const dir = useDir();
   const reducedMotion = useReducedMotion();
   const [mounted, setMounted] = useState(open);
   const progress = useSharedValue(open ? 1 : 0);
@@ -115,7 +118,7 @@ export function BottomSheet({ open, onClose, onDismissed, title, hint, avoidKeyb
 
   const content = (
     <View style={styles.wrap}>
-      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel={t('player.close')} />
       <Animated.View style={[styles.backdrop, backdropStyle]} pointerEvents="none" />
       <GestureDetector gesture={pan}>
         <Animated.View
@@ -124,7 +127,7 @@ export function BottomSheet({ open, onClose, onDismissed, title, hint, avoidKeyb
           }}
           style={[styles.panel, { paddingBottom: insets.bottom + 16 }, panelStyle]}>
           <View style={styles.grab} />
-          {title ? <Text style={styles.title}>{title}</Text> : null}
+          {title ? <Text style={[styles.title, dir.text]}>{title}</Text> : null}
           {hint ? <Text style={styles.hint}>{hint}</Text> : null}
           <View style={styles.body}>{children}</View>
         </Animated.View>

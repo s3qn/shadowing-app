@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useT } from '@/lib/i18n';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -64,6 +65,7 @@ function easeOutCubic(t: number) {
  * reduced motion there are no rings, just the still glow.
  */
 export function RingButton({ size = 84, mode, onPress }: Props) {
+  const { t } = useT();
   const rawActive = mode !== 'idle';
   const reducedMotion = useReducedMotion();
 
@@ -236,7 +238,7 @@ export function RingButton({ size = 84, mode, onPress }: Props) {
     <PressScale
       onPress={handlePress}
       accessibilityRole="button"
-      accessibilityLabel={active ? 'Stop' : 'Play'}
+      accessibilityLabel={active ? t('player.stop') : t('player.play')}
       style={[styles.wrap, { width: size, height: size }]}>
       <Animated.View pointerEvents="none" style={[styles.ring, ringBox, ring1Style]} />
       <Animated.View pointerEvents="none" style={[styles.ring, ringBox, ring2Style]} />

@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { fonts } from '@/constants/fonts';
 import { tide, withAlpha } from '@/constants/theme';
+import { useDir } from '@/lib/i18n';
 
 /** The rows every sheet is built from: an option to pick, a toggle, a menu
  * action (with an optional leading icon), and a plain note. */
@@ -19,6 +20,7 @@ type SheetOptionProps = {
 };
 
 export function SheetOption({ label, hint, selected, onPress }: SheetOptionProps) {
+  const dir = useDir();
   return (
     <Pressable
       onPress={onPress}
@@ -26,13 +28,14 @@ export function SheetOption({ label, hint, selected, onPress }: SheetOptionProps
       accessibilityState={{ selected }}
       style={({ pressed }) => [
         styles.row,
+        dir.row,
         styles.option,
         selected ? styles.optionSelected : styles.optionDivider,
         pressed && !selected && styles.rowPressed,
       ]}>
       <View style={styles.text}>
-        <Text style={[styles.label, selected && styles.labelSelected]}>{label}</Text>
-        {hint ? <Text style={styles.hint}>{hint}</Text> : null}
+        <Text style={[styles.label, dir.text, selected && styles.labelSelected]}>{label}</Text>
+        {hint ? <Text style={[styles.hint, dir.text]}>{hint}</Text> : null}
       </View>
     </Pressable>
   );
@@ -48,17 +51,18 @@ type SheetToggleProps = {
 };
 
 export function SheetToggle({ label, hint, value, onValueChange, icon }: SheetToggleProps) {
+  const dir = useDir();
   return (
-    <View style={styles.row}>
-      <View style={styles.lead}>
+    <View style={[styles.row, dir.row]}>
+      <View style={[styles.lead, dir.row]}>
         {icon ? (
           <View style={styles.iconSlot}>
             <SymbolView name={icon} size={20} weight="regular" tintColor={tide.text} />
           </View>
         ) : null}
         <View style={styles.text}>
-          <Text style={styles.label}>{label}</Text>
-          {hint ? <Text style={styles.hint}>{hint}</Text> : null}
+          <Text style={[styles.label, dir.text]}>{label}</Text>
+          {hint ? <Text style={[styles.hint, dir.text]}>{hint}</Text> : null}
         </View>
       </View>
       <Switch
@@ -83,6 +87,7 @@ type SheetActionProps = {
 };
 
 export function SheetAction({ label, hint, destructive, disabled, icon, discColor, onPress }: SheetActionProps) {
+  const dir = useDir();
   // Same precedence as the label style array: destructive, then disabled overrides.
   const tint = disabled ? tide.textDim : destructive ? tide.record : discColor ? discColor : tide.text;
   return (
@@ -91,8 +96,8 @@ export function SheetAction({ label, hint, destructive, disabled, icon, discColo
       disabled={disabled}
       accessibilityRole="button"
       accessibilityState={{ disabled }}
-      style={({ pressed }) => [styles.row, pressed && !disabled && styles.rowPressed]}>
-      <View style={styles.lead}>
+      style={({ pressed }) => [styles.row, dir.row, pressed && !disabled && styles.rowPressed]}>
+      <View style={[styles.lead, dir.row]}>
         {icon ? (
           discColor ? (
             <View
@@ -109,8 +114,10 @@ export function SheetAction({ label, hint, destructive, disabled, icon, discColo
           )
         ) : null}
         <View style={styles.text}>
-          <Text style={[styles.label, destructive && styles.destructive, disabled && styles.disabled]}>{label}</Text>
-          {hint ? <Text style={styles.hint}>{hint}</Text> : null}
+          <Text style={[styles.label, dir.text, destructive && styles.destructive, disabled && styles.disabled]}>
+            {label}
+          </Text>
+          {hint ? <Text style={[styles.hint, dir.text]}>{hint}</Text> : null}
         </View>
       </View>
     </Pressable>
@@ -118,7 +125,8 @@ export function SheetAction({ label, hint, destructive, disabled, icon, discColo
 }
 
 export function SheetNote({ children }: { children: ReactNode }) {
-  return <Text style={styles.note}>{children}</Text>;
+  const dir = useDir();
+  return <Text style={[styles.note, dir.text]}>{children}</Text>;
 }
 
 const styles = StyleSheet.create({

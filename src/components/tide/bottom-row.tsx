@@ -13,6 +13,7 @@ import { fonts } from '@/constants/fonts';
 import { prism, tide, verb } from '@/constants/theme';
 import { PrismButton } from '@/components/prism/prism-button';
 import { RingButton, type RingMode } from '@/components/ring-button';
+import { useT } from '@/lib/i18n';
 
 type Props = {
   ringMode: RingMode;
@@ -44,6 +45,7 @@ export const BottomRow = memo(function BottomRow({
   level,
   onRecord,
 }: Props) {
+  const { t } = useT();
   // Live level, smoothed on the UI thread so the glow breathes instead of
   // jumping per meter sample. Recording state fades the glow in and out
   // within 200ms so it clears quickly once recording stops.
@@ -71,9 +73,9 @@ export const BottomRow = memo(function BottomRow({
 
   return (
     <View style={styles.row}>
-      <RoundButton glyph="‹" onPress={onPrev} disabled={prevDisabled} label="Previous line" />
+      <RoundButton glyph="‹" onPress={onPrev} disabled={prevDisabled} label={t('player.previousLine')} />
       <RingButton size={84} mode={ringMode} onPress={onToggle} />
-      <RoundButton glyph="›" onPress={onNext} disabled={nextDisabled} label="Next line" />
+      <RoundButton glyph="›" onPress={onNext} disabled={nextDisabled} label={t('player.nextLine')} />
       <View style={styles.recordWrap}>
         <Animated.View pointerEvents="none" style={[styles.recordGlow, glowStyle]} />
         <PrismButton
@@ -82,7 +84,7 @@ export const BottomRow = memo(function BottomRow({
           size={prism.sizes.bigRound}
           on={recording}
           onPress={onRecord}
-          accessibilityLabel={recording ? 'Stop recording' : 'Record my take'}>
+          accessibilityLabel={recording ? t('player.stopRecording') : t('player.recordMyTake')}>
           <View style={[styles.recordDot, recording && styles.recordDotActive]} />
         </PrismButton>
       </View>

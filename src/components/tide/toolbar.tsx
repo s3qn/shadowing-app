@@ -17,6 +17,7 @@ import { GlassPanel } from '@/components/prism/glass-panel';
 import { PrismButton } from '@/components/prism/prism-button';
 import { fonts } from '@/constants/fonts';
 import { tide, verb, withAlpha } from '@/constants/theme';
+import { useDir } from '@/lib/i18n';
 
 /** The label and value glow, off and on. Every tile is the "listen" verb, so
  * one pair of colours covers the whole row. */
@@ -175,8 +176,9 @@ function Tile({ item, reducedMotion }: { item: ToolbarItem; reducedMotion: boole
  */
 export const Toolbar = memo(function Toolbar({ items }: { items: ToolbarItem[] }) {
   const reducedMotion = useReducedMotion();
+  const dir = useDir();
   return (
-    <GlassPanel style={styles.row}>
+    <GlassPanel style={[styles.row, dir.row]}>
       {items.map((item) => (
         <Tile key={item.key} item={item} reducedMotion={reducedMotion} />
       ))}

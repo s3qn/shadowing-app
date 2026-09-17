@@ -17,6 +17,7 @@ import Animated, {
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { hapticImpact, hapticSelection } from '@/lib/haptics';
+import { useDir } from '@/lib/i18n';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, prism } from '@/constants/theme';
 import {
@@ -114,6 +115,7 @@ function hitTestIndex(x: number, tabs: Array<{ x: number; width: number }>): num
  */
 export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const { rtl } = useDir();
   const reducedMotion = useReducedMotion();
 
   const [tabLayouts, setTabLayouts] = useState<Array<{ x: number; width: number }>>([]);
@@ -285,7 +287,8 @@ export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps
                   pill slides to a narrower or wider tab. */}
               <LitPillRim radius={PILL_H / 2} opacity={litOpacity} held={held} />
             </AnimatedView>
-            {state.routes.map((route, index) => {
+            {(rtl ? [...state.routes].reverse() : state.routes).map((route) => {
+              const index = state.routes.indexOf(route);
               const options = descriptors[route.key]?.options;
               const label = options?.title ?? route.name;
               const on = litIndex === index;

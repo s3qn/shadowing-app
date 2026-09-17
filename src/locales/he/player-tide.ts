@@ -1,0 +1,60 @@
+import type { en as enPlayerTide } from '../en/player-tide';
+
+export const he = {
+  'player.autoEcho': 'אקו אוטומטי',
+  'player.stepReady': 'מוכן',
+  'player.stepListen': 'להאזין לשמע',
+  'player.stepEcho': 'להיזכר ולהבין את מה שזה עתה נשמע',
+  'player.stepSpeak': 'לנסות לומר את המשפט',
+  'player.stepPlay': 'להאזין לקול שלך ולהשוות',
+  'player.stepDone': 'הסבב הושלם',
+  'player.segmentListen': 'האזנה',
+  'player.segmentEcho': 'הד',
+  'player.segmentSpeak': 'דיבור',
+  'player.start': 'התחלה',
+  'player.startAgain': 'התחלה מחדש',
+  'player.record': 'הקלטה',
+  'player.autoEchoToggle': 'מעבר לשורה הבאה, וחזרה להתחלה אחרי האחרונה',
+  'player.autoRecordToggle': 'פתיחת המיקרופון באופן אוטומטי בשלב הדיבור',
+  'player.headsetIn': 'האוזניות מחוברות: השורה מתנגנת מתחת לקול שלך.',
+  'player.headsetPrompt': 'יש לחבר אוזניות כדי שהשורה תתנגן מתחת לקול שלך.',
+
+  'player.hideTranslation': 'הסתרת התרגום',
+  'player.hideSentence': 'הסתרת המשפט',
+
+  'player.previousLine': 'שורה קודמת',
+  'player.nextLine': 'שורה הבאה',
+  'player.stopRecording': 'עצירת ההקלטה',
+  'player.recordMyTake': 'הקלטת הטייק שלי',
+
+  'player.islandMenu': 'תפריט האי',
+  'player.save': 'שמירה',
+  'player.rename': 'שינוי שם',
+  'player.exporting': 'בייצוא…',
+  'player.exportAsAudio': 'ייצוא כקובץ שמע',
+  'player.revoicing': 'בהחלפת קול…',
+  'player.revoiceIn': 'החלפת קול ל-{name}',
+  'player.regenerateComplex': 'בנייה מחדש עם תבניות מורכבות',
+  'player.regenerateSimple': 'בנייה מחדש משפט אחד בכל פעם',
+  'player.calibrateSpeaker': 'כיול רמקול',
+  'player.deleteIsland': 'מחיקת אי',
+
+  'player.lineLabel': 'שורה',
+  'player.ofLabel': 'מתוך',
+
+  'player.close': 'סגירה',
+
+  'player.off': 'כבוי',
+  'player.readingFurigana': 'פוריגנה',
+  'player.readingKana': 'קאנה',
+  'player.readingRomaji': "רומאג'י",
+
+  'player.times': 'פעמים',
+  'player.pause': 'הפסקה',
+  'player.timesAccessibility': 'פעמים, {label}',
+  'player.pauseAccessibility': 'הפסקה, {label}',
+  'player.speedAccessibility': 'מהירות, {label}',
+
+  'player.autoScrollDisabled': 'גלילה אוטומטית כבויה. הקשה כדי להפעיל',
+  'player.autoScrollEnabled': 'גלילה אוטומטית פעילה',
+} satisfies Record<keyof typeof enPlayerTide, string>;

@@ -15,6 +15,7 @@ import { StyleSheet, Text, View, type StyleProp, type TextStyle } from 'react-na
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 
 import { fonts } from '@/constants/fonts';
+import { useDir, useT } from '@/lib/i18n';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import { dayKey, lastSevenDays, minutesOn, streakDays, type PracticeLog } from '@/lib/practice';
 
@@ -136,13 +137,14 @@ function Odometer({ value, reducedMotion, textStyle }: { value: number; reducedM
 /** One weekday cell in the 7-day row. Today's cell lights up in the Japanese accent
  * once it holds minutes, with a soft one-time glow the moment it first crosses from
  * zero, not on mount. */
-function DayCell({ dayKey: key, minutes, isToday, reducedMotion }: {
+function DayCell({ dayKey: key, minutes, isToday, reducedMotion, locale }: {
   dayKey: string;
   minutes: number;
   isToday: boolean;
   reducedMotion: boolean;
+  locale: string;
 }) {
-  const letter = new Date(`${key}T12:00:00`).toLocaleDateString(undefined, { weekday: 'narrow' });
+  const letter = new Date(`${key}T12:00:00`).toLocaleDateString(locale, { weekday: 'narrow' });
   const lit = isToday && minutes > 0;
 
   const mounted = useRef(false);
@@ -177,6 +179,8 @@ function DayCell({ dayKey: key, minutes, isToday, reducedMotion }: {
 }
 
 export function PracticeCard({ log, dueCount }: { log: PracticeLog; dueCount: number }) {
+  const { t, locale } = useT();
+  const dir = useDir();
   const reducedMotion = useReducedMotion();
   const today = new Date();
   const todayKey = dayKey(today);
@@ -189,20 +193,20 @@ export function PracticeCard({ log, dueCount }: { log: PracticeLog; dueCount: nu
       <View style={styles.numbers}>
         <View style={styles.stat}>
           <Odometer value={todayMinutes} reducedMotion={reducedMotion} textStyle={[styles.value, { color: tide.text }]} />
-          <Text style={[styles.label, { color: tide.textDim }]}>Today</Text>
+          <Text style={[styles.label, { color: tide.textDim }]}>{t('home.practiceToday')}</Text>
         </View>
         <View style={styles.stat}>
           <Odometer value={streak} reducedMotion={reducedMotion} textStyle={[styles.value, { color: tide.text }]} />
-          <Text style={[styles.label, { color: tide.textDim }]}>Streak</Text>
+          <Text style={[styles.label, { color: tide.textDim }]}>{t('home.practiceStreak')}</Text>
         </View>
         <View style={styles.stat}>
           <Odometer value={dueCount} reducedMotion={reducedMotion} textStyle={[styles.value, { color: tide.text }]} />
-          <Text style={[styles.label, { color: tide.textDim }]}>Due today</Text>
+          <Text style={[styles.label, { color: tide.textDim }]}>{t('home.dueToday')}</Text>
         </View>
       </View>
-      <View style={styles.week}>
+      <View style={[styles.week, dir.row]}>
         {week.map((key) => (
-          <DayCell key={key} dayKey={key} minutes={minutesOn(log, key)} isToday={key === todayKey} reducedMotion={reducedMotion} />
+          <DayCell key={key} dayKey={key} minutes={minutesOn(log, key)} isToday={key === todayKey} reducedMotion={reducedMotion} locale={locale} />
         ))}
       </View>
     </View>

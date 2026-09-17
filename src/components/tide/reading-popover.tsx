@@ -6,6 +6,7 @@ import { PressScale } from '@/components/press-scale';
 import { PopoverBubble } from '@/components/tide/popover-bubble';
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
+import { t, useDir } from '@/lib/i18n';
 import { READING_OPTIONS, type ReadingMode } from '@/lib/settings';
 
 const BUTTON = 44;
@@ -18,11 +19,22 @@ const BODY_H = BUTTON + 2 * BODY_PAD;
 /** Heavily overdamped: the pill slides to its new icon without a wobble. */
 const PILL_SPRING = { damping: 40, stiffness: 300, mass: 1 } as const;
 
+// A getter object, not a plain literal: each property reads the current
+// language fresh, so a caller elsewhere (the island screen's tile readout)
+// stays correct across an app language switch without re-importing anything.
 export const READING_LABEL: Record<ReadingMode, string> = {
-  off: 'Off',
-  furigana: 'Furigana',
-  kana: 'Kana',
-  romaji: 'Romaji',
+  get off() {
+    return t('player.off');
+  },
+  get furigana() {
+    return t('player.readingFurigana');
+  },
+  get kana() {
+    return t('player.readingKana');
+  },
+  get romaji() {
+    return t('player.readingRomaji');
+  },
 };
 const READING_GLYPH: Record<ReadingMode, string> = { off: '⊘', furigana: 'ふ', kana: 'あ', romaji: 'A' };
 
@@ -45,17 +57,22 @@ type Props = {
  */
 export function ReadingPopover({ anchorX, anchorTop, width, value, onChange, onClose }: Props) {
   const reducedMotion = useReducedMotion();
-  const pillX = useSharedValue(READING_OPTIONS.indexOf(value) * STEP);
+  const dir = useDir();
+  // The pill is positioned by an absolute translateX, which a row-reverse
+  // flexDirection does not touch, so its target index is flipped by hand
+  // to land under the visually mirrored button in RTL.
+  const visualIndex = (index: number) => (dir.rtl ? READING_OPTIONS.length - 1 - index : index);
+  const pillX = useSharedValue(visualIndex(READING_OPTIONS.indexOf(value)) * STEP);
 
   useEffect(() => {
-    const target = READING_OPTIONS.indexOf(value) * STEP;
+    const target = visualIndex(READING_OPTIONS.indexOf(value)) * STEP;
     if (reducedMotion) {
       pillX.value = target;
       return;
     }
     pillX.value = withSpring(target, PILL_SPRING);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, reducedMotion]);
+  }, [value, reducedMotion, dir.rtl]);
 
   const pillStyle = useAnimatedStyle(() => ({ transform: [{ translateX: pillX.value }] }));
 
@@ -67,7 +84,7 @@ export function ReadingPopover({ anchorX, anchorTop, width, value, onChange, onC
       width={READING_POP_W}
       height={BODY_H}
       radius={BODY_H / 2}
-      bodyStyle={styles.body}
+      bodyStyle={{ ...styles.body, ...dir.row }}
       onClose={onClose}>
       <Animated.View style={[styles.pill, pillStyle]} pointerEvents="none" />
       {READING_OPTIONS.map((mode) => {

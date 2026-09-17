@@ -10,7 +10,7 @@ import { WelcomeStep } from '@/components/onboarding/welcome-step';
 import { PrismButton } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
-import { previewAppLanguage } from '@/lib/i18n';
+import { previewAppLanguage, useT } from '@/lib/i18n';
 import { LANGUAGES } from '@/lib/languages';
 import {
   type LearningLanguage,
@@ -36,6 +36,7 @@ const LAST_STEP = STEP_READY;
  * or back-button history.
  */
 export default function OnboardingScreen() {
+  const { t } = useT();
   const router = useRouter();
   const [step, setStep] = useState(0);
   // Start from the saved pair (the root layout loads settings before any
@@ -110,7 +111,7 @@ export default function OnboardingScreen() {
           verb="tools"
           flat
           press="light"
-          label="Skip"
+          label={t('settings.onboarding.skip')}
           onPress={skip}
           containerStyle={styles.skip}
         />
@@ -122,17 +123,17 @@ export default function OnboardingScreen() {
       {step === STEP_LANGUAGES ? (
         <View style={styles.languageStep}>
           <View style={styles.languageHalf}>
-            <Text style={styles.rowLabel}>I want to learn</Text>
+            <Text style={styles.rowLabel}>{t('settings.languages.learn')}</Text>
             <LanguagePicker mode="learn" value={learning} onChange={selectLearning} exclude={understand} />
           </View>
           <View style={styles.languageHalf}>
-            <Text style={styles.rowLabel}>I understand</Text>
+            <Text style={styles.rowLabel}>{t('settings.languages.understand')}</Text>
             <LanguagePicker mode="understand" value={understand} onChange={setUnderstand} exclude={learning} />
           </View>
           <PrismButton
             shape="pill"
             verb="read"
-            label="Next"
+            label={t('settings.onboarding.next')}
             onPress={() => setStep(STEP_MIC)}
             containerStyle={styles.action}
           />
@@ -142,23 +143,21 @@ export default function OnboardingScreen() {
 
       {step === STEP_MIC ? (
         <View style={styles.content}>
-          <Text style={styles.title}>The app needs your microphone to record you speaking along.</Text>
+          <Text style={styles.title}>{t('settings.onboarding.micPrompt')}</Text>
           <PrismButton
             shape="pill"
             verb="speak"
-            label="Allow microphone"
+            label={t('settings.onboarding.allowMicrophone')}
             onPress={() => void allowMic()}
             containerStyle={styles.action}
           />
-          {micError ? (
-            <Text style={styles.error}>Microphone access is off. Turn it on in Settings and try again.</Text>
-          ) : null}
+          {micError ? <Text style={styles.error}>{t('settings.onboarding.micError')}</Text> : null}
           <PrismButton
             shape="pill"
             verb="speak"
             flat
             press="light"
-            label="Not now"
+            label={t('settings.onboarding.notNow')}
             onPress={notNow}
             containerStyle={styles.notNow}
           />
@@ -176,21 +175,21 @@ export default function OnboardingScreen() {
 
       {step === STEP_READY ? (
         <View style={styles.content}>
-          <Text style={styles.readyTitle}>You&apos;re ready</Text>
+          <Text style={styles.readyTitle}>{t('settings.onboarding.ready')}</Text>
           <PrismButton
             shape="round"
             size={88}
             verb="speak"
-            accessibilityLabel="Record your first island"
+            accessibilityLabel={t('settings.onboarding.recordFirstIsland')}
             onPress={() => void finish('record')}>
             <View style={styles.recordDot} />
           </PrismButton>
-          <Text style={styles.readyCaption}>Record your first island</Text>
+          <Text style={styles.readyCaption}>{t('settings.onboarding.recordFirstIsland')}</Text>
           <PrismButton
             shape="pill"
             verb="tools"
             flat
-            label="Pick a podcast instead"
+            label={t('settings.onboarding.pickPodcast')}
             onPress={() => void finish('podcast')}
             containerStyle={styles.action}
           />

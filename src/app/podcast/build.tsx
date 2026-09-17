@@ -9,24 +9,17 @@ import { CatConstellation } from '@/components/cat-constellation';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
+import { useT } from '@/lib/i18n';
 import { getSettings, getVoice, toIslandLanguage, toNativeLanguage } from '@/lib/settings';
 
 const SIDE = 16;
-
-const STAGE_LABEL: Record<string, string> = {
-  queued: 'Queued…',
-  downloading: 'Downloading the episode…',
-  transcribing: 'Transcribing…',
-  writing: 'Writing the lines…',
-  speaking: 'Recording the voice…',
-  ready: 'Ready.',
-};
 
 /** How long the finished island sits on screen, glowing, before the screen
  * navigates away. */
 const READY_HOLD_MS = 900;
 
 export default function PodcastBuildScreen() {
+  const { t } = useT();
   const router = useRouter();
   const { audioUrl, title } = useLocalSearchParams<{ audioUrl: string; title?: string }>();
 
@@ -51,7 +44,7 @@ export default function PodcastBuildScreen() {
       api
         .importPodcastEpisode(
           audioUrl,
-          title || 'Podcast episode',
+          title || t('record.defaultEpisodeTitle'),
           voice,
           toIslandLanguage(learningLanguage),
           toNativeLanguage(understoodLanguage),
@@ -69,7 +62,7 @@ export default function PodcastBuildScreen() {
                 }, READY_HOLD_MS);
               } else if (island.status === 'failed') {
                 if (pollRef.current) clearInterval(pollRef.current);
-                setError(island.error || 'That island could not be built.');
+                setError(api.islandErrorText(island));
               }
             } catch {
               // A dropped poll is not fatal, the next tick retries.
@@ -77,7 +70,7 @@ export default function PodcastBuildScreen() {
           }, 2000);
         })
         .catch((e) => {
-          setError(e instanceof Error ? e.message : 'The episode could not be downloaded.');
+          setError(e instanceof Error ? e.message : t('record.episodeDownloadFailed'));
         });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -99,17 +92,16 @@ export default function PodcastBuildScreen() {
           headerShadowVisible: false,
           headerLeft: () => (
             <Pressable onPress={cancel} hitSlop={12}>
-              <Text style={{ color: tide.text, fontSize: 16, fontWeight: '600', fontFamily: fonts.ui }}>Close</Text>
+              <Text style={{ color: tide.text, fontSize: 16, fontWeight: '600', fontFamily: fonts.ui }}>
+                {t('record.close')}
+              </Text>
             </Pressable>
           ),
         }}
       />
       <View style={styles.center}>
-        <CatConstellation size={120} label={(STAGE_LABEL[stage] ?? 'Working…').replace(/…$/, '')} />
-        <Text style={[styles.hint, styles.centerText]}>
-          This takes a few minutes. Close this screen if you like, the island keeps
-          building and appears in the list when it is ready.
-        </Text>
+        <CatConstellation size={120} label={api.stageLabel(stage).replace(/…$/, '')} />
+        <Text style={[styles.hint, styles.centerText]}>{t('record.podcastBuildHint')}</Text>
         {error ? <Text style={[styles.error, styles.centerText]}>{error}</Text> : null}
       </View>
     </SafeAreaView>

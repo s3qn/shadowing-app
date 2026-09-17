@@ -118,6 +118,7 @@ import {
 import { deleteTakes, resultTier, wordsKeptUp } from '@/lib/takes';
 import { invalidateLineAudio, localLineAudio, prefetchLineAudio } from '@/lib/line-audio-cache';
 import { useSlideReveal } from '@/lib/slide-reveal';
+import { useT } from '@/lib/i18n';
 
 // Expo Go on Android does not ship the AudioControlsService, and activating
 // the lock screen there logs a service binding error; a dev build has it
@@ -220,6 +221,7 @@ export default function IslandScreen() {
   const { id, morph } = useLocalSearchParams<{ id: string; morph?: string }>();
   const navigation = useNavigation();
   const sky = useSkyStyle();
+  const { t } = useT();
   // Whether the card morph that opened this island covered the screen at
   // mount. Never state: the morph's landing and cover-gone must not render
   // this whole screen. Live checks go through openCoverUp and afterCoverGone.
@@ -715,7 +717,7 @@ export default function IslandScreen() {
           invalidateCachedIsland(id);
         }
       } catch (e) {
-        if (alive) setError(e instanceof Error ? e.message : 'Could not load this island');
+        if (alive) setError(e instanceof Error ? e.message : t('player.couldNotLoadIsland'));
       }
     };
     // Opened from the local copy under the morph: the refresh waits until the
@@ -858,7 +860,6 @@ export default function IslandScreen() {
     islandId: string,
     maxSeconds: number,
     onStage?: (stage: string) => void,
-    failedFallback = 'Building failed',
   ): Promise<api.Island | null> {
     for (let i = 0; i < maxSeconds; i += 1) {
       await new Promise((r) => setTimeout(r, 1000));
@@ -870,7 +871,7 @@ export default function IslandScreen() {
       }
       onStage?.(data.stage);
       if (data.status === 'ready') return data;
-      if (data.status === 'failed') throw new Error(data.error || failedFallback);
+      if (data.status === 'failed') throw new Error(api.islandErrorText(data));
     }
     return null;
   }
@@ -893,7 +894,7 @@ export default function IslandScreen() {
       // Nothing was started, so the island on the server still matches what
       // is on screen. Say why and go back to it.
       setRevoicing(false);
-      setError(e instanceof Error ? e.message : 'Re-voicing failed');
+      setError(e instanceof Error ? e.message : t('player.reVoicingFailed'));
       return;
     }
     invalidateLineAudio(island.id);
@@ -910,7 +911,7 @@ export default function IslandScreen() {
     // A promise finally, not a try finally: the compiler does not lower those.
     const run = async () => {
       try {
-        const data = await waitForIsland(islandId, 60, undefined, 'Re-voicing failed');
+        const data = await waitForIsland(islandId, 60);
         if (!mountedRef.current) return;
         // Once more after the wait: a clip fetched while the server was
         // still speaking would be the old voice.
@@ -918,7 +919,7 @@ export default function IslandScreen() {
         invalidateCachedIsland(islandId);
         if (!data) {
           setIsland(null);
-          setError('Re-voicing is taking longer than expected. Retry to check again.');
+          setError(t('player.reVoicingTakingLong'));
           return;
         }
         // A new generation gives the player a new source URL, so the native
@@ -931,7 +932,7 @@ export default function IslandScreen() {
       } catch (e) {
         if (!mountedRef.current) return;
         setIsland(null);
-        setError(e instanceof Error ? e.message : 'Re-voicing failed');
+        setError(e instanceof Error ? e.message : t('player.reVoicingFailed'));
       }
     };
     await run().finally(() => setRevoicing(false));
@@ -939,7 +940,7 @@ export default function IslandScreen() {
 
   async function renameTitle(title: string) {
     if (!island) return;
-    const finalTitle = title.trim() || 'Untitled island';
+    const finalTitle = title.trim() || t('player.untitledIsland');
     try {
       await api.renameIsland(island.id, finalTitle);
       invalidateCachedIsland(island.id);
@@ -948,7 +949,7 @@ export default function IslandScreen() {
       // stale if a build or revoice updated it in the meantime.
       setIsland((cur) => cur && { ...cur, title: finalTitle });
     } catch (e) {
-      Alert.alert('Could not rename', e instanceof Error ? e.message : 'The server did not answer.');
+      Alert.alert(t('player.couldNotRename'), e instanceof Error ? e.message : t('player.serverDidNotAnswer'));
     }
   }
 
@@ -956,11 +957,11 @@ export default function IslandScreen() {
     if (!island || revoicing || regenerating) return;
     const target: api.Complexity = island.complexity === 'simple' ? 'complex' : 'simple';
     Alert.alert(
-      target === 'complex' ? 'Regenerate with complex patterns?' : 'Regenerate one sentence at a time?',
-      'The current lines are replaced with new ones written from the same recording. This takes about a minute.',
+      target === 'complex' ? t('player.regenerateComplexTitle') : t('player.regenerateSimpleTitle'),
+      t('player.regenerateBody'),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Regenerate', onPress: () => void doRegenerate(target) },
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('player.regenerateLabel'), onPress: () => void doRegenerate(target) },
       ],
     );
   }
@@ -987,7 +988,7 @@ export default function IslandScreen() {
         } catch (e) {
           // Nothing was started, so the island on the server still matches what
           // is on screen. Say why and go back to it.
-          setError(e instanceof Error ? e.message : 'Regenerating failed');
+          setError(e instanceof Error ? e.message : t('player.regenerateFailed'));
           return;
         }
         deleteTakes(island.id);
@@ -1000,7 +1001,7 @@ export default function IslandScreen() {
           // Each new line is written over the same audio path, so by now the
           // server has already replaced the lines this screen is holding.
           // Reload onto whatever it has rather than showing old text.
-          const message = 'Still building. This shows what the server has so far.';
+          const message = t('player.stillBuildingShowsWhatServerHas');
           carryError.current = message;
           setError(message);
           setAttempt((n) => n + 1);
@@ -1011,7 +1012,7 @@ export default function IslandScreen() {
       } catch (e) {
         // The server now holds a failed island with no lines. Reloading shows
         // the failed screen, which already offers Regenerate.
-        setError(e instanceof Error ? e.message : 'Regenerating failed');
+        setError(e instanceof Error ? e.message : t('player.regenerateFailed'));
         setAttempt((n) => n + 1);
       }
     };
@@ -1254,8 +1255,8 @@ export default function IslandScreen() {
 
   // Lock screen / notification text. Blind mode never shows the Japanese.
   function lockMeta(): AudioMetadata {
-    const pos = `Line ${idx + 1} of ${island!.lines.length}`;
-    const artist = island!.title || 'Island';
+    const pos = t('player.lineOfTotal', { index: idx + 1, total: island!.lines.length });
+    const artist = island!.title || t('player.island');
     return blind ? { title: pos, artist } : { title: phrase.label ?? line!.ja, artist, albumTitle: pos };
   }
 
@@ -2255,11 +2256,11 @@ export default function IslandScreen() {
   function confirmDelete() {
     if (!island) return;
     Alert.alert(
-      `Delete "${island.title || 'Untitled island'}"?`,
-      'Its lines, audio and takes are removed.',
+      t('player.deleteIslandTitle', { title: island.title || t('player.untitledIsland') }),
+      t('player.deleteIslandBody'),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => void removeIsland() },
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('common.delete'), style: 'destructive', onPress: () => void removeIsland() },
       ],
     );
   }
@@ -2276,7 +2277,7 @@ export default function IslandScreen() {
       void releaseAudioSession();
       plainBack();
     } catch (e) {
-      Alert.alert('Could not delete', e instanceof Error ? e.message : 'The server did not answer.');
+      Alert.alert(t('player.couldNotDelete'), e instanceof Error ? e.message : t('player.serverDidNotAnswer'));
     }
   }
 
@@ -2292,7 +2293,7 @@ export default function IslandScreen() {
       {
         key: 'speed',
         icon: <SpeedIcon color={speedOn ? verb.listen.c1 : tide.textDim} size={22} />, // prism-player-buttons: verb listen tint
-        label: 'Speed',
+        label: t('player.toolbarSpeed'),
         value: speedLabel(speedLive),
         active: speedOn,
         onPress: () => {
@@ -2311,7 +2312,7 @@ export default function IslandScreen() {
       {
         key: 'repeat',
         icon: <RepeatIcon color={repeatOn ? verb.listen.c1 : tide.textDim} size={22} />, // prism-player-buttons: verb listen tint
-        label: 'Repeat',
+        label: t('player.toolbarRepeat'),
         value: repeatTileLabel(times, pauseMs),
         active: repeatOn,
         onPress: () => {
@@ -2330,7 +2331,7 @@ export default function IslandScreen() {
       {
         key: 'reading',
         icon: <ReadingIcon color={readingOn ? verb.listen.c1 : tide.textDim} size={22} />, // prism-player-buttons: verb listen tint
-        label: 'Reading',
+        label: t('player.toolbarReading'),
         value: READING_LABEL[readingMode],
         active: readingOn,
         onPress: () => {
@@ -2349,15 +2350,15 @@ export default function IslandScreen() {
       {
         key: 'blind',
         icon: <BlindIcon color={blind || !englishShown ? verb.listen.c1 : tide.textDim} size={22} />, // prism-player-buttons: verb listen tint
-        label: 'Blind',
+        label: t('player.toolbarBlind'),
         value:
           blind && !englishShown
-            ? 'Both'
+            ? t('player.blindBoth')
             : blind
               ? LANG_CODE[island?.language ?? 'ja']
               : !englishShown
                 ? LANG_CODE[island?.native ?? 'en']
-                : 'Off',
+                : t('player.blindOff'),
         active: blind || !englishShown,
         onPress: () => {
           setSpeedPopOpen(false);
@@ -2836,7 +2837,7 @@ export default function IslandScreen() {
     else contentReveal.hide(beginMorphBack);
   });
   const onHeaderMenu = useStableHandler(openIslandMenu);
-  const headerTitleText = island?.title || openedTitle(id) || 'Island';
+  const headerTitleText = island?.title || openedTitle(id) || t('player.island');
   // Before the island loads, the line row Home opened the card with, so the
   // header matches the morph's flying copy of it.
   const homeLine = island ? undefined : openedLine(id);
@@ -2874,10 +2875,10 @@ export default function IslandScreen() {
               size={prism.sizes.roundSm}
               verb="tools"
               onPress={() => setAttempt((n) => n + 1)}
-              accessibilityLabel="Retry">
+              accessibilityLabel={t('player.retryLabel')}>
               <SymbolView name={{ ios: 'arrow.clockwise', android: 'refresh' }} size={16} weight="regular" tintColor={verb.tools.c1} />
             </PrismButton>
-            <Text style={{ fontFamily: fonts.ui, fontSize: 11, color: tide.textDim, marginTop: 4, textAlign: 'center' }}>Retry</Text>
+            <Text style={{ fontFamily: fonts.ui, fontSize: 11, color: tide.textDim, marginTop: 4, textAlign: 'center' }}>{t('player.retryLabel')}</Text>
           </View>
         </View>
       </SafeAreaView>
@@ -2929,10 +2930,10 @@ export default function IslandScreen() {
         {header(false)}
         <View style={[styles.fill, styles.center]}>
           {busy ? (
-            <CatConstellation label="Still building this island" />
+            <CatConstellation label={t('player.stillBuildingThisIsland')} />
           ) : (
             <Text style={[styles.body, { color: tide.record }]}>
-              {island.error || 'This island has no lines.'}
+              {api.islandErrorText(island)}
             </Text>
           )}
           {!busy ? (
@@ -2950,13 +2951,13 @@ export default function IslandScreen() {
                     deleteTakes(island.id);
                     setAttempt((n) => n + 1);
                   } catch (e) {
-                    setError(e instanceof Error ? e.message : 'Could not regenerate');
+                    setError(e instanceof Error ? e.message : t('player.couldNotRegenerate'));
                   }
                 }}
-                accessibilityLabel="Regenerate">
+                accessibilityLabel={t('player.regenerateLabel')}>
                 <SymbolView name={{ ios: 'sparkles', android: 'auto_awesome' }} size={16} weight="regular" tintColor={verb.read.c1} />
               </PrismButton>
-              <Text style={{ fontFamily: fonts.ui, fontSize: 11, color: tide.textDim, marginTop: 4, textAlign: 'center' }}>Regenerate</Text>
+              <Text style={{ fontFamily: fonts.ui, fontSize: 11, color: tide.textDim, marginTop: 4, textAlign: 'center' }}>{t('player.regenerateLabel')}</Text>
             </View>
           ) : (
             // icon-buttons: Refresh
@@ -2966,10 +2967,10 @@ export default function IslandScreen() {
                 size={prism.sizes.roundSm}
                 verb="tools"
                 onPress={() => setAttempt((n) => n + 1)}
-                accessibilityLabel="Refresh">
+                accessibilityLabel={t('player.refreshLabel')}>
                 <SymbolView name={{ ios: 'arrow.clockwise', android: 'refresh' }} size={16} weight="regular" tintColor={verb.tools.c1} />
               </PrismButton>
-              <Text style={{ fontFamily: fonts.ui, fontSize: 11, color: tide.textDim, marginTop: 4, textAlign: 'center' }}>Refresh</Text>
+              <Text style={{ fontFamily: fonts.ui, fontSize: 11, color: tide.textDim, marginTop: 4, textAlign: 'center' }}>{t('player.refreshLabel')}</Text>
             </View>
           )}
         </View>
@@ -2984,7 +2985,7 @@ export default function IslandScreen() {
         <View style={[styles.fill, styles.center]}>
           <CatConstellation
             label={
-              revoicing ? 'Re-voicing' : api.stageLabel(buildStage).replace(/…$/, '')
+              revoicing ? t('player.reVoicing') : api.stageLabel(buildStage).replace(/…$/, '')
             }
           />
         </View>
@@ -3140,7 +3141,7 @@ export default function IslandScreen() {
         busy={revoicing || regenerating}
         recording={take.phase === 'recording'}
         exporting={exporting}
-        revoiceName={voice !== null && island.speaker !== voice ? voiceName || 'the chosen voice' : null}
+        revoiceName={voice !== null && island.speaker !== voice ? voiceName || t('player.chosenVoice') : null}
         onRename={onMenuRename}
         onExport={onMenuExport}
         onRevoice={onMenuRevoice}
@@ -3203,6 +3204,7 @@ const PlayerHeader = memo(function PlayerHeader({
   onBack,
   onMenu,
 }: PlayerHeaderProps) {
+  const { t } = useT();
   const insets = useSafeAreaInsets();
   // The title and both buttons: the overlay draws them while a morph runs.
   const titleHidden = useMorphHidesTitle(id, 'header');
@@ -3225,11 +3227,11 @@ const PlayerHeader = memo(function PlayerHeader({
           onTitleRect={setHeaderTitleRect}
         />
       </View>
-      <PressScale onPress={onBack} hitSlop={12} accessibilityLabel="Back" style={styles.headerButton}>
+      <PressScale onPress={onBack} hitSlop={12} accessibilityLabel={t('player.back')} style={styles.headerButton}>
         <Text style={[styles.backGlyph, titleHidden ? styles.hiddenChrome : null]}>‹</Text>
       </PressScale>
       {onMenu ? (
-        <PressScale onPress={onMenu} hitSlop={12} accessibilityLabel="Island menu" style={styles.headerButton}>
+        <PressScale onPress={onMenu} hitSlop={12} accessibilityLabel={t('player.islandMenu')} style={styles.headerButton}>
           <Text style={[styles.menuGlyph, titleHidden ? styles.hiddenChrome : null]}>…</Text>
         </PressScale>
       ) : (

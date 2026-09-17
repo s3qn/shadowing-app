@@ -7,6 +7,8 @@ import { PressScale } from '@/components/press-scale';
 import { SettingsRow, SettingsSection } from '@/components/tide/settings-row';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
+import { useT } from '@/lib/i18n';
+import { type Key } from '@/locales/en';
 import {
   getSettings,
   READING_OPTIONS,
@@ -17,14 +19,15 @@ import {
   type ReadingMode,
 } from '@/lib/settings';
 
-const READING_LABEL: Record<ReadingMode, string> = {
-  off: 'Off',
-  furigana: 'Furigana',
-  kana: 'Kana',
-  romaji: 'Romaji',
+const READING_LABEL_KEY: Record<ReadingMode, Key> = {
+  off: 'settings.practice.readingOff',
+  furigana: 'settings.practice.readingFurigana',
+  kana: 'settings.practice.readingKana',
+  romaji: 'settings.practice.readingRomaji',
 };
 
 export default function PracticeSettingsScreen() {
+  const { t } = useT();
   const [reading, setReadingState] = useState<ReadingMode>('furigana');
   const [pitch, setPitchState] = useState(true);
   const [hideEnglish, setHideEnglishState] = useState(false);
@@ -54,7 +57,7 @@ export default function PracticeSettingsScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       <ScrollView contentContainerStyle={styles.list}>
-        <SettingsSection title="Reading" footnote="Default for new sessions. Change it per session from the player.">
+        <SettingsSection title={t('settings.practice.reading')} footnote={t('settings.playback.defaultFootnote')}>
           <View style={styles.chipRow}>
             {READING_OPTIONS.map((opt) => {
               const on = opt === reading;
@@ -70,7 +73,7 @@ export default function PracticeSettingsScreen() {
                     },
                   ]}>
                   <Text style={[styles.chipText, { color: on ? tide.sky[0] : tide.text }]}>
-                    {READING_LABEL[opt]}
+                    {t(READING_LABEL_KEY[opt])}
                   </Text>
                 </PressScale>
               );
@@ -78,9 +81,9 @@ export default function PracticeSettingsScreen() {
           </View>
         </SettingsSection>
 
-        <SettingsSection title="Practice defaults" footnote="Default for new sessions. Change it per session from the player.">
+        <SettingsSection title={t('settings.practice.defaults')} footnote={t('settings.playback.defaultFootnote')}>
           <SettingsRow
-            label="Pitch marks"
+            label={t('settings.practice.pitchMarks')}
             icon={{ ios: 'textformat', android: 'text_fields' }}
             switchValue={pitch}
             onSwitchChange={(next) => {
@@ -89,7 +92,7 @@ export default function PracticeSettingsScreen() {
             }}
           />
           <SettingsRow
-            label="Hide English by default"
+            label={t('settings.practice.hideEnglish')}
             icon={{ ios: 'text.badge.xmark', android: 'subtitles_off' }}
             switchValue={hideEnglish}
             onSwitchChange={(next) => {
@@ -98,7 +101,7 @@ export default function PracticeSettingsScreen() {
             }}
           />
           <SettingsRow
-            label="Blind by default"
+            label={t('settings.practice.blindByDefault')}
             last
             icon={{ ios: 'eye.slash', android: 'visibility_off' }}
             switchValue={blind}

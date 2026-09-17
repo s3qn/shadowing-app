@@ -16,6 +16,7 @@ import { PrismButton } from '@/components/prism';
 import { TailMark } from '@/components/onboarding/tail-mark';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
+import { useT } from '@/lib/i18n';
 import { useSkyStyle } from '@/lib/sky';
 
 type Chip = { label: string; top?: number; bottom?: number; left?: number; right?: number };
@@ -82,6 +83,7 @@ function FloatingChip({ chip, delay, reducedMotion }: { chip: Chip; delay: numbe
  * both are still under reduced motion.
  */
 export function WelcomeStep({ onNext }: { onNext: () => void }) {
+  const { t } = useT();
   const sky = useSkyStyle();
   const reducedMotion = useReducedMotion();
 
@@ -97,9 +99,9 @@ export function WelcomeStep({ onNext }: { onNext: () => void }) {
           ))}
         </View>
         <Text style={styles.wordmark}>Echo Tail</Text>
-        <Text style={styles.tagline}>Learn a language by following its voice, one sentence at a time.</Text>
+        <Text style={styles.tagline}>{t('settings.onboarding.tagline')}</Text>
         <View style={styles.spacer} />
-        <PrismButton shape="pill" verb="listen" on label="Get started" onPress={onNext} />
+        <PrismButton shape="pill" verb="listen" on label={t('settings.onboarding.getStarted')} onPress={onNext} />
       </View>
     </View>
   );

@@ -2,6 +2,7 @@ import * as Sharing from 'expo-sharing';
 import { useEffect, useRef, useState } from 'react';
 
 import * as api from '@/lib/api';
+import { t } from '@/lib/i18n';
 
 type Params = {
   islandId: string;
@@ -22,12 +23,13 @@ const WHITESPACE = /\s+/g;
 export function exportFileName(title: string, speed: number): string {
   let safe = title.replace(UNSAFE_CHARS, ' ').replace(WHITESPACE, ' ').trim();
   safe = safe.slice(0, 60).trim();
-  if (!safe) safe = 'Island';
+  if (!safe) safe = t('player.island');
   return `${safe} ${speed.toFixed(2)}x.m4a`;
 }
 
-const SHARING_UNAVAILABLE = 'Sharing is not available on this device';
-const GENERIC_ERROR = 'Could not export this island. Try again.';
+function sharingUnavailable(): string {
+  return t('player.sharingUnavailable');
+}
 
 /** The native download error carries only the HTTP status, worded per
  * platform ("response has status: 409" on Android, "response has status 409"
@@ -39,14 +41,14 @@ export function statusFromError(message: string): number | null {
 
 export function exportErrorText(e: unknown): string {
   const message = e instanceof Error ? e.message : '';
-  if (message === SHARING_UNAVAILABLE) return message;
+  if (message === sharingUnavailable()) return message;
   switch (statusFromError(message)) {
     case 409:
-      return 'This island is still being built, or a line has no audio yet.';
+      return t('player.exportNotReady');
     case 502:
-      return 'The voice engine is unavailable right now.';
+      return t('player.exportVoiceUnavailable');
     default:
-      return GENERIC_ERROR;
+      return t('player.exportFailed');
   }
 }
 
@@ -74,7 +76,7 @@ export function useIslandExport({ islandId, title, speed, gapMs, onError }: Para
     setWorking(true);
     try {
       if (!(await Sharing.isAvailableAsync())) {
-        throw new Error(SHARING_UNAVAILABLE);
+        throw new Error(sharingUnavailable());
       }
       const fileName = exportFileName(title, speed);
       const file = await api.exportIsland(islandId, speed, gapMs, EXPORT_REPEATS, fileName);
@@ -83,7 +85,7 @@ export function useIslandExport({ islandId, title, speed, gapMs, onError }: Para
       await Sharing.shareAsync(file.uri, {
         mimeType: 'audio/mp4',
         UTI: 'public.mpeg-4-audio',
-        dialogTitle: title || 'Island',
+        dialogTitle: title || t('player.island'),
       });
     } catch (e) {
       if (mounted.current) onError(exportErrorText(e));

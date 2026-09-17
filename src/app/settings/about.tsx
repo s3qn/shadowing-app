@@ -7,12 +7,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SettingsRow, SettingsSection } from '@/components/tide/settings-row';
 import { Spacing, tide } from '@/constants/theme';
 import { deviceIdSync } from '@/lib/device';
+import { useT } from '@/lib/i18n';
 
 /** Row that copies the device id on tap and shows the full value in place
  * for two seconds before reverting to the short form. */
 function DeviceIdRow() {
+  const { t } = useT();
   const id = deviceIdSync();
-  const short = id ? id.slice(0, 8) : 'Unknown';
+  const short = id ? id.slice(0, 8) : t('settings.about.unknown');
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -32,7 +34,7 @@ function DeviceIdRow() {
 
   return (
     <SettingsRow
-      label="Device ID"
+      label={t('settings.about.deviceId')}
       value={copied ? id : short}
       singleLineValue
       onPress={onPress}
@@ -43,28 +45,25 @@ function DeviceIdRow() {
 }
 
 export default function AboutSettingsScreen() {
-  const version = Constants.expoConfig?.version ?? 'Unknown';
+  const { t } = useT();
+  const version = Constants.expoConfig?.version ?? t('settings.about.unknown');
 
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       <ScrollView contentContainerStyle={styles.list}>
-        <SettingsSection
-          title="App"
-          footnote="Islands belong to this phone. Sean needs this id once to keep his own islands.">
-          <SettingsRow label="Version" value={version} icon={{ ios: 'info.circle', android: 'info' }} />
+        <SettingsSection title={t('settings.about.app')} footnote={t('settings.about.appFootnote')}>
+          <SettingsRow label={t('settings.about.version')} value={version} icon={{ ios: 'info.circle', android: 'info' }} />
           <DeviceIdRow />
         </SettingsSection>
 
-        <SettingsSection
-          title="Credits"
-          footnote="Speech is generated with VOICEVOX and transcribed with faster-whisper, both open source and run on this device's own network.">
+        <SettingsSection title={t('settings.about.credits')} footnote={t('settings.about.creditsFootnote')}>
           <SettingsRow
-            label="Voice synthesis"
+            label={t('settings.about.voiceSynthesis')}
             value="VOICEVOX"
             icon={{ ios: 'speaker.wave.2', android: 'volume_up' }}
           />
           <SettingsRow
-            label="Speech recognition"
+            label={t('settings.about.speechRecognition')}
             value="faster-whisper"
             last
             icon={{ ios: 'mic', android: 'mic' }}
@@ -72,19 +71,19 @@ export default function AboutSettingsScreen() {
         </SettingsSection>
 
         <SettingsSection
-          title="Artwork"
+          title={t('settings.about.artwork')}
           footnote="Animated emoji by Google (Noto Emoji), licensed under CC BY 4.0.">
           <SettingsRow
-            label="Animated emoji"
+            label={t('settings.about.animatedEmoji')}
             value="Noto Emoji"
             last
             icon={{ ios: 'face.smiling', android: 'mood' }}
           />
         </SettingsSection>
 
-        <SettingsSection title="Licences" footnote="Every open source dependency keeps its own licence, unmodified.">
+        <SettingsSection title={t('settings.about.licences')} footnote={t('settings.about.licencesFootnote')}>
           <SettingsRow
-            label="Open source licences"
+            label={t('settings.about.openSourceLicences')}
             value="See package.json"
             last
             icon={{ ios: 'doc.text', android: 'description' }}

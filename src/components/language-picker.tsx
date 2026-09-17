@@ -5,9 +5,41 @@ import { PressScale } from '@/components/press-scale';
 import { CheckIcon, SearchIcon } from '@/components/tide/toolbar-icons';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
+import { useDir, useT } from '@/lib/i18n';
 import { getLanguage, LANGUAGES, type LanguageEntry, type LanguageId, type Region } from '@/lib/languages';
+import { type Key } from '@/locales/en';
 
 const REGIONS: Region[] = ['Europe', 'Asia', 'Middle East', 'Africa', 'Americas'];
+
+const REGION_KEY: Record<Region, Key> = {
+  Europe: 'settings.picker.regionEurope',
+  Asia: 'settings.picker.regionAsia',
+  'Middle East': 'settings.picker.regionMiddleEast',
+  Africa: 'settings.picker.regionAfrica',
+  Americas: 'settings.picker.regionAmericas',
+};
+
+/** The name shown for a catalogue language id, translated (`entry.english`
+ * stays on the entry as a stable id for search; the display name always
+ * goes through `language.<id>`). */
+function languageName(t: (key: Key) => string, id: LanguageId): string {
+  return t(`language.${id}` as Key);
+}
+
+const SECTION_KEY: Record<string, Key> = {
+  'Ready to learn': 'settings.picker.readyToLearn',
+  'Coming soon': 'settings.picker.comingSoon',
+  Suggested: 'settings.picker.suggested',
+  'All languages': 'settings.picker.allLanguages',
+};
+
+/** `Section.title` is one of the four fixed English labels the picker
+ * builds internally (see `sections` below), so this is a lookup, not a
+ * translation of arbitrary content. */
+function sectionTitle(t: (key: Key) => string, title: string): string {
+  const key = SECTION_KEY[title];
+  return key ? t(key) : title;
+}
 
 type Section = { title: string; data: LanguageEntry[] };
 
@@ -61,14 +93,16 @@ function RegionChip({ label, active, onPress }: { label: string; active: boolean
 }
 
 function LanguageRow({ entry, selected, onPress }: { entry: LanguageEntry; selected: boolean; onPress: () => void }) {
+  const { t } = useT();
+  const dir = useDir();
   return (
-    <PressScale onPress={onPress} style={styles.row}>
+    <PressScale onPress={onPress} style={[styles.row, dir.row]}>
       <View style={styles.badgeBox}>
         <Text style={styles.badge}>{entry.badge}</Text>
       </View>
       <View style={styles.rowBody}>
-        <Text style={styles.native}>{entry.native}</Text>
-        <Text style={styles.english}>{entry.english}</Text>
+        <Text style={[styles.native, dir.text]}>{entry.native}</Text>
+        <Text style={[styles.english, dir.text]}>{languageName(t, entry.id)}</Text>
       </View>
       {selected ? <CheckIcon color={tide.listen} size={20} /> : null}
     </PressScale>
@@ -82,6 +116,8 @@ function LanguageRow({ entry, selected, onPress }: { entry: LanguageEntry; selec
  * their own pill rows, so the catalogue only needs wiring once.
  */
 export function LanguagePicker({ mode, value, onChange, exclude }: LanguagePickerProps) {
+  const { t } = useT();
+  const dir = useDir();
   const [query, setQuery] = useState('');
   const [activeRegion, setActiveRegion] = useState<Region | null>(null);
 
@@ -118,13 +154,13 @@ export function LanguagePicker({ mode, value, onChange, exclude }: LanguagePicke
       keyboardShouldPersistTaps="handled"
       ListHeaderComponent={
         <View style={styles.header}>
-          <View style={styles.searchRow}>
+          <View style={[styles.searchRow, dir.row]}>
             <SearchIcon color={tide.textDim} size={18} />
             <TextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, dir.text]}
               value={query}
               onChangeText={setQuery}
-              placeholder="Search a language"
+              placeholder={t('settings.picker.searchPlaceholder')}
               placeholderTextColor={tide.textDim}
               autoCapitalize="none"
               autoCorrect={false}
@@ -135,7 +171,7 @@ export function LanguagePicker({ mode, value, onChange, exclude }: LanguagePicke
               {REGIONS.map((region) => (
                 <RegionChip
                   key={region}
-                  label={region}
+                  label={t(REGION_KEY[region])}
                   active={activeRegion === region}
                   onPress={() => setActiveRegion((prev) => (prev === region ? null : region))}
                 />
@@ -145,16 +181,14 @@ export function LanguagePicker({ mode, value, onChange, exclude }: LanguagePicke
         </View>
       }
       ListEmptyComponent={
-        query.trim() ? <Text style={styles.empty}>No languages match &quot;{query.trim()}&quot;.</Text> : null
+        query.trim() ? <Text style={styles.empty}>{t('settings.picker.noMatch', { query: query.trim() })}</Text> : null
       }
       renderSectionHeader={({ section }) => (
         <View style={styles.sectionHeaderWrap}>
           {mode === 'learn' && section.title === 'Coming soon' ? (
-            <Text style={styles.soonNote}>
-              Not ready for islands yet. Picking one tells us what to build next; islands still use Japanese for now.
-            </Text>
+            <Text style={styles.soonNote}>{t('settings.picker.soonNote')}</Text>
           ) : null}
-          <Text style={styles.sectionHeader}>{section.title}</Text>
+          <Text style={styles.sectionHeader}>{sectionTitle(t, section.title)}</Text>
         </View>
       )}
       renderItem={({ item }) => <LanguageRow entry={item} selected={item.id === value} onPress={() => onChange(item.id)} />}

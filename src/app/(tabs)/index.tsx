@@ -51,6 +51,7 @@ import { fonts } from '@/constants/fonts';
 import { prism, Radius, Spacing, tide, verb, withAlpha } from '@/constants/theme';
 import { LitPillFill, LitPillRim, PILL_H, PILL_ICON_OFF, PILL_LABEL_SIZE, PILL_PAD_X, PillTrayShell } from '@/components/prism/pill-tray';
 import { useSkyStyle, isNight } from '@/lib/sky';
+import { useT, useDir } from '@/lib/i18n';
 import * as api from '@/lib/api';
 import { registerCard, startOpen, unregisterCard, useMorphHidesTitle, type CardRect } from '@/lib/card-morph';
 import { hapticImpact, hapticSelection } from '@/lib/haptics';
@@ -126,7 +127,6 @@ function waveEntering(delayMs: number) {
 
 const SORTS = ['newest', 'least'] as const;
 type Sort = (typeof SORTS)[number];
-const SORT_LABEL: Record<Sort, string> = { newest: 'Newest', least: 'Least practiced' };
 
 // pill-tray-tab-bar: sort row start
 const SORT_PILL_BORDER = 1;
@@ -170,6 +170,9 @@ const TIDE_TARGET_SECONDS = 20 * 60;
 
 export default function IslandsScreen() {
   const router = useRouter();
+  const { t } = useT();
+  const dir = useDir();
+  const SORT_LABEL: Record<Sort, string> = { newest: t('home.sortNewest'), least: t('home.sortLeastPracticed') };
   const sky = useSkyStyle();
   const night = isNight(new Date());
   const [islands, setIslands] = useState<api.IslandSummary[]>([]);
@@ -333,14 +336,14 @@ export default function IslandsScreen() {
     const lineIndex = Math.max(0, Math.min(saved, lineCount - 1));
     startOpen(
       item.id,
-      item.title || 'Untitled island',
+      item.title || t('home.untitledIsland'),
       rect,
       () => {
         router.push({ pathname: '/island/[id]', params: { id: item.id, morph: '1' } });
       },
       { lineIndex, lineCount },
     );
-  }, [router]);
+  }, [router, t]);
   function saveRename() {
     const item = menuItem;
     if (!item) return;
@@ -362,10 +365,10 @@ export default function IslandsScreen() {
       setError('');
       setLoading(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not reach the server');
+      setError(e instanceof Error ? e.message : t('home.serverUnreachable'));
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   async function remove(id: string) {
     const restore = islands.find((i) => i.id === id) ?? null;
@@ -386,18 +389,18 @@ export default function IslandsScreen() {
       if (restore) {
         setIslands((prev) => (prev.some((i) => i.id === id) ? prev : [...prev, restore]));
       }
-      Alert.alert('Could not delete', e instanceof Error ? e.message : 'The server did not answer.');
+      Alert.alert(t('home.deleteFailedTitle'), e instanceof Error ? e.message : t('home.serverNoAnswer'));
     }
   }
 
   async function rename(id: string, title: string) {
-    const finalTitle = title.trim() || 'Untitled island';
+    const finalTitle = title.trim() || t('home.untitledIsland');
     try {
       await api.renameIsland(id, finalTitle);
       invalidateCachedIsland(id);
       setIslands((prev) => prev.map((i) => (i.id === id ? { ...i, title: finalTitle } : i)));
     } catch (e) {
-      Alert.alert('Could not rename', e instanceof Error ? e.message : 'The server did not answer.');
+      Alert.alert(t('home.renameFailedTitle'), e instanceof Error ? e.message : t('home.serverNoAnswer'));
     }
   }
 
@@ -480,11 +483,11 @@ export default function IslandsScreen() {
 
   function confirmDelete(item: api.IslandSummary) {
     Alert.alert(
-      `Delete "${item.title || 'Untitled island'}"?`,
-      'The recording, its lines and their audio are removed. This cannot be undone.',
+      t('home.deleteConfirmTitle', { title: item.title || t('home.untitledIsland') }),
+      t('home.deleteConfirmBody'),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => void remove(item.id) },
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('common.delete'), style: 'destructive', onPress: () => void remove(item.id) },
       ],
     );
   }
@@ -653,14 +656,14 @@ export default function IslandsScreen() {
             size={prism.sizes.roundSm}
             verb="tools"
             onPress={openSearch}
-            accessibilityLabel="Search islands">
+            accessibilityLabel={t('home.searchAccessibilityLabel')}>
             <SearchIcon color={verb.tools.c1} size={22} />
           </PrismButton>
         </Animated.View>
         // prism-home: end
       ),
     }),
-    [sky.top, searchOpen, openSearch, searchButtonStyle],
+    [sky.top, searchOpen, openSearch, searchButtonStyle, t],
   );
 
   // Top pad centres card 0 in the visible part; the bottom pad adds the
@@ -691,10 +694,7 @@ export default function IslandsScreen() {
             <View style={[styles.star, { top: '70%', left: '20%' }]} />
           </>
         )}
-        <Text style={[styles.empty, { color: tide.text }]}>
-          Set EXPO_PUBLIC_SHADOW_API_URL and EXPO_PUBLIC_SHADOW_TOKEN in .env, then restart
-          the dev server.
-        </Text>
+        <Text style={[styles.empty, { color: tide.text }]}>{t('home.notConfigured')}</Text>
       </SafeAreaView>
     );
   }
@@ -783,8 +783,8 @@ export default function IslandsScreen() {
                 {error
                   ? error
                   : query.trim() && visibleIslands.length > 0
-                    ? 'No island matches'
-                    : 'No islands yet. Record a minute about your day and one gets built from it.'}
+                    ? t('home.noIslandMatches')
+                    : t('home.noIslandsYet')}
               </Text>
             </View>
           )
@@ -802,11 +802,12 @@ export default function IslandsScreen() {
           // card never lights, so its tiers are never worth the folder read.
           const tiers = lit && !busy && item.status !== 'failed' ? tiersFor(item.id, item.line_count) : null;
           const keptUp = tiers ? keptUpFor(item.id, item.line_count) : null;
+          const complexityLabel = item.complexity === 'simple' ? t('home.complexitySimple') : t('home.complexityComplex');
           const meta = item.status === 'failed'
-            ? 'Failed'
+            ? t('home.failed')
             : busy
               ? api.stageLabel(item.stage)
-              : `${item.line_count} lines · ${item.complexity}${minutes >= 1 ? ` · ${minutes} min` : ''}${keptUp && keptUp.total > 0 ? ` · kept up ${keptUp.kept}/${keptUp.total}` : ''}`;
+              : `${t('home.lines', { count: item.line_count })} · ${complexityLabel}${minutes >= 1 ? ` · ${t('home.minutes', { count: minutes })}` : ''}${keptUp && keptUp.total > 0 ? ` · ${t('home.keptUp', { kept: keptUp.kept, total: keptUp.total })}` : ''}`;
           return (
             <IslandRow
               item={item}
@@ -837,7 +838,7 @@ export default function IslandsScreen() {
         verb="speak"
         containerStyle={styles.fab}
         onPress={() => router.push('/record')}
-        accessibilityLabel="Record a new island">
+        accessibilityLabel={t('home.recordAccessibilityLabel')}>
         <SymbolView name={{ ios: 'mic.fill', android: 'mic' }} size={24} weight="regular" tintColor={verb.speak.c1} />
       </PrismButton>
       {/* prism-home: end */}
@@ -845,7 +846,7 @@ export default function IslandsScreen() {
         open={menuItem !== null}
         onClose={() => setMenuItem(null)}
         onDismissed={runAfterSheet}
-        title={menuItem?.title || 'Untitled island'}
+        title={menuItem?.title || t('home.untitledIsland')}
         avoidKeyboard>
         {/* prism-home: edited region */}
         {renaming ? (
@@ -859,7 +860,7 @@ export default function IslandsScreen() {
               style={styles.sheetInput}
             />
             <GlassPanel style={styles.sheetActionsRow}>
-              <PrismButton shape="pill" verb="tools" flat label="Save" onPress={saveRename}>
+              <PrismButton shape="pill" verb="tools" flat label={t('home.save')} onPress={saveRename}>
                 <SymbolView name={{ ios: 'checkmark', android: 'check' }} size={16} weight="regular" tintColor={verb.tools.c1} />
               </PrismButton>
             </GlassPanel>
@@ -871,7 +872,7 @@ export default function IslandsScreen() {
               verb="tools"
               flat
               containerStyle={styles.sheetActionPill}
-              label="Rename"
+              label={t('home.rename')}
               onPress={() => setRenaming(true)}>
               <SymbolView name={{ ios: 'pencil', android: 'edit' }} size={16} weight="regular" tintColor={verb.tools.c1} />
             </PrismButton>
@@ -884,14 +885,14 @@ export default function IslandsScreen() {
                 verb="speak"
                 flat
                 containerStyle={styles.sheetActionPill}
-                accessibilityLabel="Delete island"
+                accessibilityLabel={t('home.deleteIsland')}
                 onPress={() => {
                   const item = menuItem;
                   if (!item) return;
                   closeSheetThen(() => confirmDelete(item));
                 }}>
                 <SymbolView name={{ ios: 'trash', android: 'delete' }} size={16} weight="regular" tintColor={verb.speak.c1} />
-                <Text style={styles.sheetDeleteLabel}>Delete island</Text>
+                <Text style={styles.sheetDeleteLabel}>{t('home.deleteIsland')}</Text>
               </PrismButton>
             </View>
           </GlassPanel>
@@ -979,6 +980,8 @@ const IslandRow = memo(function IslandRow({
   onOpen,
   onMenu,
 }: IslandRowProps) {
+  const { t } = useT();
+  const dir = useDir();
   const pressed = useSharedValue(0);
   const reducedMotion = useReducedMotion();
   const cardRef = useRef<View>(null);
@@ -1246,16 +1249,16 @@ const IslandRow = memo(function IslandRow({
         <Animated.View pointerEvents="none" style={[styles.flashFill, { backgroundColor: tide.lang.ja }, flashFillStyle]} />
         <Animated.View pointerEvents="none" style={[styles.flashBorder, { borderColor: tide.lang.ja }, flashBorderStyle]} />
         <View style={styles.cardTop}>
-          <Text numberOfLines={2} style={[styles.cardTitle, { color: tide.text, opacity: titleHidden ? 0 : 1 }]}>
-            {item.title || 'Untitled island'}
+          <Text numberOfLines={2} style={[styles.cardTitle, dir.text, { color: tide.text, opacity: titleHidden ? 0 : 1 }]}>
+            {item.title || t('home.untitledIsland')}
           </Text>
         </View>
-        <View style={styles.metaRow}>
+        <View style={[styles.metaRow, dir.row]}>
           {busy ? <CatConstellation compact /> : null}
           {due ? (
-            <Text style={[styles.cardMeta, { color: tide.turn }]}>Due today · </Text>
+            <Text style={[styles.cardMeta, dir.text, { color: tide.turn }]}>{t('home.dueToday')} · </Text>
           ) : null}
-          <Text style={[styles.cardMeta, { color: tide.textDim }]}>{meta}</Text>
+          <Text style={[styles.cardMeta, dir.text, { color: tide.textDim }]}>{meta}</Text>
           {langPill ? (
             <View style={styles.langPill}>
               <Text style={styles.langPillText}>{langPill}</Text>

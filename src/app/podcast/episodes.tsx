@@ -8,6 +8,7 @@ import { CatConstellation } from '@/components/cat-constellation';
 import { PressScale } from '@/components/press-scale';
 
 import { fonts } from '@/constants/fonts';
+import { useDir, useT } from '@/lib/i18n';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
 
@@ -23,15 +24,17 @@ function duration(seconds: number | null): string | null {
   return `${m}:${String(rem).padStart(2, '0')}`;
 }
 
-function published(value: string | null): string | null {
+function published(value: string | null, locale: string): string | null {
   if (!value) return null;
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString();
+  return d.toLocaleDateString(locale);
 }
 
 export default function PodcastEpisodesScreen() {
   const router = useRouter();
+  const { t, locale } = useT();
+  const dir = useDir();
   const { feedUrl, title } = useLocalSearchParams<{ feedUrl: string; title?: string }>();
 
   const [episodes, setEpisodes] = useState<api.PodcastEpisode[] | null>(null);
@@ -53,7 +56,7 @@ export default function PodcastEpisodesScreen() {
       })
       .catch((e) => {
         if (cancelled) return;
-        setError(e instanceof Error ? e.message : 'The feed could not be loaded.');
+        setError(e instanceof Error ? e.message : t('home.episodesFeedError'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -61,12 +64,12 @@ export default function PodcastEpisodesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [feedUrl, title]);
+  }, [feedUrl, title, t]);
 
   function buildFrom(episode: api.PodcastEpisode) {
     router.push({
       pathname: '/podcast/build',
-      params: { audioUrl: episode.audio_url, title: episode.title || feedTitle || 'Podcast episode' },
+      params: { audioUrl: episode.audio_url, title: episode.title || feedTitle || t('home.episodeFallbackTitle') },
     });
   }
 
@@ -75,7 +78,7 @@ export default function PodcastEpisodesScreen() {
       <StatusBar style="light" />
       <Stack.Screen
         options={{
-          title: feedTitle || 'Episodes',
+          title: feedTitle || t('home.episodesTitle'),
           headerStyle: { backgroundColor: tide.sky[0] },
           headerTintColor: tide.text,
           headerShadowVisible: false,
@@ -84,7 +87,7 @@ export default function PodcastEpisodesScreen() {
 
       {loading ? (
         <View style={styles.center}>
-          <CatConstellation size={120} label="Loading" />
+          <CatConstellation size={120} label={t('common.loading')} />
         </View>
       ) : error ? (
         <View style={styles.center}>
@@ -98,14 +101,14 @@ export default function PodcastEpisodesScreen() {
           keyExtractor={(item, i) => `${item.audio_url}-${i}`}
           renderItem={({ item }) => {
             const dur = duration(item.duration_s);
-            const pub = published(item.published);
+            const pub = published(item.published, locale);
             const meta = [dur, pub].filter(Boolean).join(' · ');
             return (
               <PressScale onPress={() => buildFrom(item)} accessibilityRole="button" style={styles.episode}>
-                <Text style={styles.episodeTitle} numberOfLines={2}>
-                  {item.title || 'Untitled episode'}
+                <Text style={[styles.episodeTitle, dir.text]} numberOfLines={2}>
+                  {item.title || t('home.untitledEpisode')}
                 </Text>
-                {meta ? <Text style={styles.episodeMeta}>{meta}</Text> : null}
+                {meta ? <Text style={[styles.episodeMeta, dir.text]}>{meta}</Text> : null}
               </PressScale>
             );
           }}

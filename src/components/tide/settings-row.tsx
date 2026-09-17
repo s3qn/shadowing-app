@@ -6,6 +6,7 @@ import { PressScale } from '@/components/press-scale';
 import type { SheetIcon } from '@/components/sheet/sheet-rows';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide, verb, withAlpha } from '@/constants/theme';
+import { useDir } from '@/lib/i18n';
 
 /**
  * iOS-style grouped list section: an uppercase header, a card of rows with a
@@ -21,11 +22,12 @@ export function SettingsSection({
   footnote?: string;
   children: ReactNode;
 }) {
+  const dir = useDir();
   return (
     <View style={styles.section}>
-      <Text style={[styles.title, { color: tide.textDim }]}>{title}</Text>
+      <Text style={[styles.title, { color: tide.textDim }, dir.text]}>{title}</Text>
       <View style={[styles.card, { backgroundColor: tide.water }]}>{children}</View>
-      {footnote ? <Text style={[styles.footnote, { color: tide.textDim }]}>{footnote}</Text> : null}
+      {footnote ? <Text style={[styles.footnote, { color: tide.textDim }, dir.text]}>{footnote}</Text> : null}
     </View>
   );
 }
@@ -60,15 +62,21 @@ export function SettingsRow({
 }) {
   const hasSwitch = onSwitchChange !== undefined;
   const tint = destructive ? tide.record : tide.text;
+  const dir = useDir();
   const content = (
-    <View style={[styles.row, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: tide.waterline }]}>
-      <View style={[styles.lead, singleLineValue && styles.leadFixed]}>
+    <View
+      style={[
+        styles.row,
+        dir.row,
+        !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: tide.waterline },
+      ]}>
+      <View style={[styles.lead, dir.row, singleLineValue && styles.leadFixed]}>
         {icon ? (
           <View style={styles.iconSlot}>
             <SymbolView name={icon} size={20} weight="regular" tintColor={tint} />
           </View>
         ) : null}
-        <Text style={[styles.label, { color: destructive ? tide.record : tide.text }]}>{label}</Text>
+        <Text style={[styles.label, { color: destructive ? tide.record : tide.text }, dir.text]}>{label}</Text>
       </View>
       {hasSwitch ? (
         <Switch
@@ -81,13 +89,13 @@ export function SettingsRow({
           {dotColor ? <View style={[styles.dot, { backgroundColor: dotColor }]} /> : null}
           {value ? (
             <Text
-              style={[styles.value, { color: tide.textDim }, singleLineValue && styles.shrink]}
+              style={[styles.value, { color: tide.textDim }, dir.text, singleLineValue && styles.shrink]}
               numberOfLines={singleLineValue ? 1 : undefined}
               ellipsizeMode={singleLineValue ? 'middle' : undefined}>
               {value}
             </Text>
           ) : null}
-          {onPress ? <Text style={[styles.chevron, { color: tide.textDim }]}>{'›'}</Text> : null}
+          {onPress ? <Text style={[styles.chevron, { color: tide.textDim }]}>{dir.chevron}</Text> : null}
         </View>
       )}
     </View>

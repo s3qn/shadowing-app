@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { PressScale } from '@/components/press-scale';
 import { CheckIcon, CopyIcon, ExplainIcon, RepeatIcon } from '@/components/tide/toolbar-icons';
 import { Radius, tide } from '@/constants/theme';
+import { useT } from '@/lib/i18n';
 
 const BUTTON_SIZE = 44;
 const BUTTON_GAP = 10;
@@ -34,6 +35,7 @@ const COPIED_LABEL_MS = 1200;
  * this popup depends on the result.
  */
 export function SelectionPopup({ left, top, onRepeat, onExplain, onCopy }: Props) {
+  const { t } = useT();
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -61,21 +63,21 @@ export function SelectionPopup({ left, top, onRepeat, onExplain, onCopy }: Props
         onPress={onRepeat}
         style={[styles.button, { backgroundColor: tide.lang.ja }]}
         accessibilityRole="button"
-        accessibilityLabel="Repeat selection">
+        accessibilityLabel={t('player.repeatSelection')}>
         <RepeatIcon color={tide.sky[0]} size={22} />
       </PressScale>
       <PressScale
         onPress={onExplain}
         style={[styles.button, styles.outline, { borderColor: tide.lang.ja }]}
         accessibilityRole="button"
-        accessibilityLabel="Explain selection">
+        accessibilityLabel={t('player.explainSelection')}>
         <ExplainIcon color={tide.lang.ja} background={tide.water} size={22} />
       </PressScale>
       <PressScale
         onPress={handleCopy}
         style={[styles.button, styles.outline, { borderColor: tide.lang.ja }]}
         accessibilityRole="button"
-        accessibilityLabel={copied ? 'Copied' : 'Copy selection'}>
+        accessibilityLabel={copied ? t('player.copied') : t('player.copySelection')}>
         {copied ? (
           <CheckIcon color={tide.lang.ja} size={22} />
         ) : (

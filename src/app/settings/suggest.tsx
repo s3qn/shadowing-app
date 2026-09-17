@@ -8,8 +8,10 @@ import { PressScale } from '@/components/press-scale';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
+import { useT } from '@/lib/i18n';
 
 export default function SuggestFeatureScreen() {
+  const { t } = useT();
   const router = useRouter();
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -27,7 +29,7 @@ export default function SuggestFeatureScreen() {
       setSent(true);
       setTimeout(() => router.back(), 900);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not send that. Try again.');
+      setError(e instanceof Error ? e.message : t('settings.suggest.error'));
       setSending(false);
     }
   }
@@ -35,9 +37,7 @@ export default function SuggestFeatureScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       <ScrollView contentContainerStyle={styles.list}>
-        <Text style={[styles.hint, { color: tide.textDim }]}>
-          Tell us what the app should do. Every suggestion gets read.
-        </Text>
+        <Text style={[styles.hint, { color: tide.textDim }]}>{t('settings.suggest.hint')}</Text>
 
         <TextInput
           value={text}
@@ -49,7 +49,7 @@ export default function SuggestFeatureScreen() {
           multiline
           numberOfLines={6}
           textAlignVertical="top"
-          placeholder="What should the app do?"
+          placeholder={t('settings.suggest.placeholder')}
           placeholderTextColor={tide.textDim}
           style={[styles.input, { color: tide.text }]}
         />
@@ -57,16 +57,16 @@ export default function SuggestFeatureScreen() {
         {error ? <Text style={[styles.error, { color: tide.record }]}>{error}</Text> : null}
 
         {sent ? (
-          <Text style={[styles.sent, { color: tide.text }]}>Sent. Thanks.</Text>
+          <Text style={[styles.sent, { color: tide.text }]}>{t('settings.suggest.sent')}</Text>
         ) : (
           <PressScale
             disabled={!canSend}
             onPress={send}
             style={[styles.send, { backgroundColor: tide.lang.ja, opacity: canSend ? 1 : 0.4 }]}>
             {sending ? (
-              <CatConstellation size={90} label="Sending" />
+              <CatConstellation size={90} label={t('settings.suggest.sending')} />
             ) : (
-              <Text style={[styles.sendText, { color: tide.water }]}>Send</Text>
+              <Text style={[styles.sendText, { color: tide.water }]}>{t('settings.suggest.send')}</Text>
             )}
           </PressScale>
         )}

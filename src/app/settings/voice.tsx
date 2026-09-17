@@ -17,12 +17,22 @@ import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
 import { applyPlaybackMode, scheduleAudioSessionRelease, startPlayback, useSessionPlayer } from '@/lib/audio-mode';
-import { getLanguage } from '@/lib/languages';
-import { LearningLanguage, getSettingsSync, getVoice, setVoice, subscribeSettings, toIslandLanguage } from '@/lib/settings';
+import { useT } from '@/lib/i18n';
+import { getLanguage, type LanguageId } from '@/lib/languages';
+import { getSettingsSync, getVoice, setVoice, subscribeSettings, toIslandLanguage } from '@/lib/settings';
+import { type Key } from '@/locales/en';
 
-const LANGUAGE_NAME: Record<LearningLanguage, string> = { ja: 'Japanese', es: 'Spanish', en: 'English' };
+/** The name shown for a catalogue language id, translated (the picker's
+ * `english` field is only a fallback key for a language `language.<id>`
+ * has never covered, which should not happen for anything read back out of
+ * settings). */
+function languageName(t: (key: Key) => string, id: LanguageId): string {
+  const key = `language.${id}` as Key;
+  return getLanguage(id) ? t(key) : id;
+}
 
 export default function VoiceScreen() {
+  const { t } = useT();
   const [speakers, setSpeakers] = useState<api.Speaker[]>([]);
   const [chosen, setChosen] = useState<number | null>(null);
   const [error, setError] = useState('');
@@ -36,7 +46,7 @@ export default function VoiceScreen() {
   // "coming soon" pick from the catalogue (French, Korean and so on) falls
   // back to Japanese, since that is the only one islands are built in today.
   const island = toIslandLanguage(learningLanguage);
-  const comingSoonName = island !== learningLanguage ? (getLanguage(learningLanguage)?.english ?? learningLanguage) : null;
+  const comingSoonName = island !== learningLanguage ? languageName(t, learningLanguage) : null;
 
   useEffect(() => {
     void applyPlaybackMode();
@@ -64,13 +74,13 @@ export default function VoiceScreen() {
           setSpeakers(list);
           setChosen(current);
         } catch (e) {
-          if (alive) setError(e instanceof Error ? e.message : 'Could not load voices');
+          if (alive) setError(e instanceof Error ? e.message : t('settings.voice.loadError'));
         }
       })();
       return () => {
         alive = false;
       };
-    }, [island]),
+    }, [island, t]),
   );
 
   // Tapping a style both previews it and makes it the voice for new islands.
@@ -82,6 +92,7 @@ export default function VoiceScreen() {
   }
 
   const chosenSpeaker = speakers.find((sp) => sp.styles.some((st) => st.id === chosen));
+  const islandName = languageName(t, island);
 
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
@@ -91,15 +102,14 @@ export default function VoiceScreen() {
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <View style={styles.header}>
-            <Text style={[styles.title, { color: tide.text }]}>Voice</Text>
+            <Text style={[styles.title, { color: tide.text }]}>{t('title.voice')}</Text>
             {comingSoonName ? (
               <Text style={[styles.hint, { color: tide.textDim }]}>
-                {comingSoonName} is not ready yet. Islands are built in {LANGUAGE_NAME[island]} for now.
+                {t('settings.voice.comingSoonNote', { name: comingSoonName, lang: islandName })}
               </Text>
             ) : null}
             <Text style={[styles.hint, { color: tide.textDim }]}>
-              Voices for {LANGUAGE_NAME[island]}. Tap one to hear it; the one you pick is used for new{' '}
-              {LANGUAGE_NAME[island]} islands.
+              {t('settings.voice.availableFor', { lang: islandName })}
             </Text>
           </View>
         }
@@ -115,7 +125,7 @@ export default function VoiceScreen() {
         ListFooterComponent={
           chosenSpeaker && chosenSpeaker.policy ? (
             <Text style={[styles.credit, { color: tide.textDim }]}>
-              Audio made with this voice is credited as VOICEVOX:{chosenSpeaker.name}
+              {t('settings.voice.credit', { name: chosenSpeaker.name })}
             </Text>
           ) : null
         }

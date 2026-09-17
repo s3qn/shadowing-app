@@ -4,6 +4,7 @@ import Animated, { runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, 
 
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
+import { useT } from '@/lib/i18n';
 
 type Props = {
   title: string;
@@ -30,6 +31,7 @@ const NUMBER_GAP = 4;
 /** The player's header title: the island name over "Line X of Y". */
 export function PlayerTitle({ title, lineIndex, lineCount, hidden = false, onTitleRect, placeholder = false }: Props) {
   const reducedMotion = useReducedMotion();
+  const { t } = useT();
   const number = lineIndex + 1;
   const titleRef = useRef<Text>(null);
   const reportTitleRect = () => {
@@ -100,7 +102,7 @@ export function PlayerTitle({ title, lineIndex, lineCount, hidden = false, onTit
         {title}
       </Text>
       <View style={[styles.lineRow, lineCount > 0 || placeholder ? null : styles.waiting]}>
-        <Text style={styles.line}>LINE</Text>
+        <Text style={styles.line}>{t('player.lineLabel')}</Text>
         <View style={[styles.numberClip, { width: clipWidth }]}>
           {outNumber !== null && (
             <Animated.View style={[styles.numberLayer, outStyle]}>
@@ -121,7 +123,7 @@ export function PlayerTitle({ title, lineIndex, lineCount, hidden = false, onTit
             </Text>
           )}
         </View>
-        <Text style={styles.line}>OF</Text>
+        <Text style={styles.line}>{t('player.ofLabel')}</Text>
         {/* At least the pill's width, so a count of up to three digits
             replaces it without moving the row. */}
         <View style={styles.countBox}>

@@ -7,6 +7,7 @@ import { PopoverBubble } from '@/components/tide/popover-bubble';
 import { TICK_RULER_H, TickRuler } from '@/components/tide/tick-ruler';
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
+import { t, useDir, useT } from '@/lib/i18n';
 import { PAUSE_MAX_MS, PAUSE_STEP_MS, TIMES_MAX, TIMES_MIN } from '@/lib/settings';
 
 const PAD = 12;
@@ -22,7 +23,7 @@ export const PAUSE_STEPS = PAUSE_MAX_MS / PAUSE_STEP_MS + 1;
 
 /** "Off" at one play, "2×" and up otherwise. */
 export function timesLabel(times: number): string {
-  return times <= 1 ? 'Off' : `${times}×`;
+  return times <= 1 ? t('player.off') : `${times}×`;
 }
 
 export function pauseLabel(ms: number): string {
@@ -31,7 +32,7 @@ export function pauseLabel(ms: number): string {
 
 /** The Repeat tile's value: "Off" with one play and no pause, else e.g. "3× · 1.5s". */
 export function repeatTileLabel(times: number, pauseMs: number): string {
-  if (times <= 1 && pauseMs <= 0) return 'Off';
+  if (times <= 1 && pauseMs <= 0) return t('player.off');
   return `${times}× · ${pauseLabel(pauseMs)}`;
 }
 
@@ -57,6 +58,7 @@ type Props = {
  * Off with a 0s pause simply plays it straight through.
  */
 export function RepeatPopover({ anchorX, anchorTop, width, times, pauseMs, onTimes, onPause, onPauseSettle, onClose }: Props) {
+  const { t } = useT();
   return (
     <PopoverBubble
       anchorX={anchorX}
@@ -67,7 +69,7 @@ export function RepeatPopover({ anchorX, anchorTop, width, times, pauseMs, onTim
       radius={20}
       bodyStyle={styles.body}
       onClose={onClose}>
-      <RulerRow label="Times" icon={{ ios: 'repeat', android: 'repeat' }} readout={timesLabel(times)}>
+      <RulerRow label={t('player.times')} icon={{ ios: 'repeat', android: 'repeat' }} readout={timesLabel(times)}>
         <TickRuler
           width={RULER_W}
           steps={TIMES_STEPS}
@@ -75,10 +77,10 @@ export function RepeatPopover({ anchorX, anchorTop, width, times, pauseMs, onTim
           onIndexChange={(i) => onTimes(i + TIMES_MIN)}
           isMajor={() => true}
           tickLabel={(i) => String(i + TIMES_MIN)}
-          accessibilityLabel={`Times, ${timesLabel(times)}`}
+          accessibilityLabel={t('player.timesAccessibility', { label: timesLabel(times) })}
         />
       </RulerRow>
-      <RulerRow label="Pause" icon={{ ios: 'pause', android: 'pause' }} readout={pauseLabel(pauseMs)}>
+      <RulerRow label={t('player.pause')} icon={{ ios: 'pause', android: 'pause' }} readout={pauseLabel(pauseMs)}>
         <TickRuler
           width={RULER_W}
           steps={PAUSE_STEPS}
@@ -87,7 +89,7 @@ export function RepeatPopover({ anchorX, anchorTop, width, times, pauseMs, onTim
           onSettle={(i) => onPauseSettle(i * PAUSE_STEP_MS)}
           isMajor={(i) => (i * PAUSE_STEP_MS) % 1000 === 0}
           tickLabel={(i) => String((i * PAUSE_STEP_MS) / 1000)}
-          accessibilityLabel={`Pause, ${pauseLabel(pauseMs)}`}
+          accessibilityLabel={t('player.pauseAccessibility', { label: pauseLabel(pauseMs) })}
         />
       </RulerRow>
     </PopoverBubble>
@@ -105,12 +107,13 @@ function RulerRow({
   readout: string;
   children: ReactNode;
 }) {
+  const dir = useDir();
   return (
     <View style={styles.row}>
-      <View style={styles.head}>
-        <View style={styles.labelRow}>
+      <View style={[styles.head, dir.row]}>
+        <View style={[styles.labelRow, dir.row]}>
           <SymbolView name={icon} size={14} weight="regular" tintColor={tide.textDim} />
-          <Text style={styles.label}>{label}</Text>
+          <Text style={[styles.label, dir.text]}>{label}</Text>
         </View>
         <Text style={styles.readout}>{readout}</Text>
         <View style={styles.labelSpacer} />

@@ -23,23 +23,22 @@ import { SparkleResult, type SparkleResultData } from '@/components/tide/sparkle
 import { STRIP_HEIGHT, VoiceRipples } from '@/components/tide/voice-ripples';
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
+import { useDir, useT } from '@/lib/i18n';
 import type { Mora, NativeLanguage, TakeAnalysis } from '@/lib/api';
 
 /** The four steps of one Echo pass, in order. `idle` is before Start and
  * `done` is after the last Play, both outside the segment row. */
 export type EchoStep = 'idle' | 'listen' | 'echo' | 'armed' | 'speak' | 'play' | 'done';
 
-export const STEP_HINT: Record<EchoStep, string> = {
-  idle: 'Ready',
-  listen: 'Listen to the audio',
-  echo: 'Recall and understand the content just heard',
-  armed: 'Try to say this sentence',
-  speak: 'Try to say this sentence',
-  play: 'Listen to and compare your voice',
-  done: 'Pass complete',
-};
-
-const SEGMENT_LABELS = ['Listen', 'Echo', 'Speak', 'Play'];
+const STEP_HINT_KEY = {
+  idle: 'player.stepReady',
+  listen: 'player.stepListen',
+  echo: 'player.stepEcho',
+  armed: 'player.stepSpeak',
+  speak: 'player.stepSpeak',
+  play: 'player.stepPlay',
+  done: 'player.stepDone',
+} as const;
 
 // idle has no filled segment; done fills every segment (the pass is over).
 const SEGMENT_INDEX: Record<EchoStep, number> = {
@@ -126,6 +125,9 @@ function AutoEchoSheetBase({
 }: AutoEchoSheetProps) {
   const segmentIndex = SEGMENT_INDEX[step];
   const reducedMotion = useReducedMotion();
+  const { t } = useT();
+  const dir = useDir();
+  const segmentLabels = [t('player.segmentListen'), t('player.segmentEcho'), t('player.segmentSpeak'), t('player.play')];
 
   // The one active segment's width, read from the screen's shared value.
   // Segments before and after it are plain static styles below, so this
@@ -159,7 +161,7 @@ function AutoEchoSheetBase({
   const glowStyle = useAnimatedStyle(() => ({ opacity: glow.value }));
 
   return (
-    <BottomSheet open={open} onClose={onClose} onDismissed={onDismissed} title="Auto Echo">
+    <BottomSheet open={open} onClose={onClose} onDismissed={onDismissed} title={t('player.autoEcho')}>
       <View style={styles.sentenceArea}>
         {sentence ? <Text style={styles.sentence}>{sentence}</Text> : null}
         {english ? <Text style={[styles.english, native === 'he' && styles.englishRtl]}>{english}</Text> : null}
@@ -169,8 +171,8 @@ function AutoEchoSheetBase({
         <SparkleResult result={result} />
       </View>
 
-      <View style={styles.segments}>
-        {SEGMENT_LABELS.map((label, i) => (
+      <View style={[styles.segments, dir.row]}>
+        {segmentLabels.map((label, i) => (
           <View key={label} style={styles.segmentCol}>
             <View style={styles.segmentBar}>
               {i < segmentIndex ? <View style={[styles.segmentFill, styles.segmentFillDone]} /> : null}
@@ -190,7 +192,7 @@ function AutoEchoSheetBase({
           entering={reducedMotion ? FadeIn.duration(180) : SlideInRight.duration(220).easing(Easing.out(Easing.cubic))}
           exiting={reducedMotion ? FadeOut.duration(180) : SlideOutLeft.duration(220).easing(Easing.out(Easing.cubic))}
           style={styles.hint}>
-          {STEP_HINT[step]}
+          {t(STEP_HINT_KEY[step])}
         </Animated.Text>
         {step === 'echo' && countdown !== null ? <Text style={styles.countdown}>{countdown}</Text> : null}
         {step === 'speak' ? <LevelBars level={level} live /> : null}
@@ -198,21 +200,21 @@ function AutoEchoSheetBase({
 
       <View style={styles.buttonRow}>
         {step === 'idle' || step === 'done' ? (
-          <PressScale onPress={onStart} accessibilityRole="button" accessibilityLabel={step === 'idle' ? 'Start' : 'Start again'} style={styles.pill}>
-            <Text style={styles.pillLabel}>{step === 'idle' ? 'Start' : 'Start again'}</Text>
+          <PressScale onPress={onStart} accessibilityRole="button" accessibilityLabel={step === 'idle' ? t('player.start') : t('player.startAgain')} style={styles.pill}>
+            <Text style={styles.pillLabel}>{step === 'idle' ? t('player.start') : t('player.startAgain')}</Text>
           </PressScale>
         ) : null}
         {step === 'armed' ? (
-          <PressScale onPress={onRecord} accessibilityRole="button" accessibilityLabel="Record" style={[styles.round, styles.recordRound]}>
+          <PressScale onPress={onRecord} accessibilityRole="button" accessibilityLabel={t('player.record')} style={[styles.round, styles.recordRound]}>
             <View style={styles.recordDot} />
           </PressScale>
         ) : null}
         {step === 'speak' && !stopping ? (
           <>
-            <PressScale onPress={onStop} accessibilityRole="button" accessibilityLabel="Stop" style={[styles.round, styles.recordRound]}>
+            <PressScale onPress={onStop} accessibilityRole="button" accessibilityLabel={t('player.stop')} style={[styles.round, styles.recordRound]}>
               <View style={styles.stopSquare} />
             </PressScale>
-            <PressScale onPress={onRetry} accessibilityRole="button" accessibilityLabel="Retry" style={[styles.round, styles.retryRound]}>
+            <PressScale onPress={onRetry} accessibilityRole="button" accessibilityLabel={t('common.retry')} style={[styles.round, styles.retryRound]}>
               <Text style={styles.retryGlyph}>↻</Text>
             </PressScale>
           </>
@@ -220,21 +222,19 @@ function AutoEchoSheetBase({
       </View>
 
       <SheetToggle
-        label="Go on to the next line, and start over after the last"
+        label={t('player.autoEchoToggle')}
         value={autoEcho}
         onValueChange={onToggleAutoEcho}
         icon={{ ios: 'forward.end', android: 'skip_next' }}
       />
       <SheetToggle
-        label="Speak opens the microphone on its own"
+        label={t('player.autoRecordToggle')}
         value={autoRecord}
         onValueChange={onToggleAutoRecord}
         icon={{ ios: 'mic', android: 'mic' }}
       />
       <Text style={styles.note}>
-        {headset === true
-          ? 'Headphones in: the line plays under your voice.'
-          : 'Put headphones on and the line plays under your voice.'}
+        {headset === true ? t('player.headsetIn') : t('player.headsetPrompt')}
       </Text>
       {error ? <Text style={styles.error}>{error}</Text> : null}
     </BottomSheet>

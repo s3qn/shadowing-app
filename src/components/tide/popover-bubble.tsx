@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 import Animated, { type EntryAnimationsValues, FadeOut, withSpring, withTiming } from 'react-native-reanimated';
 
 import { tide } from '@/constants/theme';
+import { t } from '@/lib/i18n';
 
 const ARROW = 12;
 /** Space between the arrow's tip and the tile under it. */
@@ -54,7 +55,7 @@ export function PopoverBubble({ anchorX, anchorTop, parentWidth, width, height, 
 
   return (
     <View style={styles.cover} pointerEvents="box-none">
-      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" accessible={false} />
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel={t('player.close')} accessible={false} />
       <Animated.View
         entering={popIn}
         exiting={POP_OUT}

@@ -6,9 +6,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SettingsRow, SettingsSection } from '@/components/tide/settings-row';
 import { Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
+import { useT } from '@/lib/i18n';
 import { deleteAllTakes, takesStorageBytes } from '@/lib/takes';
 
-const BACKEND_URL = process.env.EXPO_PUBLIC_SHADOW_API_URL ?? 'Not set';
+const BACKEND_URL = process.env.EXPO_PUBLIC_SHADOW_API_URL;
 const CONNECTED_COLOR = '#4ADE80';
 const HEALTH_POLL_MS = 10_000;
 
@@ -20,6 +21,7 @@ function humanBytes(bytes: number): string {
 }
 
 export default function DataSettingsScreen() {
+  const { t } = useT();
   const [storageBytes, setStorageBytes] = useState(0);
   const [connected, setConnected] = useState<boolean | null>(null);
 
@@ -56,10 +58,10 @@ export default function DataSettingsScreen() {
   }, []);
 
   function confirmDeleteAll() {
-    Alert.alert('Delete all takes?', 'This removes every recording on this device. Islands themselves are not affected.', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('settings.data.deleteAllTitle'), t('settings.data.deleteAllBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Delete all',
+        text: t('settings.data.deleteAllConfirm'),
         style: 'destructive',
         onPress: () => {
           void deleteAllTakes().then(refreshStorage);
@@ -71,18 +73,18 @@ export default function DataSettingsScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       <ScrollView contentContainerStyle={styles.list}>
-        <SettingsSection title="Storage" footnote="Every recording made while shadowing, across every island.">
+        <SettingsSection title={t('settings.data.storage')} footnote={t('settings.data.storageFootnote')}>
           <SettingsRow
-            label="Takes on this device"
+            label={t('settings.data.takesOnDevice')}
             value={humanBytes(storageBytes)}
             last
             icon={{ ios: 'internaldrive', android: 'storage' }}
           />
         </SettingsSection>
 
-        <SettingsSection title="Takes">
+        <SettingsSection title={t('settings.data.takes')}>
           <SettingsRow
-            label="Delete all takes"
+            label={t('settings.data.deleteAllTakes')}
             destructive
             last
             icon={{ ios: 'trash', android: 'delete' }}
@@ -90,13 +92,17 @@ export default function DataSettingsScreen() {
           />
         </SettingsSection>
 
-        <SettingsSection title="Backend">
-          <SettingsRow label="Server" value={BACKEND_URL} icon={{ ios: 'server.rack', android: 'dns' }} />
+        <SettingsSection title={t('settings.data.backend')}>
           <SettingsRow
-            label="Connection"
+            label={t('settings.data.server')}
+            value={BACKEND_URL ?? t('settings.data.notSet')}
+            icon={{ ios: 'server.rack', android: 'dns' }}
+          />
+          <SettingsRow
+            label={t('settings.data.connection')}
             last
             icon={{ ios: 'wifi', android: 'wifi' }}
-            value={connected === null ? 'Checking…' : connected ? 'Connected' : 'Offline'}
+            value={connected === null ? t('settings.data.checking') : connected ? t('settings.data.connected') : t('settings.data.offline')}
             dotColor={connected === null ? undefined : connected ? CONNECTED_COLOR : tide.record}
           />
         </SettingsSection>

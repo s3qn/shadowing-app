@@ -17,6 +17,7 @@ import Svg, { Line } from 'react-native-svg';
 
 import { SearchIcon } from '@/components/tide/toolbar-icons';
 import { fonts } from '@/constants/fonts';
+import { useDir, useT } from '@/lib/i18n';
 import { Radius, Spacing, tide } from '@/constants/theme';
 
 // The pill starts as a circle the size of the header's search button.
@@ -77,6 +78,8 @@ type Props = {
  * spring backwards. Reduced motion jumps the height and only fades.
  */
 export function IslandSearch({ open, query, onChangeQuery, onClose, grow, rowH }: Props) {
+  const { t } = useT();
+  const dir = useDir();
   const reducedMotion = useReducedMotion();
   // The field has to exist before the animation that reveals it, so an open
   // mounts the pill in the same commit. Closing unmounts it later, once the
@@ -194,13 +197,13 @@ export function IslandSearch({ open, query, onChangeQuery, onClose, grow, rowH }
               autoFocus={reducedMotion}
               value={query}
               onChangeText={onChangeQuery}
-              placeholder="Search islands"
+              placeholder={t('home.searchPlaceholder')}
               placeholderTextColor={tide.textDim}
               autoCorrect={false}
               returnKeyType="search"
-              style={styles.input}
+              style={[styles.input, dir.text]}
             />
-            <Pressable onPress={handleClose} hitSlop={10} accessibilityLabel="Close search" style={styles.close}>
+            <Pressable onPress={handleClose} hitSlop={10} accessibilityLabel={t('home.closeSearchAccessibilityLabel')} style={styles.close}>
               <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
                 <Line x1={6} y1={6} x2={18} y2={18} stroke={tide.textDim} strokeWidth={2.2} strokeLinecap="round" />
                 <Line x1={18} y1={6} x2={6} y2={18} stroke={tide.textDim} strokeWidth={2.2} strokeLinecap="round" />

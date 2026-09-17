@@ -40,6 +40,7 @@ import Animated, {
 import { Frost } from '@/components/frost';
 import { fonts } from '@/constants/fonts';
 import { Radius, tide, tideWaters } from '@/constants/theme';
+import { useT } from '@/lib/i18n';
 import { useSkyStyle, isNight, currentPeriod } from '@/lib/sky';
 import { useWaterSim } from '@/components/tide/use-water-sim';
 import { WaterSurface } from '@/components/tide/water-surface';
@@ -152,6 +153,7 @@ export const TideScene = memo(function TideScene({
   initialHeight = 0,
   widenWhen,
 }: Props) {
+  const { t } = useT();
   // The scene fills the window's width; its height starts from the caller's
   // estimate. Both only seed the first frame, the layout events take over.
   const { width: windowW } = useWindowDimensions();
@@ -661,7 +663,7 @@ export const TideScene = memo(function TideScene({
           <Animated.View entering={FadeIn} exiting={FadeOut}>
             <Pressable onPress={enableAutoScroll} style={styles.pill} accessibilityRole="button">
               <Text style={styles.pillText}>
-                {pill === 'off' ? 'Auto-scroll disabled. Tap to enable' : 'Auto-scroll enabled'}
+                {pill === 'off' ? t('player.autoScrollDisabled') : t('player.autoScrollEnabled')}
               </Text>
             </Pressable>
           </Animated.View>
@@ -707,6 +709,7 @@ const TranscriptLine = memo(function TranscriptLine({
   shallow?: string;
   onRowLayout?: (index: number, height: number) => void;
 }) {
+  const { t } = useT();
   const submerged = tone === 'next' && depth !== undefined;
   const styleDepth = submerged ? Math.min(depth, 4) : 1;
   const motionDepth = submerged ? Math.min(depth, 6) : 0;
@@ -769,7 +772,7 @@ const TranscriptLine = memo(function TranscriptLine({
       onLayout={onRowLayout ? (e) => onRowLayout(index, e.nativeEvent.layout.height) : undefined}
       style={styles.dimLine}
       accessibilityRole="button"
-      accessibilityLabel={tone === 'past' ? 'Previous line' : 'Next line'}
+      accessibilityLabel={tone === 'past' ? t('player.previousLine') : t('player.nextLine')}
     >
       {submerged ? (
         <Animated.View style={[styles.submergedRow, wobbleStyle]}>{row}</Animated.View>

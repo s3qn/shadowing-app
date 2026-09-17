@@ -5,6 +5,7 @@ import { BottomSheet } from '@/components/sheet/bottom-sheet';
 import { SheetAction, type SheetIcon } from '@/components/sheet/sheet-rows';
 import { fonts } from '@/constants/fonts';
 import { tide, verb } from '@/constants/theme';
+import { useDir, useT } from '@/lib/i18n';
 import type { Complexity } from '@/lib/api';
 
 /** Row icons: SF Symbol on iOS, the matching Material Symbol on Android. */
@@ -62,6 +63,8 @@ function IslandMenuSheetBase({
   onCalibrate,
   onDelete,
 }: Props) {
+  const { t } = useT();
+  const dir = useDir();
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(title);
 
@@ -79,7 +82,7 @@ function IslandMenuSheetBase({
   }
 
   return (
-    <BottomSheet open={open} onClose={onClose} onDismissed={onDismissed} title="Island menu" avoidKeyboard>
+    <BottomSheet open={open} onClose={onClose} onDismissed={onDismissed} title={t('player.islandMenu')} avoidKeyboard>
       {renaming ? (
         <>
           <TextInput
@@ -88,15 +91,15 @@ function IslandMenuSheetBase({
             onChangeText={setDraft}
             onSubmitEditing={saveRename}
             returnKeyType="done"
-            style={styles.input}
+            style={[styles.input, dir.text]}
           />
-          <SheetAction label="Save" icon={ICONS.save} discColor={verb.tools.c1} onPress={saveRename} />
+          <SheetAction label={t('player.save')} icon={ICONS.save} discColor={verb.tools.c1} onPress={saveRename} />
         </>
       ) : (
         <>
-          <SheetAction label="Rename" icon={ICONS.rename} discColor={verb.tools.c1} onPress={() => setRenaming(true)} />
+          <SheetAction label={t('player.rename')} icon={ICONS.rename} discColor={verb.tools.c1} onPress={() => setRenaming(true)} />
           <SheetAction
-            label={exporting ? 'Exporting…' : 'Export as audio'}
+            label={exporting ? t('player.exporting') : t('player.exportAsAudio')}
             icon={ICONS.export}
             discColor={verb.tools.c1}
             disabled={exporting || busy}
@@ -104,7 +107,7 @@ function IslandMenuSheetBase({
           />
           {revoiceName ? (
             <SheetAction
-              label={busy ? 'Re-voicing…' : `Re-voice in ${revoiceName}`}
+              label={busy ? t('player.revoicing') : t('player.revoiceIn', { name: revoiceName })}
               icon={ICONS.revoice}
               discColor={verb.tools.c1}
               disabled={busy}
@@ -112,21 +115,21 @@ function IslandMenuSheetBase({
             />
           ) : null}
           <SheetAction
-            label={complexity === 'simple' ? 'Regenerate with complex patterns' : 'Regenerate one sentence at a time'}
+            label={complexity === 'simple' ? t('player.regenerateComplex') : t('player.regenerateSimple')}
             icon={ICONS.regenerate}
             discColor={verb.tools.c1}
             disabled={busy}
             onPress={onRegenerate}
           />
           <SheetAction
-            label="Calibrate speaker"
+            label={t('player.calibrateSpeaker')}
             icon={ICONS.calibrate}
             discColor={verb.tools.c1}
             disabled={recording}
             onPress={onCalibrate}
           />
           <SheetAction
-            label="Delete island"
+            label={t('player.deleteIsland')}
             icon={ICONS.delete}
             destructive
             discColor={verb.speak.c1}
