@@ -71,6 +71,17 @@ export default function AboutSettingsScreen() {
           />
         </SettingsSection>
 
+        <SettingsSection
+          title="Artwork"
+          footnote="Animated emoji by Google (Noto Emoji), licensed under CC BY 4.0.">
+          <SettingsRow
+            label="Animated emoji"
+            value="Noto Emoji"
+            last
+            icon={{ ios: 'face.smiling', android: 'mood' }}
+          />
+        </SettingsSection>
+
         <SettingsSection title="Licences" footnote="Every open source dependency keeps its own licence, unmodified.">
           <SettingsRow
             label="Open source licences"
