@@ -1,6 +1,9 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { SymbolView } from 'expo-symbols'; // icon-buttons: Whole line
 
-import { Radius, Spacing, tide } from '@/constants/theme';
+import { PrismButton } from '@/components/prism'; // icon-buttons: Whole line
+import { fonts } from '@/constants/fonts'; // icon-buttons: Whole line
+import { Radius, Spacing, tide, verb as verbTokens, prism } from '@/constants/theme'; // icon-buttons: Whole line
 
 type Props = {
   label: string | null; // "first 〜 last" when a phrase is set
@@ -21,9 +24,13 @@ export function PhraseBar({ label, hidden, onClear }: Props) {
         <View style={[styles.pill, { backgroundColor: tide.lang.ja }]}>
           <Text style={[styles.pillText, { color: tide.sky[0] }]}>{hidden ? 'Phrase' : `Phrase: ${label}`}</Text>
         </View>
-        <Pressable onPress={onClear} hitSlop={8}>
-          <Text style={[styles.link, { color: tide.lang.ja }]}>Whole line</Text>
-        </Pressable>
+        {/* icon-buttons: Whole line */}
+        <View style={{ alignItems: 'center' }}>
+          <PrismButton shape="round" size={prism.sizes.roundSm} verb="listen" onPress={onClear} accessibilityLabel="Whole line">
+            <SymbolView name={{ ios: 'arrow.left.and.right', android: 'swap_horiz' }} size={16} weight="regular" tintColor={verbTokens.listen.c1} />
+          </PrismButton>
+          <Text style={{ fontFamily: fonts.ui, fontSize: 11, color: tide.textDim, marginTop: 4, textAlign: 'center' }}>Whole line</Text>
+        </View>
       </View>
     </View>
   );

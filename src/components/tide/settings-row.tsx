@@ -5,7 +5,7 @@ import { SymbolView } from 'expo-symbols';
 import { PressScale } from '@/components/press-scale';
 import type { SheetIcon } from '@/components/sheet/sheet-rows';
 import { fonts } from '@/constants/fonts';
-import { Radius, Spacing, tide } from '@/constants/theme';
+import { Radius, Spacing, tide, verb, withAlpha } from '@/constants/theme';
 
 /**
  * iOS-style grouped list section: an uppercase header, a card of rows with a
@@ -111,7 +111,14 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   lead: { flexDirection: 'row', alignItems: 'center', gap: 12, flexShrink: 1 },
-  iconSlot: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  iconSlot: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: withAlpha(verb.tools.c2, 0.16),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   label: { fontSize: 16, fontFamily: fonts.ui },
   rightGroup: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   dot: { width: 8, height: 8, borderRadius: 4 },

@@ -100,16 +100,28 @@ export const prism = {
     round: 44,
     bigRound: 56,
     bigRoundLg: 64,
-    tile: { w: 56, h: 60, r: 18 },
+    tile: { w: 56, h: 64, r: 18 },
     pill: { h: 36, padX: 14 },
   },
   panel: { fill: 'rgba(255,255,255,0.06)', rim: 'rgba(255,255,255,0.12)', radius: 20 },
   tray: {
     pad: 5,
     rim: 'rgba(255,255,255,0.14)',
-    pane: { dx: 5, dy: 6, color: 'rgba(124,200,255,0.09)' },
+    pane: { dx: 4, dy: 5, color: 'rgba(124,200,255,0.08)' },
     pillFill: 'rgba(255,255,255,0.055)',
-    lit: { from: 0.40, to: 0.20, rim: 1, label: '#FFFFFF' },
+    // Deep enough that the white label clears 4.5:1 contrast (was a pale
+    // verb-colour tint that left white text nearly unreadable).
+    lit: {
+      top: '#2F6FA8',
+      bottom: '#1D4E7A',
+      alpha: 0.90,
+      rimWidth: 1,
+      rim: 'rgba(124,200,255,0.65)',
+      highlight: 'rgba(255,255,255,0.25)',
+      glow: '0 4 14 rgba(124,200,255,0.30)',
+      label: '#FFFFFF',
+      icon: '#CFE9FF',
+    },
   },
 } as const;
 

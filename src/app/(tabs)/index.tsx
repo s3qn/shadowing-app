@@ -35,17 +35,21 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { SymbolView } from 'expo-symbols'; // icon-buttons: record FAB and rename sheet
 
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
 import { CatConstellation } from '@/components/cat-constellation';
-import { SheetAction } from '@/components/sheet/sheet-rows';
 import { LANTERN_FADE_MS, LANTERN_RISE_MS, LANTERN_STEP_MS, LanternRow } from '@/components/lantern-row';
 import { PracticeCard } from '@/components/practice-card';
 import { IslandSearch, startSearchOpen } from '@/components/island-search';
 import { PressScale } from '@/components/press-scale';
+// prism-home: prism kit imports for the search button, record FAB and rename sheet
+import { GlassPanel } from '@/components/prism/glass-panel';
+import { PrismButton } from '@/components/prism/prism-button';
 import { SearchIcon } from '@/components/tide/toolbar-icons';
 import { fonts } from '@/constants/fonts';
-import { Radius, Spacing, tide } from '@/constants/theme';
+import { prism, Radius, Spacing, tide, verb } from '@/constants/theme';
+import { LitPillFill, LitPillRim, PILL_H, PILL_ICON_OFF, PILL_LABEL_SIZE, PILL_PAD_X, PillTrayShell } from '@/components/prism/pill-tray';
 import { useSkyStyle, isNight } from '@/lib/sky';
 import * as api from '@/lib/api';
 import { registerCard, startOpen, unregisterCard, useMorphHidesTitle, type CardRect } from '@/lib/card-morph';
@@ -118,6 +122,43 @@ function waveEntering(delayMs: number) {
 const SORTS = ['newest', 'least'] as const;
 type Sort = (typeof SORTS)[number];
 const SORT_LABEL: Record<Sort, string> = { newest: 'Newest', least: 'Least practiced' };
+
+// pill-tray-tab-bar: sort row start
+const SORT_PILL_BORDER = 1;
+/** One sort option in the Home sort row: a pill that crossfades its own lit fill. */
+function SortPill({ on, label, onPress }: { on: boolean; label: string; onPress: () => void }) {
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  const litOpacity = useSharedValue(on ? 1 : 0);
+  const scale = useSharedValue(1);
+  useEffect(() => {
+    litOpacity.value = withTiming(on ? 1 : 0, { duration: 200 });
+  }, [on, litOpacity]);
+  const scaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return (
+    <Pressable
+      onPress={onPress}
+      onPressIn={() => {
+        scale.value = withTiming(0.96, { duration: 80 });
+      }}
+      onPressOut={() => {
+        scale.value = withSpring(1, prism.press.spring);
+      }}
+      onLayout={(e) => {
+        // The fill and rim sit inside the pill's border, so size them to
+        // the box inside it rather than the pill's outer size.
+        const { width, height } = e.nativeEvent.layout;
+        setSize({ width: Math.max(0, width - 2 * SORT_PILL_BORDER), height: Math.max(0, height - 2 * SORT_PILL_BORDER) });
+      }}>
+      <Animated.View style={[styles.pill, scaleStyle]}>
+        <LitPillFill width={size.width} height={size.height} opacity={litOpacity} />
+        {size.height > 0 && <LitPillRim radius={size.height / 2} opacity={litOpacity} />}
+        <Text style={[styles.pillText, { color: on ? prism.tray.lit.label : PILL_ICON_OFF }]}>{label}</Text>
+      </Animated.View>
+    </Pressable>
+  );
+}
+// pill-tray-tab-bar: sort row end
+
 const EMPTY_LOG: PracticeLog = { days: {}, islands: {}, passes: {} };
 // 20 minutes of shadowing fills an island's ownership band.
 const TIDE_TARGET_SECONDS = 20 * 60;
@@ -576,11 +617,18 @@ export default function IslandsScreen() {
       headerTintColor: tide.text,
       headerShadowVisible: false,
       headerLeft: () => (
+        // prism-home: edited region
         <Animated.View style={searchButtonStyle} pointerEvents={searchOpen ? 'none' : 'auto'}>
-          <PressScale onPress={openSearch} hitSlop={12} accessibilityLabel="Search islands">
-            <SearchIcon color={tide.text} size={22} />
-          </PressScale>
+          <PrismButton
+            shape="round"
+            size={prism.sizes.roundSm}
+            verb="tools"
+            onPress={openSearch}
+            accessibilityLabel="Search islands">
+            <SearchIcon color={verb.tools.c1} size={22} />
+          </PrismButton>
         </Animated.View>
+        // prism-home: end
       ),
     }),
     [sky.top, searchOpen, openSearch, searchButtonStyle],
@@ -647,24 +695,21 @@ export default function IslandsScreen() {
       />
       <View style={styles.headerFixed}>
         <PracticeCard log={log} dueCount={dueIds.size} />
-        <View style={styles.sortRow}>
-          {SORTS.map((s) => {
-            const on = sort === s;
-            return (
-              <Pressable
-                key={s}
-                onPress={() => setSort(s)}
-                style={[
-                  styles.pill,
-                  { backgroundColor: on ? tide.lang.ja : tide.water, borderColor: tide.waterline },
-                ]}>
-                <Text style={[styles.pillText, { color: on ? tide.sky[0] : tide.text }]}>
-                  {SORT_LABEL[s]}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        {/* pill-tray-tab-bar: sort row start */}
+        <PillTrayShell wrapStyle={styles.sortRowWrap} style={styles.sortRow}>
+          {SORTS.map((s) => (
+            <SortPill
+              key={s}
+              on={sort === s}
+              label={SORT_LABEL[s]}
+              onPress={() => {
+                if (s !== sort) void hapticSelection();
+                setSort(s);
+              }}
+            />
+          ))}
+        </PillTrayShell>
+        {/* pill-tray-tab-bar: sort row end */}
       </View>
       <Animated.FlatList
         ref={listRef}
@@ -755,17 +800,24 @@ export default function IslandsScreen() {
           );
         }}
       />
-      <PressScale
+      {/* prism-home: edited region */}
+      <PrismButton
+        shape="round"
+        size={prism.sizes.bigRound}
+        verb="speak"
+        containerStyle={styles.fab}
         onPress={() => router.push('/record')}
-        style={[styles.fab, { backgroundColor: tide.lang.ja }]}>
-        <Text style={[styles.fabText, { color: tide.sky[0] }]}>+</Text>
-      </PressScale>
+        accessibilityLabel="Record a new island">
+        <SymbolView name={{ ios: 'mic.fill', android: 'mic' }} size={24} weight="regular" tintColor={verb.speak.c1} />
+      </PrismButton>
+      {/* prism-home: end */}
       <BottomSheet
         open={menuItem !== null}
         onClose={() => setMenuItem(null)}
         onDismissed={runAfterSheet}
         title={menuItem?.title || 'Untitled island'}
         avoidKeyboard>
+        {/* prism-home: edited region */}
         {renaming ? (
           <>
             <TextInput
@@ -776,23 +828,32 @@ export default function IslandsScreen() {
               returnKeyType="done"
               style={styles.sheetInput}
             />
-            <SheetAction label="Save" icon={{ ios: 'checkmark', android: 'check' }} onPress={saveRename} />
+            <GlassPanel style={styles.sheetActionsRow}>
+              <PrismButton shape="pill" verb="tools" flat label="Save" onPress={saveRename}>
+                <SymbolView name={{ ios: 'checkmark', android: 'check' }} size={16} weight="regular" tintColor={verb.tools.c1} />
+              </PrismButton>
+            </GlassPanel>
           </>
         ) : (
-          <>
-            <SheetAction label="Rename" icon={{ ios: 'pencil', android: 'edit' }} onPress={() => setRenaming(true)} />
-            <SheetAction
+          <GlassPanel style={styles.sheetActionsRow}>
+            <PrismButton shape="pill" verb="tools" flat label="Rename" onPress={() => setRenaming(true)}>
+              <SymbolView name={{ ios: 'pencil', android: 'edit' }} size={16} weight="regular" tintColor={verb.tools.c1} />
+            </PrismButton>
+            <PrismButton
+              shape="pill"
+              verb="speak"
+              flat
               label="Delete island"
-              icon={{ ios: 'trash', android: 'delete' }}
-              destructive
               onPress={() => {
                 const item = menuItem;
                 if (!item) return;
                 closeSheetThen(() => confirmDelete(item));
-              }}
-            />
-          </>
+              }}>
+              <SymbolView name={{ ios: 'trash', android: 'delete' }} size={16} weight="regular" tintColor={verb.speak.c1} />
+            </PrismButton>
+          </GlassPanel>
         )}
+        {/* prism-home: end */}
       </BottomSheet>
     </SafeAreaView>
   );
@@ -1211,12 +1272,32 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 8,
   },
+  // prism-home: one row of pill actions sharing a single GlassPanel blur.
+  sheetActionsRow: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.sm, alignSelf: 'flex-start' },
   // Above the wheel, not inside it: the FlatList needs its own full
   // viewport to centre the first card, same horizontal padding as the list.
   headerFixed: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, gap: Spacing.md, marginBottom: Spacing.md },
   sortRow: { flexDirection: 'row', gap: Spacing.sm },
-  pill: { borderWidth: 1, borderRadius: Radius.pill, paddingVertical: Spacing.xs + 2, paddingHorizontal: Spacing.md },
-  pillText: { fontSize: 13, fontWeight: '700', fontFamily: fonts.ui },
+  // pill-tray-tab-bar: sort row start
+  // Hugs the two pills instead of stretching full width under headerFixed's
+  // default alignItems: 'stretch', which also keeps the offset pane a small
+  // corner peek instead of a full-width strip (the pane sizes off this wrap).
+  sortRowWrap: { alignSelf: 'flex-start' },
+  pill: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: PILL_H,
+    // Clips the lit fill and LitPillRim's straight top highlight to the
+    // rounded shape, like the tab bar's slidingPill.
+    borderRadius: PILL_H / 2,
+    overflow: 'hidden',
+    borderWidth: SORT_PILL_BORDER,
+    borderColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: prism.tray.pillFill,
+    paddingHorizontal: PILL_PAD_X,
+  },
+  pillText: { fontSize: PILL_LABEL_SIZE, fontWeight: '600', fontFamily: fonts.ui },
+  // pill-tray-tab-bar: sort row end
   star: {
     position: 'absolute',
     width: 2,
@@ -1225,15 +1306,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     zIndex: 0,
   },
+  // prism-home: sizing and colour now come from PrismButton's face; this
+  // only positions the FAB.
   fab: {
     position: 'absolute',
     right: Spacing.lg,
     bottom: 96,
-    width: 56,
-    height: 56,
-    borderRadius: Radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  fabText: { fontSize: 28, fontWeight: '700', lineHeight: 32 },
 });

@@ -3,8 +3,9 @@ import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PILL_TAB_BAR_REACH } from '@/components/pill-tab-bar';
 import { SettingsRow, SettingsSection } from '@/components/tide/settings-row';
-import { Spacing, tide } from '@/constants/theme';
+import { Spacing, prism, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
 import { getSettings, setHaptics, setSkyAlwaysNight } from '@/lib/settings';
 
@@ -137,5 +138,8 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  list: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: 170 },
+  // paddingBottom leaves room for the floating pill tab bar and the offset
+  // pane that peeks out past its bottom edge, so the last row never hides
+  // under it.
+  list: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: Spacing.lg + PILL_TAB_BAR_REACH + prism.tray.pane.dy },
 });

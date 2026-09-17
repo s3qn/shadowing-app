@@ -13,9 +13,17 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { PressScale } from '@/components/press-scale';
+import { GlassPanel } from '@/components/prism/glass-panel';
+import { PrismButton } from '@/components/prism/prism-button';
 import { fonts } from '@/constants/fonts';
-import { tide } from '@/constants/theme';
+import { tide, verb, withAlpha } from '@/constants/theme';
+
+/** The label and value glow, off and on. Every tile is the "listen" verb, so
+ * one pair of colours covers the whole row. */
+const GLOW_OFF = withAlpha(verb.listen.c1, 0.55);
+const GLOW_ON = withAlpha(verb.listen.c1, 0.85);
+const GLOW_RADIUS_OFF = 6;
+const GLOW_RADIUS_ON = 8;
 
 export type ToolbarItem = {
   key: string;
@@ -61,7 +69,7 @@ function valueRollOut(_values: ExitAnimationsValues) {
 /** The tile's value line: a fixed-height, clipped window that the old text
  * rolls out of and the new text rolls into. Reduced motion crossfades
  * instead of rolling. */
-function ValueRoll({ value, reducedMotion }: { value: string; reducedMotion: boolean }) {
+function ValueRoll({ value, active, reducedMotion }: { value: string; active: boolean; reducedMotion: boolean }) {
   // The first value is simply there: rolling it in on mount would play under
   // the card morph's cover, or during the player's content reveal.
   const [first] = useState(value);
@@ -71,7 +79,10 @@ function ValueRoll({ value, reducedMotion }: { value: string; reducedMotion: boo
     <View style={styles.valueClip}>
       <Animated.Text
         key={value}
-        style={[styles.value, styles.valueLayer]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
+        style={[styles.value, styles.valueLayer, active && styles.glowOn]}
         entering={!changed ? undefined : reducedMotion ? FadeIn.duration(150) : valueRollIn}
         exiting={reducedMotion ? FadeOut.duration(150) : valueRollOut}
       >
@@ -91,6 +102,10 @@ function Tile({ item, reducedMotion }: { item: ToolbarItem; reducedMotion: boole
   const rotate = useSharedValue(0);
   const scaleY = useSharedValue(1);
   const prevValue = useRef(item.value);
+  // The tile's face needs a pixel width up front (its Skia sheen canvas
+  // cannot take a percentage), so it is measured off the flex:1 wrapper
+  // once laid out, the same way PrismButton already measures a pill.
+  const [tileWidth, setTileWidth] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     const prev = prevValue.current;
@@ -123,17 +138,32 @@ function Tile({ item, reducedMotion }: { item: ToolbarItem; reducedMotion: boole
     transform: [{ rotate: `${rotate.value}deg` }, { scaleY: scaleY.value }],
   }));
 
+  const handleLayout = (e: LayoutChangeEvent) => {
+    setTileWidth(e.nativeEvent.layout.width);
+    item.onLayout?.(e);
+  };
+
   return (
-    <PressScale
-      onPress={item.onPress}
-      onLayout={item.onLayout}
-      accessibilityRole="button"
-      accessibilityLabel={item.value ? `${item.label}, ${item.value}` : item.label}
-      style={[styles.item, item.active && styles.itemActive]}>
-      <Animated.View style={iconStyle}>{item.icon}</Animated.View>
-      <Text style={[styles.label, item.active && styles.active]}>{item.label}</Text>
-      {item.value ? <ValueRoll value={item.value} reducedMotion={reducedMotion} /> : null}
-    </PressScale>
+    <View style={styles.item} onLayout={handleLayout}>
+      <PrismButton
+        shape="tile"
+        verb="listen"
+        flat
+        width={tileWidth}
+        on={item.active}
+        onPress={item.onPress}
+        accessibilityLabel={item.value ? `${item.label}, ${item.value}` : item.label}>
+        <Animated.View style={iconStyle}>{item.icon}</Animated.View>
+        <Text
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
+          style={[styles.label, item.active && styles.active, item.active && styles.glowOn]}>
+          {item.label}
+        </Text>
+        {item.value ? <ValueRoll value={item.value} active={!!item.active} reducedMotion={reducedMotion} /> : null}
+      </PrismButton>
+    </View>
   );
 }
 
@@ -146,32 +176,39 @@ function Tile({ item, reducedMotion }: { item: ToolbarItem; reducedMotion: boole
 export const Toolbar = memo(function Toolbar({ items }: { items: ToolbarItem[] }) {
   const reducedMotion = useReducedMotion();
   return (
-    <View style={styles.row}>
+    <GlassPanel style={styles.row}>
       {items.map((item) => (
         <Tile key={item.key} item={item} reducedMotion={reducedMotion} />
       ))}
-    </View>
+    </GlassPanel>
   );
 });
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', justifyContent: 'space-around', paddingTop: 10, paddingBottom: 4, paddingHorizontal: 6, gap: 6 },
-  item: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 3,
-    minHeight: 54,
-    paddingVertical: 8,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+  row: { flexDirection: 'row', padding: 6, gap: 6 },
+  // No lip on a tile (light press), so the wrapper reserves nothing beyond
+  // the tile's own 64px height: it just hands its measured width down.
+  item: { flex: 1 },
+  label: {
+    fontFamily: fonts.uiMedium,
+    fontWeight: '500',
+    fontSize: 11,
+    color: tide.textDim,
+    textShadowColor: GLOW_OFF,
+    textShadowRadius: GLOW_RADIUS_OFF,
+    textShadowOffset: { width: 0, height: 0 },
   },
-  itemActive: { backgroundColor: 'rgba(255,158,128,0.14)', borderColor: tide.lang.ja },
-  label: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 11, color: tide.textDim },
-  value: { fontFamily: fonts.ui, fontSize: 11, color: tide.text },
+  value: {
+    fontFamily: fonts.ui,
+    fontSize: 11,
+    color: tide.text,
+    fontVariant: ['tabular-nums'],
+    textShadowColor: GLOW_OFF,
+    textShadowRadius: GLOW_RADIUS_OFF,
+    textShadowOffset: { width: 0, height: 0 },
+  },
   valueClip: { height: 14, width: '100%', overflow: 'hidden', alignItems: 'center' },
   valueLayer: { position: 'absolute', left: 0, right: 0, textAlign: 'center' },
-  active: { color: tide.lang.ja },
+  active: { color: verb.listen.c1 },
+  glowOn: { textShadowColor: GLOW_ON, textShadowRadius: GLOW_RADIUS_ON },
 });

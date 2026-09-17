@@ -11,7 +11,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { PrismFace, prismFaceSize, type PrismFaceProps } from '@/components/prism/prism-face';
+import { PrismFace, prismFaceSize, type PrismFaceProps, type PrismShape } from '@/components/prism/prism-face';
 import { prism, verb as verbTokens } from '@/constants/theme';
 import { hapticImpact } from '@/lib/haptics';
 
@@ -21,6 +21,14 @@ export type PrismButtonProps = Omit<PrismFaceProps, 'onT'> & {
   onPress?: () => void;
   onLongPress?: () => void;
   disabled?: boolean;
+  /**
+   * 'tide': sinks onto its lip and ripples on release, the big press. 'light':
+   * a quick 0.95 scale and a spring back, no lip, no reserved sink space, no
+   * ripples. Defaults to 'tide' for big round buttons (56 and up) and for
+   * pills that are not `flat`; 'light' for everything else (small round,
+   * tiles, flat pills).
+   */
+  press?: 'tide' | 'light';
   /** Fires a light haptic on press-in. Defaults to true. */
   haptic?: boolean;
   accessibilityLabel?: string;
@@ -34,6 +42,13 @@ export type PrismButtonProps = Omit<PrismFaceProps, 'onT'> & {
 
 function clampSink(height: number): number {
   return Math.min(Math.max(Math.round(height / 10), prism.press.sinkMin), prism.press.sinkMax);
+}
+
+/** Only the big round buttons and non-flat pills get the Tide Drop press; everything else gets the light scale. */
+function defaultPress(shape: PrismShape, size: number | undefined, flat: boolean | undefined): 'tide' | 'light' {
+  if (shape === 'pill') return flat ? 'light' : 'tide';
+  if (shape === 'round') return (size ?? prism.sizes.round) >= prism.sizes.bigRound ? 'tide' : 'light';
+  return 'light';
 }
 
 type RingProps = { ring: SharedValue<number>; width: number; height: number; radius: number; colour: string; top: number };
@@ -83,6 +98,7 @@ export function PrismButton({
   onPress,
   onLongPress,
   disabled,
+  press,
   haptic = true,
   accessibilityLabel,
   accessibilityRole = 'button',
@@ -94,6 +110,8 @@ export function PrismButton({
   const dims = prismFaceSize(shape, size, width, height);
   const [measuredWidth, setMeasuredWidth] = useState<number | undefined>(dims.width);
   const lipWidth = dims.width ?? measuredWidth;
+  const pressStyle = press ?? defaultPress(shape, size, flat);
+  const isTide = pressStyle === 'tide';
 
   const onT = useSharedValue(on ? 1 : 0);
   useEffect(() => {
@@ -101,12 +119,15 @@ export function PrismButton({
   }, [on, onT]);
 
   const sinkT = useSharedValue(0);
+  const scaleT = useSharedValue(1);
   const r1 = useSharedValue(1);
   const r2 = useSharedValue(1);
   const r3 = useSharedValue(1);
 
   // Stays the same when `disabled` flips, so the lip and the reserved space never jump.
+  // Only meaningful for the tide press; a light press reserves no sink space.
   const sink = reducedMotion ? prism.press.sinkReduced : clampSink(dims.height);
+  const reservedSink = isTide ? sink : 0;
 
   // 0 enabled, 1 disabled: drives the face down to the sunk position (flush
   // with where the lip sits) instead of a press, and zeroes the glow and sheen.
@@ -118,10 +139,15 @@ export function PrismButton({
   // `Math.max` rather than a sum: if `disabled` flips true mid-press, sinkT
   // (springing back to 0 per the press-out guard) and dimT (rising to 1) never
   // add up to more than one sink, so the face cannot overshoot its lip depth.
+  // A light press has no lip to sink onto: it scales instead.
   const faceStyle = useAnimatedStyle(() => {
-    const press = Number.isFinite(sinkT.value) ? sinkT.value : 0;
     const dim = Number.isFinite(dimT.value) ? dimT.value : 0;
-    return { transform: [{ translateY: Math.max(press, sink * dim) }] };
+    if (isTide) {
+      const sinkNow = Number.isFinite(sinkT.value) ? sinkT.value : 0;
+      return { transform: [{ translateY: Math.max(sinkNow, sink * dim) }] };
+    }
+    const scaleNow = Number.isFinite(scaleT.value) ? scaleT.value : 1;
+    return { transform: [{ scale: scaleNow }] };
   });
 
   const handleFaceLayout = (e: LayoutChangeEvent) => {
@@ -132,20 +158,28 @@ export function PrismButton({
   const handlePressIn = () => {
     if (disabled) return;
     if (haptic) void hapticImpact();
-    sinkT.set(withTiming(sink, { duration: prism.press.sinkInMs, easing: Easing.out(Easing.quad) }));
+    if (isTide) {
+      sinkT.set(withTiming(sink, { duration: prism.press.sinkInMs, easing: Easing.out(Easing.quad) }));
+    } else {
+      scaleT.set(withTiming(0.95, { duration: 80, easing: Easing.out(Easing.quad) }));
+    }
   };
 
   // Always springs back, even if `disabled` flipped true mid-press, so the
-  // face never stays sunk.
+  // face never stays sunk or shrunk.
   const handlePressOut = () => {
-    sinkT.set(reducedMotion ? withTiming(0, { duration: 90 }) : withSpring(0, prism.press.spring));
+    if (isTide) {
+      sinkT.set(reducedMotion ? withTiming(0, { duration: 90 }) : withSpring(0, prism.press.spring));
+    } else {
+      scaleT.set(reducedMotion ? withTiming(1, { duration: 90 }) : withSpring(1, prism.press.spring));
+    }
   };
 
   // Rings start here rather than on press-out, so a press cancelled by a
-  // scroll or a slide off the button does not ripple.
+  // scroll or a slide off the button does not ripple. A light press has no rings.
   const handlePress = () => {
     if (disabled) return;
-    if (!reducedMotion) {
+    if (isTide && !reducedMotion) {
       const rings = [r1, r2, r3];
       for (let i = 0; i < rings.length; i++) {
         rings[i].set(0);
@@ -169,13 +203,13 @@ export function PrismButton({
       testID={testID}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
-      style={[styles.outer, { paddingBottom: sink }, disabled ? styles.disabled : null, containerStyle]}>
-      {!reducedMotion && !disabled && lipWidth !== undefined
+      style={[styles.outer, { paddingBottom: reservedSink }, disabled ? styles.disabled : null, containerStyle]}>
+      {isTide && !reducedMotion && !disabled && lipWidth !== undefined
         ? [r1, r2, r3].map((ring, i) => (
             <RippleRing key={i} ring={ring} width={lipWidth} height={dims.height} radius={dims.radius} colour={colours.c2} top={sink} />
           ))
         : null}
-      {!disabled && lipWidth !== undefined ? (
+      {isTide && !disabled && lipWidth !== undefined ? (
         <View
           pointerEvents="none"
           style={[

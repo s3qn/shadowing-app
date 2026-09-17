@@ -5,10 +5,12 @@ import { FlatList, SectionList, StyleSheet, Text, TextInput, View } from 'react-
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
+import { PILL_TAB_BAR_REACH } from '@/components/pill-tab-bar';
 import { PressScale } from '@/components/press-scale';
+import { GlassPanel, PrismButton } from '@/components/prism';
 
 import { fonts } from '@/constants/fonts';
-import { Radius, Spacing, tide } from '@/constants/theme';
+import { Radius, Spacing, prism, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
 
 const SIDE = 16;
@@ -182,25 +184,29 @@ export default function PodcastScreen() {
         </View>
       ) : (
         <>
-          <FlatList
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.chipRow}
-            contentContainerStyle={styles.chipRowContent}
-            data={catalog.sections}
-            keyExtractor={(s) => s.id}
-            renderItem={({ item }) => {
-              const on = activeChip === item.id;
-              return (
-                <PressScale
+          {/* prism: chip row shares one blur pane, each chip a flat pill */}
+          <GlassPanel radius={Radius.pill} style={styles.chipRow}>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.chipRowContent}
+              data={catalog.sections}
+              keyExtractor={(s) => s.id}
+              renderItem={({ item }) => (
+                <PrismButton
+                  shape="pill"
+                  verb="listen"
+                  flat
+                  press="light"
+                  haptic={false}
+                  on={activeChip === item.id}
+                  label={item.title}
                   onPress={() => jumpTo(item.id)}
                   accessibilityRole="button"
-                  style={[styles.chip, on && styles.chipOn]}>
-                  <Text style={[styles.chipText, on && styles.chipTextOn]}>{item.title}</Text>
-                </PressScale>
-              );
-            }}
-          />
+                />
+              )}
+            />
+          </GlassPanel>
           <SectionList
             ref={sectionListRef}
             style={styles.fill}
@@ -218,12 +224,13 @@ export default function PodcastScreen() {
             )}
             renderSectionFooter={({ section }) =>
               section.total > SHOWN_CAP && !expanded[section.id] ? (
-                <PressScale
+                <PrismButton
+                  shape="pill"
+                  verb="listen"
+                  label={`View all ${section.total}`}
                   onPress={() => setExpanded((prev) => ({ ...prev, [section.id]: true }))}
-                  accessibilityRole="button"
-                  style={styles.viewAll}>
-                  <Text style={styles.viewAllText}>View all {section.total}</Text>
-                </PressScale>
+                  containerStyle={styles.viewAll}
+                />
               ) : null
             }
             onScrollToIndexFailed={() => {
@@ -259,23 +266,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: fonts.ui,
   },
-  chipRow: { flexGrow: 0, marginBottom: Spacing.sm },
-  chipRowContent: { paddingHorizontal: SIDE, gap: Spacing.xs },
-  chip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs + 2,
-    borderRadius: Radius.pill,
-    backgroundColor: tide.water,
-  },
-  chipOn: { backgroundColor: tide.lang.ja },
-  chipText: { fontSize: 13, color: tide.text, fontFamily: fonts.uiMedium, fontWeight: '500' },
-  chipTextOn: { color: tide.sky[0] },
-  list: { paddingHorizontal: SIDE, paddingBottom: Spacing.xl, gap: Spacing.sm },
+  chipRow: { flexGrow: 0, marginHorizontal: SIDE, marginBottom: Spacing.sm },
+  chipRowContent: { paddingHorizontal: SIDE, paddingVertical: Spacing.xs, gap: Spacing.xs },
+  // paddingBottom leaves room for the floating pill tab bar and the offset
+  // pane that peeks out past its bottom edge, so the last row never hides
+  // under it.
+  list: { paddingHorizontal: SIDE, paddingBottom: Spacing.xl + PILL_TAB_BAR_REACH + prism.tray.pane.dy, gap: Spacing.sm },
   sectionHeader: { paddingTop: Spacing.md, paddingBottom: Spacing.xs, gap: 2 },
   sectionTitle: { fontSize: 17, lineHeight: 22, color: tide.text, fontFamily: fonts.uiMedium, fontWeight: '500' },
   sectionSubtitle: { fontSize: 13, lineHeight: 18, color: tide.textDim, fontFamily: fonts.ui },
-  viewAll: { paddingVertical: Spacing.sm, alignItems: 'center' },
-  viewAllText: { fontSize: 14, color: tide.lang.ja, fontFamily: fonts.uiMedium, fontWeight: '500' },
+  viewAll: { alignSelf: 'center', marginVertical: Spacing.sm },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

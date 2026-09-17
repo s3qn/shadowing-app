@@ -115,6 +115,25 @@ export default function PrismLabScreen() {
             <SpeedIcon color={verbTokens.speak.c1} size={18} verb="speak" />
           </PrismButton>
         </Section>
+
+        <Section title="Press: tide (default on big round, 56+) vs light (everything else)">
+          <View style={styles.pair}>
+            <PrismButton shape="round" size={44} verb="listen" onPress={() => {}}>
+              <SpeedIcon color={verbTokens.listen.c1} size={18} verb="listen" />
+            </PrismButton>
+            <PrismButton shape="round" size={56} verb="listen" onPress={() => {}}>
+              <SpeedIcon color={verbTokens.listen.c1} size={24} verb="listen" />
+            </PrismButton>
+          </View>
+          <View style={styles.pair}>
+            <PrismButton shape="round" size={56} verb="speak" press="light" onPress={() => {}}>
+              <SpeedIcon color={verbTokens.speak.c1} size={24} verb="speak" />
+            </PrismButton>
+            <PrismButton shape="round" size={44} verb="speak" press="tide" onPress={() => {}}>
+              <SpeedIcon color={verbTokens.speak.c1} size={18} verb="speak" />
+            </PrismButton>
+          </View>
+        </Section>
       </ScrollView>
     </SafeAreaView>
   );

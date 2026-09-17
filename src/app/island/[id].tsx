@@ -63,8 +63,11 @@ import { WordOutline } from '@/components/word-outline';
 import { POPOVER_WIDTH, WordPanel } from '@/components/word-panel';
 import { SlideReveal } from '@/components/slide-reveal';
 import { TakeFeedback } from '@/components/take-feedback';
+import { SymbolView } from 'expo-symbols'; // icon-buttons: retry/regenerate/refresh
+import { PrismButton } from '@/components/prism'; // icon-buttons: retry/regenerate/refresh
 import { fonts } from '@/constants/fonts';
-import { Radius, Spacing, tide } from '@/constants/theme';
+// prism-player-buttons and icon-buttons: verb tokens
+import { Radius, Spacing, prism, tide, verb } from '@/constants/theme';
 import {
   afterCoverGone,
   canStartBack,
@@ -2251,7 +2254,7 @@ export default function IslandScreen() {
     return [
       {
         key: 'speed',
-        icon: <SpeedIcon color={speedOn ? tide.lang.ja : tide.textDim} size={22} />,
+        icon: <SpeedIcon color={speedOn ? verb.listen.c1 : tide.textDim} size={22} />, // prism-player-buttons: verb listen tint
         label: 'Speed',
         value: speedLabel(speedLive),
         active: speedOn,
@@ -2270,7 +2273,7 @@ export default function IslandScreen() {
       },
       {
         key: 'repeat',
-        icon: <RepeatIcon color={repeatOn ? tide.lang.ja : tide.textDim} size={22} />,
+        icon: <RepeatIcon color={repeatOn ? verb.listen.c1 : tide.textDim} size={22} />, // prism-player-buttons: verb listen tint
         label: 'Repeat',
         value: repeatTileLabel(times, pauseMs),
         active: repeatOn,
@@ -2289,7 +2292,7 @@ export default function IslandScreen() {
       },
       {
         key: 'reading',
-        icon: <ReadingIcon color={readingOn ? tide.lang.ja : tide.textDim} size={22} />,
+        icon: <ReadingIcon color={readingOn ? verb.listen.c1 : tide.textDim} size={22} />, // prism-player-buttons: verb listen tint
         label: 'Reading',
         value: READING_LABEL[readingMode],
         active: readingOn,
@@ -2308,7 +2311,7 @@ export default function IslandScreen() {
       },
       {
         key: 'blind',
-        icon: <BlindIcon color={blind || !englishShown ? tide.lang.ja : tide.textDim} size={22} />,
+        icon: <BlindIcon color={blind || !englishShown ? verb.listen.c1 : tide.textDim} size={22} />, // prism-player-buttons: verb listen tint
         label: 'Blind',
         value: blind && !englishShown ? 'Both' : blind ? 'JP' : !englishShown ? 'EN' : 'Off',
         active: blind || !englishShown,
@@ -2807,11 +2810,18 @@ export default function IslandScreen() {
         {header(false)}
         <View style={[styles.fill, styles.center]}>
           <Text style={[styles.body, { color: tide.record }]}>{error}</Text>
-          <PressScale
-            onPress={() => setAttempt((n) => n + 1)}
-            style={[styles.retry, { backgroundColor: tide.lang.ja }]}>
-            <Text style={[styles.retryText, { color: tide.sky[0] }]}>Retry</Text>
-          </PressScale>
+          {/* icon-buttons: Retry */}
+          <View style={{ alignItems: 'center' }}>
+            <PrismButton
+              shape="round"
+              size={prism.sizes.roundSm}
+              verb="tools"
+              onPress={() => setAttempt((n) => n + 1)}
+              accessibilityLabel="Retry">
+              <SymbolView name={{ ios: 'arrow.clockwise', android: 'refresh' }} size={16} weight="regular" tintColor={verb.tools.c1} />
+            </PrismButton>
+            <Text style={{ fontFamily: fonts.ui, fontSize: 11, color: tide.textDim, marginTop: 4, textAlign: 'center' }}>Retry</Text>
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -2869,25 +2879,41 @@ export default function IslandScreen() {
             </Text>
           )}
           {!busy ? (
-            <PressScale
-              onPress={async () => {
-                try {
-                  await api.regenerate(island.id, island.complexity);
-                  invalidateLineAudio(island.id);
-                  invalidateCachedIsland(island.id);
-                  deleteTakes(island.id);
-                  setAttempt((n) => n + 1);
-                } catch (e) {
-                  setError(e instanceof Error ? e.message : 'Could not regenerate');
-                }
-              }}
-              style={[styles.retry, { backgroundColor: tide.lang.ja }]}>
-              <Text style={[styles.retryText, { color: tide.sky[0] }]}>Regenerate</Text>
-            </PressScale>
+            // icon-buttons: Regenerate
+            <View style={{ alignItems: 'center' }}>
+              <PrismButton
+                shape="round"
+                size={prism.sizes.roundSm}
+                verb="read"
+                onPress={async () => {
+                  try {
+                    await api.regenerate(island.id, island.complexity);
+                    invalidateLineAudio(island.id);
+                    invalidateCachedIsland(island.id);
+                    deleteTakes(island.id);
+                    setAttempt((n) => n + 1);
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : 'Could not regenerate');
+                  }
+                }}
+                accessibilityLabel="Regenerate">
+                <SymbolView name={{ ios: 'sparkles', android: 'auto_awesome' }} size={16} weight="regular" tintColor={verb.read.c1} />
+              </PrismButton>
+              <Text style={{ fontFamily: fonts.ui, fontSize: 11, color: tide.textDim, marginTop: 4, textAlign: 'center' }}>Regenerate</Text>
+            </View>
           ) : (
-            <PressScale onPress={() => setAttempt((n) => n + 1)} style={styles.secondaryBtn}>
-              <Text style={[styles.retryText, { color: tide.textDim }]}>Refresh</Text>
-            </PressScale>
+            // icon-buttons: Refresh
+            <View style={{ alignItems: 'center' }}>
+              <PrismButton
+                shape="round"
+                size={prism.sizes.roundSm}
+                verb="tools"
+                onPress={() => setAttempt((n) => n + 1)}
+                accessibilityLabel="Refresh">
+                <SymbolView name={{ ios: 'arrow.clockwise', android: 'refresh' }} size={16} weight="regular" tintColor={verb.tools.c1} />
+              </PrismButton>
+              <Text style={{ fontFamily: fonts.ui, fontSize: 11, color: tide.textDim, marginTop: 4, textAlign: 'center' }}>Refresh</Text>
+            </View>
           )}
         </View>
       </SafeAreaView>

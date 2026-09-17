@@ -5,7 +5,15 @@ import { Canvas, Circle, RoundedRect, SweepGradient, vec } from '@shopify/react-
 import Animated, { interpolateColor, useAnimatedStyle, useSharedValue, type SharedValue } from 'react-native-reanimated';
 
 import { fonts } from '@/constants/fonts';
-import { prism, tide, verb as verbTokens, type Verb } from '@/constants/theme';
+import { prism, tide, verb as verbTokens, withAlpha, type Verb } from '@/constants/theme';
+
+/** The label and value glow, off and on: the same look the toolbar tiles use,
+ * kept here so a tile that renders its label and value through the kit
+ * (rather than as its own children, like the toolbar does) still gets it. */
+const GLOW_ALPHA_OFF = 0.55;
+const GLOW_ALPHA_ON = 0.85;
+const GLOW_RADIUS_OFF = 6;
+const GLOW_RADIUS_ON = 8;
 
 /** Built once so the Skia gradient gets the same array on every render. */
 const SHEEN_COLORS = [...prism.sheen.colors];
@@ -100,9 +108,18 @@ export function PrismFace({ shape, size, width, height, verb, onT, dimT, flat, l
 
   const labelOff = shape === 'pill' ? tide.text : tide.textDim;
   const labelOn = shape === 'pill' ? prism.tray.lit.label : colours.c1;
-  const labelColourStyle = useAnimatedStyle(() => ({
-    color: interpolateColor(safeT(onT.value), [0, 1], [labelOff, labelOn]),
-  }));
+  const glowOff = withAlpha(colours.c1, GLOW_ALPHA_OFF);
+  const glowOn = withAlpha(colours.c1, GLOW_ALPHA_ON);
+  // Riding the same onT this already reads for the colour crossfade: no
+  // extra per-frame animated style, just two more fields on this one.
+  const labelColourStyle = useAnimatedStyle(() => {
+    const t = safeT(onT.value);
+    return {
+      color: interpolateColor(t, [0, 1], [labelOff, labelOn]),
+      textShadowColor: interpolateColor(t, [0, 1], [glowOff, glowOn]),
+      textShadowRadius: GLOW_RADIUS_OFF + (GLOW_RADIUS_ON - GLOW_RADIUS_OFF) * t,
+    };
+  });
 
   const shapeStyle: ViewStyle =
     shape === 'pill'
@@ -154,7 +171,7 @@ export function PrismFace({ shape, size, width, height, verb, onT, dimT, flat, l
     ) : null;
   const valueNode =
     value === undefined || value === null || shape !== 'tile' ? null : typeof value === 'string' || typeof value === 'number' ? (
-      <Text numberOfLines={1} style={styles.tileValue}>
+      <Text numberOfLines={1} style={[styles.tileValue, { textShadowColor: glowOff }]}>
         {value}
       </Text>
     ) : (
@@ -202,9 +219,28 @@ const styles = StyleSheet.create({
   contentRow: { alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
   // boxShadow may not draw on a fully transparent view.
   haloFill: { backgroundColor: 'rgba(0,0,0,0.01)' },
-  tileLabel: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 10 },
-  tileValue: { fontFamily: fonts.ui, fontSize: 9, color: tide.text, fontVariant: ['tabular-nums'] },
-  pillLabel: { fontFamily: fonts.ui, fontWeight: '600', fontSize: 13 },
+  tileLabel: {
+    fontFamily: fonts.uiMedium,
+    fontWeight: '500',
+    fontSize: 10,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: GLOW_RADIUS_OFF,
+  },
+  tileValue: {
+    fontFamily: fonts.ui,
+    fontSize: 9,
+    color: tide.text,
+    fontVariant: ['tabular-nums'],
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: GLOW_RADIUS_OFF,
+  },
+  pillLabel: {
+    fontFamily: fonts.ui,
+    fontWeight: '600',
+    fontSize: 13,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: GLOW_RADIUS_OFF,
+  },
   fringeBorders: {
     borderLeftWidth: prism.fringe.side,
     borderRightWidth: prism.fringe.side,

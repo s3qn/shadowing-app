@@ -8,6 +8,7 @@ import {
 } from 'expo-audio';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { SymbolView } from 'expo-symbols'; // icon-buttons: discard
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
@@ -16,10 +17,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CatConstellation } from '@/components/cat-constellation';
 import { LevelBars, meterLevel } from '@/components/level-bars';
 import { PressScale } from '@/components/press-scale';
+import { PrismButton } from '@/components/prism';
 import { Segmented, type SegmentOption } from '@/components/segmented';
 
 import { fonts } from '@/constants/fonts';
-import { Radius, Spacing, tide } from '@/constants/theme';
+import { Radius, Spacing, prism, tide, verb as verbTokens } from '@/constants/theme'; // icon-buttons: discard
 import * as api from '@/lib/api';
 import {
   applyPlaybackMode,
@@ -379,12 +381,14 @@ export default function RecordScreen() {
             {phase === 'review' ? (
               <>
                 <View style={styles.takeCard}>
-                  <PressScale
+                  <PrismButton
+                    shape="round"
+                    size={prism.sizes.roundSm}
+                    verb="listen"
                     onPress={togglePlay}
                     disabled={!canPlay}
                     accessibilityRole="button"
-                    accessibilityLabel={playStatus.playing ? 'Pause recording' : 'Play recording'}
-                    style={[styles.playButton, !canPlay && styles.dimmed]}>
+                    accessibilityLabel={playStatus.playing ? 'Pause recording' : 'Play recording'}>
                     {playStatus.playing ? (
                       <View style={styles.pauseIcon}>
                         <View style={styles.pauseBar} />
@@ -393,7 +397,7 @@ export default function RecordScreen() {
                     ) : (
                       <View style={styles.playIcon} />
                     )}
-                  </PressScale>
+                  </PrismButton>
                   <TakeWave bars={bars} progress={progress} />
                   <Text style={styles.takeTime}>{clock(taken)}</Text>
                 </View>
@@ -438,24 +442,37 @@ export default function RecordScreen() {
                   <Text style={styles.primaryText}>Build the island</Text>
                 </PressScale>
                 <View style={styles.secondaryRow}>
-                  <PressScale onPress={start} accessibilityRole="button" style={styles.secondary}>
-                    <Text style={[styles.secondaryText, { color: tide.textDim }]}>Record again</Text>
-                  </PressScale>
-                  <PressScale onPress={cancel} accessibilityRole="button" style={styles.secondary}>
-                    <Text style={[styles.secondaryText, { color: tide.record }]}>Discard</Text>
-                  </PressScale>
+                  {/* prism-record: edited region */}
+                  <View style={styles.secondary}>
+                    <PrismButton shape="pill" verb="tools" label="Record again" onPress={start} />
+                  </View>
+                  {/* prism-record: end */}
+                  {/* icon-buttons: Discard */}
+                  <View style={styles.secondaryIcon}>
+                    <PrismButton
+                      shape="round"
+                      size={prism.sizes.roundSm}
+                      verb="speak"
+                      onPress={cancel}
+                      accessibilityLabel="Discard">
+                      <SymbolView name={{ ios: 'trash', android: 'delete' }} size={16} weight="regular" tintColor={verbTokens.speak.c1} />
+                    </PrismButton>
+                  </View>
                 </View>
               </>
             ) : (
               <View style={styles.recordWrap}>
-                <PressScale
+                <PrismButton
+                  shape="round"
+                  size={prism.sizes.bigRound}
+                  verb="speak"
+                  on={recording}
                   onPress={recording ? stop : start}
                   disabled={recording && !longEnough}
                   accessibilityRole="button"
-                  accessibilityLabel={recording ? 'Stop recording' : 'Start recording'}
-                  style={[styles.recordButton, recording && styles.recordButtonActive]}>
+                  accessibilityLabel={recording ? 'Stop recording' : 'Start recording'}>
                   <View style={[styles.recordDot, recording && styles.recordDotActive]} />
-                </PressScale>
+                </PrismButton>
                 {/* Always laid out, so the button does not move when it appears. */}
                 <Text style={styles.keepGoing}>
                   {recording && !longEnough
@@ -516,15 +533,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
-  playButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: tide.lang.ja,
-  },
-  dimmed: { opacity: 0.4 },
   // A triangle drawn with borders, nudged right so it looks centred.
   playIcon: {
     marginLeft: 3,
@@ -535,10 +543,10 @@ const styles = StyleSheet.create({
     borderLeftWidth: 11,
     borderTopColor: 'transparent',
     borderBottomColor: 'transparent',
-    borderLeftColor: tide.sky[0],
+    borderLeftColor: tide.text,
   },
   pauseIcon: { flexDirection: 'row', gap: 4 },
-  pauseBar: { width: 4, height: 14, borderRadius: 1, backgroundColor: tide.sky[0] },
+  pauseBar: { width: 4, height: 14, borderRadius: 1, backgroundColor: tide.text },
   wave: {
     flex: 1,
     height: WAVE_MAX_H,
@@ -557,19 +565,8 @@ const styles = StyleSheet.create({
   error: { fontSize: 14, lineHeight: 20, color: tide.record, fontFamily: fonts.ui },
   actions: { paddingHorizontal: SIDE, paddingTop: Spacing.md, paddingBottom: Spacing.sm, gap: Spacing.xs },
   recordWrap: { alignItems: 'center', gap: Spacing.sm },
-  recordButton: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  recordButtonActive: { backgroundColor: tide.record, borderColor: tide.record },
   recordDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: tide.record },
-  recordDotActive: { backgroundColor: tide.sky[0] },
+  recordDotActive: { backgroundColor: verbTokens.speak.c1 },
   keepGoing: { fontSize: 14, lineHeight: 20, color: tide.textDim, fontFamily: fonts.ui },
   primary: {
     paddingVertical: Spacing.lg,
@@ -580,5 +577,6 @@ const styles = StyleSheet.create({
   primaryText: { fontSize: 17, color: tide.sky[0], fontFamily: fonts.uiMedium, fontWeight: '500' },
   secondaryRow: { flexDirection: 'row' },
   secondary: { flex: 1, paddingVertical: Spacing.md, alignItems: 'center' },
+  secondaryIcon: { flex: 1, alignItems: 'center' }, // icon-buttons: Discard
   secondaryText: { fontSize: 15, fontFamily: fonts.uiMedium, fontWeight: '500' },
 });

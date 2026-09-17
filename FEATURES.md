@@ -169,6 +169,9 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   islands; never practised islands count as due.
 - Mora length and pitch feedback after a take, on the sentence card and in
   the Auto Echo sheet.
+- Prism Edge buttons across the app: verb colours, glass pill trays for the
+  tab bar and sort control, drag between tabs, Tide Drop on big buttons, icon
+  buttons for Retry, Regenerate, Refresh, Discard and Whole line.
 
 ## Next (approved, in order)
 

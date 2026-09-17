@@ -10,8 +10,8 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { fonts } from '@/constants/fonts';
-import { tide } from '@/constants/theme';
-import { PressScale } from '@/components/press-scale';
+import { prism, tide, verb } from '@/constants/theme';
+import { PrismButton } from '@/components/prism/prism-button';
 import { RingButton, type RingMode } from '@/components/ring-button';
 
 type Props = {
@@ -76,13 +76,15 @@ export const BottomRow = memo(function BottomRow({
       <RoundButton glyph="›" onPress={onNext} disabled={nextDisabled} label="Next line" />
       <View style={styles.recordWrap}>
         <Animated.View pointerEvents="none" style={[styles.recordGlow, glowStyle]} />
-        <PressScale
+        <PrismButton
+          shape="round"
+          verb="speak"
+          size={prism.sizes.bigRound}
+          on={recording}
           onPress={onRecord}
-          accessibilityRole="button"
-          accessibilityLabel={recording ? 'Stop recording' : 'Record my take'}
-          style={[styles.round, recording && styles.recordActive]}>
+          accessibilityLabel={recording ? 'Stop recording' : 'Record my take'}>
           <View style={[styles.recordDot, recording && styles.recordDotActive]} />
-        </PressScale>
+        </PrismButton>
       </View>
     </View>
   );
@@ -97,32 +99,26 @@ type RoundButtonProps = {
 
 export function RoundButton({ glyph, onPress, disabled, label }: RoundButtonProps) {
   return (
-    <PressScale
+    <PrismButton
+      shape="round"
+      verb="listen"
+      size={prism.sizes.round}
       onPress={onPress}
       disabled={disabled}
-      hitSlop={8}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={[styles.round, disabled && styles.roundDisabled]}>
+      accessibilityLabel={label}>
       <Text style={styles.glyph}>{glyph}</Text>
-    </PressScale>
+    </PrismButton>
   );
 }
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14, paddingVertical: 10, paddingHorizontal: 18 },
-  round: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  recordWrap: {
+    width: prism.sizes.bigRound,
+    height: prism.sizes.bigRound,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
   },
-  roundDisabled: { opacity: 0.35 },
-  recordWrap: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   recordGlow: {
     position: 'absolute',
     width: 64,
@@ -131,7 +127,6 @@ const styles = StyleSheet.create({
     backgroundColor: tide.record,
   },
   glyph: { fontFamily: fonts.ui, fontSize: 26, color: tide.text },
-  recordActive: { backgroundColor: tide.record },
   recordDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: tide.record },
-  recordDotActive: { backgroundColor: tide.sky[0] },
+  recordDotActive: { backgroundColor: verb.speak.c1 },
 });

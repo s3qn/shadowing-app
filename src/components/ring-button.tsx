@@ -14,7 +14,8 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { PressScale } from '@/components/press-scale';
-import { tide } from '@/constants/theme';
+import { PrismFace } from '@/components/prism/prism-face';
+import { tide, verb } from '@/constants/theme';
 
 export type RingMode = 'idle' | 'playing' | 'breath';
 
@@ -212,11 +213,6 @@ export function RingButton({ size = 84, mode, onPress }: Props) {
     };
   }, [reducedMotion]);
 
-  const coreGlowStyle = useAnimatedStyle(() => {
-    const f = Number.isFinite(fade.value) ? fade.value : 0;
-    return { shadowOpacity: 0.6 * f, shadowRadius: 14 * f };
-  });
-
   const coreSize = size * 0.72;
   const ringBox = { width: coreSize, height: coreSize, borderRadius: coreSize / 2 };
 
@@ -244,18 +240,15 @@ export function RingButton({ size = 84, mode, onPress }: Props) {
       style={[styles.wrap, { width: size, height: size }]}>
       <Animated.View pointerEvents="none" style={[styles.ring, ringBox, ring1Style]} />
       <Animated.View pointerEvents="none" style={[styles.ring, ringBox, ring2Style]} />
-      <Animated.View
-        style={[
-          styles.core,
-          { width: coreSize, height: coreSize, backgroundColor: active ? tide.lang.ja : 'rgba(255,255,255,0.1)' },
-          coreGlowStyle,
-        ]}>
-        <Animated.View style={[styles.glyphLayer, playStyle]}>
-          <View style={styles.play} />
-        </Animated.View>
-        <Animated.View style={[styles.glyphLayer, stopStyle]}>
-          <View style={styles.stop} />
-        </Animated.View>
+      <Animated.View style={[styles.core, { width: coreSize, height: coreSize }]}>
+        <PrismFace shape="round" verb="listen" size={coreSize} onT={fade} flat={false}>
+          <Animated.View style={[styles.glyphLayer, playStyle]}>
+            <View style={styles.play} />
+          </Animated.View>
+          <Animated.View style={[styles.glyphLayer, stopStyle]}>
+            <View style={styles.stop} />
+          </Animated.View>
+        </PrismFace>
       </Animated.View>
     </PressScale>
   );
@@ -267,17 +260,15 @@ const styles = StyleSheet.create({
     position: 'absolute',
     backgroundColor: 'transparent',
     borderWidth: 1.5,
-    borderColor: tide.lang.ja,
+    borderColor: verb.listen.c2,
   },
   core: {
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: tide.lang.ja,
-    shadowOffset: { width: 0, height: 0 },
   },
   glyphLayer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
-  stop: { width: 18, height: 18, borderRadius: 2, backgroundColor: tide.sky[0] },
+  stop: { width: 18, height: 18, borderRadius: 2, backgroundColor: tide.text },
   play: {
     width: 0,
     height: 0,
