@@ -4,6 +4,8 @@ import { useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PassStep } from '@/components/onboarding/pass-step';
+import { WelcomeStep } from '@/components/onboarding/welcome-step';
 import { PrismButton } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
@@ -27,7 +29,13 @@ const UNDERSTAND_OPTIONS: { value: UnderstoodLanguage; label: string }[] = [
   { value: 'en', label: 'English' },
 ];
 
-const LAST_STEP = 3;
+const STEP_WELCOME = 0;
+const STEP_LANGUAGES = 1;
+const STEP_MIC = 2;
+const STEP_PASS_FIRST = 3;
+const STEP_PASS_LAST = 7;
+const STEP_READY = 8;
+const LAST_STEP = STEP_READY;
 
 /**
  * First-run flow: explains shadowing, picks the two languages, asks for the
@@ -77,7 +85,7 @@ export default function OnboardingScreen() {
     const perm = await requestRecordingPermissionsAsync();
     if (perm.granted) {
       setMicError(false);
-      setStep(3);
+      setStep(STEP_PASS_FIRST);
     } else {
       setMicError(true);
     }
@@ -85,7 +93,7 @@ export default function OnboardingScreen() {
 
   function notNow() {
     setMicError(false);
-    setStep(3);
+    setStep(STEP_PASS_FIRST);
   }
 
   return (
@@ -102,21 +110,9 @@ export default function OnboardingScreen() {
         />
       ) : null}
 
-      {step === 0 ? (
-        <View style={styles.content}>
-          <Text style={styles.title}>Listen to a native voice.</Text>
-          <Text style={styles.title}>Speak along, a beat behind it, then compare.</Text>
-          <PrismButton
-            shape="pill"
-            verb="listen"
-            label="Next"
-            onPress={() => setStep(1)}
-            containerStyle={styles.action}
-          />
-        </View>
-      ) : null}
+      {step === STEP_WELCOME ? <WelcomeStep onNext={() => setStep(STEP_LANGUAGES)} /> : null}
 
-      {step === 1 ? (
+      {step === STEP_LANGUAGES ? (
         <View style={styles.content}>
           <Text style={styles.rowLabel}>I want to learn</Text>
           <View style={styles.row}>
@@ -151,13 +147,13 @@ export default function OnboardingScreen() {
             shape="pill"
             verb="read"
             label="Next"
-            onPress={() => setStep(2)}
+            onPress={() => setStep(STEP_MIC)}
             containerStyle={styles.action}
           />
         </View>
       ) : null}
 
-      {step === 2 ? (
+      {step === STEP_MIC ? (
         <View style={styles.content}>
           <Text style={styles.title}>The app needs your microphone to record you speaking along.</Text>
           <PrismButton
@@ -182,19 +178,32 @@ export default function OnboardingScreen() {
         </View>
       ) : null}
 
-      {step === LAST_STEP ? (
+      {step >= STEP_PASS_FIRST && step <= STEP_PASS_LAST ? (
+        <PassStep
+          pass={(step - STEP_PASS_FIRST) as 0 | 1 | 2 | 3 | 4}
+          learning={learning}
+          understood={understand}
+          onNext={() => setStep(step + 1)}
+        />
+      ) : null}
+
+      {step === STEP_READY ? (
         <View style={styles.content}>
+          <Text style={styles.readyTitle}>You&apos;re ready</Text>
+          <PrismButton
+            shape="round"
+            size={88}
+            verb="speak"
+            accessibilityLabel="Record your first island"
+            onPress={() => void finish('record')}>
+            <View style={styles.recordDot} />
+          </PrismButton>
+          <Text style={styles.readyCaption}>Record your first island</Text>
           <PrismButton
             shape="pill"
             verb="tools"
-            label="Record your first island"
-            onPress={() => void finish('record')}
-            containerStyle={styles.action}
-          />
-          <PrismButton
-            shape="pill"
-            verb="tools"
-            label="Pick a podcast"
+            flat
+            label="Pick a podcast instead"
             onPress={() => void finish('podcast')}
             containerStyle={styles.action}
           />
@@ -220,4 +229,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 280,
   },
+  readyTitle: { fontFamily: fonts.uiMedium, fontSize: 28, color: tide.text },
+  readyCaption: { fontFamily: fonts.ui, fontSize: 15, color: tide.textDim },
+  recordDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: tide.record },
 });

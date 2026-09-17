@@ -3,6 +3,11 @@
 Commands Sean runs himself, in order, from the repo root. Needs a paid Apple
 Developer account (App Store Connect access) and an Expo account.
 
+## App identity
+
+The app is named Echo Tail (`app.json` slug `echo-tail`, iOS bundle
+identifier `build.sean.echotail`, URL scheme `echotail`).
+
 ## One-time setup
 
 ```bash
@@ -83,6 +88,11 @@ eas submit -p ios --latest
 `src/app/(tabs)/settings.tsx` hides the "Prism lab" row behind `__DEV__`, so
 it is false and hidden in a production build. The route file itself,
 `src/app/prism-lab.tsx`, still ships in the bundle (Metro cannot tree-shake a
-route) and stays reachable at `shadowing://prism-lab` by deep link. This is an
+route) and stays reachable at `echotail://prism-lab` by deep link. This is an
 acceptable, undocumented internal debug route for now. Removing or gating it
 further is out of scope for this build setup.
+
+## App icon
+
+The app icon stays the cat art (`assets/images/cat_icon_app.png`) until Sean
+draws the tail mark.

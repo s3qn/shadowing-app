@@ -1,17 +1,17 @@
 {
   "expo": {
-    "name": "Shadowing",
-    "slug": "shadowing-app",
+    "name": "Echo Tail",
+    "slug": "echo-tail",
     "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/cat_icon_app.png",
-    "scheme": "shadowing",
+    "scheme": "echotail",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/images/cat_icon_app.png",
-      "bundleIdentifier": "build.sean.shadowing",
+      "bundleIdentifier": "build.sean.echotail",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Shadowing records your voice so it can build a language island from what you say.",
+        "NSMicrophoneUsageDescription": "Echo Tail records your voice so it can build a language island from what you say.",
         "UIBackgroundModes": [
           "audio"
         ],
@@ -47,7 +47,7 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Shadowing records your voice so it can build a language island from what you say.",
+          "microphonePermission": "Echo Tail records your voice so it can build a language island from what you say.",
           "enableBackgroundPlayback": true
         }
       ],
@@ -55,7 +55,7 @@
       [
         "expo-sensors",
         {
-          "motionPermission": "Shadowing moves the water when you tilt the phone."
+          "motionPermission": "Echo Tail moves the water when you tilt the phone."
         }
       ]
     ],
