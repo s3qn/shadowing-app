@@ -166,10 +166,20 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 
 ## Next (approved, in order)
 
-(empty: pick from Ideas)
+1. App screens for the backend already built: import from audio or SRT,
+   podcasts from RSS, islands due today on Home, and the mora length and pitch
+   feedback after a take.
 
 ## Ideas (not approved)
 
+- Onboarding: a few first-run screens that say what each practice step is
+  for, and ask for the learning and understood languages.
+- A speed ladder that climbs: each island moves up from 0.5x toward 1.0x at
+  90% or more kept-up words and drops back below 85%; the manual slider stays.
+- A session ladder per island: five guided passes (listen blind, mumble, read
+  in sync, record blind, compare).
+- Before and after: replay your first take on an island next to your latest
+  (first takes need to be kept from now on).
 - Anime player: import your own anime episode (video or audio) plus its SRT
   subtitle file; the app plays the video with the subtitles moving along with
   it, the subtitle lines become the island's lines with their own timings, and
