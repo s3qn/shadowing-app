@@ -227,3 +227,11 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   meaning pass last step). Our sentence is regular text with furigana and
   part-of-speech underlines, not Skia text, so it likely needs a blur and mask
   layer over it (the app already has a Frost blur component).
+- SF Symbols in every sheet: the island menu already has icons (SheetAction's
+  optional `icon`, SF Symbols with Material fallbacks on Android). Go through
+  every other bottom sheet and modal (Speed, Repeat, Reading, Blind, Lag, Auto
+  Echo, Explain, Home's rename and delete sheet, the settings screens' rows)
+  and add a fitting SF Symbol wherever a row or option has none, with the same
+  size, weight and tint rules.
+- Micro-animations around the app: small, quick animations on the UI thread in
+  more places, from a research list to be picked from.
