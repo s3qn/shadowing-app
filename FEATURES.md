@@ -215,3 +215,15 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   the current one pulsing; the Cat Constellation drawn larger on the card
   with stars appearing per stage; or a quiet shimmer on the title with the
   stage label.
+- Slide to reveal, for both the Japanese and the English line (Sean loved it).
+  Based on the slide-to-reveal demo
+  (https://github.com/enzomanuelmangano/demos/tree/main/src/animations/slide-to-reveal):
+  a Skia blur mask that follows the finger, gesture handler, the characters
+  under the finger come into focus and grow slightly, everything blurs again
+  on release. Japanese: in Blind mode the sentence stays on screen blurred
+  instead of the Tap to peek placeholder, and sliding a finger shows only the
+  words under it. English: with Hide EN the translation stays blurred, and
+  sliding shows the meaning of just that part of the line (fits the research's
+  meaning pass last step). Our sentence is regular text with furigana and
+  part-of-speech underlines, not Skia text, so it likely needs a blur and mask
+  layer over it (the app already has a Frost blur component).
