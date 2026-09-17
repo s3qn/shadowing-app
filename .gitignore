@@ -44,5 +44,9 @@ example
 
 .env
 
-# agent plan files stay local
-.claude/plans/
+# the agent workflow (agents, skills, plans, run data) stays local
+.claude/
+.edit-lock
+
+# design explorations stay local
+designs/
