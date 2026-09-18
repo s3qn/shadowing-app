@@ -16,22 +16,24 @@ import { fonts } from '@/constants/fonts';
 /** A finite number or the fallback. Every value below reaches a Reanimated
  * style on the UI thread, where a NaN throws and exits Expo Go with no red
  * box (see `cat-constellation.tsx`). */
-function finiteOr(x: number, fallback: number) {
+export function finiteOr(x: number, fallback: number) {
   'worklet';
   return Number.isFinite(x) ? x : fallback;
 }
 
 /** Positive modulo: keeps a repeating phase in `[0, period)` even while
  * `now - delay` is still negative, just after mount. */
-function phase(now: number, delay: number, period: number) {
+export function phase(now: number, delay: number, period: number) {
   'worklet';
   return finiteOr((((now - delay) % period) + period) % period, 0);
 }
 
-/** A UI-thread millisecond clock for one mounted pass's effects, frozen at 0
- * under reduced motion. Every effect below derives its motion from this one
- * clock instead of its own timers, so nothing here is per-frame JS. */
-function useEffectClock(reducedMotion: boolean) {
+/** A UI-thread millisecond clock for one mounted step's effects, frozen at 0
+ * under reduced motion and stopped when the step unmounts. Every effect below
+ * derives its motion from this one clock instead of its own timers, so nothing
+ * here is per-frame JS. The microphone step's rings (`mic-art.tsx`) run on the
+ * same three helpers. */
+export function useEffectClock(reducedMotion: boolean) {
   const now = useSharedValue(0);
   const frame = useFrameCallback((info) => {
     now.value = finiteOr(info.timeSinceFirstFrame, 0);
@@ -51,6 +53,11 @@ const LISTEN_SYLLABLES = ['ka', 'ño', 'ra', '시', 'mu', 'lá'];
 const LISTEN_DY = [-14, -4, 8, -10, 2, 12];
 const LISTEN_PERIOD = 1600;
 const LISTEN_MOVE = 800;
+// How far out a syllable starts, in ear widths (`a` is the ear art's size).
+// The design starts them 116px from a 96px ear, so about 1.2 widths out: a
+// flat 140 put them at 1.67 widths on a phone, which read as flying in from
+// off the card. Only the distance changed, the beat and stagger are the same.
+const LISTEN_FROM = 1.2;
 
 function ListenSyllable({
   text,
@@ -72,7 +79,8 @@ function ListenSyllable({
     const raw = Math.min(t / LISTEN_MOVE, 1);
     const visible = t < LISTEN_MOVE;
     const eased = Easing.in(Easing.quad)(raw);
-    const x = 140 + (0.35 * a - 140) * eased;
+    const from = LISTEN_FROM * a;
+    const x = from + (0.35 * a - from) * eased;
     const y = -dy * eased;
     const scale = 1.1 + (0.2 - 1.1) * eased;
     const opacity = visible ? (raw < 0.15 ? raw / 0.15 : 1 - (raw - 0.15) / 0.85) : 0;

@@ -6,6 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LanguagePicker } from '@/components/language-picker';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
+import { useDir, useT } from '@/lib/i18n';
+import { applyUnderstoodLanguage } from '@/lib/language-sync';
 import { LANGUAGES } from '@/lib/languages';
 import {
   getSettings,
@@ -24,6 +26,8 @@ import {
  * `ScrollView`, which would collapse it to zero height.
  */
 export default function LanguagesSettingsScreen() {
+  const { t } = useT();
+  const dir = useDir();
   const [learning, setLearningState] = useState<LearningLanguage>('ja');
   const [understand, setUnderstandState] = useState<UnderstoodLanguage>('en');
 
@@ -51,6 +55,9 @@ export default function LanguagesSettingsScreen() {
       const fallback = LANGUAGES.find((l) => l.understandable && l.id !== next);
       if (fallback) {
         setUnderstandState(fallback.id);
+        // The plain setter, not `applyUnderstoodLanguage`: this move is the
+        // pair rule's, not the learner's, and a question about a language
+        // they did not just tap would come out of nowhere.
         void setUnderstoodLanguage(fallback.id);
       }
     }
@@ -58,17 +65,19 @@ export default function LanguagesSettingsScreen() {
 
   function pickUnderstand(next: UnderstoodLanguage) {
     setUnderstandState(next);
-    void setUnderstoodLanguage(next);
+    // Writes the pick, then asks about the interface language if this is the
+    // moment the two part (see `applyUnderstoodLanguage`).
+    void applyUnderstoodLanguage(next);
   }
 
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       <View style={styles.half}>
-        <Text style={styles.label}>I want to learn</Text>
+        <Text style={[styles.label, dir.text, dir.rtl && styles.labelRtl]}>{t('settings.languages.learn')}</Text>
         <LanguagePicker mode="learn" value={learning} onChange={pickLearning} exclude={understand} />
       </View>
       <View style={styles.half}>
-        <Text style={styles.label}>I understand</Text>
+        <Text style={[styles.label, dir.text, dir.rtl && styles.labelRtl]}>{t('settings.languages.understand')}</Text>
         <LanguagePicker mode="understand" value={understand} onChange={pickUnderstand} exclude={learning} />
       </View>
     </SafeAreaView>
@@ -88,4 +97,5 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.lg + Spacing.sm,
     marginBottom: Spacing.xs,
   },
+  labelRtl: { marginLeft: 0, marginRight: Spacing.lg + Spacing.sm },
 });

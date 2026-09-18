@@ -10,6 +10,7 @@ import { PressScale } from '@/components/press-scale';
 import { GlassPanel, PrismButton } from '@/components/prism';
 
 import { fonts } from '@/constants/fonts';
+import { useDir, useT } from '@/lib/i18n';
 import { Radius, Spacing, prism, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
 import { getSettingsSync, subscribeSettings, toIslandLanguage } from '@/lib/settings';
@@ -19,17 +20,18 @@ const SEARCH_DEBOUNCE_MS = 400;
 /** How many shows a section shows before its "View all" row appears. */
 const SHOWN_CAP = 5;
 
-const LEVEL_STYLE: Record<'beginner' | 'intermediate' | 'advanced', { bg: string; text: string; label: string }> = {
-  beginner: { bg: 'rgba(255,158,128,0.18)', text: tide.lang.ja, label: 'Beginner' },
-  intermediate: { bg: 'rgba(244,200,106,0.18)', text: tide.turn, label: 'Intermediate' },
-  advanced: { bg: 'rgba(255,143,122,0.18)', text: tide.record, label: 'Advanced' },
+const LEVEL_STYLE: Record<'beginner' | 'intermediate' | 'advanced', { bg: string; text: string; key: 'home.podcastLevelBeginner' | 'home.podcastLevelIntermediate' | 'home.podcastLevelAdvanced' }> = {
+  beginner: { bg: 'rgba(255,158,128,0.18)', text: tide.lang.ja, key: 'home.podcastLevelBeginner' },
+  intermediate: { bg: 'rgba(244,200,106,0.18)', text: tide.turn, key: 'home.podcastLevelIntermediate' },
+  advanced: { bg: 'rgba(255,143,122,0.18)', text: tide.record, key: 'home.podcastLevelAdvanced' },
 };
 
 function LevelPill({ level }: { level: 'beginner' | 'intermediate' | 'advanced' }) {
+  const { t } = useT();
   const s = LEVEL_STYLE[level];
   return (
     <View style={[styles.levelPill, { backgroundColor: s.bg }]}>
-      <Text style={[styles.levelPillText, { color: s.text }]}>{s.label}</Text>
+      <Text style={[styles.levelPillText, { color: s.text }]}>{t(s.key)}</Text>
     </View>
   );
 }
@@ -37,8 +39,9 @@ function LevelPill({ level }: { level: 'beginner' | 'intermediate' | 'advanced' 
 type PodcastRowProps = { show: api.PodcastShow; number?: number; onPress: () => void };
 
 const PodcastRow = memo(function PodcastRow({ show, number, onPress }: PodcastRowProps) {
+  const dir = useDir();
   return (
-    <PressScale onPress={onPress} accessibilityRole="button" style={styles.row}>
+    <PressScale onPress={onPress} accessibilityRole="button" style={[styles.row, dir.row]}>
       {number != null ? <Text style={styles.rowNumber}>{number}</Text> : null}
       {show.artworkUrl ? (
         <Image
@@ -52,13 +55,13 @@ const PodcastRow = memo(function PodcastRow({ show, number, onPress }: PodcastRo
         <View style={[styles.artwork, styles.artworkPlaceholder]} />
       )}
       <View style={styles.rowBody}>
-        <Text style={styles.rowTitle} numberOfLines={1}>
+        <Text style={[styles.rowTitle, dir.content]} numberOfLines={1}>
           {show.title}
         </Text>
-        <View style={styles.rowMetaRow}>
+        <View style={[styles.rowMetaRow, dir.row]}>
           {show.level ? <LevelPill level={show.level} /> : null}
           {show.tagline ? (
-            <Text style={styles.rowTagline} numberOfLines={1}>
+            <Text style={[styles.rowTagline, dir.content]} numberOfLines={1}>
               {show.tagline}
             </Text>
           ) : null}
@@ -72,6 +75,8 @@ type SectionData = { id: string; title: string; subtitle: string; total: number;
 
 export default function PodcastScreen() {
   const router = useRouter();
+  const { t, lang } = useT();
+  const dir = useDir();
 
   const [catalog, setCatalog] = useState<api.PodcastCatalog | null>(null);
   const [catalogError, setCatalogError] = useState('');
@@ -92,11 +97,13 @@ export default function PodcastScreen() {
   useEffect(() => {
     setCatalog(null);
     setCatalogError('');
+    // The catalog's own copy is written server-side, so a change of
+    // interface language refetches it.
     api
-      .podcastCatalog(toIslandLanguage(learningLanguage))
+      .podcastCatalog(toIslandLanguage(learningLanguage), lang)
       .then(setCatalog)
-      .catch((e) => setCatalogError(e instanceof Error ? e.message : 'The catalog could not be loaded.'));
-  }, [learningLanguage]);
+      .catch((e) => setCatalogError(e instanceof Error ? e.message : t('home.podcastCatalogError')));
+  }, [learningLanguage, lang, t]);
 
   useEffect(() => () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -117,10 +124,10 @@ export default function PodcastScreen() {
       api
         .podcastSearch(q, toIslandLanguage(learningLanguage))
         .then(setSearchResults)
-        .catch((e) => setSearchError(e instanceof Error ? e.message : 'That could not be searched.'))
+        .catch((e) => setSearchError(e instanceof Error ? e.message : t('home.podcastSearchError')))
         .finally(() => setSearching(false));
     }, SEARCH_DEBOUNCE_MS);
-  }, [query, learningLanguage]);
+  }, [query, learningLanguage, t]);
 
   const sections: SectionData[] = useMemo(
     () =>
@@ -151,10 +158,10 @@ export default function PodcastScreen() {
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       <View style={styles.searchRow}>
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, dir.text]}
           value={query}
           onChangeText={setQuery}
-          placeholder="Search podcast or URL"
+          placeholder={t('home.podcastSearchPlaceholder')}
           placeholderTextColor={tide.textDim}
           autoCapitalize="none"
           autoCorrect={false}
@@ -164,7 +171,7 @@ export default function PodcastScreen() {
       {showingSearch ? (
         searching ? (
           <View style={styles.center}>
-            <CatConstellation size={100} label="Loading" />
+            <CatConstellation size={100} label={t('common.loading')} />
           </View>
         ) : searchError ? (
           <View style={styles.center}>
@@ -177,7 +184,7 @@ export default function PodcastScreen() {
             data={searchResults ?? []}
             keyExtractor={(item, i) => `${item.collectionId ?? item.feedUrl}-${i}`}
             renderItem={({ item }) => <PodcastRow show={item} onPress={() => openShow(item)} />}
-            ListEmptyComponent={<Text style={[styles.hint, styles.centerText]}>No shows found.</Text>}
+            ListEmptyComponent={<Text style={[styles.hint, styles.centerText]}>{t('home.podcastNoShowsFound')}</Text>}
           />
         )
       ) : catalogError ? (
@@ -186,7 +193,7 @@ export default function PodcastScreen() {
         </View>
       ) : !catalog ? (
         <View style={styles.center}>
-          <CatConstellation size={120} label="Loading" />
+          <CatConstellation size={120} label={t('common.loading')} />
         </View>
       ) : (
         <>
@@ -221,8 +228,8 @@ export default function PodcastScreen() {
             keyExtractor={(item, i) => `${item.collectionId ?? item.feedUrl}-${i}`}
             renderSectionHeader={({ section }) => (
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>{section.title}</Text>
-                <Text style={styles.sectionSubtitle}>{section.subtitle}</Text>
+                <Text style={[styles.sectionTitle, dir.content]}>{section.title}</Text>
+                <Text style={[styles.sectionSubtitle, dir.content]}>{section.subtitle}</Text>
               </View>
             )}
             renderItem={({ item, index }) => (
@@ -233,7 +240,7 @@ export default function PodcastScreen() {
                 <PrismButton
                   shape="pill"
                   verb="listen"
-                  label={`View all ${section.total}`}
+                  label={t('home.podcastViewAll', { count: section.total })}
                   onPress={() => setExpanded((prev) => ({ ...prev, [section.id]: true }))}
                   containerStyle={styles.viewAll}
                 />

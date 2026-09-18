@@ -24,6 +24,7 @@ import {
   stopPlayback,
   useSessionPlayer,
 } from '@/lib/audio-mode';
+import { t } from '@/lib/i18n';
 import { addPass } from '@/lib/practice';
 import { cleanTakeFile, deleteTake, findTake, saveTake, saveTakeAnalysis, saveTakeScore, type Take } from '@/lib/takes';
 
@@ -471,12 +472,12 @@ export function useTake(
           } catch (e) {
             // The previous take, if any, is untouched: saveTake only replaces
             // it after the move into place succeeds.
-            setError(e instanceof Error ? e.message : 'Could not save the take.');
+            setError(e instanceof Error ? e.message : t('player.saveTakeFailed'));
           }
         }
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Recording stopped unexpectedly.');
+      setError(e instanceof Error ? e.message : t('player.recordingStoppedUnexpectedly'));
     } finally {
       // A take started while this one was still saving (Auto Echo's Retry)
       // owns the session and `recording` now; leave both to it.
@@ -557,7 +558,7 @@ export function useTake(
     let perm = await getRecordingPermissionsAsync();
     if (!perm.granted) perm = await requestRecordingPermissionsAsync();
     if (!perm.granted) {
-      setError('Microphone access is off. Turn it on in Settings and try again.');
+      setError(t('player.micAccessOff'));
       return null;
     }
     takeSeq.current += 1;
@@ -591,7 +592,7 @@ export function useTake(
       setRecording(true);
       return { silent: isSilent };
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not start recording.');
+      setError(e instanceof Error ? e.message : t('player.startRecordingFailed'));
       try {
         await applyPlaybackMode();
       } catch {

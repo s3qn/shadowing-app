@@ -6,6 +6,7 @@ import {
   Dimensions,
   Pressable,
   FlatList,
+  type ListRenderItemInfo,
   RefreshControl,
   StyleSheet,
   Text,
@@ -49,8 +50,9 @@ import { PrismButton } from '@/components/prism/prism-button';
 import { SearchIcon } from '@/components/tide/toolbar-icons';
 import { fonts } from '@/constants/fonts';
 import { prism, Radius, Spacing, tide, verb, withAlpha } from '@/constants/theme';
-import { LitPillFill, LitPillRim, PILL_H, PILL_ICON_OFF, PILL_LABEL_SIZE, PILL_PAD_X, PillTrayShell } from '@/components/prism/pill-tray';
+import { LitPillCover, LitPillRim, PILL_H, PILL_ICON_OFF, PILL_LABEL_SIZE, PILL_PAD_X, PillTrayShell } from '@/components/prism/pill-tray';
 import { useSkyStyle, isNight } from '@/lib/sky';
+import { useT, useDir } from '@/lib/i18n';
 import * as api from '@/lib/api';
 import { registerCard, startOpen, unregisterCard, useMorphHidesTitle, type CardRect } from '@/lib/card-morph';
 import { hapticImpact, hapticSelection } from '@/lib/haptics';
@@ -126,13 +128,19 @@ function waveEntering(delayMs: number) {
 
 const SORTS = ['newest', 'least'] as const;
 type Sort = (typeof SORTS)[number];
-const SORT_LABEL: Record<Sort, string> = { newest: 'Newest', least: 'Least practiced' };
 
 // pill-tray-tab-bar: sort row start
 const SORT_PILL_BORDER = 1;
-/** One sort option in the Home sort row: a pill that crossfades its own lit fill. */
+/** The box inside a sort pill's border, which the lit fill and rim fill. */
+const SORT_PILL_INNER_H = PILL_H - 2 * SORT_PILL_BORDER;
+/**
+ * One sort option in the Home sort row: a pill that hugs its label and
+ * crossfades its own lit fill. The fill and rim take the pill's real size
+ * from their own absolute fill, not from a measurement kept in state, so a
+ * label that changes width (the app language switching between "Newest" and
+ * "החדשים ביותר") takes them with it.
+ */
 function SortPill({ on, label, onPress }: { on: boolean; label: string; onPress: () => void }) {
-  const [size, setSize] = useState({ width: 0, height: 0 });
   const litOpacity = useSharedValue(on ? 1 : 0);
   const scale = useSharedValue(1);
   useEffect(() => {
@@ -147,16 +155,10 @@ function SortPill({ on, label, onPress }: { on: boolean; label: string; onPress:
       }}
       onPressOut={() => {
         scale.value = withSpring(1, prism.press.spring);
-      }}
-      onLayout={(e) => {
-        // The fill and rim sit inside the pill's border, so size them to
-        // the box inside it rather than the pill's outer size.
-        const { width, height } = e.nativeEvent.layout;
-        setSize({ width: Math.max(0, width - 2 * SORT_PILL_BORDER), height: Math.max(0, height - 2 * SORT_PILL_BORDER) });
       }}>
       <Animated.View style={[styles.pill, scaleStyle]}>
-        <LitPillFill width={size.width} height={size.height} opacity={litOpacity} />
-        {size.height > 0 && <LitPillRim radius={size.height / 2} opacity={litOpacity} />}
+        <LitPillCover height={SORT_PILL_INNER_H} opacity={litOpacity} />
+        <LitPillRim radius={SORT_PILL_INNER_H / 2} opacity={litOpacity} />
         <Text style={[styles.pillText, { color: on ? prism.tray.lit.label : PILL_ICON_OFF }]}>{label}</Text>
       </Animated.View>
     </Pressable>
@@ -170,6 +172,9 @@ const TIDE_TARGET_SECONDS = 20 * 60;
 
 export default function IslandsScreen() {
   const router = useRouter();
+  const { t } = useT();
+  const dir = useDir();
+  const SORT_LABEL: Record<Sort, string> = { newest: t('home.sortNewest'), least: t('home.sortLeastPracticed') };
   const sky = useSkyStyle();
   const night = isNight(new Date());
   const [islands, setIslands] = useState<api.IslandSummary[]>([]);
@@ -274,12 +279,18 @@ export default function IslandsScreen() {
   const scrollHandler = useAnimatedScrollHandler((e) => {
     scrollY.value = e.contentOffset.y;
   });
-  // Tier per line for the centred card only, keyed by island id. Cleared on
-  // every focus: takes change in the player, never on Home.
-  const tiersCache = useRef<Map<string, LineTier[]>>(new Map());
-  // Kept-up total per island, same cache shape and same clearing as
-  // `tiersCache` above.
-  const keptUpCache = useRef<Map<string, { kept: number; total: number }>>(new Map());
+  // Tier per line and kept-up total for the centred card only, keyed by
+  // island id. Both hold for one focus: takes change in the player, never on
+  // Home. `takesEpoch` moves on every focus and is what drops the stale
+  // entries. It is also the identity that `tiersFor`, `keptUpFor` and
+  // `renderIsland` carry, so a card repaints with what this focus read
+  // instead of freezing on the last one.
+  const takesCache = useRef({
+    epoch: -1,
+    tiers: new Map<string, LineTier[]>(),
+    keptUp: new Map<string, { kept: number; total: number }>(),
+  });
+  const [takesEpoch, setTakesEpoch] = useState(0);
   // True only for the first Home mount of the local day: the list waves in
   // once, then settles for every later visit until the date rolls over.
   // `getSettingsSync` falls back to defaults (homeWaveDate: '') before
@@ -333,14 +344,14 @@ export default function IslandsScreen() {
     const lineIndex = Math.max(0, Math.min(saved, lineCount - 1));
     startOpen(
       item.id,
-      item.title || 'Untitled island',
+      item.title || t('home.untitledIsland'),
       rect,
       () => {
         router.push({ pathname: '/island/[id]', params: { id: item.id, morph: '1' } });
       },
       { lineIndex, lineCount },
     );
-  }, [router]);
+  }, [router, t]);
   function saveRename() {
     const item = menuItem;
     if (!item) return;
@@ -362,10 +373,10 @@ export default function IslandsScreen() {
       setError('');
       setLoading(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not reach the server');
+      setError(e instanceof Error ? e.message : t('home.serverUnreachable'));
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   async function remove(id: string) {
     const restore = islands.find((i) => i.id === id) ?? null;
@@ -386,18 +397,18 @@ export default function IslandsScreen() {
       if (restore) {
         setIslands((prev) => (prev.some((i) => i.id === id) ? prev : [...prev, restore]));
       }
-      Alert.alert('Could not delete', e instanceof Error ? e.message : 'The server did not answer.');
+      Alert.alert(t('home.deleteFailedTitle'), e instanceof Error ? e.message : t('home.serverNoAnswer'));
     }
   }
 
   async function rename(id: string, title: string) {
-    const finalTitle = title.trim() || 'Untitled island';
+    const finalTitle = title.trim() || t('home.untitledIsland');
     try {
       await api.renameIsland(id, finalTitle);
       invalidateCachedIsland(id);
       setIslands((prev) => prev.map((i) => (i.id === id ? { ...i, title: finalTitle } : i)));
     } catch (e) {
-      Alert.alert('Could not rename', e instanceof Error ? e.message : 'The server did not answer.');
+      Alert.alert(t('home.renameFailedTitle'), e instanceof Error ? e.message : t('home.serverNoAnswer'));
     }
   }
 
@@ -480,11 +491,11 @@ export default function IslandsScreen() {
 
   function confirmDelete(item: api.IslandSummary) {
     Alert.alert(
-      `Delete "${item.title || 'Untitled island'}"?`,
-      'The recording, its lines and their audio are removed. This cannot be undone.',
+      t('home.deleteConfirmTitle', { title: item.title || t('home.untitledIsland') }),
+      t('home.deleteConfirmBody'),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => void remove(item.id) },
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('common.delete'), style: 'destructive', onPress: () => void remove(item.id) },
       ],
     );
   }
@@ -496,8 +507,7 @@ export default function IslandsScreen() {
   useFocusEffect(
     useCallback(() => {
       let alive = true;
-      tiersCache.current.clear();
-      keptUpCache.current.clear();
+      setTakesEpoch((n) => n + 1);
       const tick = async () => {
         if (!alive) return;
         await load();
@@ -609,25 +619,46 @@ export default function IslandsScreen() {
     },
   );
 
+  /** Both caches, emptied the first time either is read in a new epoch.
+   * Clearing here rather than in the focus effect keeps the epoch the one
+   * thing the two readers below depend on. */
+  const freshCache = useCallback(() => {
+    const cache = takesCache.current;
+    if (cache.epoch !== takesEpoch) {
+      cache.epoch = takesEpoch;
+      cache.tiers.clear();
+      cache.keptUp.clear();
+    }
+    return cache;
+  }, [takesEpoch]);
+
   /** Tier per line for one island, computed once per focus and cached: only
    * the centred card needs it, and a folder listing is cheap but not free. */
-  function tiersFor(islandId: string, lineCount: number): LineTier[] {
-    const cached = tiersCache.current.get(islandId);
-    if (cached) return cached;
-    const computed = lineTiers(islandId, lineCount);
-    tiersCache.current.set(islandId, computed);
-    return computed;
-  }
+  const tiersFor = useCallback(
+    (islandId: string, lineCount: number): LineTier[] => {
+      const cache = freshCache();
+      const cached = cache.tiers.get(islandId);
+      if (cached) return cached;
+      const computed = lineTiers(islandId, lineCount);
+      cache.tiers.set(islandId, computed);
+      return computed;
+    },
+    [freshCache],
+  );
 
   /** Island kept-up total, same cache and same one-read-per-focus shape as
    * `tiersFor` above. */
-  function keptUpFor(islandId: string, lineCount: number): { kept: number; total: number } {
-    const cached = keptUpCache.current.get(islandId);
-    if (cached) return cached;
-    const computed = keptUpTotal(islandId, lineCount);
-    keptUpCache.current.set(islandId, computed);
-    return computed;
-  }
+  const keptUpFor = useCallback(
+    (islandId: string, lineCount: number): { kept: number; total: number } => {
+      const cache = freshCache();
+      const cached = cache.keptUp.get(islandId);
+      if (cached) return cached;
+      const computed = keptUpTotal(islandId, lineCount);
+      cache.keptUp.set(islandId, computed);
+      return computed;
+    },
+    [freshCache],
+  );
 
   // Stable across renders, like openIsland, so memo(IslandRow) can skip every
   // row whose own props did not change: a centre change re-renders only the
@@ -653,14 +684,91 @@ export default function IslandsScreen() {
             size={prism.sizes.roundSm}
             verb="tools"
             onPress={openSearch}
-            accessibilityLabel="Search islands">
+            accessibilityLabel={t('home.searchAccessibilityLabel')}>
             <SearchIcon color={verb.tools.c1} size={22} />
           </PrismButton>
         </Animated.View>
         // prism-home: end
       ),
     }),
-    [sky.top, searchOpen, openSearch, searchButtonStyle],
+    [sky.top, searchOpen, openSearch, searchButtonStyle, t],
+  );
+
+  const wheel = shape.wheel;
+  /**
+   * One card's props, built once per change of what a card can show rather
+   * than on every Home render. A stable identity here is what lets
+   * `memo(IslandRow)` skip a card whose own props held: typing in the search
+   * field then filters the list without re-rendering a single card or
+   * lantern. `takesEpoch` rides in through `tiersFor` and `keptUpFor`, so a
+   * focus that re-reads the takes still repaints the lit card.
+   */
+  const renderIsland = useCallback(
+    ({ item, index }: ListRenderItemInfo<api.IslandSummary>) => {
+      const busy = item.status === 'pending' || item.status === 'working';
+      const due = dueIds.has(item.id);
+      const minutes = minutesOn(log, item.id);
+      const seconds = log.islands[item.id]?.seconds ?? 0;
+      const fraction = Math.min(1, seconds / TIDE_TARGET_SECONDS);
+      // Both of these read a card's place in the list, and both are dead
+      // while search is open: the wheel's maths is off and the day's wave has
+      // already played. Frozen there, so a keystroke that shifts every card
+      // up a place leaves every card's props alone.
+      const slotIndex = wheel ? index : 0;
+      const waveIndex = waveHome && !searchOpen && !reducedMotion && index < WAVE_MAX_CARDS ? index : null;
+      const centred = wheel && index === centreIndex;
+      const lit = wheel && index === litIndex;
+      // Only the lit, ready card reads its takes: a busy or failed
+      // card never lights, so its tiers are never worth the folder read.
+      const tiers = lit && !busy && item.status !== 'failed' ? tiersFor(item.id, item.line_count) : null;
+      const keptUp = tiers ? keptUpFor(item.id, item.line_count) : null;
+      const complexityLabel = item.complexity === 'simple' ? t('home.complexitySimple') : t('home.complexityComplex');
+      const meta = item.status === 'failed'
+        ? t('home.failed')
+        : busy
+          ? api.stageLabel(item.stage)
+          : `${t('home.lines', { count: item.line_count })} · ${complexityLabel}${minutes >= 1 ? ` · ${t('home.minutes', { count: minutes })}` : ''}${keptUp && keptUp.total > 0 ? ` · ${t('home.keptUp', { kept: keptUp.kept, total: keptUp.total })}` : ''}`;
+      return (
+        <IslandRow
+          item={item}
+          slotIndex={slotIndex}
+          scrollY={scrollY}
+          viewportH={viewportH}
+          wheelOn={wheelOn}
+          centred={centred}
+          lit={lit}
+          tiers={tiers}
+          busy={busy}
+          due={due}
+          fraction={fraction}
+          meta={meta}
+          langPill={showAllLanguages ? LANG_CODE[item.language] : null}
+          waveIndex={waveIndex}
+          exitFade={!searchOpen}
+          onOpen={openIsland}
+          onMenu={openRowMenu}
+        />
+      );
+    },
+    [
+      dueIds,
+      log,
+      wheel,
+      waveHome,
+      searchOpen,
+      reducedMotion,
+      centreIndex,
+      litIndex,
+      tiersFor,
+      keptUpFor,
+      t,
+      showAllLanguages,
+      scrollY,
+      viewportH,
+      wheelOn,
+      openIsland,
+      openRowMenu,
+    ],
   );
 
   // Top pad centres card 0 in the visible part; the bottom pad adds the
@@ -691,10 +799,7 @@ export default function IslandsScreen() {
             <View style={[styles.star, { top: '70%', left: '20%' }]} />
           </>
         )}
-        <Text style={[styles.empty, { color: tide.text }]}>
-          Set EXPO_PUBLIC_SHADOW_API_URL and EXPO_PUBLIC_SHADOW_TOKEN in .env, then restart
-          the dev server.
-        </Text>
+        <Text style={[styles.empty, { color: tide.text }]}>{t('home.notConfigured')}</Text>
       </SafeAreaView>
     );
   }
@@ -725,7 +830,9 @@ export default function IslandsScreen() {
       <View style={styles.headerFixed}>
         <PracticeCard log={log} dueCount={dueIds.size} />
         {/* pill-tray-tab-bar: sort row start */}
-        <PillTrayShell wrapStyle={styles.sortRowWrap} style={styles.sortRow}>
+        <PillTrayShell
+          wrapStyle={[styles.sortRowWrap, dir.rtl && styles.sortRowWrapRtl]}
+          style={[styles.sortRow, dir.row]}>
           {SORTS.map((s) => (
             <SortPill
               key={s}
@@ -783,52 +890,13 @@ export default function IslandsScreen() {
                 {error
                   ? error
                   : query.trim() && visibleIslands.length > 0
-                    ? 'No island matches'
-                    : 'No islands yet. Record a minute about your day and one gets built from it.'}
+                    ? t('home.noIslandMatches')
+                    : t('home.noIslandsYet')}
               </Text>
             </View>
           )
         }
-        renderItem={({ item, index }) => {
-          const busy = item.status === 'pending' || item.status === 'working';
-          const due = dueIds.has(item.id);
-          const minutes = minutesOn(log, item.id);
-          const seconds = log.islands[item.id]?.seconds ?? 0;
-          const fraction = Math.min(1, seconds / TIDE_TARGET_SECONDS);
-          const waveIndex = waveHome && !reducedMotion && index < WAVE_MAX_CARDS ? index : null;
-          const centred = shape.wheel && index === centreIndex;
-          const lit = shape.wheel && index === litIndex;
-          // Only the lit, ready card reads its takes: a busy or failed
-          // card never lights, so its tiers are never worth the folder read.
-          const tiers = lit && !busy && item.status !== 'failed' ? tiersFor(item.id, item.line_count) : null;
-          const keptUp = tiers ? keptUpFor(item.id, item.line_count) : null;
-          const meta = item.status === 'failed'
-            ? 'Failed'
-            : busy
-              ? (api.STAGE_LABEL[item.stage] ?? 'Working…')
-              : `${item.line_count} lines · ${item.complexity}${minutes >= 1 ? ` · ${minutes} min` : ''}${keptUp && keptUp.total > 0 ? ` · kept up ${keptUp.kept}/${keptUp.total}` : ''}`;
-          return (
-            <IslandRow
-              item={item}
-              index={index}
-              scrollY={scrollY}
-              viewportH={viewportH}
-              wheelOn={wheelOn}
-              centred={centred}
-              lit={lit}
-              tiers={tiers}
-              busy={busy}
-              due={due}
-              fraction={fraction}
-              meta={meta}
-              langPill={showAllLanguages ? LANG_CODE[item.language] : null}
-              waveIndex={waveIndex}
-              exitFade={!searchOpen}
-              onOpen={openIsland}
-              onMenu={openRowMenu}
-            />
-          );
-        }}
+        renderItem={renderIsland}
       />
       {/* prism-home: edited region */}
       <PrismButton
@@ -837,7 +905,7 @@ export default function IslandsScreen() {
         verb="speak"
         containerStyle={styles.fab}
         onPress={() => router.push('/record')}
-        accessibilityLabel="Record a new island">
+        accessibilityLabel={t('home.recordAccessibilityLabel')}>
         <SymbolView name={{ ios: 'mic.fill', android: 'mic' }} size={24} weight="regular" tintColor={verb.speak.c1} />
       </PrismButton>
       {/* prism-home: end */}
@@ -845,7 +913,8 @@ export default function IslandsScreen() {
         open={menuItem !== null}
         onClose={() => setMenuItem(null)}
         onDismissed={runAfterSheet}
-        title={menuItem?.title || 'Untitled island'}
+        title={menuItem?.title || t('home.untitledIsland')}
+        contentTitle
         avoidKeyboard>
         {/* prism-home: edited region */}
         {renaming ? (
@@ -856,10 +925,10 @@ export default function IslandsScreen() {
               onChangeText={setDraftTitle}
               onSubmitEditing={saveRename}
               returnKeyType="done"
-              style={styles.sheetInput}
+              style={[styles.sheetInput, dir.content]}
             />
-            <GlassPanel style={styles.sheetActionsRow}>
-              <PrismButton shape="pill" verb="tools" flat label="Save" onPress={saveRename}>
+            <GlassPanel style={[styles.sheetActionsRow, dir.rtl && styles.sheetActionsRowRtl]}>
+              <PrismButton shape="pill" verb="tools" flat label={t('home.save')} onPress={saveRename}>
                 <SymbolView name={{ ios: 'checkmark', android: 'check' }} size={16} weight="regular" tintColor={verb.tools.c1} />
               </PrismButton>
             </GlassPanel>
@@ -871,7 +940,7 @@ export default function IslandsScreen() {
               verb="tools"
               flat
               containerStyle={styles.sheetActionPill}
-              label="Rename"
+              label={t('home.rename')}
               onPress={() => setRenaming(true)}>
               <SymbolView name={{ ios: 'pencil', android: 'edit' }} size={16} weight="regular" tintColor={verb.tools.c1} />
             </PrismButton>
@@ -884,14 +953,14 @@ export default function IslandsScreen() {
                 verb="speak"
                 flat
                 containerStyle={styles.sheetActionPill}
-                accessibilityLabel="Delete island"
+                accessibilityLabel={t('home.deleteIsland')}
                 onPress={() => {
                   const item = menuItem;
                   if (!item) return;
                   closeSheetThen(() => confirmDelete(item));
                 }}>
                 <SymbolView name={{ ios: 'trash', android: 'delete' }} size={16} weight="regular" tintColor={verb.speak.c1} />
-                <Text style={styles.sheetDeleteLabel}>Delete island</Text>
+                <Text style={styles.sheetDeleteLabel}>{t('home.deleteIsland')}</Text>
               </PrismButton>
             </View>
           </GlassPanel>
@@ -904,9 +973,11 @@ export default function IslandsScreen() {
 
 type IslandRowProps = {
   item: api.IslandSummary;
-  /** This card's position in `shown`, for the wheel's distance-from-centre
-   * maths. */
-  index: number;
+  /** This card's slot in the wheel, for the distance-from-centre maths. 0 in
+   * the plain search list, where the wheel is off and nothing reads it: a
+   * live position there would re-render every card below a filtered-out one
+   * on every keystroke. */
+  slotIndex: number;
   /** The list's live scroll offset, shared with every card on the UI
    * thread. */
   scrollY: SharedValue<number>;
@@ -962,7 +1033,7 @@ type IslandRowProps = {
  */
 const IslandRow = memo(function IslandRow({
   item,
-  index,
+  slotIndex,
   scrollY,
   viewportH,
   wheelOn,
@@ -979,6 +1050,8 @@ const IslandRow = memo(function IslandRow({
   onOpen,
   onMenu,
 }: IslandRowProps) {
+  const { t } = useT();
+  const dir = useDir();
   const pressed = useSharedValue(0);
   const reducedMotion = useReducedMotion();
   const cardRef = useRef<View>(null);
@@ -1199,7 +1272,7 @@ const IslandRow = memo(function IslandRow({
   const slotStyle = useAnimatedStyle(() => {
     if (!wheelOn.value) return { transform: [{ scale: 1 }], opacity: 1 };
     const half = Math.max(1, Number.isFinite(viewportH.value) ? viewportH.value / 2 : 1);
-    const raw = Math.min(1, Math.abs(scrollY.value - index * STEP) / half);
+    const raw = Math.min(1, Math.abs(scrollY.value - slotIndex * STEP) / half);
     const d = Number.isFinite(raw) ? raw : 1;
     return {
       transform: [{ scale: reducedMotion ? 1 : 1 - d * 0.05 }],
@@ -1238,7 +1311,11 @@ const IslandRow = memo(function IslandRow({
         style={[styles.row, cardStyle]}>
         <View
           pointerEvents="none"
-          style={[styles.rowFill, { width: `${fraction * 100}%`, backgroundColor: tide.lang.ja }]}
+          style={[
+            styles.rowFill,
+            dir.rtl && styles.rowFillRtl,
+            { width: `${fraction * 100}%`, backgroundColor: tide.lang.ja },
+          ]}
         />
         {busy ? (
           <Animated.View pointerEvents="none" style={[styles.sweepBand, sweepStyle]} />
@@ -1246,16 +1323,24 @@ const IslandRow = memo(function IslandRow({
         <Animated.View pointerEvents="none" style={[styles.flashFill, { backgroundColor: tide.lang.ja }, flashFillStyle]} />
         <Animated.View pointerEvents="none" style={[styles.flashBorder, { borderColor: tide.lang.ja }, flashBorderStyle]} />
         <View style={styles.cardTop}>
-          <Text numberOfLines={2} style={[styles.cardTitle, { color: tide.text, opacity: titleHidden ? 0 : 1 }]}>
-            {item.title || 'Untitled island'}
+          {/* `dir.content`, not `dir.text`: a title is content, ordered by
+              its own script whatever the interface language is. */}
+          <Text numberOfLines={2} style={[styles.cardTitle, dir.content, { color: tide.text, opacity: titleHidden ? 0 : 1 }]}>
+            {item.title || t('home.untitledIsland')}
           </Text>
         </View>
-        <View style={styles.metaRow}>
+        <View style={[styles.metaRow, dir.row]}>
           {busy ? <CatConstellation compact /> : null}
+          {/* The dot is its own cell, not part of the label: kept inside it,
+              the dot would follow "Due today" in Hebrew as well and end up on
+              the wrong side of the row once `dir.row` reverses the order. */}
           {due ? (
-            <Text style={[styles.cardMeta, { color: tide.turn }]}>Due today · </Text>
+            <>
+              <Text style={[styles.cardMeta, dir.text, { color: tide.turn }]}>{t('home.dueToday')}</Text>
+              <Text style={[styles.cardMeta, { color: tide.turn }]}>·</Text>
+            </>
           ) : null}
-          <Text style={[styles.cardMeta, { color: tide.textDim }]}>{meta}</Text>
+          <Text style={[styles.cardMeta, dir.text, { color: tide.textDim }]}>{meta}</Text>
           {langPill ? (
             <View style={styles.langPill}>
               <Text style={styles.langPillText}>{langPill}</Text>
@@ -1295,6 +1380,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   rowFill: { position: 'absolute', left: 0, top: 0, bottom: 0, opacity: 0.16 },
+  // The ownership band grows from the edge the card is read from.
+  rowFillRtl: { left: undefined, right: 0 },
   // Clipped by the row's own overflow:hidden, so it never spills past the card.
   sweepBand: {
     position: 'absolute',
@@ -1334,6 +1421,7 @@ const styles = StyleSheet.create({
   },
   // prism-home: one row of pill actions sharing a single GlassPanel blur.
   sheetActionsRow: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.sm, alignSelf: 'flex-start' },
+  sheetActionsRowRtl: { alignSelf: 'flex-end' },
   // The Rename/Delete row: both pills share the sheet's full width (no
   // alignSelf hug), evenly split with a 12pt gap between them.
   sheetMenuRow: { flexDirection: 'row', gap: Spacing.md, padding: Spacing.sm },
@@ -1359,6 +1447,8 @@ const styles = StyleSheet.create({
   // default alignItems: 'stretch', which also keeps the offset pane a small
   // corner peek instead of a full-width strip (the pane sizes off this wrap).
   sortRowWrap: { alignSelf: 'flex-start' },
+  // Hebrew reads from the right, so the tray hugs the opposite edge.
+  sortRowWrapRtl: { alignSelf: 'flex-end' },
   pill: {
     alignItems: 'center',
     justifyContent: 'center',

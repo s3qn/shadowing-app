@@ -12,6 +12,7 @@ import Animated, {
 
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
+import { useDir, useT } from '@/lib/i18n';
 
 /** The cat's outline in its own 96x118 box, closed back on the first point. */
 const POINTS: readonly (readonly [number, number])[] = [
@@ -61,6 +62,7 @@ function circleD(x: number, y: number, r: number) {
 type Props = {
   /** Outline height in pt. */
   size?: number;
+  /** Defaults to the translated "Loading" when not given. */
   label?: string;
   /** Inline busy state: a small cat and small dots in a row, no label. */
   compact?: boolean;
@@ -84,12 +86,15 @@ type Props = {
  */
 export const CatConstellation = memo(function CatConstellation({
   size = 150,
-  label = 'Loading',
+  label,
   compact = false,
   stars = true,
   clock: sharedClock,
   announce = true,
 }: Props) {
+  const { t } = useT();
+  const dir = useDir();
+  const displayLabel = label ?? t('common.loading');
   const reducedMotion = useReducedMotion();
   const ownNow = useSharedValue(0);
   const now = sharedClock ?? ownNow;
@@ -110,8 +115,8 @@ export const CatConstellation = memo(function CatConstellation({
   const content = (
     <>
       <CatCanvas size={catSize} stars={showStars} now={now} still={reducedMotion} />
-      <View style={compact ? styles.dotsCompact : styles.labelRow}>
-        {compact ? null : <Text style={styles.label}>{label}</Text>}
+      <View style={compact ? styles.dotsCompact : [styles.labelRow, dir.row]}>
+        {compact ? null : <Text style={[styles.label, dir.rtl && styles.labelRtl]}>{displayLabel}</Text>}
         <Dots dot={compact ? 5 : 7} now={now} still={reducedMotion} lift={compact ? 0 : LABEL_LINE / 3 - 3.5} />
       </View>
     </>
@@ -121,7 +126,7 @@ export const CatConstellation = memo(function CatConstellation({
     <View
       accessible={announce}
       accessibilityRole={announce ? 'progressbar' : undefined}
-      accessibilityLabel={announce ? label : undefined}
+      accessibilityLabel={announce ? displayLabel : undefined}
       style={compact ? styles.compact : styles.full}>
       {content}
     </View>
@@ -276,6 +281,8 @@ const styles = StyleSheet.create({
     color: tide.text,
     marginRight: 8,
   },
+  // The dots follow the word, so Hebrew puts them on its left.
+  labelRtl: { marginRight: 0, marginLeft: 8 },
   dots: { flexDirection: 'row', gap: 6 },
   dotsCompact: { flexDirection: 'row', alignItems: 'center' },
 });

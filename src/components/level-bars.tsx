@@ -3,6 +3,7 @@ import { Animated, StyleSheet, View } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 
 import { Radius, tide } from '@/constants/theme';
+import { useT } from '@/lib/i18n';
 
 const BARS = 28;
 const MIN_H = 4;
@@ -37,6 +38,7 @@ type Props = {
  * Nothing here is synthetic. Animated only smooths each bar's height change.
  */
 export function LevelBars({ level, live }: Props) {
+  const { t } = useT();
   const heights = useRef(
     Array.from({ length: BARS }, () => new Animated.Value(MIN_H)),
   ).current;
@@ -67,7 +69,7 @@ export function LevelBars({ level, live }: Props) {
   }, [live, heights, level]);
 
   return (
-    <View style={styles.row} accessibilityLabel="Microphone level">
+    <View style={styles.row} accessibilityLabel={t('player.microphoneLevel')}>
       {heights.map((h, i) => (
         <Animated.View
           key={i}

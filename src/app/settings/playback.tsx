@@ -9,6 +9,7 @@ import { PAUSE_STEPS, pauseLabel, TIMES_STEPS, timesLabel } from '@/components/t
 import { TickRuler } from '@/components/tide/tick-ruler';
 import { fonts } from '@/constants/fonts';
 import { Radius, SPEED_MAX, SPEED_MIN, Spacing, tide } from '@/constants/theme';
+import { useDir, useT } from '@/lib/i18n';
 import {
   getSettings,
   PAUSE_STEP_MS,
@@ -24,6 +25,8 @@ import {
 const SPEED_OPTIONS = [0.5, 0.7, 0.85, 1, 1.15, 1.3, 1.5];
 
 export default function PlaybackSettingsScreen() {
+  const { t } = useT();
+  const dir = useDir();
   const [defaultSpeed, setDefaultSpeedState] = useState(1);
   const [defaultTimes, setDefaultTimesState] = useState(1);
   const [defaultPauseMs, setDefaultPauseMsState] = useState(0);
@@ -64,7 +67,7 @@ export default function PlaybackSettingsScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       <ScrollView contentContainerStyle={styles.list}>
-        <SettingsSection title="Speed" footnote="Default for new sessions. Change it per session from the player.">
+        <SettingsSection title={t('settings.playback.speed')} footnote={t('settings.playback.defaultFootnote')}>
           <View style={styles.chipRow}>
             {SPEED_OPTIONS.filter((s) => s >= SPEED_MIN && s <= SPEED_MAX).map((s) => {
               const on = s === defaultSpeed;
@@ -83,11 +86,9 @@ export default function PlaybackSettingsScreen() {
           </View>
         </SettingsSection>
 
-        <SettingsSection
-          title="Times"
-          footnote="How many times each line plays before the next. Default for new sessions; change it per session from the player's Repeat tile.">
+        <SettingsSection title={t('settings.playback.times')} footnote={t('settings.playback.timesFootnote')}>
           <View style={styles.rulerBox} onLayout={(e) => setRulerW(e.nativeEvent.layout.width - 2 * Spacing.md)}>
-            <Text style={styles.readout}>{timesLabel(defaultTimes)}</Text>
+            <Text style={styles.readout}>{timesLabel(t, defaultTimes)}</Text>
             {rulerW > 0 ? (
               <TickRuler
                 width={rulerW}
@@ -97,15 +98,13 @@ export default function PlaybackSettingsScreen() {
                 onSettle={(i) => void setDefaultTimes(i + TIMES_MIN)}
                 isMajor={() => true}
                 tickLabel={(i) => String(i + TIMES_MIN)}
-                accessibilityLabel={`Times, ${timesLabel(defaultTimes)}`}
+                accessibilityLabel={t('settings.playback.timesAccessibility', { label: timesLabel(t, defaultTimes) })}
               />
             ) : null}
           </View>
         </SettingsSection>
 
-        <SettingsSection
-          title="Pause"
-          footnote="Silence after every play, which is also Auto Echo's Echo step. Default for new sessions; change it per session from the player's Repeat tile.">
+        <SettingsSection title={t('settings.playback.pause')} footnote={t('settings.playback.pauseFootnote')}>
           <View style={styles.rulerBox}>
             <Text style={styles.readout}>{pauseLabel(defaultPauseMs)}</Text>
             {rulerW > 0 ? (
@@ -117,15 +116,15 @@ export default function PlaybackSettingsScreen() {
                 onSettle={(i) => void setDefaultPauseMs(i * PAUSE_STEP_MS)}
                 isMajor={(i) => (i * PAUSE_STEP_MS) % 1000 === 0}
                 tickLabel={(i) => String((i * PAUSE_STEP_MS) / 1000)}
-                accessibilityLabel={`Pause, ${pauseLabel(defaultPauseMs)}`}
+                accessibilityLabel={t('settings.playback.pauseAccessibility', { label: pauseLabel(defaultPauseMs) })}
               />
             ) : null}
           </View>
         </SettingsSection>
 
-        <SettingsSection title="Auto Echo">
+        <SettingsSection title={t('settings.playback.autoEcho')}>
           <SettingsRow
-            label="Auto Echo"
+            label={t('settings.playback.autoEcho')}
             icon={{ ios: 'arrow.triangle.2.circlepath', android: 'repeat' }}
             switchValue={autoEcho}
             onSwitchChange={(next) => {
@@ -134,7 +133,7 @@ export default function PlaybackSettingsScreen() {
             }}
           />
           <SettingsRow
-            label="Auto record"
+            label={t('settings.playback.autoRecord')}
             last
             icon={{ ios: 'record.circle', android: 'fiber_manual_record' }}
             switchValue={autoRecord}
@@ -144,13 +143,11 @@ export default function PlaybackSettingsScreen() {
             }}
           />
         </SettingsSection>
-        <Text style={[styles.footnote, { color: tide.textDim }]}>
-          Auto record applies on every Echo pass. Auto Echo only decides whether the next pass starts on its own.
-        </Text>
+        <Text style={[styles.footnote, { color: tide.textDim }, dir.text]}>{t('settings.playback.autoRecordFootnote')}</Text>
 
-        <SettingsSection title="Screen">
+        <SettingsSection title={t('settings.playback.screen')}>
           <SettingsRow
-            label="Keep screen awake"
+            label={t('settings.playback.keepScreenAwake')}
             last
             icon={{ ios: 'sun.max', android: 'light_mode' }}
             switchValue={keepAwake}

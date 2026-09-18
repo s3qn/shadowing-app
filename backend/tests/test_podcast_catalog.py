@@ -22,6 +22,10 @@ FIXTURE = Path(__file__).parent / "fixtures" / "feed.xml"
 AUTH = f"Bearer {main.SHADOW_TOKEN}"
 
 
+def _is_hebrew(text: str) -> bool:
+    return any("\u0590" <= ch <= "\u05ff" for ch in text)
+
+
 async def _public_check(url):
     return "93.184.216.34"
 
@@ -49,6 +53,41 @@ def test_catalog_es_and_en_have_three_sections_of_verified_shows():
                 assert show["artworkUrl"]
                 assert show["level"] in ("beginner", "intermediate", "advanced")
                 assert show["tagline"]
+
+
+def test_catalog_serves_hebrew_copy_when_the_interface_language_is_he():
+    """The interface language is not the learning language: someone learning
+    Japanese while reading Hebrew gets Hebrew section copy over Japanese
+    shows, with the show titles untouched."""
+    for language in ("ja", "es", "en"):
+        english = podcast_catalog.catalog(language)
+        hebrew = podcast_catalog.catalog(language, "he")
+
+        assert len(hebrew["sections"]) == len(english["sections"])
+        for he_section, en_section in zip(hebrew["sections"], english["sections"]):
+            assert he_section["id"] == en_section["id"]
+            assert he_section["title"] != en_section["title"]
+            assert he_section["subtitle"] != en_section["subtitle"]
+            assert _is_hebrew(he_section["title"])
+            assert _is_hebrew(he_section["subtitle"])
+            for he_show, en_show in zip(he_section["shows"], en_section["shows"]):
+                assert he_show["title"] == en_show["title"]
+                assert he_show["feedUrl"] == en_show["feedUrl"]
+                assert he_show["tagline"] != en_show["tagline"]
+                assert _is_hebrew(he_show["tagline"])
+
+
+def test_catalog_falls_back_to_english_for_an_interface_language_without_copy():
+    assert podcast_catalog.catalog("ja", "fr") == podcast_catalog.catalog("ja")
+
+
+def test_catalog_hides_the_per_language_copy_from_the_wire_shape():
+    for section in podcast_catalog.catalog("ja", "he")["sections"]:
+        assert set(section) == {"id", "title", "subtitle", "shows"}
+        for show in section["shows"]:
+            assert set(show) == {
+                "collectionId", "title", "feedUrl", "artworkUrl", "level", "tagline",
+            }
 
 
 def test_catalog_raises_key_error_on_an_unknown_language():
@@ -135,6 +174,13 @@ def test_podcasts_catalog_route_returns_ja_sections():
     result = main.podcasts_catalog(language="ja", authorization=AUTH)
 
     assert len(result["sections"]) == 3
+
+
+def test_podcasts_catalog_route_passes_the_interface_language_through():
+    result = main.podcasts_catalog(language="ja", ui="he", authorization=AUTH)
+
+    assert result == podcast_catalog.catalog("ja", "he")
+    assert result != podcast_catalog.catalog("ja")
 
 
 def test_podcasts_catalog_route_404s_on_an_unknown_language():

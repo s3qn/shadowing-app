@@ -1,7 +1,7 @@
 import { type ReactNode, useMemo } from 'react';
 import { type StyleProp, StyleSheet, View, type ViewStyle } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { Canvas, LinearGradient, RoundedRect, vec } from '@shopify/react-native-skia';
+import { Canvas, Fill, LinearGradient, RoundedRect, vec } from '@shopify/react-native-skia';
 import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 
 import { Radius, prism, withAlpha } from '@/constants/theme';
@@ -87,6 +87,57 @@ export function LitPillFill({ width, height, opacity }: LitPillFillProps) {
 
   return (
     <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, fadeStyle, { borderRadius: radius, overflow: 'hidden' }]}>
+      {gradient}
+    </Animated.View>
+  );
+}
+
+export type LitPillCoverProps = {
+  /**
+   * The pill's height inside its border, a constant at the call site (the
+   * tray's pill height less its border), used only for the direction of the
+   * vertical gradient. Nothing here is measured.
+   */
+  height: number;
+  /** 0 to 1, driven by the caller: a crossfade between options. */
+  opacity: SharedValue<number>;
+};
+
+/**
+ * The selected-pill background for a pill that stays put and crossfades
+ * instead of sliding: the same gradient as `LitPillFill`, painted over the
+ * whole canvas instead of over a rectangle of a remembered width. The canvas
+ * is an absolute fill, so it is always exactly the pill it sits in, and that
+ * pill's own rounded, overflow-hidden box cuts the ends, the way the tab
+ * bar's sliding pill cuts its fill. Place it in a container with
+ * `borderRadius` and `overflow: 'hidden'`.
+ *
+ * A pill that measures itself into state and hands that width to
+ * `LitPillFill` instead can fall behind its own label: when the app language
+ * changed, the Home sort pills kept the width their English labels had while
+ * the pill, its rim and the Hebrew label grew, which left a dark crescent at
+ * one end.
+ */
+export function LitPillCover({ height, opacity }: LitPillCoverProps) {
+  const fadeStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+  const gradient = useMemo(
+    () => (
+      <Canvas style={StyleSheet.absoluteFill}>
+        <Fill color="#FFFFFF" />
+        <Fill>
+          <LinearGradient
+            start={vec(0, 0)}
+            end={vec(0, Math.max(1, height))}
+            colors={[withAlpha(prism.tray.lit.top, prism.tray.lit.alpha), withAlpha(prism.tray.lit.bottom, prism.tray.lit.alpha)]}
+          />
+        </Fill>
+      </Canvas>
+    ),
+    [height],
+  );
+
+  return (
+    <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, fadeStyle]}>
       {gradient}
     </Animated.View>
   );

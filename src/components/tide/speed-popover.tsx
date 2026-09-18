@@ -4,6 +4,7 @@ import { PopoverBubble } from '@/components/tide/popover-bubble';
 import { TICK_RULER_H, TickRuler } from '@/components/tide/tick-ruler';
 import { fonts } from '@/constants/fonts';
 import { SPEED_MAX, SPEED_MIN, tide } from '@/constants/theme';
+import { useT } from '@/lib/i18n';
 
 const PAD = 12;
 const RULER_W = 256;
@@ -43,6 +44,7 @@ type Props = {
  * step the finger passes; the line only restarts once the ruler settles.
  */
 export function SpeedPopover({ anchorX, anchorTop, width, speed, onSpeed, onSettle, onClose }: Props) {
+  const { t } = useT();
   return (
     <PopoverBubble
       anchorX={anchorX}
@@ -62,7 +64,7 @@ export function SpeedPopover({ anchorX, anchorTop, width, speed, onSpeed, onSett
         onSettle={(i) => onSettle(speedAt(i))}
         isMajor={(i) => i % 2 === 0}
         tickLabel={(i) => speedAt(i).toFixed(1)}
-        accessibilityLabel={`Speed, ${speedLabel(speed)}`}
+        accessibilityLabel={t('player.speedAccessibility', { label: speedLabel(speed) })}
       />
     </PopoverBubble>
   );

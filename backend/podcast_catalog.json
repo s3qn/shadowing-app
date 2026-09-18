@@ -4,7 +4,9 @@
       {
         "id": "easy-start",
         "title": "An Easy Place to Begin",
+        "titleHe": "מקום קל להתחיל בו",
         "subtitle": "Clear, compact Japanese listening",
+        "subtitleHe": "האזנה ליפנית ברורה וקצרה",
         "shows": [
           {
             "collectionId": 1353032168,
@@ -12,7 +14,8 @@
             "feedUrl": "http://teppeisensei.com/index20.rdf",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts113/v4/70/fc/43/70fc43c3-daa3-111d-bf5f-3f70676d8988/mza_4320301816157088475.png/600x600bb.jpg",
             "level": "beginner",
-            "tagline": "Short daily talks in slow, plain Japanese for beginners."
+            "tagline": "Short daily talks in slow, plain Japanese for beginners.",
+            "taglineHe": "שיחות יומיות קצרות ביפנית איטית ופשוטה למתחילים."
           },
           {
             "collectionId": 1471500012,
@@ -20,7 +23,8 @@
             "feedUrl": "http://nihongoconteppei.com/feed/podcast",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts123/v4/6a/30/4c/6a304ce0-6794-5472-f436-c687bdda2745/mza_7253643594919702969.png/600x600bb.jpg",
             "level": "beginner",
-            "tagline": "The original beginner run: slow Japanese, one topic at a time."
+            "tagline": "The original beginner run: slow Japanese, one topic at a time.",
+            "taglineHe": "הסדרה המקורית למתחילים: יפנית איטית, נושא אחד בכל פרק."
           },
           {
             "collectionId": 1867661540,
@@ -28,7 +32,8 @@
             "feedUrl": "https://anchor.fm/s/10d869b5c/podcast/rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/3d/7b/7e/3d7b7e45-7a27-45ae-46e8-f7c00218cb3b/mza_16783701179725978113.jpg/600x600bb.jpg",
             "level": "beginner",
-            "tagline": "Everyday stories told in easy Japanese, slowly and clearly."
+            "tagline": "Everyday stories told in easy Japanese, slowly and clearly.",
+            "taglineHe": "סיפורים מהיומיום ביפנית קלה, לאט ובבירור."
           },
           {
             "collectionId": 1613654560,
@@ -36,7 +41,8 @@
             "feedUrl": "https://sbs-ondemand.streamguys1.com/suroziyapanizu/",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/27/17/4f/27174f8f-b2be-a320-8dae-193e09a9be20/mza_2331140253836084361.jpg/600x600bb.jpg",
             "level": "beginner",
-            "tagline": "SBS Japanese read at a deliberately slow, learner-friendly pace."
+            "tagline": "SBS Japanese read at a deliberately slow, learner-friendly pace.",
+            "taglineHe": "חדשות SBS ביפנית, בקצב איטי במתכוון שמתאים ללומדים."
           },
           {
             "collectionId": 1681990488,
@@ -44,7 +50,8 @@
             "feedUrl": "https://anchor.fm/s/dc21a3a4/podcast/rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts126/v4/27/a8/1f/27a81f46-449b-5b07-fdc1-d87262295538/mza_6257160257437625929.jpg/600x600bb.jpg",
             "level": "beginner",
-            "tagline": "Short slow-Japanese episodes on everyday topics."
+            "tagline": "Short slow-Japanese episodes on everyday topics.",
+            "taglineHe": "פרקים קצרים ביפנית איטית על נושאים מהיומיום."
           },
           {
             "collectionId": 1689587805,
@@ -52,7 +59,8 @@
             "feedUrl": "https://anchor.fm/s/d9ef502c/podcast/rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/db/bf/5a/dbbf5a51-871b-ae94-44c1-7266ef9be42e/mza_15519062866875862114.jpg/600x600bb.jpg",
             "level": "beginner",
-            "tagline": "Sayuri talks through daily life in simple, clear Japanese."
+            "tagline": "Sayuri talks through daily life in simple, clear Japanese.",
+            "taglineHe": "סיורי מספרת על חיי היומיום ביפנית פשוטה וברורה."
           },
           {
             "collectionId": 1530999233,
@@ -60,7 +68,8 @@
             "feedUrl": "https://anchor.fm/s/136212a0/podcast/rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts116/v4/5e/74/98/5e7498f4-f919-2b0c-db92-4bdabc0301c5/mza_11501537558363689340.jpg/600x600bb.jpg",
             "level": "beginner",
-            "tagline": "A teacher's plain-Japanese radio for learners and teachers alike."
+            "tagline": "A teacher's plain-Japanese radio for learners and teachers alike.",
+            "taglineHe": "רדיו ביפנית פשוטה מפי מורה, ללומדים ולמורים כאחד."
           },
           {
             "collectionId": 1398931308,
@@ -68,7 +77,8 @@
             "feedUrl": "https://anchor.fm/s/412c0ec/podcast/rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/74/c2/cc/74c2ccb8-0028-7d51-e220-44d95544a417/mza_2504191901726751688.jpg/600x600bb.jpg",
             "level": "beginner",
-            "tagline": "Short easy-Japanese episodes on everyday Japanese life."
+            "tagline": "Short easy-Japanese episodes on everyday Japanese life.",
+            "taglineHe": "פרקים קצרים ביפנית קלה על החיים ביפן."
           },
           {
             "collectionId": 1550709885,
@@ -76,7 +86,8 @@
             "feedUrl": "https://feeds.redcircle.com/e8ab057c-683d-4375-a197-2dcc42d4f851",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/8a/8e/3e/8a8e3e9f-6810-1658-a4aa-a16bcef05960/mza_7363683509923378665.jpg/600x600bb.jpg",
             "level": "beginner",
-            "tagline": "Shun's slow, friendly Japanese for new learners."
+            "tagline": "Shun's slow, friendly Japanese for new learners.",
+            "taglineHe": "יפנית איטית וידידותית משון, ללומדים חדשים."
           },
           {
             "collectionId": 1597613600,
@@ -84,14 +95,17 @@
             "feedUrl": "https://anchor.fm/s/75acb3d4/podcast/rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts116/v4/42/e2/3c/42e23cc1-a634-5c4d-1786-f6c79fb3251f/mza_13805542066595310510.jpg/600x600bb.jpg",
             "level": "beginner",
-            "tagline": "Plain, everyday Japanese aimed squarely at new learners."
+            "tagline": "Plain, everyday Japanese aimed squarely at new learners.",
+            "taglineHe": "יפנית יומיומית ופשוטה, מכוונת ללומדים חדשים."
           }
         ]
       },
       {
         "id": "stories-and-conversation",
         "title": "Stories and Conversation",
+        "titleHe": "סיפורים ושיחה",
         "subtitle": "Folktales and natural talk at a moderate pace",
+        "subtitleHe": "אגדות עם ושיחה טבעית בקצב מתון",
         "shows": [
           {
             "collectionId": 1617855903,
@@ -99,7 +113,8 @@
             "feedUrl": "https://anchor.fm/s/8dcb51c8/podcast/rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts126/v4/dc/5d/7b/dc5d7b59-c0bf-a635-d480-8886fcc93c8a/mza_13198466493685783791.jpg/600x600bb.jpg",
             "level": "intermediate",
-            "tagline": "Classic Japanese folktales read aloud, one story at a time."
+            "tagline": "Classic Japanese folktales read aloud, one story at a time.",
+            "taglineHe": "אגדות עם יפניות קלאסיות בהקראה, סיפור אחד בכל פרק."
           },
           {
             "collectionId": 1462643107,
@@ -107,7 +122,8 @@
             "feedUrl": "https://anchor.fm/s/b15fc38/podcast/rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/a2/0d/1b/a20d1bcc-7f56-99a5-1df7-b51165460bbb/mza_10893461930493682762.jpg/600x600bb.jpg",
             "level": "intermediate",
-            "tagline": "A grandmother's warm reading of traditional Japanese folktales."
+            "tagline": "A grandmother's warm reading of traditional Japanese folktales.",
+            "taglineHe": "הקראה חמה של אגדות עם יפניות מסורתיות מפי סבתא."
           },
           {
             "collectionId": 1656628405,
@@ -115,7 +131,8 @@
             "feedUrl": "https://anchor.fm/s/9e8ef8ac/podcast/rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts122/v4/c9/f1/dd/c9f1dd98-2ce7-5232-771c-ac402a5bc2a8/mza_1120689145064933152.jpg/600x600bb.jpg",
             "level": "intermediate",
-            "tagline": "Natural two-person conversation about everyday topics."
+            "tagline": "Natural two-person conversation about everyday topics.",
+            "taglineHe": "שיחה טבעית בין שניים על נושאים מהיומיום."
           },
           {
             "collectionId": 1840342783,
@@ -123,7 +140,8 @@
             "feedUrl": "https://anchor.fm/s/1093f564c/podcast/rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/ba/b6/e5/bab6e57b-0816-b938-7f38-171b554fba98/mza_9151410023380059165.jpg/600x600bb.jpg",
             "level": "intermediate",
-            "tagline": "Real conversational Japanese at a friendly, listenable pace."
+            "tagline": "Real conversational Japanese at a friendly, listenable pace.",
+            "taglineHe": "יפנית מדוברת אמיתית בקצב נוח להאזנה."
           },
           {
             "collectionId": 1562799884,
@@ -131,7 +149,8 @@
             "feedUrl": "https://anchor.fm/s/567c067c/podcast/rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts126/v4/29/69/65/29696510-29dc-1d83-1444-d7d75172c58b/mza_3196198542734682169.jpg/600x600bb.jpg",
             "level": "intermediate",
-            "tagline": "Listen-only practice built around natural spoken phrases."
+            "tagline": "Listen-only practice built around natural spoken phrases.",
+            "taglineHe": "תרגול האזנה בלבד, סביב ביטויים מדוברים טבעיים."
           },
           {
             "collectionId": 1592267847,
@@ -139,7 +158,8 @@
             "feedUrl": "https://nihongoconteppeiz.com/feed/podcast/default-podcast/",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/58/c0/77/58c077f5-4c82-6aa7-bf95-7618760011ef/mza_7969789270731466871.png/600x600bb.jpg",
             "level": "intermediate",
-            "tagline": "Teppei's second series, a step up in speed and vocabulary."
+            "tagline": "Teppei's second series, a step up in speed and vocabulary.",
+            "taglineHe": "הסדרה השנייה של טפיי, מדרגה מעלה במהירות ובאוצר המילים."
           },
           {
             "collectionId": 1587644195,
@@ -147,7 +167,8 @@
             "feedUrl": "https://feeds.redcircle.com/fe1d6a62-5655-4d08-8b11-8001116304ce",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/89/4a/4c/894a4c43-ab32-fba9-9490-ae48272ec3aa/mza_4443062711114303409.jpg/600x600bb.jpg",
             "level": "intermediate",
-            "tagline": "Calm bedtime stories told in natural, unhurried Japanese."
+            "tagline": "Calm bedtime stories told in natural, unhurried Japanese.",
+            "taglineHe": "סיפורי לילה רגועים ביפנית טבעית ולא ממהרת."
           },
           {
             "collectionId": 1701381299,
@@ -155,7 +176,8 @@
             "feedUrl": "https://anchor.fm/s/e69f4a98/podcast/rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts116/v4/3f/56/d9/3f56d9a9-6337-45ee-024a-dc70854897e9/mza_14099956737874972119.jpg/600x600bb.jpg",
             "level": "intermediate",
-            "tagline": "Ghost stories and folklore, narrated at a natural pace."
+            "tagline": "Ghost stories and folklore, narrated at a natural pace.",
+            "taglineHe": "סיפורי רפאים ופולקלור, בהקראה בקצב טבעי."
           },
           {
             "collectionId": 1600655310,
@@ -163,7 +185,8 @@
             "feedUrl": "https://anchor.fm/s/101b6e638/podcast/rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts126/v4/42/da/37/42da373f-358a-7985-070c-497967a7f018/mza_46669528660869011.jpg/600x600bb.jpg",
             "level": "intermediate",
-            "tagline": "A teacher walks through 60 common conversational expressions."
+            "tagline": "A teacher walks through 60 common conversational expressions.",
+            "taglineHe": "מורה עוברת על 60 ביטויי שיחה נפוצים."
           },
           {
             "collectionId": 1789698128,
@@ -171,14 +194,17 @@
             "feedUrl": "http://nihongoconteppeiha.fukushuconteppei.com/feed/podcast/nihongo-con-teppei-ha/",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/91/ea/b9/91eab99d-1915-36b3-d836-180cc428b033/mza_12627277081429454367.jpg/600x600bb.jpg",
             "level": "intermediate",
-            "tagline": "Teppei's third series, natural speed with everyday topics."
+            "tagline": "Teppei's third series, natural speed with everyday topics.",
+            "taglineHe": "הסדרה השלישית של טפיי, מהירות טבעית ונושאים מהיומיום."
           }
         ]
       },
       {
         "id": "native-pace",
         "title": "Native Pace",
+        "titleHe": "קצב של דוברי שפת אם",
         "subtitle": "Real Japanese radio and talk shows, full speed",
+        "subtitleHe": "רדיו ותוכניות שיחה יפניות אמיתיות, במהירות מלאה",
         "shows": [
           {
             "collectionId": 1550243290,
@@ -186,7 +212,8 @@
             "feedUrl": "https://api.robotstart.jp/api/v1/feeds/35d00481/get-feeds/podcast",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts114/v4/cc/37/04/cc370489-c6c8-9408-9347-59f1f65e74da/mza_10976010736501395871.jpg/600x600bb.jpg",
             "level": "advanced",
-            "tagline": "Two friends talk linguistics at full native speed."
+            "tagline": "Two friends talk linguistics at full native speed.",
+            "taglineHe": "שני חברים משוחחים על בלשנות במהירות מלאה."
           },
           {
             "collectionId": 1450522865,
@@ -194,7 +221,8 @@
             "feedUrl": "https://anchor.fm/s/8c2088c/podcast/rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts115/v4/e3/bd/be/e3bdbe9a-ebe1-03be-2fd2-658c5e64825a/mza_10324805544078569436.jpg/600x600bb.jpg",
             "level": "advanced",
-            "tagline": "Long-form native storytelling about world history."
+            "tagline": "Long-form native storytelling about world history.",
+            "taglineHe": "סיפור ארוך על ההיסטוריה העולמית, בקצב של דוברי שפת אם."
           },
           {
             "collectionId": 1546033052,
@@ -202,7 +230,8 @@
             "feedUrl": "https://feeds.megaphone.fm/TBS8950694698",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/58/f5/b5/58f5b582-a146-1f4f-d7a1-5d265f2cd63f/mza_9655314773391981197.jpg/600x600bb.jpg",
             "level": "advanced",
-            "tagline": "TBS Radio's roundtable on culture and current events."
+            "tagline": "TBS Radio's roundtable on culture and current events.",
+            "taglineHe": "שולחן עגול של רדיו TBS על תרבות ואקטואליה."
           },
           {
             "collectionId": 1505337177,
@@ -210,7 +239,8 @@
             "feedUrl": "https://feeds.megaphone.fm/TBS3753603712",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/df/a6/7b/dfa67bee-ebad-83e6-25a6-e0248398e5f4/mza_14678389558391108721.jpg/600x600bb.jpg",
             "level": "advanced",
-            "tagline": "TBS Radio's evening culture and arts talk show."
+            "tagline": "TBS Radio's evening culture and arts talk show.",
+            "taglineHe": "תוכנית ערב של רדיו TBS על תרבות ואמנות."
           },
           {
             "collectionId": 1647162986,
@@ -218,7 +248,8 @@
             "feedUrl": "https://anchor.fm/s/bbc93ff4/podcast/rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts122/v4/86/d9/f7/86d9f784-c2c7-c316-03fc-475807c5e17e/mza_17411969531237251018.jpg/600x600bb.jpg",
             "level": "advanced",
-            "tagline": "A long-running daily talk radio show, native speed."
+            "tagline": "A long-running daily talk radio show, native speed.",
+            "taglineHe": "תוכנית רדיו יומית ותיקה, במהירות מלאה."
           },
           {
             "collectionId": 1647162435,
@@ -226,7 +257,8 @@
             "feedUrl": "https://feeds.megaphone.fm/TBS3478276531",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/e8/6b/dd/e86bdd16-d87b-c9ad-4e42-a1698147ac11/mza_17997555377437389610.jpg/600x600bb.jpg",
             "level": "advanced",
-            "tagline": "A veteran host's morning news and talk radio show."
+            "tagline": "A veteran host's morning news and talk radio show.",
+            "taglineHe": "תוכנית בוקר של חדשות ושיחה עם מגיש ותיק."
           },
           {
             "collectionId": 1647162945,
@@ -234,7 +266,8 @@
             "feedUrl": "https://feeds.megaphone.fm/TBS7474162925",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/9e/50/01/9e50013c-0d0c-819a-624d-5eac34a8fb6b/mza_17621206430771841488.jpg/600x600bb.jpg",
             "level": "advanced",
-            "tagline": "A rakugo storyteller talks at full native pace."
+            "tagline": "A rakugo storyteller talks at full native pace.",
+            "taglineHe": "מספר רקוגו משוחח במהירות מלאה."
           },
           {
             "collectionId": 1818025881,
@@ -242,7 +275,8 @@
             "feedUrl": "https://anchor.fm/s/105aa6918/podcast/rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/8f/9e/17/8f9e178f-7c85-f69f-f8d8-7ba142a6a460/mza_2630215536151433214.jpg/600x600bb.jpg",
             "level": "advanced",
-            "tagline": "Mainichi Shimbun reporters unpack the day's news."
+            "tagline": "Mainichi Shimbun reporters unpack the day's news.",
+            "taglineHe": "כתבי העיתון מאיניצ׳י שימבון מפרקים את חדשות היום."
           },
           {
             "collectionId": 1528821800,
@@ -250,7 +284,8 @@
             "feedUrl": "https://anchor.fm/s/312b9518/podcast/rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/ac/59/0d/ac590dad-a2ed-ae11-7024-ee16ce10df4c/mza_2987970785130231238.jpg/600x600bb.jpg",
             "level": "advanced",
-            "tagline": "Late-night rambling talk, unscripted and native paced."
+            "tagline": "Late-night rambling talk, unscripted and native paced.",
+            "taglineHe": "שיחת לילה משוטטת, בלי תסריט ובמהירות מלאה."
           },
           {
             "collectionId": 1754096624,
@@ -258,7 +293,8 @@
             "feedUrl": "https://feeds.megaphone.fm/TFM3146052363",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/14/94/74/14947451-ccef-19a7-7a38-24cddd690580/mza_336943894978675328.jpg/600x600bb.jpg",
             "level": "advanced",
-            "tagline": "A former idol's personal talk show, native speed."
+            "tagline": "A former idol's personal talk show, native speed.",
+            "taglineHe": "תוכנית שיחה אישית של אלילת פופ לשעבר, במהירות מלאה."
           }
         ]
       }
@@ -269,7 +305,9 @@
       {
         "id": "easy-start",
         "title": "An Easy Place to Begin",
+        "titleHe": "מקום קל להתחיל בו",
         "subtitle": "Clear, slow Spanish for new learners",
+        "subtitleHe": "ספרדית ברורה ואיטית ללומדים חדשים",
         "shows": [
           {
             "collectionId": 201598403,
@@ -277,7 +315,8 @@
             "feedUrl": "https://feeds.acast.com/public/shows/985e7c00-8945-4e0d-a4da-b93049180ce1",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts115/v4/8c/60/bb/8c60bbc0-0bfb-13c9-ec70-ec7812061d5e/mza_3440928626851101255.jpg/600x600bb.jpg",
             "level": "beginner",
-            "tagline": "A classroom-style course that builds up Spanish one lesson at a time."
+            "tagline": "A classroom-style course that builds up Spanish one lesson at a time.",
+            "taglineHe": "קורס בסגנון כיתה שבונה ספרדית שיעור אחר שיעור."
           },
           {
             "collectionId": 257441540,
@@ -285,7 +324,8 @@
             "feedUrl": "https://rss.libsyn.com/shows/19057/destinations/14862.xml",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts116/v4/b9/89/d4/b989d466-c83a-8a45-6a88-1c881f855de3/mza_4734047224895628289.jpg/600x600bb.jpg",
             "level": "beginner",
-            "tagline": "A British husband and Spanish wife talk slowly through daily life."
+            "tagline": "A British husband and Spanish wife talk slowly through daily life.",
+            "taglineHe": "זוג, הוא בריטי והיא ספרדייה, משוחחים לאט על חיי היומיום."
           },
           {
             "collectionId": 1317493077,
@@ -293,7 +333,8 @@
             "feedUrl": "https://anchor.fm/s/fc714074/podcast/rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts115/v4/aa/a0/f5/aaa0f562-64a8-401f-bfe8-7b6a49ec5943/mza_2619062143639023486.png/600x600bb.jpg",
             "level": "beginner",
-            "tagline": "True personal stories narrated slowly, in Spanish and English."
+            "tagline": "True personal stories narrated slowly, in Spanish and English.",
+            "taglineHe": "סיפורים אישיים אמיתיים בהקראה איטית, בספרדית ובאנגלית."
           },
           {
             "collectionId": 1166015603,
@@ -301,7 +342,8 @@
             "feedUrl": "https://feeds.soundcloud.com/users/soundcloud:users:250273737/sounds.rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts115/v4/9c/c9/3e/9cc93e7a-221b-cf7d-13aa-6b40db4f30ca/mza_11810121341173213205.jpg/600x600bb.jpg",
             "level": "beginner",
-            "tagline": "Two hosts chat about everyday topics at a friendly, clear pace."
+            "tagline": "Two hosts chat about everyday topics at a friendly, clear pace.",
+            "taglineHe": "שני מגישים משוחחים על נושאים מהיומיום בקצב ברור ונוח."
           },
           {
             "collectionId": 623732043,
@@ -309,14 +351,17 @@
             "feedUrl": "https://feeds.transistor.fm/beginner-spanish-with-spanish-obsessed",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/18/63/b8/1863b89d-ed73-a48a-970f-b940ad3b8af6/mza_17187934987166706228.jpg/600x600bb.jpg",
             "level": "beginner",
-            "tagline": "Short, structured lessons aimed squarely at first-time listeners."
+            "tagline": "Short, structured lessons aimed squarely at first-time listeners.",
+            "taglineHe": "שיעורים קצרים ומסודרים, מכוונים למאזינים בפעם הראשונה."
           }
         ]
       },
       {
         "id": "stories-and-conversation",
         "title": "Stories and Conversation",
+        "titleHe": "סיפורים ושיחה",
         "subtitle": "Natural talk at a moderate, learnable pace",
+        "subtitleHe": "שיחה טבעית בקצב מתון שאפשר ללמוד ממנו",
         "shows": [
           {
             "collectionId": 189219027,
@@ -324,7 +369,8 @@
             "feedUrl": "https://rss.libsyn.com/shows/18817/destinations/13969.xml",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts116/v4/f9/55/35/f9553507-0448-68ef-e55d-498ebba35e76/mza_3758446935673412446.jpg/600x600bb.jpg",
             "level": "intermediate",
-            "tagline": "The same hosts, now talking at a more natural conversational speed."
+            "tagline": "The same hosts, now talking at a more natural conversational speed.",
+            "taglineHe": "אותם מגישים, הפעם בקצב שיחה טבעי יותר."
           },
           {
             "collectionId": 1201483158,
@@ -332,7 +378,8 @@
             "feedUrl": "https://www.hoyhablamos.com/category/podcast/feed/",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts125/v4/72/ee/37/72ee370b-3d51-27f2-92a2-37a3a3057391/mza_4998403547888481662.jpg/600x600bb.jpg",
             "level": "intermediate",
-            "tagline": "A daily topic explained clearly, one short episode per day."
+            "tagline": "A daily topic explained clearly, one short episode per day.",
+            "taglineHe": "נושא יומי בהסבר ברור, פרק קצר אחד ביום."
           },
           {
             "collectionId": 1060671460,
@@ -340,7 +387,8 @@
             "feedUrl": "https://rss.libsyn.com/shows/73741/destinations/320894.xml",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/0f/60/16/0f6016d2-d7a1-c866-acc5-6bfbf69af33d/mza_17493148723606665253.jpg/600x600bb.jpg",
             "level": "intermediate",
-            "tagline": "Storytelling built to teach grammar through context, not rules."
+            "tagline": "Storytelling built to teach grammar through context, not rules.",
+            "taglineHe": "סיפורים שמלמדים דקדוק מתוך הקשר, לא מתוך כללים."
           },
           {
             "collectionId": 1107849049,
@@ -348,7 +396,8 @@
             "feedUrl": "https://app.kajabi.com/podcasts/2147495670/feed",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/74/24/35/742435c4-ccb8-f650-1dc6-d315edf86860/mza_17607452549273405464.jpg/600x600bb.jpg",
             "level": "intermediate",
-            "tagline": "Practical talks aimed at learners ready to think in Spanish."
+            "tagline": "Practical talks aimed at learners ready to think in Spanish.",
+            "taglineHe": "שיחות מעשיות ללומדים שמוכנים לחשוב בספרדית."
           },
           {
             "collectionId": 1557471374,
@@ -356,14 +405,17 @@
             "feedUrl": "https://feeds.fireside.fm/easyspanish/rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts114/v4/4c/63/0f/4c630f95-0cd9-2545-ab3a-c1d2588f09ac/mza_9317916818140148952.jpg/600x600bb.jpg",
             "level": "intermediate",
-            "tagline": "Street interviews with everyday Spanish speakers, subtitled in the app."
+            "tagline": "Street interviews with everyday Spanish speakers, subtitled in the app.",
+            "taglineHe": "ראיונות רחוב עם דוברי ספרדית מהיומיום, עם כתוביות."
           }
         ]
       },
       {
         "id": "native-pace",
         "title": "Native Pace",
+        "titleHe": "קצב של דוברי שפת אם",
         "subtitle": "Real Spanish shows, full speed",
+        "subtitleHe": "תוכניות ספרדיות אמיתיות, במהירות מלאה",
         "shows": [
           {
             "collectionId": 527614348,
@@ -371,7 +423,8 @@
             "feedUrl": "https://www.omnycontent.com/d/playlist/e73c998e-6e60-432f-8610-ae210140c5b1/b3c9b6e7-72ba-45c4-aff9-b1e7012d213b/092b66a8-4329-4183-bb12-b1e7012d216f/podcast.rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/d8/cd/6b/d8cd6bfc-e830-636b-120e-b41a033e6daf/mza_3995577235346338075.jpg/600x600bb.jpg",
             "level": "advanced",
-            "tagline": "NPR's Spanish-language show, narrative journalism at native speed."
+            "tagline": "NPR's Spanish-language show, narrative journalism at native speed.",
+            "taglineHe": "תוכנית הספרדית של NPR, עיתונות מספרת במהירות מלאה."
           },
           {
             "collectionId": 665143133,
@@ -379,7 +432,8 @@
             "feedUrl": "https://fapi-top.prisasd.com/podcast/playser/nadie_sabe_nada/itunestfp/podcast.xml",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/60/f1/95/60f19580-54c2-cad7-7180-1210e04531d2/mza_940870946245686152.jpeg/600x600bb.jpg",
             "level": "advanced",
-            "tagline": "A fast, funny Spanish comedy talk show, unscripted and native speed."
+            "tagline": "A fast, funny Spanish comedy talk show, unscripted and native speed.",
+            "taglineHe": "תוכנית שיחה קומית ומהירה בספרדית, בלי תסריט ובמהירות מלאה."
           },
           {
             "collectionId": 1229124446,
@@ -387,7 +441,8 @@
             "feedUrl": "https://feeds.acast.com/public/shows/69779e4cf4b515342e3b249c",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/c4/e0/b4/c4e0b43a-888d-c267-6a85-3f0cb5bbd911/mza_4665026146816110789.jpg/600x600bb.jpg",
             "level": "advanced",
-            "tagline": "A native-speed psychology talk show about the mind and behaviour."
+            "tagline": "A native-speed psychology talk show about the mind and behaviour.",
+            "taglineHe": "תוכנית שיחה על פסיכולוגיה, הנפש וההתנהגות, במהירות מלאה."
           }
         ]
       }
@@ -398,7 +453,9 @@
       {
         "id": "easy-start",
         "title": "An Easy Place to Begin",
+        "titleHe": "מקום קל להתחיל בו",
         "subtitle": "Clear, compact English listening",
+        "subtitleHe": "האזנה לאנגלית ברורה וקצרה",
         "shows": [
           {
             "collectionId": 262026947,
@@ -406,7 +463,8 @@
             "feedUrl": "https://podcasts.files.bbci.co.uk/p02pc9tn.rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/ba/98/35/ba9835eb-1ef3-60e4-bf05-3d141b8d1c7a/mza_3844641997714022659.jpg/600x600bb.jpg",
             "level": "beginner",
-            "tagline": "The BBC's six-minute topic and vocabulary lesson, twice a week."
+            "tagline": "The BBC's six-minute topic and vocabulary lesson, twice a week.",
+            "taglineHe": "שיעור נושא ואוצר מילים של שש דקות מ-BBC, פעמיים בשבוע."
           },
           {
             "collectionId": 262026989,
@@ -414,7 +472,8 @@
             "feedUrl": "https://podcasts.files.bbci.co.uk/p02pc9zn.rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/9d/9f/9a/9d9f9ac2-18ed-fef1-6b5a-2370cb2d2eca/mza_16678796634995991769.jpg/600x600bb.jpg",
             "level": "beginner",
-            "tagline": "One short everyday English phrase explained per episode."
+            "tagline": "One short everyday English phrase explained per episode.",
+            "taglineHe": "ביטוי אנגלי יומיומי קצר אחד בהסבר בכל פרק."
           },
           {
             "collectionId": 1036379102,
@@ -422,7 +481,8 @@
             "feedUrl": "https://podcasts.files.bbci.co.uk/p02pc9xz.rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/c9/f7/d1/c9f7d1c3-7d9f-286c-bd34-dd9ed6c8dbae/mza_15142415083290293434.jpg/600x600bb.jpg",
             "level": "beginner",
-            "tagline": "The BBC builds a small set of useful words around one topic."
+            "tagline": "The BBC builds a small set of useful words around one topic.",
+            "taglineHe": "BBC בונה קבוצה קטנה של מילים שימושיות סביב נושא אחד."
           },
           {
             "collectionId": 957223102,
@@ -430,7 +490,8 @@
             "feedUrl": "https://rss.libsyn.com/shows/56803/destinations/212704.xml",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts115/v4/83/4a/31/834a31b2-3941-72ae-1253-b9e430796451/mza_16021704442878844145.jpg/600x600bb.jpg",
             "level": "beginner",
-            "tagline": "Short, plain-spoken lessons on grammar and everyday phrases."
+            "tagline": "Short, plain-spoken lessons on grammar and everyday phrases.",
+            "taglineHe": "שיעורים קצרים ופשוטים על דקדוק וביטויים מהיומיום."
           },
           {
             "collectionId": 1524310725,
@@ -438,14 +499,17 @@
             "feedUrl": "https://learningenglish.voanews.com/podcast/?zoneId=1581",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/e1/ed/74/e1ed7429-5b23-e357-311e-d54f6b076a2c/mza_4485705362810054336.jpg/600x600bb.jpg",
             "level": "beginner",
-            "tagline": "Classic short stories read aloud, slowly and clearly."
+            "tagline": "Classic short stories read aloud, slowly and clearly.",
+            "taglineHe": "סיפורים קצרים קלאסיים בהקראה איטית וברורה."
           }
         ]
       },
       {
         "id": "stories-and-conversation",
         "title": "Stories and Conversation",
+        "titleHe": "סיפורים ושיחה",
         "subtitle": "Natural talk at a moderate pace",
+        "subtitleHe": "שיחה טבעית בקצב מתון",
         "shows": [
           {
             "collectionId": 312059190,
@@ -453,7 +517,8 @@
             "feedUrl": "https://feeds.acast.com/public/shows/62b0ada25c7ea10012f541cb",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts112/v4/07/8c/30/078c3053-2fdf-bd8b-7065-0eb490e27029/mza_8948714377807896144.jpeg/600x600bb.jpg",
             "level": "intermediate",
-            "tagline": "Long, friendly ramblings on British life and culture."
+            "tagline": "Long, friendly ramblings on British life and culture.",
+            "taglineHe": "שיחות ארוכות וידידותיות על החיים והתרבות בבריטניה."
           },
           {
             "collectionId": 751574016,
@@ -461,7 +526,8 @@
             "feedUrl": "https://feeds.megaphone.fm/allearsenglish",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/cb/a1/13/cba113a7-999d-3c3d-a594-900adb69624e/mza_7992161192502469150.jpg/600x600bb.jpg",
             "level": "intermediate",
-            "tagline": "Two hosts unpack American idioms and culture through conversation."
+            "tagline": "Two hosts unpack American idioms and culture through conversation.",
+            "taglineHe": "שני מגישים מפרקים ניבים ותרבות אמריקאית דרך שיחה."
           },
           {
             "collectionId": 600128442,
@@ -469,7 +535,8 @@
             "feedUrl": "https://rss.libsyn.com/shows/41632/destinations/126390.xml",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts112/v4/6a/16/96/6a16968c-e765-54f6-d222-ed5fbe16efdc/mza_17156835718007196421.png/600x600bb.jpg",
             "level": "intermediate",
-            "tagline": "Confident, natural English built around real conversation."
+            "tagline": "Confident, natural English built around real conversation.",
+            "taglineHe": "אנגלית טבעית ובטוחה סביב שיחה אמיתית."
           },
           {
             "collectionId": 1535401964,
@@ -477,7 +544,8 @@
             "feedUrl": "https://rss.pdrl.fm/699122/feeds.megaphone.fm/ARML8307714981",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/6a/d9/84/6ad984d4-46b5-80f4-801b-ccfda17d6d32/mza_7127684008959106584.jpg/600x600bb.jpg",
             "level": "intermediate",
-            "tagline": "One idea discussed at length, at a natural but careful pace."
+            "tagline": "One idea discussed at length, at a natural but careful pace.",
+            "taglineHe": "רעיון אחד בדיון ארוך, בקצב טבעי אך מוקפד."
           },
           {
             "collectionId": 1489301603,
@@ -485,14 +553,17 @@
             "feedUrl": "https://feeds.transistor.fm/leonardo-english-english-language-learning-for-curious-minds",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/23/a3/cd/23a3cd71-88ec-7bee-d0f7-d18752b1d5e1/mza_16883907159795938954.jpg/600x600bb.jpg",
             "level": "intermediate",
-            "tagline": "Interesting true stories told in clear, unhurried English."
+            "tagline": "Interesting true stories told in clear, unhurried English.",
+            "taglineHe": "סיפורים אמיתיים מעניינים באנגלית ברורה ולא ממהרת."
           }
         ]
       },
       {
         "id": "native-pace",
         "title": "Native Pace",
+        "titleHe": "קצב של דוברי שפת אם",
         "subtitle": "Real English shows, full speed",
+        "subtitleHe": "תוכניות אנגליות אמיתיות, במהירות מלאה",
         "shows": [
           {
             "collectionId": 1200361736,
@@ -500,7 +571,8 @@
             "feedUrl": "https://feeds.simplecast.com/Sl5CSM3S",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/ab/64/66/ab6466a9-9a7d-e20e-7a3d-bc5be37d29ce/mza_15084852813176276273.jpg/600x600bb.jpg",
             "level": "advanced",
-            "tagline": "The New York Times' daily news show, native speed."
+            "tagline": "The New York Times' daily news show, native speed.",
+            "taglineHe": "תוכנית החדשות היומית של הניו יורק טיימס, במהירות מלאה."
           },
           {
             "collectionId": 201671138,
@@ -508,7 +580,8 @@
             "feedUrl": "https://www.thisamericanlife.org/podcast/rss.xml",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/64/aa/3a/64aa3a66-a08a-947c-cf21-a5722a1b77ae/mza_11390421932467026234.png/600x600bb.jpg",
             "level": "advanced",
-            "tagline": "Long-form true stories, one theme per week, native speed."
+            "tagline": "Long-form true stories, one theme per week, native speed.",
+            "taglineHe": "סיפורים אמיתיים ארוכים, נושא אחד בשבוע, במהירות מלאה."
           },
           {
             "collectionId": 1896860400,
@@ -516,7 +589,8 @@
             "feedUrl": "https://feeds.libsyn.com/617835/rss",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/db/1f/25/db1f257c-1953-f4fb-95a8-57fd09bf99bd/mza_16606162378290831207.jpeg/600x600bb.jpg",
             "level": "advanced",
-            "tagline": "Two hosts explain how everyday things work, native speed."
+            "tagline": "Two hosts explain how everyday things work, native speed.",
+            "taglineHe": "שני מגישים מסבירים איך דברים יומיומיים עובדים, במהירות מלאה."
           },
           {
             "collectionId": 394775318,
@@ -524,7 +598,8 @@
             "feedUrl": "https://feeds.simplecast.com/BqbsxVfO",
             "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/79/d0/35/79d035ea-9043-b43e-7380-33cd47bd968b/mza_2606971010425550919.jpg/600x600bb.jpg",
             "level": "advanced",
-            "tagline": "Design and architecture stories nobody notices, native speed."
+            "tagline": "Design and architecture stories nobody notices, native speed.",
+            "taglineHe": "סיפורי עיצוב ואדריכלות שאיש לא שם לב אליהם, במהירות מלאה."
           }
         ]
       }

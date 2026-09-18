@@ -45,6 +45,12 @@ export type ReadingMode = (typeof READING_OPTIONS)[number];
 const DEFAULT_READING: ReadingMode = 'furigana';
 const DEFAULT_PITCH = true;
 
+// Minutes of practice a day the learner aims for, picked in onboarding and
+// shown on Home as today's target.
+export const DAILY_GOAL_OPTIONS = [5, 10, 20] as const;
+export type DailyGoalMinutes = (typeof DAILY_GOAL_OPTIONS)[number];
+const DEFAULT_DAILY_GOAL: DailyGoalMinutes = 10;
+
 export const REGISTER_OPTIONS = ['polite', 'casual'] as const;
 export type Register = (typeof REGISTER_OPTIONS)[number];
 export const DEFAULT_REGISTER: Register = 'polite';
@@ -71,6 +77,14 @@ export const UNDERSTOOD_LANGUAGE_OPTIONS = ['he', 'en'] as const;
 export type UnderstoodLanguage = string;
 const DEFAULT_UNDERSTOOD_LANGUAGE: UnderstoodLanguage = 'en';
 
+// The interface language: 'auto' follows `understoodLanguage`, or an explicit
+// pick from `src/lib/i18n.ts`'s `LOCALES` ('en' | 'he' today). A plain string
+// rather than that union, so `src/lib/i18n.ts` (which needs `Settings`) is
+// not imported back into this file.
+export type AppLanguage = string;
+const DEFAULT_APP_LANGUAGE: AppLanguage = 'auto';
+const APP_LANGUAGE_OPTIONS = ['en', 'he'] as const;
+
 export type Settings = {
   /** Voice remembered per learning language, so switching languages does not
    * lose Japanese's pick. Missing entries fall back to `DEFAULT_VOICE_BY_LANGUAGE`. */
@@ -90,6 +104,9 @@ export type Settings = {
   defaultTimes: number;
   /** Pause after each play a new island's player opens with. */
   defaultPauseMs: number;
+  /** Minutes of practice a day the learner aims for. Home shows it as the
+   * target next to today's minutes. */
+  dailyGoalMinutes: DailyGoalMinutes;
   /** Haptic feedback on presses, across the whole app. */
   hapticsEnabled: boolean;
   /** Sky always shows the night palette instead of following the clock. */
@@ -103,6 +120,9 @@ export type Settings = {
   learningLanguage: LearningLanguage;
   /** Language the learner already understands. Fills the backend's `native` field. */
   understoodLanguage: UnderstoodLanguage;
+  /** Interface language: `'auto'` follows `understoodLanguage`, or an
+   * explicit `LOCALES` key. Learning content is never translated. */
+  appLanguage: AppLanguage;
   /** Whether the first-run onboarding flow has been shown. False only for a
    * truly fresh install; an existing settings file from before this key
    * existed is treated as already onboarded. */
@@ -126,12 +146,14 @@ const DEFAULTS: Settings = {
   defaultSpeed: DEFAULT_DEFAULT_SPEED,
   defaultTimes: DEFAULT_DEFAULT_TIMES,
   defaultPauseMs: DEFAULT_DEFAULT_PAUSE,
+  dailyGoalMinutes: DEFAULT_DAILY_GOAL,
   hapticsEnabled: DEFAULT_HAPTICS,
   skyAlwaysNight: DEFAULT_SKY_ALWAYS_NIGHT,
   keepAwake: DEFAULT_KEEP_AWAKE,
   homeWaveDate: '',
   learningLanguage: DEFAULT_LEARNING_LANGUAGE,
   understoodLanguage: DEFAULT_UNDERSTOOD_LANGUAGE,
+  appLanguage: DEFAULT_APP_LANGUAGE,
   // Only a missing settings file (a truly fresh install) defaults to false:
   // see the `onboarded: true` overrides below for a file that exists but
   // predates this key.
@@ -236,22 +258,37 @@ async function read(): Promise<Settings> {
         ? TIMES_MAX
         : migrateTimes(parsed.defaultRepeat),
     defaultPauseMs: isPause(parsed.defaultPauseMs) ? parsed.defaultPauseMs : migratePause(parsed.lagMs),
+    dailyGoalMinutes: (DAILY_GOAL_OPTIONS as readonly number[]).includes(parsed.dailyGoalMinutes as number)
+      ? (parsed.dailyGoalMinutes as DailyGoalMinutes)
+      : DEFAULT_DAILY_GOAL,
     hapticsEnabled: parsed.hapticsEnabled !== false,
     skyAlwaysNight: parsed.skyAlwaysNight === true,
     keepAwake: parsed.keepAwake !== false,
     homeWaveDate: typeof parsed.homeWaveDate === 'string' ? parsed.homeWaveDate : '',
-    // Validated against the catalogue, not the old 3/2-value unions: any
-    // language `src/lib/languages.ts` knows about is a valid pick. Islands
-    // already stored with `language: 'ja'` need no migration, since 'ja'
-    // stays a valid catalogue id forever.
+    // Validated against the catalogue's `learnable` flag, not just presence:
+    // a "coming soon" pick (French, Korean...) can end up here from a build
+    // that let the picker store it (see `setLearningLanguage`'s own guard,
+    // and `language-picker.tsx`'s learn mode, for the current one that does
+    // not). `toIslandLanguage` would silently narrow it to 'ja' at every use
+    // site while this field kept showing the coming-soon pick, so the
+    // Settings picker and everything that actually generates islands would
+    // disagree about what is being learned. Falling back here instead keeps
+    // the two in step: the ticked pick is always the one islands use.
     learningLanguage:
-      typeof parsed.learningLanguage === 'string' && getLanguage(parsed.learningLanguage)
+      typeof parsed.learningLanguage === 'string' && getLanguage(parsed.learningLanguage)?.learnable
         ? parsed.learningLanguage
         : DEFAULT_LEARNING_LANGUAGE,
     understoodLanguage:
       typeof parsed.understoodLanguage === 'string' && getLanguage(parsed.understoodLanguage)?.understandable
         ? parsed.understoodLanguage
         : DEFAULT_UNDERSTOOD_LANGUAGE,
+    // 'auto' or a key of `LOCALES` (kept as a local list here, see the
+    // `AppLanguage` comment above): anything else falls back to 'auto'.
+    appLanguage:
+      typeof parsed.appLanguage === 'string' &&
+      (parsed.appLanguage === 'auto' || (APP_LANGUAGE_OPTIONS as readonly string[]).includes(parsed.appLanguage))
+        ? parsed.appLanguage
+        : DEFAULT_APP_LANGUAGE,
     // A file from before this key existed has no `onboarded` field at all:
     // that is Sean's phone and every install so far, so it counts as already
     // onboarded. Only a missing file (handled above) defaults to false.
@@ -384,6 +421,11 @@ export async function setDefaultPauseMs(defaultPauseMs: number): Promise<void> {
   await update({ defaultPauseMs });
 }
 
+/** Remembers the daily practice goal in minutes. */
+export async function setDailyGoalMinutes(dailyGoalMinutes: DailyGoalMinutes): Promise<void> {
+  await update({ dailyGoalMinutes });
+}
+
 export async function setHaptics(hapticsEnabled: boolean): Promise<void> {
   await update({ hapticsEnabled });
 }
@@ -400,7 +442,14 @@ export async function setHomeWaveDate(homeWaveDate: string): Promise<void> {
   await update({ homeWaveDate });
 }
 
+/** Ignores a "coming soon" catalogue pick (not yet `learnable`): the current
+ * value stays, so `learningLanguage` can never hold a language the app does
+ * not actually generate islands in. `language-picker.tsx` already stops a
+ * learn-mode tap from reaching this for such a pick; this guard is the last
+ * line so no other caller can reintroduce the old tick-versus-behaviour
+ * mismatch by calling this directly. */
 export async function setLearningLanguage(learningLanguage: LearningLanguage): Promise<void> {
+  if (!getLanguage(learningLanguage)?.learnable) return;
   await update({ learningLanguage });
 }
 
@@ -431,8 +480,19 @@ export function toNativeLanguage(id: UnderstoodLanguage): 'he' | 'en' {
   return (UNDERSTOOD_LANGUAGE_OPTIONS as readonly string[]).includes(id) ? (id as 'he' | 'en') : 'en';
 }
 
+// Same guard as `setLearningLanguage`, kept for symmetry: the understand
+// picker never lists a non-`understandable` entry in the first place (see
+// `language-picker.tsx`'s `understand` mode filter), so this should never
+// actually reject anything today.
 export async function setUnderstoodLanguage(understoodLanguage: UnderstoodLanguage): Promise<void> {
+  if (!getLanguage(understoodLanguage)?.understandable) return;
   await update({ understoodLanguage });
+}
+
+/** Sets the interface language: `'auto'` to follow `understoodLanguage`
+ * again, or an explicit `LOCALES` key. */
+export async function setAppLanguage(appLanguage: AppLanguage): Promise<void> {
+  await update({ appLanguage });
 }
 
 export async function setOnboarded(onboarded: boolean): Promise<void> {

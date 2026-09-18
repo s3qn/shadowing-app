@@ -114,13 +114,21 @@ def _startup() -> None:
                 # An import or podcast build has no partial-progress state
                 # worth keeping: the source media is a temp file that is
                 # already gone, so it cannot resume or be regenerated.
-                store.set_failed(island["id"], "Import was interrupted. Delete it and import again.")
+                store.set_failed(
+                    island["id"],
+                    "Import was interrupted. Delete it and import again.",
+                    "import_interrupted",
+                )
                 log.warning("island %s (%s) was interrupted; marked failed", island["id"], island["source"])
             elif island["line_count"] > 0:
                 store.set_ready(island["id"], island["title"] or "Untitled island")
                 log.warning("island %s was interrupted; kept its %d lines", island["id"], island["line_count"])
             else:
-                store.set_failed(island["id"], "Building was interrupted. Regenerate to try again.")
+                store.set_failed(
+                    island["id"],
+                    "Building was interrupted. Regenerate to try again.",
+                    "build_interrupted",
+                )
                 log.warning("island %s was interrupted with no lines", island["id"])
     if _kokoro_warm_up_wanted():
         threading.Thread(target=kokoro_tts.warm_up, name="kokoro-warm-up", daemon=True).start()
@@ -173,7 +181,7 @@ async def speakers(language: str = "ja",
     try:
         return await voices.list_speakers(language)
     except Exception as exc:
-        raise HTTPException(502, f"voice engine unreachable: {exc}") from exc
+        raise HTTPException(502, {"code": "voice_unreachable"}) from exc
 
 
 @app.get("/shadow/speakers/{speaker_uuid}/icon/{style_id}")
@@ -189,7 +197,7 @@ async def speaker_icon(speaker_uuid: str, style_id: int, token: str = "",
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(502, f"VOICEVOX unreachable: {exc}") from exc
+        raise HTTPException(502, {"code": "voice_unreachable"}) from exc
     return Response(content=png, media_type="image/png",
                     headers={"Cache-Control": "public, max-age=86400"})
 
@@ -399,7 +407,7 @@ def _stream_upload(upload: UploadFile, dst: Path, max_bytes: int) -> int:
                 break
             size += len(chunk)
             if size > max_bytes:
-                raise HTTPException(413, "that file is too large to import")
+                raise HTTPException(413, {"code": "file_too_large"})
             out.write(chunk)
     return size
 
@@ -468,7 +476,9 @@ async def _build_island(island_id: str, audio_path: Path, complexity: str,
         text = result.get("text", "")
         language = result.get("language", "")
         if not text:
-            store.set_failed(island_id, "Nothing could be transcribed from that recording.")
+            store.set_failed(
+                island_id, "Nothing could be transcribed from that recording.", "transcribe_empty"
+            )
             return
         store.set_transcript(island_id, text)
         log.info("island %s transcript: %d chars, language=%s", island_id, len(text), language)
@@ -480,13 +490,13 @@ async def _build_island(island_id: str, audio_path: Path, complexity: str,
         )
         lines = generated.get("lines") or []
         if not lines:
-            store.set_failed(island_id, "No lines could be generated.")
+            store.set_failed(island_id, "No lines could be generated.", "no_lines")
             return
 
         store.set_stage(island_id, "speaking")
         made = await _synthesize_lines(island_id, lines, speaker, learning)
         if made == 0:
-            store.set_failed(island_id, "The voice engine produced no audio.")
+            store.set_failed(island_id, "The voice engine produced no audio.", "voice_no_audio")
             return
 
         title = generated.get("title") or text[:40]
@@ -527,9 +537,9 @@ async def create_island(
 
     raw = await audio.read()
     if not raw:
-        raise HTTPException(400, "empty upload")
+        raise HTTPException(400, {"code": "empty_upload"})
     if len(raw) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, "recording too large")
+        raise HTTPException(413, {"code": "recording_too_large"})
 
     _take_build_slot(device, "create")
     island_id = store.create_island(
@@ -543,8 +553,8 @@ async def create_island(
     wav = store.AUDIO_DIR / island_id / "source.wav"
     if not _to_wav(src, wav):
         shutil.rmtree(tmp_dir, ignore_errors=True)
-        store.set_failed(island_id, "That audio file could not be decoded.")
-        raise HTTPException(400, "could not decode the uploaded audio")
+        store.set_failed(island_id, "That audio file could not be decoded.", "audio_undecodable")
+        raise HTTPException(400, {"code": "audio_undecodable"})
     shutil.rmtree(tmp_dir, ignore_errors=True)
 
     background.add_task(
@@ -590,7 +600,7 @@ async def _build_from_cues(island_id: str, source_wav: Path, cue_list: list[dict
         ja_texts.append(cue["text"])
         made += 1
     if made == 0:
-        store.set_failed(island_id, "No line could be cut from that audio.")
+        store.set_failed(island_id, "No line could be cut from that audio.", "no_line_cut")
         return
     store.set_ready(island_id, title)
     log.info(
@@ -627,11 +637,11 @@ async def _build_import(island_id: str, media: Path, srt_text: str | None,
         store.set_stage(island_id, "extracting")
         probe = await asyncio.to_thread(_probe_streams, media)
         if not probe.get("streams"):
-            store.set_failed(island_id, "That media file could not be decoded.")
+            store.set_failed(island_id, "That media file could not be decoded.", "media_undecodable")
             return
         stream = pick_audio_stream(probe)
         if stream is None:
-            store.set_failed(island_id, "That media file has no audio track.")
+            store.set_failed(island_id, "That media file has no audio track.", "media_no_audio")
             return
         source_total = await asyncio.to_thread(_probe_duration, media)
         if source_total > 0 and start_s >= source_total:
@@ -639,6 +649,7 @@ async def _build_import(island_id: str, media: Path, srt_text: str | None,
                 island_id,
                 f"The start time ({start_s / 60.0:.0f} min) is past the end of the media"
                 f" ({source_total / 60.0:.0f} min).",
+                "start_past_end",
             )
             return
         wav = store.AUDIO_DIR / island_id / "source.wav"
@@ -646,11 +657,11 @@ async def _build_import(island_id: str, media: Path, srt_text: str | None,
             _extract_audio, media, wav, stream, start_s, IMPORT_MAX_SECONDS
         )
         if not ok:
-            store.set_failed(island_id, "That media file could not be decoded.")
+            store.set_failed(island_id, "That media file could not be decoded.", "media_undecodable")
             return
         total = await asyncio.to_thread(_probe_duration, wav)
         if total <= 0:
-            store.set_failed(island_id, "That media file could not be decoded.")
+            store.set_failed(island_id, "That media file could not be decoded.", "media_undecodable")
             return
 
         # A suffix whenever the island does not cover the source from its
@@ -667,6 +678,7 @@ async def _build_import(island_id: str, media: Path, srt_text: str | None,
                 island_id,
                 "Whisper could not transcribe that audio, so the lines would have no word"
                 " timings. Check the backend log, then delete this island and import again.",
+                "whisper_no_timings",
             )
             return
         if not result["words"]:
@@ -679,7 +691,9 @@ async def _build_import(island_id: str, media: Path, srt_text: str | None,
             cue_list = cues.parse_srt(srt_text)
             cue_list = cues.window(cue_list, start_s, total)
             if not cue_list:
-                store.set_failed(island_id, "No subtitle lines fall inside that time range.")
+                store.set_failed(
+                    island_id, "No subtitle lines fall inside that time range.", "no_subtitles_in_range"
+                )
                 return
             cue_list = cues.attach_words(cue_list, result["words"], total)
         else:
@@ -690,7 +704,9 @@ async def _build_import(island_id: str, media: Path, srt_text: str | None,
             ]
             cue_list = cues.split_long(seg_cues, max_seconds=8.0)
             if not cue_list:
-                store.set_failed(island_id, "Nothing could be transcribed from that audio.")
+                store.set_failed(
+                    island_id, "Nothing could be transcribed from that audio.", "transcribe_empty"
+                )
                 return
 
         await _build_from_cues(island_id, wav, cue_list, title, total, language, native)
@@ -792,7 +808,7 @@ async def _build_podcast(island_id: str, audio_url: str, title: str, start_s: fl
         media = tmp_dir / "episode"
         await podcast.fetch(audio_url, media, IMPORT_MAX_BYTES)
     except podcast.PodcastError:
-        store.set_failed(island_id, "The episode could not be downloaded.")
+        store.set_failed(island_id, "The episode could not be downloaded.", "episode_download_failed")
         shutil.rmtree(tmp_dir, ignore_errors=True)
         return
     except Exception as exc:
@@ -1380,7 +1396,7 @@ async def _revoice(island_id: str, lines: list[dict], speaker: int, title: str,
     try:
         made = await _synthesize_lines(island_id, lines, speaker, language)
         if made == 0:
-            store.set_failed(island_id, "The voice engine produced no audio.")
+            store.set_failed(island_id, "The voice engine produced no audio.", "voice_no_audio")
             return
         store.set_ready(island_id, title)
     except Exception as exc:
@@ -1553,11 +1569,14 @@ def rename_island(
 
 
 @app.get("/shadow/podcasts/catalog")
-def podcasts_catalog(language: str, authorization: str | None = Header(None)) -> dict:
-    """The hand-picked, editorial podcast catalog for one language."""
+def podcasts_catalog(language: str, ui: str = "en",
+                     authorization: str | None = Header(None)) -> dict:
+    """The hand-picked, editorial podcast catalog for one learning language,
+    written in the interface language `ui` (a separate setting: Hebrew
+    section copy can sit over Japanese shows)."""
     require_token(authorization)
     try:
-        return podcast_catalog.catalog(language)
+        return podcast_catalog.catalog(language, ui)
     except KeyError:
         raise HTTPException(404, f"no podcast catalog for language: {language}")
 
@@ -1645,13 +1664,10 @@ def _take_build_slot(device: str, kind: str) -> None:
     re-voice); each has its own daily cap."""
     if device == OWNER_DEVICE and OWNER_DEVICE:
         return
-    if kind == "create":
-        limit, noun = DAILY_CREATES, "new islands"
-    else:
-        limit, noun = DAILY_REWORKS, "rebuilds"
+    limit = DAILY_CREATES if kind == "create" else DAILY_REWORKS
     if store.count_builds_today(device, kind) >= limit:
         raise HTTPException(
-            429, f"Daily limit reached: {limit} {noun} a day. Try again tomorrow."
+            429, {"code": "daily_limit", "limit": limit, "kind": kind}
         )
     store.log_build(device, kind)
 

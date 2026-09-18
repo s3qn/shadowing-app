@@ -22,6 +22,7 @@ import { Segmented, type SegmentOption } from '@/components/segmented';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, prism, tide, verb as verbTokens } from '@/constants/theme'; // icon-buttons: discard
 import * as api from '@/lib/api';
+import { useDir, useT } from '@/lib/i18n';
 import {
   applyPlaybackMode,
   applyRecordingMode,
@@ -42,10 +43,6 @@ import {
   toNativeLanguage,
 } from '@/lib/settings';
 
-// languages: full names for the record screen's hint, keyed the same as
-// `LEARNING_LANGUAGE_OPTIONS` in settings.ts.
-const LANGUAGE_NAME: Record<api.Language, string> = { ja: 'Japanese', es: 'Spanish', en: 'English' };
-
 const MIN_SECONDS = 10;
 const MAX_SECONDS = 90;
 const SIDE = 16;
@@ -56,27 +53,9 @@ const WAVE_MAX_H = 32;
 
 type Phase = 'idle' | 'recording' | 'review' | 'building';
 
-const STAGE_LABEL: Record<string, string> = {
-  queued: 'Queued…',
-  transcribing: 'Transcribing…',
-  writing: 'Writing the lines…',
-  speaking: 'Recording the voice…',
-  ready: 'Ready.',
-};
-
 /** How long the finished island sits on screen, glowing, before the
  * screen navigates away. */
 const READY_HOLD_MS = 900;
-
-const COMPLEXITY_OPTIONS: readonly SegmentOption<api.Complexity>[] = [
-  { value: 'simple', label: 'One at a time', description: 'Short standalone lines, one idea each.' },
-  { value: 'complex', label: 'Complex', description: 'Subordinate clauses and connected speech.' },
-];
-
-const REGISTER_CHOICES: readonly SegmentOption<api.Register>[] = [
-  { value: 'polite', label: 'Polite', description: 'です/ます, the everyday standard.' },
-  { value: 'casual', label: 'Casual', description: 'Plain form, the way you would talk with a friend.' },
-];
 
 function clock(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
@@ -97,9 +76,10 @@ function toBars(samples: number[]): number[] {
 
 /** The take drawn from its own microphone levels. Bars already played are brighter. */
 function TakeWave({ bars, progress }: { bars: number[]; progress: number }) {
+  const { t } = useT();
   const played = Math.round(progress * bars.length);
   return (
-    <View style={styles.wave} accessibilityLabel="Waveform of your recording">
+    <View style={styles.wave} accessibilityLabel={t('record.waveform')}>
       {bars.map((v, i) => (
         <View
           key={i}
@@ -117,6 +97,8 @@ function TakeWave({ bars, progress }: { bars: number[]; progress: number }) {
 }
 
 export default function RecordScreen() {
+  const { t } = useT();
+  const dir = useDir();
   const router = useRouter();
   const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true });
   const state = useAudioRecorderState(recorder, 50);
@@ -270,7 +252,7 @@ export default function RecordScreen() {
           // Best effort: the next recording attempt fixes the mode.
         }
         setPhase('idle');
-        setError('Recording stopped when the app went to the background.');
+        setError(t('record.backgroundStopped'));
       })();
     });
     return () => sub.remove();
@@ -282,7 +264,7 @@ export default function RecordScreen() {
     stopPlayback(player);
     const perm = await requestRecordingPermissionsAsync();
     if (!perm.granted) {
-      setError('Microphone access is off. Turn it on in Settings and try again.');
+      setError(t('record.micOff'));
       return;
     }
     await applyRecordingMode();
@@ -337,7 +319,7 @@ export default function RecordScreen() {
             }, READY_HOLD_MS);
           } else if (island.status === 'failed') {
             if (pollRef.current) clearInterval(pollRef.current);
-            setError(island.error || 'That island could not be built.');
+            setError(api.islandErrorText(island));
             setPhase('review');
           }
         } catch {
@@ -345,7 +327,7 @@ export default function RecordScreen() {
         }
       }, 2000);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Upload failed');
+      setError(e instanceof Error ? e.message : t('record.uploadFailed'));
       setPhase('review');
     }
   }
@@ -356,6 +338,20 @@ export default function RecordScreen() {
   const canPlay = phase === 'review' && !!uri;
   const progress =
     playStatus.duration > 0 ? Math.min(1, playStatus.currentTime / playStatus.duration) : 0;
+
+  const languageName: Record<api.Language, string> = {
+    ja: t('record.language.ja'),
+    es: t('record.language.es'),
+    en: t('record.language.en'),
+  };
+  const complexityOptions: readonly SegmentOption<api.Complexity>[] = [
+    { value: 'simple', label: t('record.complexity.simple.label'), description: t('record.complexity.simple.description') },
+    { value: 'complex', label: t('record.complexity.complex.label'), description: t('record.complexity.complex.description') },
+  ];
+  const registerChoices: readonly SegmentOption<api.Register>[] = [
+    { value: 'polite', label: t('record.register.polite.label'), description: t('record.register.polite.description') },
+    { value: 'casual', label: t('record.register.casual.label'), description: t('record.register.casual.description') },
+  ];
 
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
@@ -368,7 +364,7 @@ export default function RecordScreen() {
           headerLeft: () => (
             <Pressable onPress={cancel} hitSlop={12}>
               <Text style={{ color: tide.text, fontSize: 16, fontWeight: '600', fontFamily: fonts.ui }}>
-                {phase === 'building' ? 'Close' : 'Cancel'}
+                {phase === 'building' ? t('record.close') : t('common.cancel')}
               </Text>
             </Pressable>
           ),
@@ -377,28 +373,22 @@ export default function RecordScreen() {
 
       {phase === 'building' ? (
         <View style={styles.center}>
-          <CatConstellation size={120} label={(STAGE_LABEL[stage] ?? 'Working…').replace(/…$/, '')} />
-          <Text style={[styles.hint, styles.centerText]}>
-            This takes about a minute. Close this screen if you like, the island keeps
-            building and appears in the list when it is ready.
-          </Text>
+          <CatConstellation size={120} label={api.stageLabel(stage).replace(/…$/, '')} />
+          <Text style={[styles.hint, styles.centerText]}>{t('record.buildHint')}</Text>
         </View>
       ) : (
         <>
           <ScrollView style={styles.fill} contentContainerStyle={styles.content}>
             <View style={styles.header}>
-              <Text style={styles.title}>
+              <Text style={[styles.title, dir.text]}>
                 {phase === 'review'
-                  ? 'Your recording'
+                  ? t('record.title.review')
                   : recording
-                    ? 'Keep talking about your day.'
-                    : 'Talk about your day for 30 seconds or so.'}
+                    ? t('record.title.recording')
+                    : t('record.title.idle')}
               </Text>
               {phase !== 'review' ? (
-                <Text style={styles.hint}>
-                  Speak Hebrew or English, whichever comes naturally. What you say becomes{' '}
-                  {LANGUAGE_NAME[language]} sentences about your own life, so use real names and real places.
-                </Text>
+                <Text style={[styles.hint, dir.text]}>{t('record.promptHint', { language: languageName[language] })}</Text>
               ) : null}
             </View>
 
@@ -412,7 +402,7 @@ export default function RecordScreen() {
                     onPress={togglePlay}
                     disabled={!canPlay}
                     accessibilityRole="button"
-                    accessibilityLabel={playStatus.playing ? 'Pause recording' : 'Play recording'}>
+                    accessibilityLabel={playStatus.playing ? t('record.pauseRecording') : t('record.playRecording')}>
                     {playStatus.playing ? (
                       <View style={styles.pauseIcon}>
                         <View style={styles.pauseBar} />
@@ -427,8 +417,8 @@ export default function RecordScreen() {
                 </View>
 
                 <Segmented
-                  label="Sentences"
-                  options={COMPLEXITY_OPTIONS}
+                  label={t('record.sentencesLabel')}
+                  options={complexityOptions}
                   value={complexity}
                   onChange={setComplexity}
                 />
@@ -436,8 +426,8 @@ export default function RecordScreen() {
                     style split in Spanish or English). */}
                 {language === 'ja' ? (
                   <Segmented
-                    label="Style"
-                    options={REGISTER_CHOICES}
+                    label={t('record.styleLabel')}
+                    options={registerChoices}
                     value={register}
                     onChange={chooseRegister}
                   />
@@ -460,7 +450,7 @@ export default function RecordScreen() {
               </View>
             )}
 
-            {error ? <Text style={styles.error}>{error}</Text> : null}
+            {error ? <Text style={[styles.error, dir.text]}>{error}</Text> : null}
           </ScrollView>
 
           <View style={styles.actions}>
@@ -471,20 +461,20 @@ export default function RecordScreen() {
                   verb="speak"
                   on
                   height={prism.sizes.bigRound}
-                  label="Build the island"
+                  label={t('record.buildIsland')}
                   onPress={build}
                   accessibilityRole="button"
                 />
                 <View style={styles.secondaryRow}>
                   {/* prism-record: edited region, one balanced group centred under the primary button */}
-                  <PrismButton shape="pill" verb="tools" label="Record again" onPress={start} />
+                  <PrismButton shape="pill" verb="tools" label={t('record.recordAgain')} onPress={start} />
                   {/* icon-buttons: Discard */}
                   <PrismButton
                     shape="round"
                     size={prism.sizes.roundSm}
                     verb="speak"
                     onPress={cancel}
-                    accessibilityLabel="Discard">
+                    accessibilityLabel={t('record.discard')}>
                     <SymbolView name={{ ios: 'trash', android: 'delete' }} size={16} weight="regular" tintColor={verbTokens.speak.c1} />
                   </PrismButton>
                   {/* prism-record: end */}
@@ -500,16 +490,16 @@ export default function RecordScreen() {
                   onPress={recording ? stop : start}
                   disabled={recording && !longEnough}
                   accessibilityRole="button"
-                  accessibilityLabel={recording ? 'Stop recording' : 'Start recording'}>
+                  accessibilityLabel={recording ? t('record.stopRecording') : t('record.startRecording')}>
                   <View style={[styles.recordDot, recording && styles.recordDotActive]} />
                 </PrismButton>
                 {/* Always laid out, so the button does not move when it appears. */}
-                <Text style={styles.keepGoing}>
+                <Text style={[styles.keepGoing, dir.text]}>
                   {recording && !longEnough
-                    ? `Keep going, ${MIN_SECONDS - Math.floor(elapsed)}s more`
+                    ? t('record.keepGoing', { seconds: MIN_SECONDS - Math.floor(elapsed) })
                     : recording
-                      ? 'Tap to stop'
-                      : 'Tap to start'}
+                      ? t('record.tapToStop')
+                      : t('record.tapToStart')}
                 </Text>
               </View>
             )}

@@ -1,6 +1,7 @@
 /**
- * The Home screen's practice summary: today's minutes, the current streak,
- * and the last 7 days as a row of weekday letters over their minutes.
+ * The Home screen's practice summary: today's minutes against the daily
+ * goal picked in onboarding, the current streak, and the last 7 days as a
+ * row of weekday letters over their minutes.
  *
  * The two headline numbers (today's minutes, the streak) roll like an
  * odometer when they go up, and today's cell in the week row lights up in
@@ -10,16 +11,32 @@
  * motion.
  */
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View, type StyleProp, type TextStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 
 import { fonts } from '@/constants/fonts';
+import { useDir, useT } from '@/lib/i18n';
+import { type Key } from '@/locales/en';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import { dayKey, lastSevenDays, minutesOn, streakDays, type PracticeLog } from '@/lib/practice';
+import { getSettingsSync, subscribeSettings } from '@/lib/settings';
 
 const DIGIT_HEIGHT = 34;
 const ROLL_DURATION = 450;
+
+/** Indexed by `Date.getDay()`, Sunday first. The letters come from the
+ * catalogue rather than `toLocaleDateString(locale, { weekday: 'narrow' })`:
+ * Hermes hands back a Latin letter for he-IL. */
+const WEEKDAY_KEY: Key[] = [
+  'home.weekdaySun',
+  'home.weekdayMon',
+  'home.weekdayTue',
+  'home.weekdayWed',
+  'home.weekdayThu',
+  'home.weekdayFri',
+  'home.weekdaySat',
+];
 
 function digitsOf(value: number): number[] {
   return Math.trunc(Math.abs(value)).toString().split('').map(Number);
@@ -136,13 +153,12 @@ function Odometer({ value, reducedMotion, textStyle }: { value: number; reducedM
 /** One weekday cell in the 7-day row. Today's cell lights up in the Japanese accent
  * once it holds minutes, with a soft one-time glow the moment it first crosses from
  * zero, not on mount. */
-function DayCell({ dayKey: key, minutes, isToday, reducedMotion }: {
-  dayKey: string;
+function DayCell({ letter, minutes, isToday, reducedMotion }: {
+  letter: string;
   minutes: number;
   isToday: boolean;
   reducedMotion: boolean;
 }) {
-  const letter = new Date(`${key}T12:00:00`).toLocaleDateString(undefined, { weekday: 'narrow' });
   const lit = isToday && minutes > 0;
 
   const mounted = useRef(false);
@@ -177,32 +193,57 @@ function DayCell({ dayKey: key, minutes, isToday, reducedMotion }: {
 }
 
 export function PracticeCard({ log, dueCount }: { log: PracticeLog; dueCount: number }) {
+  const { t } = useT();
+  const dir = useDir();
   const reducedMotion = useReducedMotion();
+  // The goal is read here rather than passed down, so Home does not have to
+  // thread it through: the subscription picks up a change made in onboarding
+  // while this card is already mounted.
+  const [goal, setGoal] = useState(() => getSettingsSync().dailyGoalMinutes);
+  useEffect(() => subscribeSettings(() => setGoal(getSettingsSync().dailyGoalMinutes)), []);
   const today = new Date();
   const todayKey = dayKey(today);
   const todayMinutes = minutesOn(log, todayKey);
   const streak = streakDays(log, today);
+  const goalMet = todayMinutes >= goal;
   const week = lastSevenDays(today);
 
   return (
     <View style={StyleSheet.flatten([styles.card, { backgroundColor: tide.water, borderColor: tide.waterline }])}>
-      <View style={styles.numbers}>
+      <View style={[styles.numbers, dir.row]}>
         <View style={styles.stat}>
-          <Odometer value={todayMinutes} reducedMotion={reducedMotion} textStyle={[styles.value, { color: tide.text }]} />
-          <Text style={[styles.label, { color: tide.textDim }]}>Today</Text>
+          {/* Not `dir.row`: "1/10" is one number pair and keeps its order in
+              every language, the way a clock or a score does. */}
+          <View style={styles.todayValue}>
+            <Odometer
+              value={todayMinutes}
+              reducedMotion={reducedMotion}
+              textStyle={[styles.value, { color: goalMet ? tide.lang.ja : tide.text }]}
+            />
+            <Text style={[styles.target, { color: goalMet ? tide.lang.ja : tide.textDim }]}>
+              {t('home.practiceGoal', { goal })}
+            </Text>
+          </View>
+          <Text style={[styles.label, { color: tide.textDim }]}>{t('home.practiceToday')}</Text>
         </View>
         <View style={styles.stat}>
           <Odometer value={streak} reducedMotion={reducedMotion} textStyle={[styles.value, { color: tide.text }]} />
-          <Text style={[styles.label, { color: tide.textDim }]}>Streak</Text>
+          <Text style={[styles.label, { color: tide.textDim }]}>{t('home.practiceStreak')}</Text>
         </View>
         <View style={styles.stat}>
           <Odometer value={dueCount} reducedMotion={reducedMotion} textStyle={[styles.value, { color: tide.text }]} />
-          <Text style={[styles.label, { color: tide.textDim }]}>Due today</Text>
+          <Text style={[styles.label, { color: tide.textDim }]}>{t('home.dueToday')}</Text>
         </View>
       </View>
-      <View style={styles.week}>
+      <View style={[styles.week, dir.row]}>
         {week.map((key) => (
-          <DayCell key={key} dayKey={key} minutes={minutesOn(log, key)} isToday={key === todayKey} reducedMotion={reducedMotion} />
+          <DayCell
+            key={key}
+            letter={t(WEEKDAY_KEY[new Date(`${key}T12:00:00`).getDay()])}
+            minutes={minutesOn(log, key)}
+            isToday={key === todayKey}
+            reducedMotion={reducedMotion}
+          />
         ))}
       </View>
     </View>
@@ -216,6 +257,10 @@ const styles = StyleSheet.create({
   value: { fontSize: 28, fontWeight: '700', fontFamily: fonts.ui },
   label: { fontSize: 13, fontWeight: '600', fontFamily: fonts.ui },
   odometerRow: { flexDirection: 'row' },
+  // flex-end, not baseline: a rolling digit is a clipped View, so a baseline
+  // row would shift the target text while the odometer animates.
+  todayValue: { flexDirection: 'row', alignItems: 'flex-end' },
+  target: { fontSize: 13, fontWeight: '600', fontFamily: fonts.ui, paddingBottom: 4 },
   digitClip: { height: DIGIT_HEIGHT, overflow: 'hidden' },
   digitText: { height: DIGIT_HEIGHT, lineHeight: DIGIT_HEIGHT },
   week: { flexDirection: 'row', justifyContent: 'space-between' },

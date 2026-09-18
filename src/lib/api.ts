@@ -14,6 +14,8 @@ import { fetch as expoFetch } from 'expo/fetch';
 import { Directory, File, Paths } from 'expo-file-system';
 
 import { deviceIdSync } from '@/lib/device';
+import { t } from '@/lib/i18n';
+import { en, type Key } from '@/locales/en';
 
 const BASE = process.env.EXPO_PUBLIC_SHADOW_API_URL ?? '';
 const TOKEN = process.env.EXPO_PUBLIC_SHADOW_TOKEN ?? '';
@@ -85,20 +87,36 @@ export type IslandSummary = {
   line_count: number;
 };
 
+/** A code the backend sends (`daily_limit`, `no_lines`, `transcribing`) is only
+ * a catalogue key if the catalogue actually holds it. An older client meeting a
+ * newer backend must fall back, not show the person "islandError.some_new_code". */
+function codeKey(prefix: 'api' | 'islandError' | 'stage', code: string): Key | undefined {
+  const key = `${prefix}.${code}`;
+  return key in en ? (key as Key) : undefined;
+}
+
 /** What each backend build stage means to the person waiting for it. */
-export const STAGE_LABEL: Record<string, string> = {
-  queued: 'Queued…',
-  transcribing: 'Transcribing…',
-  writing: 'Writing the lines…',
-  speaking: 'Recording the voice…',
-};
+export function stageLabel(stage: string): string {
+  return t(codeKey('stage', stage) ?? 'stage.working');
+}
 
 export type Island = IslandSummary & {
   error: string;
+  /** Machine-readable twin of `error`. Empty for an island that failed before
+   * the backend started sending codes, and for the catch-all failure paths. */
+  error_code: string;
   speaker: number;
   transcript: string;
   lines: Line[];
 };
+
+/** Why an island failed, in the reader's language. Falls back to the English
+ * sentence the backend also sends, so an unknown code still says something. */
+export function islandErrorText(island: { error?: string; error_code?: string }): string {
+  const key = island.error_code ? codeKey('islandError', island.error_code) : undefined;
+  if (key) return t(key);
+  return island.error || t('islandError.unknown');
+}
 
 function headers(): Record<string, string> {
   return { Authorization: `Bearer ${TOKEN}`, 'X-Shadow-Device': deviceIdSync() };
@@ -109,18 +127,51 @@ function headers(): Record<string, string> {
  * are useless on a phone screen. */
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    // FastAPI sends `detail` as a plain string for developer errors, and as an
+    // object carrying a code plus its values for anything a person reads. A
+    // gateway error is neither: it arrives as a full HTML page.
+    const detail = parseDetail(body);
+    if (detail && typeof detail === 'object') {
+      const key = codeKey('api', detail.code);
+      if (key) throw new Error(t(key, scalarsOf(detail)));
+    }
     if (res.status === 502 || res.status === 503 || res.status === 504) {
-      throw new Error('The server is not reachable right now. Try again in a moment.');
+      throw new Error(t('api.unreachable'));
     }
     if (res.status === 429) {
-      const detail = (await res.json().catch(() => null)) as { detail?: string } | null;
-      throw new Error(detail?.detail || 'Daily limit reached. Try again tomorrow.');
+      throw new Error(typeof detail === 'string' && detail ? detail : t('api.daily_limit_any'));
     }
-    const body = await res.text().catch(() => '');
+    if (typeof detail === 'string' && detail) throw new Error(detail);
     const looksLikeHtml = body.trimStart().startsWith('<');
     throw new Error(looksLikeHtml ? `Request failed (${res.status})` : `${res.status} ${body.slice(0, 160)}`);
   }
   return (await res.json()) as T;
+}
+
+/** The values a message can interpolate: `{limit}` and its like, never a
+ * nested object. */
+function scalarsOf(detail: Record<string, unknown>): Record<string, string | number> {
+  const out: Record<string, string | number> = {};
+  for (const [name, value] of Object.entries(detail)) {
+    if (typeof value === 'string' || typeof value === 'number') out[name] = value;
+  }
+  return out;
+}
+
+/** The `detail` of a FastAPI error, when the body is JSON at all. */
+function parseDetail(body: string): string | ({ code: string } & Record<string, unknown>) | null {
+  try {
+    const parsed = JSON.parse(body) as { detail?: unknown };
+    const detail = parsed.detail;
+    if (typeof detail === 'string') return detail;
+    if (detail && typeof detail === 'object' && typeof (detail as { code?: unknown }).code === 'string') {
+      return detail as { code: string } & Record<string, unknown>;
+    }
+  } catch {
+    // Not JSON: an HTML gateway page, or an empty body.
+  }
+  return null;
 }
 
 export function configured(): boolean {
@@ -254,10 +305,16 @@ export type PodcastShow = {
 export type PodcastSection = { id: string; title: string; subtitle: string; shows: PodcastShow[] };
 export type PodcastCatalog = { sections: PodcastSection[] };
 
-/** The hand-picked catalog of browsable shows for a language. */
-export async function podcastCatalog(language: Language): Promise<PodcastCatalog> {
+/** The hand-picked catalog of browsable shows for a learning language. Its
+ * section copy and show taglines are editorial text that lives on the
+ * server, so the interface language travels with the request as `ui` and the
+ * server writes them in it: someone learning Japanese while reading Hebrew
+ * gets Hebrew section copy over Japanese shows. */
+export async function podcastCatalog(language: Language, ui: string): Promise<PodcastCatalog> {
   return json<PodcastCatalog>(
-    await fetch(`${BASE}/podcasts/catalog?language=${encodeURIComponent(language)}`, { headers: headers() }),
+    await fetch(`${BASE}/podcasts/catalog?language=${encodeURIComponent(language)}&ui=${encodeURIComponent(ui)}`, {
+      headers: headers(),
+    }),
   );
 }
 

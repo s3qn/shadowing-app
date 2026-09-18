@@ -22,8 +22,7 @@ import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
 import type { ExplainAnswer, ExplainGrammarItem, ExplainVocabItem, Language, NativeLanguage, Word } from '@/lib/api';
-
-const FALLBACK_SUMMARY = "Couldn't get an answer just now.";
+import { useDir, useT } from '@/lib/i18n';
 
 // A fixed question, not something the learner types: covers what the
 // selection needs explained so there is nothing to type before it fires.
@@ -126,11 +125,13 @@ function ExplainSheetBase({
   blind = false,
   onPlaySentence,
 }: Props) {
+  const { t } = useT();
+  const dir = useDir();
   const [answer, setAnswer] = useState<ExplainAnswer | null>(null);
   const [loading, setLoading] = useState(false);
   const reducedMotion = useReducedMotion();
 
-  const markedLabel = whole || marked.length === 0 ? 'Whole sentence' : marked.join('、');
+  const markedLabel = whole || marked.length === 0 ? t('player.wholeLine') : marked.join('、');
   const markedKey = whole ? '' : marked.join('');
 
   useEffect(() => {
@@ -170,7 +171,7 @@ function ExplainSheetBase({
   const empty = !loading && vocab.length === 0 && grammar.length === 0 && !summary;
 
   return (
-    <BottomSheet open={open} onClose={onClose} onDismissed={onDismissed} title="Explain">
+    <BottomSheet open={open} onClose={onClose} onDismissed={onDismissed} title={t('player.explainTitle')}>
       <SentenceHeader
         sentenceJa={sentenceJa}
         sentenceEn={sentenceEn}
@@ -181,8 +182,12 @@ function ExplainSheetBase({
         blind={blind}
         onPress={onPlaySentence}
       />
-      <Frost frosted={blind && !(whole || marked.length === 0)} style={styles.markedWrap}>
-        <Text style={styles.marked}>{markedLabel}</Text>
+      <Frost
+        frosted={blind && !(whole || marked.length === 0)}
+        style={[styles.markedWrap, dir.rtl && styles.markedWrapRtl]}>
+        {/* Either "the whole line" or the marked words themselves, so it is
+            laid out by its own script, not the interface's. */}
+        <Text style={[styles.marked, dir.content]}>{markedLabel}</Text>
       </Frost>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         {loading ? (
@@ -190,7 +195,7 @@ function ExplainSheetBase({
         ) : (
           <>
             {vocab.length > 0 ? (
-              <Section label="Vocabulary">
+              <Section label={t('player.vocabulary')}>
                 <View style={styles.vocabList}>
                   {vocab.map((item, i) => (
                     <VocabRow key={`${item.word}-${i}`} item={item} index={i} reducedMotion={reducedMotion} />
@@ -200,7 +205,7 @@ function ExplainSheetBase({
             ) : null}
 
             {grammar.length > 0 ? (
-              <Section label="Grammar">
+              <Section label={t('player.grammar')}>
                 <View style={styles.grammarList}>
                   {grammar.map((item, i) => (
                     <GrammarChip
@@ -220,12 +225,12 @@ function ExplainSheetBase({
                 summary is the one paragraph that ties them together, so it
                 belongs at the end like a conclusion, not up top. */}
             {summary ? (
-              <Section label="Summary">
+              <Section label={t('player.summary')}>
                 <SummaryBlock text={summary} index={vocab.length + grammar.length} reducedMotion={reducedMotion} />
               </Section>
             ) : null}
 
-            {empty ? <SummaryBlock text={FALLBACK_SUMMARY} index={0} reducedMotion={reducedMotion} /> : null}
+            {empty ? <SummaryBlock text={t('player.explainNoAnswer')} index={0} reducedMotion={reducedMotion} /> : null}
           </>
         )}
       </ScrollView>
@@ -333,9 +338,10 @@ function HeaderWord({
 }
 
 function Section({ label, children }: { label: string; children: ReactNode }) {
+  const dir = useDir();
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionLabel}>{label}</Text>
+      <Text style={[styles.sectionLabel, dir.text]}>{label}</Text>
       {children}
     </View>
   );
@@ -351,9 +357,10 @@ function VocabRow({
   reducedMotion: boolean;
 }) {
   const { style } = useStagger(index, reducedMotion);
+  const dir = useDir();
   const color = tide.pos[item.pos] ?? tide.pos.other;
   return (
-    <Animated.View style={[styles.vocabRow, style]}>
+    <Animated.View style={[styles.vocabRow, dir.row, style]}>
       <View style={[styles.vocabBar, { backgroundColor: color }]} />
       <View style={styles.vocabWord}>
         <Text style={styles.vocabWordText} numberOfLines={1}>
@@ -365,7 +372,7 @@ function VocabRow({
           </Text>
         ) : null}
       </View>
-      <Text style={styles.vocabMeaning} numberOfLines={2}>
+      <Text style={[styles.vocabMeaning, dir.content]} numberOfLines={2}>
         {item.meaning}
       </Text>
     </Animated.View>
@@ -388,6 +395,7 @@ function GrammarChip({
   reducedMotion: boolean;
 }) {
   const { style, delay } = useStagger(index, reducedMotion);
+  const dir = useDir();
   const [before, span, after] = item.span ? splitOn(sentenceJa, item.span) : ['', '', ''];
   const highlight = useSharedValue(0);
   useEffect(() => {
@@ -404,10 +412,10 @@ function GrammarChip({
   );
   return (
     <Animated.View style={[styles.grammarItem, style]}>
-      <View style={styles.grammarChip}>
+      <View style={[styles.grammarChip, dir.rtl && styles.grammarChipRtl]}>
         <Text style={styles.grammarChipText}>{item.pattern}</Text>
       </View>
-      <Text style={styles.grammarExplanation}>{item.explanation}</Text>
+      <Text style={[styles.grammarExplanation, dir.content]}>{item.explanation}</Text>
       {span ? (
         <View style={styles.grammarSentenceRow}>
           <Text style={styles.grammarSentenceText}>{before}</Text>
@@ -424,7 +432,8 @@ function GrammarChip({
 
 function SummaryBlock({ text, index, reducedMotion }: { text: string; index: number; reducedMotion: boolean }) {
   const { style } = useStagger(index, reducedMotion);
-  return <Animated.Text style={[styles.summary, style]}>{text}</Animated.Text>;
+  const dir = useDir();
+  return <Animated.Text style={[styles.summary, dir.content, style]}>{text}</Animated.Text>;
 }
 
 // One full sweep of the shimmer: dim to bright and back.
@@ -509,6 +518,7 @@ const styles = StyleSheet.create({
   headerEn: { fontFamily: fonts.ui, fontSize: 13, lineHeight: 18, color: tide.textDim, marginTop: 4 },
   headerEnRtl: { writingDirection: 'rtl' },
   markedWrap: { alignSelf: 'flex-start', marginBottom: Spacing.lg },
+  markedWrapRtl: { alignSelf: 'flex-end' },
   marked: {
     fontFamily: fonts.uiMedium,
     fontWeight: '500',
@@ -538,6 +548,7 @@ const styles = StyleSheet.create({
 
   grammarList: { gap: Spacing.md },
   grammarItem: { gap: Spacing.xs },
+  grammarChipRtl: { alignSelf: 'flex-end' },
   grammarChip: {
     alignSelf: 'flex-start',
     backgroundColor: tide.lang.ja,

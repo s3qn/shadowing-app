@@ -4,8 +4,10 @@ import { SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
 import { PressScale } from '@/components/press-scale';
 import { CheckIcon, SearchIcon } from '@/components/tide/toolbar-icons';
 import { fonts } from '@/constants/fonts';
-import { Radius, Spacing, tide } from '@/constants/theme';
+import { Radius, Spacing, tide, verb, withAlpha } from '@/constants/theme';
+import { useDir, useT } from '@/lib/i18n';
 import { getLanguage, LANGUAGES, type LanguageEntry, type LanguageId, type Region } from '@/lib/languages';
+import { type Key } from '@/locales/en';
 
 // Only the regions the catalogue actually has entries for get a chip: a chip
 // for an empty region would show a blank list with no explanation, since the
@@ -14,12 +16,41 @@ import { getLanguage, LANGUAGES, type LanguageEntry, type LanguageId, type Regio
 const REGION_ORDER: Region[] = ['Europe', 'Asia', 'Middle East', 'Africa', 'Americas'];
 const REGIONS: Region[] = REGION_ORDER.filter((region) => LANGUAGES.some((l) => l.region === region));
 
+const REGION_KEY: Record<Region, Key> = {
+  Europe: 'settings.picker.regionEurope',
+  Asia: 'settings.picker.regionAsia',
+  'Middle East': 'settings.picker.regionMiddleEast',
+  Africa: 'settings.picker.regionAfrica',
+  Americas: 'settings.picker.regionAmericas',
+};
+
+/** The name shown for a catalogue language id, translated (`entry.english`
+ * stays on the entry as a stable id for search; the display name always
+ * goes through `language.<id>`). */
+function languageName(t: (key: Key) => string, id: LanguageId): string {
+  return t(`language.${id}` as Key);
+}
+
+const SECTION_KEY: Record<string, Key> = {
+  'Ready to learn': 'settings.picker.readyToLearn',
+  'Coming soon': 'settings.picker.comingSoon',
+  'All languages': 'settings.picker.allLanguages',
+};
+
+/** `Section.title` is one of the three fixed English labels the picker
+ * builds internally (see `sections` below), so this is a lookup, not a
+ * translation of arbitrary content. */
+function sectionTitle(t: (key: Key) => string, title: string): string {
+  const key = SECTION_KEY[title];
+  return key ? t(key) : title;
+}
+
 type Section = { title: string; data: LanguageEntry[] };
 
 export type LanguagePickerProps = {
   /** Whether the app can generate islands in the pick (`'learn'`) or only
    * explain in it (`'understand'`). Only `'learn'` shows region chips and the
-   * "coming soon" fallback note. */
+   * "coming soon" section. */
   mode: 'learn' | 'understand';
   value: LanguageId;
   onChange: (id: LanguageId) => void;
@@ -27,21 +58,6 @@ export type LanguagePickerProps = {
    * can never collide (for example English understanding English). */
   exclude?: LanguageId;
 };
-
-// Intl.DateTimeFormat is built into Hermes, no new package needed. A locale
-// Hermes cannot resolve (should not happen, but this runs at import time on
-// every device) falls back to no suggestion rather than crashing the screen.
-function suggestedLanguageId(): LanguageId | null {
-  try {
-    const locale = Intl.DateTimeFormat().resolvedOptions().locale;
-    const subtag = locale.split(/[-_]/)[0]?.toLowerCase();
-    if (!subtag) return null;
-    const match = LANGUAGES.find((l) => l.understandable && l.id.toLowerCase() === subtag);
-    return match?.id ?? null;
-  } catch {
-    return null;
-  }
-}
 
 function matchesQuery(entry: LanguageEntry, query: string): boolean {
   const q = query.trim().toLowerCase();
@@ -65,16 +81,33 @@ function RegionChip({ label, active, onPress }: { label: string; active: boolean
   );
 }
 
-function LanguageRow({ entry, selected, onPress }: { entry: LanguageEntry; selected: boolean; onPress: () => void }) {
+function LanguageRow({
+  entry,
+  selected,
+  soon,
+  onPress,
+}: {
+  entry: LanguageEntry;
+  selected: boolean;
+  /** A "coming soon" language in learn mode: it carries a Soon pill, and
+   * tapping it must not change what is being learned, so `PressScale`'s own
+   * `disabled` blocks the press outright rather than relying on `onPress` to
+   * no-op. */
+  soon?: boolean;
+  onPress: () => void;
+}) {
+  const { t } = useT();
+  const dir = useDir();
   return (
-    <PressScale onPress={onPress} style={styles.row}>
-      <View style={styles.badgeBox}>
-        <Text style={styles.badge}>{entry.badge}</Text>
+    <PressScale onPress={onPress} disabled={soon} style={[styles.row, dir.row]}>
+      <View style={styles.avatar}>
+        <Text style={entry.flag ? styles.flag : styles.letter}>{entry.flag ?? entry.letter}</Text>
       </View>
       <View style={styles.rowBody}>
-        <Text style={styles.native}>{entry.native}</Text>
-        <Text style={styles.english}>{entry.english}</Text>
+        <Text style={[styles.native, dir.text]}>{entry.native}</Text>
+        <Text style={[styles.english, dir.text]}>{languageName(t, entry.id)}</Text>
       </View>
+      {soon ? <Text style={styles.soonPill}>{t('settings.picker.soon')}</Text> : null}
       {selected ? <CheckIcon color={tide.listen} size={20} /> : null}
     </PressScale>
   );
@@ -87,10 +120,10 @@ function LanguageRow({ entry, selected, onPress }: { entry: LanguageEntry; selec
  * their own pill rows, so the catalogue only needs wiring once.
  */
 export function LanguagePicker({ mode, value, onChange, exclude }: LanguagePickerProps) {
+  const { t } = useT();
+  const dir = useDir();
   const [query, setQuery] = useState('');
   const [activeRegion, setActiveRegion] = useState<Region | null>(null);
-
-  const suggested = useMemo(() => (mode === 'understand' ? suggestedLanguageId() : null), [mode]);
 
   const sections = useMemo<Section[]>(() => {
     // `exclude` only applies in understand mode: hiding the learn language's
@@ -110,13 +143,12 @@ export function LanguagePicker({ mode, value, onChange, exclude }: LanguagePicke
       if (soon.length) out.push({ title: 'Coming soon', data: soon });
       return out;
     }
-    const suggestedList = suggested ? base.filter((l) => l.id === suggested) : [];
-    const rest = base.filter((l) => l.id !== suggested);
-    const out: Section[] = [];
-    if (suggestedList.length) out.push({ title: 'Suggested', data: suggestedList });
-    if (rest.length) out.push({ title: 'All languages', data: rest });
-    return out;
-  }, [mode, exclude, query, activeRegion, suggested]);
+    // Understand mode is one flat list. It used to lead with a "Suggested"
+    // pick taken from the device locale, which is the one thing this screen
+    // must not assume: the phone being set to English says nothing about
+    // whether its owner reads English.
+    return base.length ? [{ title: 'All languages', data: base }] : [];
+  }, [mode, exclude, query, activeRegion]);
 
   return (
     <SectionList
@@ -128,24 +160,29 @@ export function LanguagePicker({ mode, value, onChange, exclude }: LanguagePicke
       keyboardShouldPersistTaps="handled"
       ListHeaderComponent={
         <View style={styles.header}>
-          <View style={styles.searchRow}>
+          <View style={[styles.searchRow, dir.row]}>
             <SearchIcon color={tide.textDim} size={18} />
             <TextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, dir.text]}
               value={query}
               onChangeText={setQuery}
-              placeholder="Search a language"
+              placeholder={t('settings.picker.searchPlaceholder')}
               placeholderTextColor={tide.textDim}
               autoCapitalize="none"
               autoCorrect={false}
             />
           </View>
           {mode === 'learn' ? (
-            <View style={styles.chipRow}>
+            <View style={[styles.chipRow, dir.row]}>
+              <RegionChip
+                label={t('settings.picker.regionAll')}
+                active={activeRegion === null}
+                onPress={() => setActiveRegion(null)}
+              />
               {REGIONS.map((region) => (
                 <RegionChip
                   key={region}
-                  label={region}
+                  label={t(REGION_KEY[region])}
                   active={activeRegion === region}
                   onPress={() => setActiveRegion((prev) => (prev === region ? null : region))}
                 />
@@ -155,19 +192,23 @@ export function LanguagePicker({ mode, value, onChange, exclude }: LanguagePicke
         </View>
       }
       ListEmptyComponent={
-        query.trim() ? <Text style={styles.empty}>No languages match &quot;{query.trim()}&quot;.</Text> : null
+        query.trim() ? (
+          <Text style={[styles.empty, dir.text]}>{t('settings.picker.noMatch', { query: query.trim() })}</Text>
+        ) : null
       }
       renderSectionHeader={({ section }) => (
         <View style={styles.sectionHeaderWrap}>
-          {mode === 'learn' && section.title === 'Coming soon' ? (
-            <Text style={styles.soonNote}>
-              Not ready for islands yet. Picking one tells us what to build next; islands still use Japanese for now.
-            </Text>
-          ) : null}
-          <Text style={styles.sectionHeader}>{section.title}</Text>
+          <Text style={[styles.sectionHeader, dir.text]}>{sectionTitle(t, section.title)}</Text>
         </View>
       )}
-      renderItem={({ item }) => <LanguageRow entry={item} selected={item.id === value} onPress={() => onChange(item.id)} />}
+      renderItem={({ item }) => {
+        // A "coming soon" pick can never become what the app is actually
+        // learning (see `setLearningLanguage`), so a learn-mode tap on one
+        // must not reach `onChange` at all: `disabled` blocks the press
+        // itself, rather than letting `onChange` silently no-op it.
+        const soon = mode === 'learn' && !item.learnable;
+        return <LanguageRow entry={item} selected={item.id === value} soon={soon} onPress={() => onChange(item.id)} />;
+      }}
     />
   );
 }
@@ -206,7 +247,6 @@ const styles = StyleSheet.create({
   empty: { fontSize: 14, lineHeight: 20, color: tide.textDim, fontFamily: fonts.ui, paddingTop: Spacing.sm },
   sectionHeaderWrap: { gap: Spacing.xs, paddingTop: Spacing.md, paddingBottom: Spacing.xs },
   sectionHeader: { fontSize: 13, fontWeight: '700', color: tide.textDim, letterSpacing: 0.5, fontFamily: fonts.uiMedium },
-  soonNote: { fontSize: 13, lineHeight: 18, color: tide.textDim, fontFamily: fonts.ui },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -217,8 +257,37 @@ const styles = StyleSheet.create({
     borderColor: tide.waterline,
     backgroundColor: tide.water,
   },
-  badgeBox: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  badge: { fontSize: 20 },
+  // The artifact's round glyph: the language's flag (a letter from its own
+  // script where no flag fits) on glass, with the prism edges (warm on one
+  // side, cool on the other) drawn as per-side borders.
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1,
+    borderLeftWidth: 2,
+    borderRightWidth: 2,
+    borderLeftColor: 'rgba(255,70,110,0.30)',
+    borderRightColor: 'rgba(70,170,255,0.35)',
+    borderTopColor: 'rgba(255,255,255,0.30)',
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+  flag: { fontSize: 20 },
+  letter: { fontSize: 16, fontWeight: '700', color: tide.text, fontFamily: fonts.uiMedium },
+  soonPill: {
+    fontSize: 11,
+    fontWeight: '700',
+    fontFamily: fonts.uiMedium,
+    color: verb.read.c1,
+    backgroundColor: withAlpha(verb.read.c1, 0.12),
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    overflow: 'hidden',
+  },
   rowBody: { flex: 1, gap: 2 },
   native: { fontSize: 17, fontWeight: '600', color: tide.text, fontFamily: fonts.uiMedium },
   english: { fontSize: 13, color: tide.textDim, fontFamily: fonts.ui },

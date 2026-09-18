@@ -1,0 +1,59 @@
+/** Tide components around the player: fills in with Task 3b, tide group. */
+export const en = {
+  'player.autoEcho': 'Auto Echo',
+  'player.stepReady': 'Ready',
+  'player.stepListen': 'Listen to the audio',
+  'player.stepEcho': 'Recall and understand the content just heard',
+  'player.stepSpeak': 'Try to say this sentence',
+  'player.stepPlay': 'Listen to and compare your voice',
+  'player.stepDone': 'Pass complete',
+  'player.segmentListen': 'Listen',
+  'player.segmentEcho': 'Echo',
+  'player.segmentSpeak': 'Speak',
+  'player.start': 'Start',
+  'player.startAgain': 'Start again',
+  'player.record': 'Record',
+  'player.autoEchoToggle': 'Go on to the next line, and start over after the last',
+  'player.autoRecordToggle': 'Speak opens the microphone on its own',
+  'player.headsetIn': 'Headphones in: the line plays under your voice.',
+  'player.headsetPrompt': 'Put headphones on and the line plays under your voice.',
+
+  'player.hideTranslation': 'Hide the translation',
+  'player.hideSentence': 'Hide the sentence',
+
+  'player.previousLine': 'Previous line',
+  'player.nextLine': 'Next line',
+  'player.stopRecording': 'Stop recording',
+  'player.recordMyTake': 'Record my take',
+
+  'player.islandMenu': 'Island menu',
+  'player.save': 'Save',
+  'player.rename': 'Rename',
+  'player.exporting': 'Exporting…',
+  'player.exportAsAudio': 'Export as audio',
+  'player.revoicing': 'Re-voicing…',
+  'player.revoiceIn': 'Re-voice in {name}',
+  'player.regenerateComplex': 'Regenerate with complex patterns',
+  'player.regenerateSimple': 'Regenerate one sentence at a time',
+  'player.calibrateSpeaker': 'Calibrate speaker',
+  'player.deleteIsland': 'Delete island',
+
+  'player.lineLabel': 'LINE',
+  'player.ofLabel': 'OF',
+
+  'player.close': 'Close',
+
+  'player.off': 'Off',
+  'player.readingFurigana': 'Furigana',
+  'player.readingKana': 'Kana',
+  'player.readingRomaji': 'Romaji',
+
+  'player.times': 'Times',
+  'player.pause': 'Pause',
+  'player.timesAccessibility': 'Times, {label}',
+  'player.pauseAccessibility': 'Pause, {label}',
+  'player.speedAccessibility': 'Speed, {label}',
+
+  'player.autoScrollDisabled': 'Auto-scroll disabled. Tap to enable',
+  'player.autoScrollEnabled': 'Auto-scroll enabled',
+};

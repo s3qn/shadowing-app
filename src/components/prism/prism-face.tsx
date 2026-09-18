@@ -6,6 +6,7 @@ import Animated, { interpolateColor, useAnimatedStyle, useSharedValue, type Shar
 
 import { fonts } from '@/constants/fonts';
 import { prism, tide, verb as verbTokens, withAlpha, type Verb } from '@/constants/theme';
+import { useDir } from '@/lib/i18n';
 
 /** The label and value glow, off and on: the same look the toolbar tiles use,
  * kept here so a tile that renders its label and value through the kit
@@ -81,6 +82,7 @@ function safeT(v: number): number {
  */
 export function PrismFace({ shape, size, width, height, verb, onT, dimT, flat, label, value, style, children }: PrismFaceProps) {
   const colours = verbTokens[verb];
+  const dir = useDir();
   // A face used outside PrismButton (the lab's static discs) never passes
   // `dimT`, so this fallback stays at 0 and never dims anything.
   const noDim = useSharedValue(0);
@@ -132,7 +134,7 @@ export function PrismFace({ shape, size, width, height, verb, onT, dimT, flat, l
     shape === 'tile'
       ? [StyleSheet.absoluteFill, styles.contentColumn]
       : shape === 'pill'
-        ? [styles.contentRow, { flexGrow: 1, paddingHorizontal: prism.sizes.pill.padX }]
+        ? [styles.contentRow, dir.row, { flexGrow: 1, paddingHorizontal: prism.sizes.pill.padX }]
         : [StyleSheet.absoluteFill, styles.contentCenter];
 
   const cw = dims.width ?? canvasSize.width;

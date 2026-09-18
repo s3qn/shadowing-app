@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useT } from '@/lib/i18n';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -23,6 +24,8 @@ type Props = {
   size?: number;
   mode: RingMode;
   onPress: () => void;
+  /** Drops the core's own blur and drop shadow: for a ring inside a GlassPanel. */
+  flat?: boolean;
 };
 
 // Critically damped (dampingRatio 1): reaches the target in ~180ms with no
@@ -63,7 +66,8 @@ function easeOutCubic(t: number) {
  * rhythm across line changes instead of resetting with each one. With
  * reduced motion there are no rings, just the still glow.
  */
-export function RingButton({ size = 84, mode, onPress }: Props) {
+export function RingButton({ size = 84, mode, onPress, flat = false }: Props) {
+  const { t } = useT();
   const rawActive = mode !== 'idle';
   const reducedMotion = useReducedMotion();
 
@@ -236,12 +240,12 @@ export function RingButton({ size = 84, mode, onPress }: Props) {
     <PressScale
       onPress={handlePress}
       accessibilityRole="button"
-      accessibilityLabel={active ? 'Stop' : 'Play'}
+      accessibilityLabel={active ? t('player.stop') : t('player.play')}
       style={[styles.wrap, { width: size, height: size }]}>
       <Animated.View pointerEvents="none" style={[styles.ring, ringBox, ring1Style]} />
       <Animated.View pointerEvents="none" style={[styles.ring, ringBox, ring2Style]} />
       <Animated.View style={[styles.core, { width: coreSize, height: coreSize }]}>
-        <PrismFace shape="round" verb="listen" size={coreSize} onT={fade} flat={false}>
+        <PrismFace shape="round" verb="listen" size={coreSize} onT={fade} flat={flat}>
           <Animated.View style={[styles.glyphLayer, playStyle]}>
             <View style={styles.play} />
           </Animated.View>

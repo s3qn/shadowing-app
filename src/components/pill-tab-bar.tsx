@@ -17,6 +17,7 @@ import Animated, {
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { hapticImpact, hapticSelection } from '@/lib/haptics';
+import { useDir } from '@/lib/i18n';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, prism } from '@/constants/theme';
 import {
@@ -114,9 +115,16 @@ function hitTestIndex(x: number, tabs: Array<{ x: number; width: number }>): num
  */
 export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const { rtl } = useDir();
   const reducedMotion = useReducedMotion();
 
   const [tabLayouts, setTabLayouts] = useState<Array<{ x: number; width: number }>>([]);
+  // The widest tab measured so far, which the lit fill's canvas is drawn at.
+  // It only grows: the sliding pill clips the canvas down, so a canvas wider
+  // than the tab under it costs nothing, while one narrower than that tab
+  // leaves a dark crescent at one end. Labels that shrink (an app language
+  // switch) therefore cannot leave it short.
+  const [fillWidth, setFillWidth] = useState(0);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const pillTranslateX = useSharedValue(0);
   const pillWidth = useSharedValue(0);
@@ -139,6 +147,7 @@ export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps
 
   const handleTabLayout = useCallback((index: number, x: number, width: number) => {
     layoutsRef.current[index] = { x, width };
+    setFillWidth((widest) => Math.max(widest, width));
 
     // Only set state once all layouts are collected to avoid excessive re-renders
     if (layoutsRef.current.filter(l => l).length === state.routes.length) {
@@ -263,12 +272,6 @@ export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps
   const rowGesture = Gesture.Exclusive(dragGesture, tapGesture);
   const litIndex = hoveredIndex ?? state.index;
 
-  // The lit fill's own Canvas is drawn at the widest tab's width, once, so
-  // switching tabs never resizes it (a resize recreates the Skia canvas and
-  // the gradient gaps for a frame). The sliding container clips it down to
-  // the current width as it animates.
-  const maxTabWidth = tabLayouts.reduce((max, l) => Math.max(max, l.width), 0);
-
   return (
     <View
       pointerEvents="box-none"
@@ -277,15 +280,20 @@ export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps
         <GestureDetector gesture={rowGesture}>
           <View style={styles.barRow} onLayout={handleBarLayout}>
             <AnimatedView style={[styles.slidingPill, pillAnimatedStyle]}>
-              <View style={[styles.litFillBox, { width: maxTabWidth, height: PILL_H }]}>
-                <LitPillFill width={maxTabWidth} height={PILL_H} opacity={litOpacity} />
+              {/* The fill's own Canvas is drawn at `fillWidth` and held there,
+                  so switching tabs never resizes it (a resize recreates the
+                  Skia canvas and the gradient gaps for a frame). The sliding
+                  container clips it down to the current width as it animates. */}
+              <View style={[styles.litFillBox, { width: fillWidth, height: PILL_H }]}>
+                <LitPillFill width={fillWidth} height={PILL_H} opacity={litOpacity} />
               </View>
               {/* Sized to this container's own (animated) width via absoluteFill,
                   unlike the canvas above, so its right end stays round as the
                   pill slides to a narrower or wider tab. */}
               <LitPillRim radius={PILL_H / 2} opacity={litOpacity} held={held} />
             </AnimatedView>
-            {state.routes.map((route, index) => {
+            {(rtl ? [...state.routes].reverse() : state.routes).map((route) => {
+              const index = state.routes.indexOf(route);
               const options = descriptors[route.key]?.options;
               const label = options?.title ?? route.name;
               const on = litIndex === index;

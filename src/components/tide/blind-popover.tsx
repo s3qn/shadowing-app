@@ -6,6 +6,7 @@ import { PopoverBubble } from '@/components/tide/popover-bubble';
 import { BlindIcon } from '@/components/tide/toolbar-icons';
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
+import { useDir, useT } from '@/lib/i18n';
 
 const BUTTON = 44;
 const BODY_PAD = 8;
@@ -34,6 +35,8 @@ type Props = {
  * closes it. Mount it only while open, over the whole player.
  */
 export function BlindPopover({ anchorX, anchorTop, width, jaHidden, enHidden, onToggleJa, onToggleEn, onClose }: Props) {
+  const { t } = useT();
+  const dir = useDir();
   return (
     <PopoverBubble
       anchorX={anchorX}
@@ -42,12 +45,12 @@ export function BlindPopover({ anchorX, anchorTop, width, jaHidden, enHidden, on
       width={BLIND_POP_W}
       height={BODY_H}
       radius={BODY_H / 2}
-      bodyStyle={styles.body}
+      bodyStyle={{ ...styles.body, ...dir.row }}
       onClose={onClose}>
-      <Toggle on={enHidden} onPress={onToggleEn} label="Hide the translation">
+      <Toggle on={enHidden} onPress={onToggleEn} label={t('player.hideTranslation')}>
         <TranslateGlyph color={enHidden ? tide.lang.ja : tide.text} />
       </Toggle>
-      <Toggle on={jaHidden} onPress={onToggleJa} label="Hide the sentence">
+      <Toggle on={jaHidden} onPress={onToggleJa} label={t('player.hideSentence')}>
         <BlindIcon color={jaHidden ? tide.lang.ja : tide.text} size={22} />
       </Toggle>
     </PopoverBubble>

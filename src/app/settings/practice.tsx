@@ -7,6 +7,8 @@ import { PressScale } from '@/components/press-scale';
 import { SettingsRow, SettingsSection } from '@/components/tide/settings-row';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
+import { useDir, useT } from '@/lib/i18n';
+import { type Key } from '@/locales/en';
 import {
   getSettings,
   READING_OPTIONS,
@@ -14,21 +16,27 @@ import {
   setHideEnglish,
   setPitch,
   setReading,
+  toIslandLanguage,
   type ReadingMode,
 } from '@/lib/settings';
 
-const READING_LABEL: Record<ReadingMode, string> = {
-  off: 'Off',
-  furigana: 'Furigana',
-  kana: 'Kana',
-  romaji: 'Romaji',
+const READING_LABEL_KEY: Record<ReadingMode, Key> = {
+  off: 'settings.practice.readingOff',
+  furigana: 'settings.practice.readingFurigana',
+  kana: 'settings.practice.readingKana',
+  romaji: 'settings.practice.readingRomaji',
 };
 
 export default function PracticeSettingsScreen() {
+  const { t } = useT();
+  const dir = useDir();
   const [reading, setReadingState] = useState<ReadingMode>('furigana');
   const [pitch, setPitchState] = useState(true);
   const [hideEnglish, setHideEnglishState] = useState(false);
   const [blind, setBlindState] = useState(false);
+  // Furigana, Kana, Romaji and pitch marks are Japanese-only concepts: hidden
+  // for any other learning language, same as the Style row in record.tsx.
+  const [isJapanese, setIsJapanese] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
@@ -39,6 +47,7 @@ export default function PracticeSettingsScreen() {
         setPitchState(s.pitch);
         setHideEnglishState(s.hideEnglish);
         setBlindState(s.blind);
+        setIsJapanese(toIslandLanguage(s.learningLanguage) === 'ja');
       });
       return () => {
         alive = false;
@@ -54,42 +63,46 @@ export default function PracticeSettingsScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       <ScrollView contentContainerStyle={styles.list}>
-        <SettingsSection title="Reading" footnote="Default for new sessions. Change it per session from the player.">
-          <View style={styles.chipRow}>
-            {READING_OPTIONS.map((opt) => {
-              const on = opt === reading;
-              return (
-                <PressScale
-                  key={opt}
-                  onPress={() => pickReading(opt)}
-                  style={[
-                    styles.chip,
-                    {
-                      backgroundColor: on ? tide.lang.ja : 'rgba(255,255,255,0.08)',
-                      borderColor: on ? tide.lang.ja : 'rgba(255,255,255,0.14)',
-                    },
-                  ]}>
-                  <Text style={[styles.chipText, { color: on ? tide.sky[0] : tide.text }]}>
-                    {READING_LABEL[opt]}
-                  </Text>
-                </PressScale>
-              );
-            })}
-          </View>
-        </SettingsSection>
+        {isJapanese ? (
+          <SettingsSection title={t('settings.practice.reading')} footnote={t('settings.playback.defaultFootnote')}>
+            <View style={[styles.chipRow, dir.row]}>
+              {READING_OPTIONS.map((opt) => {
+                const on = opt === reading;
+                return (
+                  <PressScale
+                    key={opt}
+                    onPress={() => pickReading(opt)}
+                    style={[
+                      styles.chip,
+                      {
+                        backgroundColor: on ? tide.lang.ja : 'rgba(255,255,255,0.08)',
+                        borderColor: on ? tide.lang.ja : 'rgba(255,255,255,0.14)',
+                      },
+                    ]}>
+                    <Text style={[styles.chipText, { color: on ? tide.sky[0] : tide.text }]}>
+                      {t(READING_LABEL_KEY[opt])}
+                    </Text>
+                  </PressScale>
+                );
+              })}
+            </View>
+          </SettingsSection>
+        ) : null}
 
-        <SettingsSection title="Practice defaults" footnote="Default for new sessions. Change it per session from the player.">
+        <SettingsSection title={t('settings.practice.defaults')} footnote={t('settings.playback.defaultFootnote')}>
+          {isJapanese ? (
+            <SettingsRow
+              label={t('settings.practice.pitchMarks')}
+              icon={{ ios: 'textformat', android: 'text_fields' }}
+              switchValue={pitch}
+              onSwitchChange={(next) => {
+                setPitchState(next);
+                void setPitch(next);
+              }}
+            />
+          ) : null}
           <SettingsRow
-            label="Pitch marks"
-            icon={{ ios: 'textformat', android: 'text_fields' }}
-            switchValue={pitch}
-            onSwitchChange={(next) => {
-              setPitchState(next);
-              void setPitch(next);
-            }}
-          />
-          <SettingsRow
-            label="Hide English by default"
+            label={t('settings.practice.hideEnglish')}
             icon={{ ios: 'text.badge.xmark', android: 'subtitles_off' }}
             switchValue={hideEnglish}
             onSwitchChange={(next) => {
@@ -98,7 +111,7 @@ export default function PracticeSettingsScreen() {
             }}
           />
           <SettingsRow
-            label="Blind by default"
+            label={t('settings.practice.blindByDefault')}
             last
             icon={{ ios: 'eye.slash', android: 'visibility_off' }}
             switchValue={blind}

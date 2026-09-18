@@ -12,11 +12,11 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { PrismButton } from '@/components/prism';
+import { StepAction, StepFrame } from '@/components/onboarding/step-frame';
 import { TailMark } from '@/components/onboarding/tail-mark';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
-import { useSkyStyle } from '@/lib/sky';
+import { useT } from '@/lib/i18n';
 
 type Chip = { label: string; top?: number; bottom?: number; left?: number; right?: number };
 
@@ -76,19 +76,19 @@ function FloatingChip({ chip, delay, reducedMotion }: { chip: Chip; delay: numbe
 }
 
 /**
- * The first onboarding screen: the Echo Tail mark and wordmark over the sky
- * gradient, with the tagline and a ring of floating language chips. The tail
- * draws itself in on a loop with echo rings at the tip (`tail-mark.tsx`);
- * both are still under reduced motion.
+ * The first onboarding screen: the Echo Tail mark and wordmark on the flow's
+ * shared sky, with the tagline and a ring of floating language chips. The
+ * tail draws itself in on a loop with echo rings at the tip
+ * (`tail-mark.tsx`); both are still under reduced motion.
  */
 export function WelcomeStep({ onNext }: { onNext: () => void }) {
-  const sky = useSkyStyle();
+  const { t } = useT();
   const reducedMotion = useReducedMotion();
 
   return (
-    <View style={styles.fill}>
-      <View style={[StyleSheet.absoluteFill, sky.from]} />
-      <Animated.View style={[StyleSheet.absoluteFill, sky.to, sky.fadeStyle]} />
+    <StepFrame
+      fill
+      footer={<StepAction verb="listen" label={t('settings.onboarding.getStarted')} onPress={onNext} />}>
       <View style={styles.stack}>
         <View style={styles.markWrap}>
           <TailMark />
@@ -97,17 +97,14 @@ export function WelcomeStep({ onNext }: { onNext: () => void }) {
           ))}
         </View>
         <Text style={styles.wordmark}>Echo Tail</Text>
-        <Text style={styles.tagline}>Learn a language by following its voice, one sentence at a time.</Text>
-        <View style={styles.spacer} />
-        <PrismButton shape="pill" verb="listen" on label="Get started" onPress={onNext} />
+        <Text style={styles.tagline}>{t('settings.onboarding.tagline')}</Text>
       </View>
-    </View>
+    </StepFrame>
   );
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1 },
-  stack: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, gap: Spacing.md },
+  stack: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.md },
   markWrap: { width: 180, height: 210, alignItems: 'center', justifyContent: 'center' },
   chip: {
     position: 'absolute',
@@ -129,5 +126,4 @@ const styles = StyleSheet.create({
     color: tide.text,
   },
   tagline: { fontFamily: fonts.ui, fontSize: 17, lineHeight: 24, color: tide.textDim, textAlign: 'center', maxWidth: 300 },
-  spacer: { height: Spacing.xl },
 });

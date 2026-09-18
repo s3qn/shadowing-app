@@ -40,9 +40,7 @@ def test_two_creates_pass_then_the_third_is_429(monkeypatch, device):
         main._take_build_slot(device, "create")
 
     assert exc_info.value.status_code == 429
-    assert exc_info.value.detail == (
-        "Daily limit reached: 2 new islands a day. Try again tomorrow."
-    )
+    assert exc_info.value.detail == {"code": "daily_limit", "limit": 2, "kind": "create"}
 
 
 def test_reworks_count_separately_from_creates(monkeypatch, device):
@@ -57,9 +55,7 @@ def test_reworks_count_separately_from_creates(monkeypatch, device):
     main._take_build_slot(device, "rework")
     with pytest.raises(HTTPException) as exc_info:
         main._take_build_slot(device, "rework")
-    assert exc_info.value.detail == (
-        "Daily limit reached: 1 rebuilds a day. Try again tomorrow."
-    )
+    assert exc_info.value.detail == {"code": "daily_limit", "limit": 1, "kind": "rework"}
 
 
 def test_owner_device_never_hits_the_limit(monkeypatch):

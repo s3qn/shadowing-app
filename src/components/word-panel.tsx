@@ -4,6 +4,7 @@ import { PressScale } from '@/components/press-scale';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import type { Gloss } from '@/lib/api';
+import { useDir, useT } from '@/lib/i18n';
 import { kanaToRomaji } from '@/lib/romaji';
 
 export const POPOVER_WIDTH = 250;
@@ -42,10 +43,12 @@ function toRomajiReading(gloss: Gloss): string {
  * It never touches playback itself; the screen decides what Hear it does.
  */
 export function WordPanel({ word, gloss, context, left, top, romaji = false, dictionary = true, onHear, onClose }: Props) {
+  const { t } = useT();
+  const dir = useDir();
   const shownReading = gloss ? (romaji ? toRomajiReading(gloss) : gloss.reading) : '';
   return (
     <View style={[styles.pop, { left, top, backgroundColor: tide.water, borderColor: tide.waterline, shadowColor: '#000' }]}>
-      <View style={styles.head}>
+      <View style={[styles.head, dir.row]}>
         <View style={styles.headText}>
           <Text style={styles.word} numberOfLines={1}>
             {word}
@@ -65,9 +68,9 @@ export function WordPanel({ word, gloss, context, left, top, romaji = false, dic
       <ScrollView style={styles.body} contentContainerStyle={{ gap: 4 }} nestedScrollEnabled>
         {dictionary ? (
           gloss === null ? (
-            <Text style={styles.meaning}>Looking up…</Text>
+            <Text style={[styles.meaning, dir.text]}>{t('player.lookingUp')}</Text>
           ) : !gloss.found ? (
-            <Text style={styles.meaning}>No dictionary entry.</Text>
+            <Text style={[styles.meaning, dir.text]}>{t('player.noDictionaryEntry')}</Text>
           ) : (
             gloss.entries.slice(0, 2).map((entry, i) =>
               entry.senses.slice(0, 3).map((sense, j) => (
@@ -81,20 +84,20 @@ export function WordPanel({ word, gloss, context, left, top, romaji = false, dic
         ) : context === undefined ? (
           <Text style={styles.meaning}>…</Text>
         ) : context === null ? (
-          <Text style={styles.meaning}>Nothing to add.</Text>
+          <Text style={[styles.meaning, dir.text]}>{t('player.nothingToAdd')}</Text>
         ) : (
-          <Text style={styles.meaning}>{context}</Text>
+          <Text style={[styles.meaning, dir.content]}>{context}</Text>
         )}
       </ScrollView>
 
       {dictionary && gloss !== null && context ? (
-        <Text style={styles.context}>In this sentence: {context}</Text>
+        <Text style={[styles.context, dir.text]}>{t('player.inThisSentence', { context })}</Text>
       ) : dictionary && gloss !== null && context === undefined ? (
         <Text style={styles.contextLoading}>…</Text>
       ) : null}
 
       <PressScale onPress={onHear} style={styles.hear}>
-        <Text style={styles.hearText}>Hear again</Text>
+        <Text style={styles.hearText}>{t('player.hearAgain')}</Text>
       </PressScale>
     </View>
   );
