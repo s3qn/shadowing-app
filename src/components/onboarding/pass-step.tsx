@@ -13,6 +13,7 @@ import {
 } from '@/components/onboarding/pass-effects';
 import { StepAction, StepCopy, StepFrame } from '@/components/onboarding/step-frame';
 import { type Verb } from '@/components/prism';
+import { type SheetIcon } from '@/components/sheet/sheet-rows';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide, verb } from '@/constants/theme';
 import { useDir, useT } from '@/lib/i18n';
@@ -40,24 +41,30 @@ const TRANSLATIONS: Record<'he' | 'en', string> = {
   he: 'מזג האוויר יפה היום.',
 };
 
-type PassInfo = {
+export type PassInfo = {
   /** The pass name, which the kicker reads out. */
   titleKey: Key;
   headlineKey: Key;
   lineKey: Key;
   /** The speed this pass plays at (Compare names the next round's speed). */
   speed: string;
+  /** The one-line description the ladder overview shows under the name. */
+  ladderLineKey: Key;
+  /** The ladder overview's leading symbol for this pass. */
+  icon: SheetIcon;
   colour: string;
   a: number;
   artTop: number;
   nextVerb: Verb;
 };
 
-const PASSES: PassInfo[] = [
+export const PASSES: PassInfo[] = [
   {
     titleKey: 'settings.onboarding.passListenTitle',
     headlineKey: 'settings.onboarding.passListenHeadline',
     lineKey: 'settings.onboarding.passListenLine',
+    ladderLineKey: 'settings.onboarding.ladderListen',
+    icon: { ios: 'ear', android: 'hearing' },
     speed: '0.7',
     colour: verb.listen.c1,
     a: 84,
@@ -68,6 +75,8 @@ const PASSES: PassInfo[] = [
     titleKey: 'settings.onboarding.passMumbleTitle',
     headlineKey: 'settings.onboarding.passMumbleHeadline',
     lineKey: 'settings.onboarding.passMumbleLine',
+    ladderLineKey: 'settings.onboarding.ladderMumble',
+    icon: { ios: 'mouth', android: 'record_voice_over' },
     speed: '0.7',
     colour: verb.speak.c2,
     a: 84,
@@ -78,6 +87,8 @@ const PASSES: PassInfo[] = [
     titleKey: 'settings.onboarding.passReadTitle',
     headlineKey: 'settings.onboarding.passReadHeadline',
     lineKey: 'settings.onboarding.passReadLine',
+    ladderLineKey: 'settings.onboarding.ladderRead',
+    icon: { ios: 'book', android: 'menu_book' },
     speed: '0.85',
     colour: verb.read.c1,
     a: 102,
@@ -88,6 +99,8 @@ const PASSES: PassInfo[] = [
     titleKey: 'settings.onboarding.passShadowTitle',
     headlineKey: 'settings.onboarding.passShadowHeadline',
     lineKey: 'settings.onboarding.passShadowLine',
+    ladderLineKey: 'settings.onboarding.ladderShadow',
+    icon: { ios: 'mic', android: 'mic' },
     speed: '0.85',
     colour: verb.speak.c1,
     a: 102,
@@ -98,6 +111,8 @@ const PASSES: PassInfo[] = [
     titleKey: 'settings.onboarding.passCompareTitle',
     headlineKey: 'settings.onboarding.passCompareHeadline',
     lineKey: 'settings.onboarding.passCompareLine',
+    ladderLineKey: 'settings.onboarding.ladderCompare',
+    icon: { ios: 'arrow.left.and.right', android: 'compare_arrows' },
     speed: '1.0',
     colour: tide.pos.verb,
     // The two Lotties here are smaller than the single body part of the

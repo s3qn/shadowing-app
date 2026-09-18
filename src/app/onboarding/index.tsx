@@ -6,6 +6,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { LanguagePicker } from '@/components/language-picker';
 import { GoalOptions } from '@/components/onboarding/goal-step';
+import { LadderStep } from '@/components/onboarding/ladder-step';
 import { MicArt } from '@/components/onboarding/mic-art';
 import { OnboardingSky } from '@/components/onboarding/onboarding-sky';
 import { PassStep } from '@/components/onboarding/pass-step';
@@ -34,9 +35,10 @@ const STEP_LEARN = 1;
 const STEP_UNDERSTAND = 2;
 const STEP_MIC = 3;
 const STEP_GOAL = 4;
-const STEP_PASS_FIRST = 5;
-const STEP_PASS_LAST = 9;
-const STEP_READY = 10;
+const STEP_LADDER = 5;
+const STEP_PASS_FIRST = 6;
+const STEP_PASS_LAST = 10;
+const STEP_READY = 11;
 const LAST_STEP = STEP_READY;
 
 /**
@@ -228,7 +230,7 @@ export default function OnboardingScreen() {
               <StepAction
                 verb="listen"
                 label={t('settings.onboarding.continue')}
-                onPress={() => setStep(STEP_PASS_FIRST)}
+                onPress={() => setStep(STEP_LADDER)}
               />
             }>
             <StepCopy
@@ -240,6 +242,8 @@ export default function OnboardingScreen() {
             <GoalOptions value={goal} onChange={setGoal} />
           </StepFrame>
         ) : null}
+
+        {step === STEP_LADDER ? <LadderStep onNext={() => setStep(STEP_PASS_FIRST)} /> : null}
 
         {step >= STEP_PASS_FIRST && step <= STEP_PASS_LAST ? (
           <PassStep

@@ -190,6 +190,17 @@ export const en = {
   // Listen · 0.7×". Compare gives the speed the next round runs at instead.
   'settings.onboarding.passKicker': 'Pass {n} · {name} · {speed}×',
   'settings.onboarding.passKickerNext': 'Pass {n} · {name} · next time {speed}×',
+  // The ladder overview: one row per pass, with the speed on the trailing side.
+  'settings.onboarding.ladderKicker': 'The method',
+  'settings.onboarding.ladderTitle': 'Five passes on every sentence',
+  'settings.onboarding.ladderLine': 'Each pass takes about a minute. The speed climbs as you keep up.',
+  'settings.onboarding.ladderAction': 'Show me',
+  'settings.onboarding.ladderSpeed': '{speed}×',
+  'settings.onboarding.ladderListen': 'Eyes closed',
+  'settings.onboarding.ladderMumble': 'Hum the rhythm',
+  'settings.onboarding.ladderRead': 'Speak with the text',
+  'settings.onboarding.ladderShadow': 'No text, recorded',
+  'settings.onboarding.ladderCompare': 'You next to the voice',
   'settings.onboarding.passListenHeadline': 'Listen with your eyes closed',
   'settings.onboarding.passMumbleHeadline': 'Mumble along',
   'settings.onboarding.passReadHeadline': 'Read along out loud',
