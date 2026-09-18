@@ -1,9 +1,10 @@
 """Pure spacing math for the practice scheduler: no I/O, no sqlite.
 
-A fixed level ladder, not full SM-2. Every practice event bumps an island's
-level by one, capped at the last index; there is no decay or missed-day
-penalty yet. That is real scheduling work for a later feature, this is just
-the groundwork.
+A fixed level ladder, not full SM-2. A level moves at most once a day, and
+only once that day's playback on the island reaches PRACTICED_MIN_SECONDS.
+Practising well after the island was due moves the level back down one
+instead of up, so a forgotten island returns sooner. schedule.py owns the
+once-a-day rule and the second counting; this module is the arithmetic.
 """
 
 from datetime import date, timedelta
@@ -11,10 +12,20 @@ from datetime import date, timedelta
 LEVEL_INTERVALS_DAYS: tuple[int, ...] = (0, 1, 2, 4, 7, 14, 30)
 MAX_LEVEL = len(LEVEL_INTERVALS_DAYS) - 1
 
+# Seconds of line playback an island needs in one day before its level moves
+# at all: about two ladder lines. Below it the island stays due.
+PRACTICED_MIN_SECONDS = 45.0
 
-def next_level(level: int) -> int:
-    """The level after one more practice event, capped at MAX_LEVEL."""
+
+def next_level(level: int, days_late: int = 0) -> int:
+    """The level after a day of real practice, capped at MAX_LEVEL.
+
+    A practice more than one whole interval past the due date is a lapse: the
+    level drops by one (never below 1, the island was practised after all).
+    """
     level = max(0, min(level, MAX_LEVEL))
+    if days_late > LEVEL_INTERVALS_DAYS[level]:
+        return max(1, level - 1)
     return min(level + 1, MAX_LEVEL)
 
 
