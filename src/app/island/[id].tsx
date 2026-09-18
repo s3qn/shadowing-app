@@ -5,6 +5,7 @@ import {
   useAudioPlayer,
 } from 'expo-audio';
 import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -35,7 +36,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AutoEchoSheet, type EchoStep } from '@/components/tide/auto-echo-sheet';
+import { AutoEchoSheet } from '@/components/tide/auto-echo-sheet';
 import { BottomRow } from '@/components/tide/bottom-row';
 import { IslandMenuSheet } from '@/components/tide/island-menu-sheet';
 import { PlayerTitle } from '@/components/tide/player-title';
@@ -83,7 +84,7 @@ import {
   startBack,
   useMorphHidesTitle,
 } from '@/lib/card-morph';
-import { hapticImpact } from '@/lib/haptics';
+import { hapticImpact, hapticSelection } from '@/lib/haptics';
 import { invalidateCachedIsland, peekCachedIsland, readCachedIsland, writeCachedIsland } from '@/lib/island-cache';
 import { requestLoader } from '@/lib/loading-overlay';
 import { useIslandExport } from '@/hooks/use-island-export';
@@ -102,7 +103,26 @@ import {
   stopPlayback,
   useSessionPlayer,
 } from '@/lib/audio-mode';
+import {
+  afterTakePlayed,
+  afterTakeSaved,
+  armedStepOf,
+  COUNT_IN_BEATS,
+  COUNT_IN_BEAT_MS,
+  fillKindOf,
+  isActive,
+  isArmedStep,
+  isPlayStep,
+  isSpeakStep,
+  nextOnLineFinish,
+  passSpeed,
+  speakStepOf,
+  textShownAt,
+  type PassStep,
+  type Programme,
+} from '@/lib/pass-programme';
 import { wordPitches } from '@/lib/pitch';
+import { addLadder } from '@/lib/practice';
 import { lineRomaji } from '@/lib/romaji';
 import { forgetRung, getRung, peekRung, recordTake, setRungSpeed } from '@/lib/speed-ladder';
 import {
@@ -371,6 +391,9 @@ export default function IslandScreen() {
   // included, and comes back at a stop point (see `releaseAudioSession`).
   // Anything that interrupts the line also drops a take in progress.
   function dropTake() {
+    // A count waiting to open the microphone belongs to the take this drops:
+    // a line change, a speed change or a tap on the ring ends it too.
+    cancelCountIn();
     take.stopTake();
     void take.cancel();
   }
@@ -404,7 +427,6 @@ export default function IslandScreen() {
   // even mid drag-select) clears any held phrase span in the same render
   // instead of carrying an old selection onto the new line.
   const lineKey = `${generation}:${idx}`;
-  const hidden = blind;
   const enFrosted = !englishShown;
   // The tapped word, its dictionary result, and the timer that ends Hear it.
   const [selected, setSelected] = useState<number | null>(null);
@@ -526,16 +548,31 @@ export default function IslandScreen() {
   // Auto Echo's own step, and a ref mirror so the effects and listeners below
   // (some subscribed once, some reading state a render behind) always see the
   // current step rather than the one closed over when they were set up.
-  const [echoStep, setEchoStep] = useState<EchoStep>('idle');
-  const echoRef = useRef<EchoStep>('idle');
+  const [echoStep, setEchoStep] = useState<PassStep>('idle');
+  const echoRef = useRef<PassStep>('idle');
   useLayoutEffect(() => {
     echoRef.current = echoStep;
   }, [echoStep]);
+  // Which programme the record button runs: the five-pass ladder or the plain
+  // Auto Echo loop. Read once at mount from Settings > Playback; a change
+  // made there while this sheet is open only takes effect the next time the
+  // player opens, so a run in progress can never end up half in one
+  // programme and half in the other.
+  const [programme, setProgrammeState] = useState<Programme>(() => getSettingsSync().programme);
+  // The island's speed as the current session's line started: every pass plays
+  // relative to it (passSpeed) and leaving a session mid-pass restores it. The
+  // session itself never writes the rung.
+  const sessionBase = useRef(speed);
+  // Whether the run in progress is a ladder. `programmeOf` reads the programme
+  // off the step's name, which cannot tell the two apart at `idle` and `done`,
+  // and both the speed restore and the rung a take is credited to still need
+  // it after the last pass.
+  const sessionLadder = useRef(false);
   // The Play step's fill: aimed from the take player's status updates rather
   // than a render per tick. Aims once from 0, then re-aims only if the fill
   // has drifted from the real position by more than 0.08.
   const aimTakeFill = (s: AudioStatus) => {
-    if (echoRef.current !== 'play' || !s.isLoaded) return;
+    if (fillKindOf(echoRef.current) !== 'take' || !s.isLoaded) return;
     if (!Number.isFinite(s.duration) || !Number.isFinite(s.currentTime) || s.duration <= 0) return;
     const target = Math.min(1, Math.max(0, s.currentTime / s.duration));
     if (echoFill.value === 0 || Math.abs(echoFill.value - target) > 0.08) {
@@ -579,8 +616,26 @@ export default function IslandScreen() {
   // Stop was tapped on this Speak take: the take is saving, so Stop and Retry
   // are hidden until the next Speak starts.
   const [speakStopped, setSpeakStopped] = useState(false);
+  // The beat the count before a hand-started take is on (3, 2, 1), and the
+  // timer waiting for the next one. The microphone is shut for the whole
+  // count: it opens on the beat after 1. The ref is what the handlers read,
+  // since they can run before the state has rendered.
+  const [countIn, setCountIn] = useState<number | null>(null);
+  const countInRef = useRef<number | null>(null);
+  const countInTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (countInTimer.current) clearTimeout(countInTimer.current);
+    },
+    [],
+  );
   const wasEchoTakePlaying = useRef(false);
-  const echoActive = sheet === 'echo' && echoStep !== 'idle' && echoStep !== 'done';
+  const echoActive = sheet === 'echo' && isActive(echoStep);
+  // Auto Echo leaves the text to the Blind setting; the ladder's passes decide
+  // it themselves, hiding the sentence for Listen, Mumble and Shadow and
+  // showing it for Read along and Compare.
+  const passText = textShownAt(echoStep, programme);
+  const hidden = passText === null ? blind : !passText;
   // A take and a line played from Explain stop the line where the pad begins
   // (the crossing effect below), so no pause follows. The stop lands a status
   // or two after the crossing, and without this the countdown would flash
@@ -800,6 +855,7 @@ export default function IslandScreen() {
       if (!englishTouched.current) setEnglishShown(!settings.hideEnglish);
       if (!autoEchoTouched.current) setAutoEchoState(settings.autoEcho);
       if (!autoRecordTouched.current) setAutoRecordState(settings.autoRecord);
+      setProgrammeState(settings.programme);
       if (!readingTouched.current) setReadingMode(settings.reading);
       if (!pitchTouched.current) setPitchOn(settings.pitch);
       if (!timesTouched.current) setTimes(settings.defaultTimes);
@@ -1061,7 +1117,7 @@ export default function IslandScreen() {
   // which is also what makes a finished step's fill hold at full: the sheet
   // renders segments before the active one as always full, so once the step
   // moves on this value stops mattering for it.
-  const echoFillStep = useRef<EchoStep>('idle');
+  const echoFillStep = useRef<PassStep>('idle');
   // The Speak segment has no natural end event to key off (the learner or the
   // watchdog can stop it early), so it is aimed once per recording attempt,
   // identified by `speakStartedAt`, which a Retry bumps without changing
@@ -1074,21 +1130,28 @@ export default function IslandScreen() {
   function aimEchoLine(s: AudioStatus) {
     const step = echoRef.current;
     if (echoFillStep.current !== step) return;
+    // A position that is not a number would reach the sheet's percentage
+    // width, and a NaN in a worklet ends Expo Go without a red box.
+    if (!Number.isFinite(s.currentTime)) return;
     const end = lineEndOf(s.duration, breathSec);
 
-    if (step === 'listen') {
-      if (!s.playing || end <= 0) return;
-      const target = Math.min(1, s.currentTime / end);
+    // Auto Echo's Listen fills to the spoken end, where Echo's pad takes over.
+    // A ladder pass owns the pad too (it is the breath before the next pass),
+    // so its fill runs the whole source instead.
+    if (fillKindOf(step) === 'line') {
+      const span = step === 'listen' ? end : s.duration;
+      if (!s.playing || !Number.isFinite(span) || span <= 0) return;
+      const target = Math.min(1, s.currentTime / span);
       if (echoFill.value === 0 || Math.abs(echoFill.value - target) > 0.08) {
         cancelAnimation(echoFill);
         echoFill.value = target;
-        const remaining = Math.max(0, (end - s.currentTime) * 1000);
+        const remaining = Math.max(0, (span - s.currentTime) * 1000);
         echoFill.value = withTiming(1, { duration: remaining, easing: Easing.linear });
       }
       return;
     }
 
-    if (step === 'echo') {
+    if (fillKindOf(step) === 'pad') {
       if (breathSec <= 0 || end <= 0) return;
       const target = Math.min(1, Math.max(0, s.currentTime - end) / breathSec);
       if (echoFill.value === 0 || Math.abs(echoFill.value - target) > 0.08) {
@@ -1108,12 +1171,13 @@ export default function IslandScreen() {
       echoFill.value = 0;
     }
 
-    if (echoStep === 'listen' || echoStep === 'echo') {
+    const kind = fillKindOf(echoStep);
+    if (kind === 'line' || kind === 'pad') {
       aimEchoLine(latestStatus.current);
       return;
     }
 
-    if (echoStep === 'speak') {
+    if (kind === 'record') {
       // Still opening the mic, or the previous take's cleanup finishing:
       // hold empty until this attempt is actually recording.
       if (take.phase !== 'recording' || echoFillSpeakAt.current === speakStartedAt.current) return;
@@ -1210,21 +1274,34 @@ export default function IslandScreen() {
   // has committed, and a new line, speed or pause replaces what is still
   // queued. The phrase's own render is not fetched ahead: it is only ever
   // played for the line on screen.
+  // A ladder waiting to start is warmed at its Listen speed too: that first
+  // pass plays under the rung, which is a source none of the above covers, and
+  // without it Start would wait on the network before the first sound. Every
+  // line after the first is warmed by the Listen of the line before it, which
+  // already runs at that speed.
+  const warmLadderListen = programme === 'ladder' && !isActive(echoStep);
   useEffect(() => {
     if (!island || island.lines.length === 0) return;
     const t = setTimeout(() => {
       const n = island.lines.length;
       const order = [idx + 1, idx + 2, idx - 1, idx].map((i) => (i + n) % n);
       const version = `${island.speaker}-${generation}`;
-      prefetchLineAudio(
-        [...new Set(order)].map((i) => {
-          const l = island.lines[i]!;
-          return { url: api.lineAudioUrl(island.id, l.idx, version, speed, breathMs), tag: l.ja };
-        }),
-      );
+      const items = [...new Set(order)].map((i) => {
+        const l = island.lines[i]!;
+        return { url: api.lineAudioUrl(island.id, l.idx, version, speed, breathMs), tag: l.ja };
+      });
+      const easy = passSpeed(speed, 'ladderListen');
+      if (warmLadderListen && easy !== speed) {
+        const l = island.lines[idx]!;
+        items.unshift({
+          url: api.lineAudioUrl(island.id, l.idx, version, easy, breathMs),
+          tag: l.ja,
+        });
+      }
+      prefetchLineAudio(items);
     }, 0);
     return () => clearTimeout(t);
-  }, [island, idx, generation, speed, breathMs]);
+  }, [island, idx, generation, speed, breathMs, warmLadderListen]);
   // No expo-audio preload() for the next line: on iOS, replace() with a
   // preloaded URL moves that item out of the AVPlayer that loaded it into this
   // one (AudioModule.swift `replace`), and with it the line after the first
@@ -1272,11 +1349,14 @@ export default function IslandScreen() {
     return false;
   }
 
-  // Lock screen / notification text. Blind mode never shows the Japanese.
+  // Lock screen / notification text. A hidden sentence never shows the
+  // Japanese, whether Blind hid it or a ladder pass did.
   function lockMeta(): AudioMetadata {
     const pos = t('player.lineOfTotal', { index: idx + 1, total: island!.lines.length });
     const artist = island!.title || t('player.island');
-    return blind ? { title: pos, artist } : { title: phrase.label ?? line!.ja, artist, albumTitle: pos };
+    return hidden
+      ? { title: pos, artist }
+      : { title: phrase.label ?? line!.ja, artist, albumTitle: pos };
   }
 
   // The line player is the lock screen / notification's active player. It
@@ -1302,7 +1382,7 @@ export default function IslandScreen() {
   });
   useEffect(() => {
     updateLockMeta();
-  }, [blind, idx, island?.title, island?.lines.length, line?.ja, phrase.label]);
+  }, [hidden, idx, island?.title, island?.lines.length, line?.ja, phrase.label]);
 
   // A take made with the phone in a pocket is not a take, and the microphone
   // must never run in the background: dropped as soon as the app backgrounds.
@@ -1399,6 +1479,36 @@ export default function IslandScreen() {
     markTakeLineStart(s);
   }
 
+  // A pass's speed is a different audio source, so a change lands the way a
+  // speed commit does: stop, swap, and let the new source play once it has
+  // loaded. The rung itself is never written here. Returns false when the
+  // speed is already right and there is no swap to ride, and the caller plays
+  // the line itself.
+  function swapPassSpeed(next: number, play = true): boolean {
+    if (next === speed) return false;
+    dropTake();
+    stopPlayback(player);
+    setPlayWhenLoaded(play);
+    resetForNewAudio();
+    setSpeed(next);
+    setSpeedLive(next);
+    return true;
+  }
+
+  // The same line once more from the top: the source has not changed, so the
+  // playWhenLoaded effect never fires and the seek and the play are by hand.
+  function replayLine() {
+    resetHighlight();
+    setPendingPlay(true);
+    void (async () => {
+      await seekTop();
+      // Stopped during the seek: the replay is cancelled.
+      if (!pendingPlayRef.current) return;
+      crossed.current = false;
+      startPlayback(player);
+    })();
+  }
+
   // Every play of a whole line ends here: another play of the same line
   // while fewer than `times` are done, otherwise the next line (wrapping to
   // the first). The pad's silence has already played by now, so that is the
@@ -1436,21 +1546,38 @@ export default function IslandScreen() {
       scheduleAudioSessionRelease();
       return;
     }
-    if (echoRef.current === 'listen' || echoRef.current === 'echo') {
-      // The line's own finish, at the end of the pad, is the Echo step's own
-      // end (Listen straight to here when the pause is 0s): Auto Record on
-      // opens the mic at once, off arms the Record button and gives the
-      // audio session back while it waits.
-      if (autoRecord) {
+    const step = echoRef.current;
+    const after = nextOnLineFinish(step, autoRecord);
+    if (after !== step) {
+      // The line's own finish, at the end of the pad, ends this pass (Auto
+      // Echo's Listen runs straight to here when the pause is 0s).
+      if (isSpeakStep(after)) {
+        // Auto Record on opens the mic at once.
         void startSpeak();
-      } else {
-        setEchoStep('armed');
-        scheduleAudioSessionRelease();
+        return;
       }
+      if (isArmedStep(after)) {
+        // Off, the Record button waits and the audio session goes back.
+        setEchoStep(after);
+        scheduleAudioSessionRelease();
+        return;
+      }
+      if (isPlayStep(after)) {
+        // Compare's line half done: the take answers it.
+        setEchoStep(after);
+        take.playTake();
+        return;
+      }
+      setEchoStep(after);
+      // Read along is the first pass at the island's own speed, so the swap
+      // to it is what starts the line again; the other passes keep the speed
+      // they had and replay by hand.
+      const swapped = after === 'ladderRead' && swapPassSpeed(passSpeed(sessionBase.current, after));
+      if (!swapped) replayLine();
       return;
     }
-    // The rest of an Auto Echo pass never plays the line through to here.
-    if (echoRef.current !== 'idle' && echoRef.current !== 'done') return;
+    // The rest of a pass never plays the line through to here.
+    if (isActive(step)) return;
     if (phrase.span) return;
     playsDone.current += 1;
     if (playsDone.current < times || island.lines.length === 1) {
@@ -2144,7 +2271,7 @@ export default function IslandScreen() {
     if (startingTake.current) return;
     speakStartedAt.current = Date.now();
     setSpeakStopped(false);
-    setEchoStep('speak');
+    setEchoStep(speakStepOf(programme));
     setEchoResult(null);
     const started = await beginRecording('take', 'auto');
     if (!started) {
@@ -2154,16 +2281,105 @@ export default function IslandScreen() {
     speakSilent.current = started.silent;
     // The sheet closed (or the app went to the background) while the mic was
     // opening: stopEcho found nothing to cancel yet, so drop this take now.
-    if (echoRef.current !== 'speak') {
+    if (!isSpeakStep(echoRef.current)) {
       stopPlayback(player);
       void take.cancel();
     }
+  }
+
+  // Ends a count in progress, with no timer left running and nothing armed
+  // (the microphone was never opened). Reached by a second tap on the record
+  // button, by dropTake, by stopEcho (the sheet closing, the app going to the
+  // background) and by the unmount cleanup above.
+  function cancelCountIn() {
+    if (countInTimer.current) {
+      clearTimeout(countInTimer.current);
+      countInTimer.current = null;
+    }
+    if (countInRef.current === null) return;
+    countInRef.current = null;
+    setCountIn(null);
+  }
+
+  // The last beat opens the microphone through the current render's
+  // startSpeak: the timer that calls it was set up to two seconds earlier.
+  const speakAfterCount = useStableHandler(() => void startSpeak());
+
+  // One beat of the count: the number on the record button, a tick under the
+  // finger, and either the next beat or the take itself.
+  function countBeat(n: number) {
+    countInRef.current = n;
+    setCountIn(n);
+    // Not on the first beat: PressScale already ticks under the tap that
+    // started the count, and two at once read as one long buzz.
+    if (n < COUNT_IN_BEATS) void hapticSelection();
+    countInTimer.current = setTimeout(() => {
+      countInTimer.current = null;
+      if (n > 1) {
+        countBeat(n - 1);
+        return;
+      }
+      countInRef.current = null;
+      setCountIn(null);
+      // A firmer tap than the beats: this one is the moment to speak.
+      void hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
+      speakAfterCount();
+    }, COUNT_IN_BEAT_MS);
+  }
+
+  /**
+   * Record and Retry, the two taps that start a take by hand: the count runs
+   * first and the microphone opens on its last beat, so a take no longer
+   * begins with the tap itself and the breath after it. Tapping again during
+   * the count cancels it and leaves the pass waiting on Record again.
+   */
+  function countInThenSpeak() {
+    if (countInRef.current !== null) {
+      cancelCountIn();
+      return;
+    }
+    // The mic is already opening from an earlier tap: that take owns the pass.
+    if (startingTake.current) return;
+    // Retry, tapped while a take records: that take goes before the count
+    // starts, so nothing is listening through it.
+    if (take.phase === 'recording') {
+      stopPlayback(player);
+      void player.seekTo(0);
+      dropTake();
+    }
+    setSpeakStopped(false);
+    // Retry counts down on the record button, which belongs to the armed
+    // step; for Record the step is already that one.
+    setEchoStep(armedStepOf(programme));
+    countBeat(COUNT_IN_BEATS);
   }
 
   // Moves the loop on to the next line (or restarts the only line an island
   // has) after a Play step finishes, and starts its Listen step.
   async function advanceEcho() {
     if (!island) return;
+    if (echoRef.current === 'ladderPlay') {
+      // The ladder walks the island once and stops at its end: no wrap.
+      if (idx >= island.lines.length - 1) {
+        setEchoStep('done');
+        return;
+      }
+      // A pending rung decision lands at this line change, so the next line's
+      // passes are placed relative to the rung it moves to.
+      const base = ladderNext.current ?? speed;
+      sessionBase.current = base;
+      go(idx + 1);
+      // go() reads status.playing, which is false here (the take was the
+      // thing playing), so the new line has to be told to play.
+      setPlayWhenLoaded(true);
+      const easy = passSpeed(base, 'ladderListen');
+      if (easy !== base) {
+        setSpeed(easy);
+        setSpeedLive(easy);
+      }
+      setEchoStep('ladderListen');
+      return;
+    }
     if (island.lines.length === 1) {
       await seekTop();
       // The sheet closed during the seek.
@@ -2180,10 +2396,28 @@ export default function IslandScreen() {
     setEchoStep('listen');
   }
 
-  // Starts (or restarts) the loop on the current line.
+  // Starts (or restarts) the run on the current line: a whole-line phrase
+  // selection goes first, so every pass hears the same line.
   function startEcho() {
-    setEchoStep('listen');
-    void playFromTop();
+    // Clearing a held phrase swaps the whole line back in, and that load is
+    // what starts it playing: nothing below may play on top of it.
+    const hadPhrase = !!phrase.span;
+    clearPhrase();
+    if (hadPhrase) setPlayWhenLoaded(true);
+    sessionLadder.current = programme === 'ladder';
+    if (programme === 'echo') {
+      setEchoStep('listen');
+      if (!hadPhrase) void playFromTop();
+      return;
+    }
+    sessionBase.current = speed;
+    setEchoStep('ladderListen');
+    // Listen plays under the island's speed, which is a different source, and
+    // that swap carries the play. With the rung already at the floor there is
+    // no swap, so the line starts here instead, from the top, which also stops
+    // a line that was already playing rather than doubling it.
+    const swapped = swapPassSpeed(passSpeed(speed, 'ladderListen'));
+    if (!swapped && !hadPhrase) void playFromTop();
   }
 
   function openEcho() {
@@ -2195,10 +2429,15 @@ export default function IslandScreen() {
   // Ends the loop: called when the sheet closes and when the app backgrounds
   // mid-pass. Drops any take in progress and any that just finished recording.
   function stopEcho() {
+    cancelCountIn();
     if (advanceHoldRef.current) {
       clearTimeout(advanceHoldRef.current);
       advanceHoldRef.current = null;
     }
+    // The step being left is `done` after the last pass, which does not say
+    // which programme ran, so the restore reads the session's own flag.
+    const wasLadder = sessionLadder.current;
+    sessionLadder.current = false;
     setEchoStep('idle');
     setEchoResult(null);
     setPlayWhenLoaded(false);
@@ -2206,6 +2445,8 @@ export default function IslandScreen() {
     stopPlayback(player);
     void player.seekTo(0);
     scheduleAudioSessionRelease();
+    // A pass left in the middle hands the island's own speed back, silently.
+    if (wasLadder) swapPassSpeed(sessionBase.current, false);
   }
 
   // The Speak step's take, once saved and its player loaded, starts the Play
@@ -2216,16 +2457,20 @@ export default function IslandScreen() {
   // waits out the echo cleanup: the cleaned file landing swaps the take
   // player, which would cut a take already playing off mid-word.
   const playSavedTake = useEffectEvent(() => {
+    const after = afterTakeSaved(echoRef.current);
     if (
-      echoRef.current === 'speak' &&
+      after !== echoRef.current &&
       take.phase === 'ready' &&
       take.clean.state !== 'working' &&
       take.takeLoaded &&
       take.take &&
       take.take.recordedAt > speakStartedAt.current
     ) {
-      setEchoStep('play');
-      take.playTake();
+      setEchoStep(after);
+      // Auto Echo plays the take straight back; the ladder's Compare plays the
+      // line first and the take answers it at that line's finish.
+      if (isPlayStep(after)) take.playTake();
+      else replayLine();
     }
   });
   useEffect(() => {
@@ -2249,10 +2494,14 @@ export default function IslandScreen() {
     // rung (0.50 straight to 0.60), so count it as seen and drop it.
     if (ladderNext.current !== null) return;
     const epoch = ladderEpoch.current;
-    // `speed` is what this player is actually playing, which is the rung to
-    // create when the island has none yet; the device default may be something
-    // else entirely.
-    void recordTake(island.id, speed, keptUp).then(({ moved, speed: next }) => {
+    // The rung this take belongs to, which is also the rung to create when the
+    // island has none yet (the device default may be something else entirely).
+    // Outside a ladder run that is what the player is playing. Inside one it is
+    // the session's base: Listen and Mumble play under the rung, and a score
+    // can land after the run has moved on to the next line's Listen, which
+    // would otherwise create the rung 0.15 too low.
+    const rung = sessionLadder.current ? sessionBase.current : speed;
+    void recordTake(island.id, rung, keptUp).then(({ moved, speed: next }) => {
       if (ladderEpoch.current !== epoch || !moved) return;
       ladderNext.current = next;
       setLadderMove({ dir: moved, speed: next });
@@ -2277,17 +2526,20 @@ export default function IslandScreen() {
   // advances to the next line (wrapping like the player does), off ends the
   // pass at Pass complete.
   const onEchoTakeStopped = useEffectEvent(() => {
-    if (wasEchoTakePlaying.current && !take.takePlaying && echoRef.current === 'play') {
+    if (wasEchoTakePlaying.current && !take.takePlaying && isPlayStep(echoRef.current)) {
       const expectedSec =
         speakSilent.current && lineEnd > 0 ? lineEnd + (TAIL_MS + takeLagMs) / 1000 : lineEnd;
       const tier = resultTier(take.take?.score ?? null, take.takeDuration, expectedSec);
       setEchoResult({ id: Date.now(), tier });
+      // A Compare played back is one sentence ladder finished, which is what
+      // a day on the streak counts.
+      if (echoRef.current === 'ladderPlay' && island) addLadder(island.id);
       if (autoEcho) {
         advanceHoldRef.current = setTimeout(() => {
           advanceHoldRef.current = null;
-          // Auto Echo turned off during the hold: end the pass instead.
+          // The toggle turned off during the hold: end the run instead.
           if (!autoEchoRef.current) {
-            if (echoRef.current === 'play') setEchoStep('done');
+            setEchoStep(afterTakePlayed(echoRef.current, false));
             return;
           }
           void advanceEcho();
@@ -2471,7 +2723,7 @@ export default function IslandScreen() {
     stopEcho();
     setSheet(null);
   });
-  const onEchoRecord = useStableHandler(() => void startSpeak());
+  const onEchoRecord = useStableHandler(countInThenSpeak);
   const onEchoStop = useStableHandler(() => {
     // Before the mic is open there is nothing to stop yet.
     if (take.phase !== 'recording') return;
@@ -2480,7 +2732,7 @@ export default function IslandScreen() {
     void player.seekTo(0);
     take.finishNow();
   });
-  const onEchoRetry = useStableHandler(() => void startSpeak());
+  const onEchoRetry = useStableHandler(countInThenSpeak);
   const onEchoStart = useStableHandler(startEcho);
   const onToggleAutoEchoStable = useStableHandler(toggleAutoEcho);
   const onToggleAutoRecordStable = useStableHandler(toggleAutoRecord);
@@ -2991,7 +3243,7 @@ export default function IslandScreen() {
             lineIndex={0}
             lineCount={0}
             lines={lines}
-            blind={blind}
+            blind={hidden}
             busy={false}
             countdown={null}
             banner={banner}
@@ -3099,7 +3351,7 @@ export default function IslandScreen() {
           lineIndex={idx}
           lineCount={island.lines.length}
           lines={lines}
-          blind={blind}
+          blind={hidden}
           busy={status.playing || take.phase === 'recording' || countdown !== null}
           countdown={countdown}
           banner={banner}
@@ -3197,13 +3449,16 @@ export default function IslandScreen() {
         open={sheet === 'echo'}
         onClose={onEchoClose}
         onDismissed={onSheetDismissed}
-        sentence={blind ? null : (phrase.label ?? line.ja)}
+        sentence={hidden ? null : (phrase.label ?? line.ja)}
         english={englishShown ? line.en : null}
         native={island?.native ?? 'en'} // languages: RTL translation line for Hebrew.
+        language={island?.language ?? 'ja'} // The help's Read along sample is in the island's language.
         moras={line.timeline}
-        analysis={blind ? null : feedback}
+        analysis={hidden ? null : feedback}
         step={echoStep}
+        programme={programme}
         countdown={countdown}
+        countIn={countIn}
         level={take.level}
         fill={echoFill}
         result={echoResult}

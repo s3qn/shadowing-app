@@ -10,6 +10,7 @@ import { TickRuler } from '@/components/tide/tick-ruler';
 import { fonts } from '@/constants/fonts';
 import { Radius, SPEED_MAX, SPEED_MIN, Spacing, tide } from '@/constants/theme';
 import { useDir, useT } from '@/lib/i18n';
+import type { Programme } from '@/lib/pass-programme';
 import {
   getSettings,
   getSettingsSync,
@@ -20,8 +21,11 @@ import {
   setDefaultSpeed,
   setDefaultTimes,
   setKeepAwake,
+  setProgramme,
   TIMES_MIN,
 } from '@/lib/settings';
+
+const PROGRAMME_OPTIONS: readonly Programme[] = ['ladder', 'echo'];
 
 const SPEED_OPTIONS = [0.5, 0.7, 0.85, 1, 1.15, 1.3, 1.5];
 
@@ -31,6 +35,7 @@ export default function PlaybackSettingsScreen() {
   // Seeded from the sync cache so the chip that is already chosen is the one
   // lit on the first frame, before the file read below answers.
   const [defaultSpeed, setDefaultSpeedState] = useState(() => getSettingsSync().defaultSpeed);
+  const [programme, setProgrammeState] = useState<Programme>(() => getSettingsSync().programme);
   const [defaultTimes, setDefaultTimesState] = useState(1);
   const [defaultPauseMs, setDefaultPauseMsState] = useState(0);
   // The rulers span the card's inner width, measured once it lays out.
@@ -45,6 +50,7 @@ export default function PlaybackSettingsScreen() {
       void getSettings().then((s) => {
         if (!alive) return;
         setDefaultSpeedState(s.defaultSpeed);
+        setProgrammeState(s.programme);
         setDefaultTimesState(s.defaultTimes);
         setDefaultPauseMsState(s.defaultPauseMs);
         setAutoEchoState(s.autoEcho);
@@ -83,6 +89,29 @@ export default function PlaybackSettingsScreen() {
                   }}
                   style={chip(on)}>
                   <Text style={[styles.chipText, { color: on ? tide.sky[0] : tide.text }]}>{s}x</Text>
+                </PressScale>
+              );
+            })}
+          </View>
+        </SettingsSection>
+
+        <SettingsSection
+          title={t('player.programme')}
+          footnote={`${t('player.ladder')}: ${t('settings.onboarding.ladderLine')}\n${t('player.autoEcho')}: ${t('player.echoDescription')}`}>
+          <View style={[styles.chipRow, dir.row]}>
+            {PROGRAMME_OPTIONS.map((p) => {
+              const on = p === programme;
+              return (
+                <PressScale
+                  key={p}
+                  onPress={() => {
+                    setProgrammeState(p);
+                    void setProgramme(p);
+                  }}
+                  style={chip(on)}>
+                  <Text style={[styles.chipText, { color: on ? tide.sky[0] : tide.text }]}>
+                    {t(p === 'ladder' ? 'player.ladder' : 'player.autoEcho')}
+                  </Text>
                 </PressScale>
               );
             })}

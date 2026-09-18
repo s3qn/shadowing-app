@@ -2,6 +2,10 @@ import type { en as enPlayerTide } from '../en/player-tide';
 
 export const he = {
   'player.autoEcho': 'אקו אוטומטי',
+  'player.programme': 'מצב',
+  'player.ladder': 'סולם',
+  'player.echoDescription': 'האזנה, הד, דיבור, נגינה',
+  'player.ladderDone': 'הסולם הושלם',
   'player.stepReady': 'מוכן',
   'player.stepListen': 'להאזין לשמע',
   'player.stepEcho': 'להיזכר ולהבין את מה שזה עתה נשמע',
@@ -14,6 +18,7 @@ export const he = {
   'player.start': 'התחלה',
   'player.startAgain': 'התחלה מחדש',
   'player.record': 'הקלטה',
+  'player.cancelCountIn': 'ביטול הספירה',
   'player.autoEchoToggle': 'מעבר לשורה הבאה, וחזרה להתחלה אחרי האחרונה',
   'player.autoRecordToggle': 'פתיחת המיקרופון באופן אוטומטי בשלב הדיבור',
   'player.headsetIn': 'האוזניות מחוברות: השורה מתנגנת מתחת לקול שלך.',
@@ -43,6 +48,7 @@ export const he = {
   'player.ofLabel': 'מתוך',
 
   'player.close': 'סגירה',
+  'player.help': 'איך עושים את השלב הזה',
 
   'player.off': 'כבוי',
   'player.readingFurigana': 'פוריגנה',

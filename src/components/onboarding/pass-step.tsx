@@ -17,6 +17,7 @@ import { type SheetIcon } from '@/components/sheet/sheet-rows';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide, verb } from '@/constants/theme';
 import { useDir, useT } from '@/lib/i18n';
+import { LADDER_PASSES } from '@/lib/pass-programme';
 import {
   toIslandLanguage,
   toNativeLanguage,
@@ -58,63 +59,56 @@ export type PassInfo = {
   nextVerb: Verb;
 };
 
+// titleKey, ladderLineKey (from LADDER_PASSES' lineKey), icon and colour come
+// from `pass-programme.ts`'s LADDER_PASSES, so the onboarding and the live
+// ladder sheet cannot drift apart.
 export const PASSES: PassInfo[] = [
   {
-    titleKey: 'settings.onboarding.passListenTitle',
+    ...LADDER_PASSES[0],
+    ladderLineKey: LADDER_PASSES[0].lineKey,
     headlineKey: 'settings.onboarding.passListenHeadline',
     lineKey: 'settings.onboarding.passListenLine',
-    ladderLineKey: 'settings.onboarding.ladderListen',
-    icon: { ios: 'ear', android: 'hearing' },
     speed: '0.7',
-    colour: verb.listen.c1,
     a: 84,
     artTop: 0.46,
     nextVerb: 'listen',
   },
   {
-    titleKey: 'settings.onboarding.passMumbleTitle',
+    ...LADDER_PASSES[1],
+    ladderLineKey: LADDER_PASSES[1].lineKey,
     headlineKey: 'settings.onboarding.passMumbleHeadline',
     lineKey: 'settings.onboarding.passMumbleLine',
-    ladderLineKey: 'settings.onboarding.ladderMumble',
-    icon: { ios: 'mouth', android: 'record_voice_over' },
     speed: '0.7',
-    colour: verb.speak.c2,
     a: 84,
     artTop: 0.46,
     nextVerb: 'speak',
   },
   {
-    titleKey: 'settings.onboarding.passReadTitle',
+    ...LADDER_PASSES[2],
+    ladderLineKey: LADDER_PASSES[2].lineKey,
     headlineKey: 'settings.onboarding.passReadHeadline',
     lineKey: 'settings.onboarding.passReadLine',
-    ladderLineKey: 'settings.onboarding.ladderRead',
-    icon: { ios: 'book', android: 'menu_book' },
     speed: '0.85',
-    colour: verb.read.c1,
     a: 102,
     artTop: 0.34,
     nextVerb: 'read',
   },
   {
-    titleKey: 'settings.onboarding.passShadowTitle',
+    ...LADDER_PASSES[3],
+    ladderLineKey: LADDER_PASSES[3].lineKey,
     headlineKey: 'settings.onboarding.passShadowHeadline',
     lineKey: 'settings.onboarding.passShadowLine',
-    ladderLineKey: 'settings.onboarding.ladderShadow',
-    icon: { ios: 'mic', android: 'mic' },
     speed: '0.85',
-    colour: verb.speak.c1,
     a: 102,
     artTop: 0.46,
     nextVerb: 'speak',
   },
   {
-    titleKey: 'settings.onboarding.passCompareTitle',
+    ...LADDER_PASSES[4],
+    ladderLineKey: LADDER_PASSES[4].lineKey,
     headlineKey: 'settings.onboarding.passCompareHeadline',
     lineKey: 'settings.onboarding.passCompareLine',
-    ladderLineKey: 'settings.onboarding.ladderCompare',
-    icon: { ios: 'arrow.left.and.right', android: 'compare_arrows' },
     speed: '1.0',
-    colour: tide.pos.verb,
     // The two Lotties here are smaller than the single body part of the
     // other passes; `a` still sets the effects' scale.
     a: 120,
@@ -126,31 +120,53 @@ export const PASSES: PassInfo[] = [
 const COMPARE_ART = 56;
 const COMPARE_GAP = 6;
 
-const LOTTIE_SOURCES = [
-  require('../../../assets/lottie/listen-ear.json'),
-  require('../../../assets/lottie/mumble-lips.json'),
-  require('../../../assets/lottie/read-eyes.json'),
-  require('../../../assets/lottie/shadow-head.json'),
-];
+// Each Lottie file (18KB to 40KB of JSON) is required only the first time
+// its pass is actually explained, then kept here so a second look is
+// instant. The onboarding walks all five passes on first run and needs them
+// up front, but the island player's help sheet (`AutoEchoSheet`, this
+// module's other caller) renders `PassExplainer` only once someone taps
+// help. Requiring all four eagerly at module init used to cost about 108KB
+// of JSON parsing on the JS thread every time an island mounted, whether or
+// not help was ever opened.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LottieSource = any;
+
+const lottieCache: Partial<Record<0 | 1 | 2 | 3, LottieSource>> = {};
+
+function getLottieSource(index: 0 | 1 | 2 | 3): LottieSource {
+  const cached = lottieCache[index];
+  if (cached) return cached;
+  const source =
+    index === 0
+      ? require('../../../assets/lottie/listen-ear.json')
+      : index === 1
+        ? require('../../../assets/lottie/mumble-lips.json')
+        : index === 2
+          ? require('../../../assets/lottie/read-eyes.json')
+          : require('../../../assets/lottie/shadow-head.json');
+  lottieCache[index] = source;
+  return source;
+}
 
 /**
- * One of the five onboarding passes: the progress dots, the art card with
- * its Lottie body part and the pass's effect (syllable pops, humming dots
- * and whispers, word by word glow with the translation under it, rising
- * language bubbles with the two waveform lanes), the copy block, and the
- * button. Effects live in `pass-effects.tsx` and are still under reduced
- * motion.
+ * One pass's explanation: the art card with its Lottie body part and the
+ * pass's effect (syllable pops, humming dots and whispers, word by word glow
+ * with the translation under it, rising language bubbles with the two
+ * waveform lanes), then the copy block. Effects live in `pass-effects.tsx`,
+ * run off one frame clock each that stops when this unmounts, and are still
+ * under reduced motion.
+ *
+ * The onboarding wraps it in a step (`PassStep` below) and the practice
+ * sheet's help shows it on its own, so both read the same explanation.
  */
-export function PassStep({
+export function PassExplainer({
   pass,
   learning,
   understood,
-  onNext,
 }: {
   pass: 0 | 1 | 2 | 3 | 4;
   learning: LearningLanguage;
   understood: UnderstoodLanguage;
-  onNext: () => void;
 }) {
   const { t } = useT();
   const dir = useDir();
@@ -169,15 +185,7 @@ export function PassStep({
   });
 
   return (
-    <StepFrame
-      dots={{ count: PASSES.length, active: pass, colour: info.colour }}
-      footer={
-        <StepAction
-          verb={info.nextVerb}
-          label={t(last ? 'settings.onboarding.gotIt' : 'settings.onboarding.next')}
-          onPress={onNext}
-        />
-      }>
+    <>
       <ArtCard colour={info.colour}>
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
           <View
@@ -198,14 +206,14 @@ export function PassStep({
                   progress={0.5}
                   resizeMode="contain"
                   style={{ width: COMPARE_ART, height: COMPARE_ART }}
-                  source={LOTTIE_SOURCES[0]}
+                  source={getLottieSource(0)}
                 />
                 <LottieView
                   autoPlay={false}
                   progress={0.5}
                   resizeMode="contain"
                   style={{ width: COMPARE_ART, height: COMPARE_ART }}
-                  source={LOTTIE_SOURCES[3]}
+                  source={getLottieSource(3)}
                 />
               </View>
             ) : (
@@ -215,7 +223,7 @@ export function PassStep({
                 progress={lottiePaused ? 0.5 : undefined}
                 resizeMode="contain"
                 style={{ width: info.a, height: info.a }}
-                source={LOTTIE_SOURCES[pass]}
+                source={getLottieSource(pass)}
               />
             )}
           </View>
@@ -257,6 +265,39 @@ export function PassStep({
         </View>
       </ArtCard>
       <StepCopy kicker={kicker} kickerColour={info.colour} title={t(info.headlineKey)} body={t(info.lineKey)} />
+    </>
+  );
+}
+
+/**
+ * One of the five onboarding pass screens: the progress dots, the pass's own
+ * explanation, and the button on to the next one.
+ */
+export function PassStep({
+  pass,
+  learning,
+  understood,
+  onNext,
+}: {
+  pass: 0 | 1 | 2 | 3 | 4;
+  learning: LearningLanguage;
+  understood: UnderstoodLanguage;
+  onNext: () => void;
+}) {
+  const { t } = useT();
+  const info = PASSES[pass];
+
+  return (
+    <StepFrame
+      dots={{ count: PASSES.length, active: pass, colour: info.colour }}
+      footer={
+        <StepAction
+          verb={info.nextVerb}
+          label={t(pass === 4 ? 'settings.onboarding.gotIt' : 'settings.onboarding.next')}
+          onPress={onNext}
+        />
+      }>
+      <PassExplainer pass={pass} learning={learning} understood={understood} />
     </StepFrame>
   );
 }

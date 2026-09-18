@@ -1,6 +1,10 @@
 /** Tide components around the player: fills in with Task 3b, tide group. */
 export const en = {
   'player.autoEcho': 'Auto Echo',
+  'player.programme': 'Mode',
+  'player.ladder': 'Ladder',
+  'player.echoDescription': 'Listen, echo, speak, play',
+  'player.ladderDone': 'Ladder complete',
   'player.stepReady': 'Ready',
   'player.stepListen': 'Listen to the audio',
   'player.stepEcho': 'Recall and understand the content just heard',
@@ -13,6 +17,7 @@ export const en = {
   'player.start': 'Start',
   'player.startAgain': 'Start again',
   'player.record': 'Record',
+  'player.cancelCountIn': 'Cancel the count',
   'player.autoEchoToggle': 'Go on to the next line, and start over after the last',
   'player.autoRecordToggle': 'Speak opens the microphone on its own',
   'player.headsetIn': 'Headphones in: the line plays under your voice.',
@@ -42,6 +47,7 @@ export const en = {
   'player.ofLabel': 'OF',
 
   'player.close': 'Close',
+  'player.help': 'How this pass works',
 
   'player.off': 'Off',
   'player.readingFurigana': 'Furigana',

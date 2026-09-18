@@ -1,6 +1,8 @@
+import { SymbolView } from 'expo-symbols';
 import { memo, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
+  cancelAnimation,
   Easing,
   FadeIn,
   FadeOut,
@@ -15,9 +17,11 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { LevelBars } from '@/components/level-bars';
+import { PASSES, PassExplainer } from '@/components/onboarding/pass-step';
+import { StepAction } from '@/components/onboarding/step-frame';
 import { PressScale } from '@/components/press-scale';
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
-import { SheetToggle } from '@/components/sheet/sheet-rows';
+import { SheetToggle, type SheetIcon } from '@/components/sheet/sheet-rows';
 import { ROW_HEIGHT, TakeFeedback } from '@/components/take-feedback';
 import { SparkleResult, type SparkleResultData } from '@/components/tide/sparkle-result';
 import { STRIP_HEIGHT, VoiceRipples } from '@/components/tide/voice-ripples';
@@ -25,31 +29,27 @@ import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
 import { useDir, useT } from '@/lib/i18n';
 import type { Mora, NativeLanguage, TakeAnalysis } from '@/lib/api';
+import {
+  COUNT_IN_BEAT_MS,
+  helpPassOf,
+  hintKeyOf,
+  isArmedStep,
+  isPlayStep,
+  isSpeakStep,
+  segmentsOf,
+  segmentIndexOf,
+  type PassStep,
+  type Programme,
+} from '@/lib/pass-programme';
+import type { LearningLanguage } from '@/lib/settings';
 
-/** The four steps of one Echo pass, in order. `idle` is before Start and
- * `done` is after the last Play, both outside the segment row. */
-export type EchoStep = 'idle' | 'listen' | 'echo' | 'armed' | 'speak' | 'play' | 'done';
+/** The help affordance's symbol: quiet, and the same question mark on both
+ * platforms. */
+const HELP_ICON: SheetIcon = { ios: 'questionmark.circle', android: 'help_outline' };
 
-const STEP_HINT_KEY = {
-  idle: 'player.stepReady',
-  listen: 'player.stepListen',
-  echo: 'player.stepEcho',
-  armed: 'player.stepSpeak',
-  speak: 'player.stepSpeak',
-  play: 'player.stepPlay',
-  done: 'player.stepDone',
-} as const;
-
-// idle has no filled segment; done fills every segment (the pass is over).
-const SEGMENT_INDEX: Record<EchoStep, number> = {
-  idle: -1,
-  listen: 0,
-  echo: 1,
-  armed: 2,
-  speak: 2,
-  play: 3,
-  done: 4,
-};
+/** Old name for `PassStep`, kept so a step prop typed against it still
+ * compiles. */
+export type EchoStep = PassStep;
 
 type AutoEchoSheetProps = {
   open: boolean;
@@ -60,12 +60,23 @@ type AutoEchoSheetProps = {
   /** The island's understood language: 'he' lays the translation line out
    * right to left. Defaults to 'en'. */
   native?: NativeLanguage;
+  /** The island's learning language: the Read along help shows its sample
+   * words. Defaults to Japanese. */
+  language?: LearningLanguage;
   /** The line's moras, for the feedback row's kana and phrase grouping. */
   moras: Mora[] | null;
   /** The last take's mora feedback, shown under the English at Play and Done. */
   analysis: TakeAnalysis | null;
-  step: EchoStep;
+  step: PassStep;
+  /** The step machine the record button runs: the five-pass ladder or the
+   * plain Auto Echo loop, chosen in Settings > Playback. The sheet only reads
+   * it to pick its title and its segments; it has no control to change it. */
+  programme?: Programme;
   countdown: number | null;
+  /** The beat the count before a hand-started take is on (3, 2, 1), or `null`
+   * when no count is running. The record button shows it instead of its dot,
+   * and one ring pulses out of the button per beat. */
+  countIn: number | null;
   /** 0..1 live meter level, read on the UI thread by the ripples and bars. */
   level: SharedValue<number>;
   /** 0..1, animated on the UI thread by the screen: how far the current
@@ -104,10 +115,13 @@ function AutoEchoSheetBase({
   sentence,
   english,
   native = 'en',
+  language = 'ja',
   moras,
   analysis,
   step,
+  programme = 'ladder',
   countdown,
+  countIn,
   level,
   fill,
   stopping,
@@ -123,11 +137,14 @@ function AutoEchoSheetBase({
   onStop,
   onRetry,
 }: AutoEchoSheetProps) {
-  const segmentIndex = SEGMENT_INDEX[step];
+  const segmentIndex = segmentIndexOf(step, programme);
   const reducedMotion = useReducedMotion();
   const { t } = useT();
   const dir = useDir();
-  const segmentLabels = [t('player.segmentListen'), t('player.segmentEcho'), t('player.segmentSpeak'), t('player.play')];
+  const segments = segmentsOf(programme);
+  const speaking = isSpeakStep(step);
+  const armed = isArmedStep(step);
+  const played = isPlayStep(step);
 
   // The one active segment's width, read from the screen's shared value.
   // Segments before and after it are plain static styles below, so this
@@ -135,6 +152,34 @@ function AutoEchoSheetBase({
   const fillStyle = useAnimatedStyle(() => ({
     width: `${Math.max(0, Math.min(1, fill.value)) * 100}%`,
   }));
+
+  // One ring leaves the record button per count beat: 0 at the beat, 1 when
+  // the next one is due. With reduced motion it does not move at all and the
+  // ring simply stands around the button while the count runs, so the digit
+  // is never the only sign of it.
+  const beat = useSharedValue(0);
+  useEffect(() => {
+    if (countIn === null) {
+      cancelAnimation(beat);
+      beat.value = 0;
+      return;
+    }
+    if (reducedMotion) {
+      beat.value = 0;
+      return;
+    }
+    beat.value = 0;
+    beat.value = withTiming(1, { duration: COUNT_IN_BEAT_MS, easing: Easing.out(Easing.cubic) });
+  }, [countIn, reducedMotion, beat]);
+  useEffect(() => () => cancelAnimation(beat), [beat]);
+
+  // Guarded: a NaN or undefined here would throw on the UI thread, which
+  // Expo Go ends the app for without a red box.
+  const beatStyle = useAnimatedStyle(() => {
+    const b = Number.isFinite(beat.value) ? Math.min(Math.max(beat.value, 0), 1) : 0;
+    if (reducedMotion) return { opacity: 0.8, transform: [{ scale: 1.1 }] };
+    return { opacity: 0.85 * (1 - b), transform: [{ scale: 1 + 0.22 * b }] };
+  }, [reducedMotion]);
 
   // A short soft glow at the boundary where a segment just finished and the
   // next one takes over. Display only: it reads `step` (via segmentIndex)
@@ -160,92 +205,160 @@ function AutoEchoSheetBase({
   }, [segmentIndex]);
   const glowStyle = useAnimatedStyle(() => ({ opacity: glow.value }));
 
+  // The pass the help button explains, and whether it is showing. Help is
+  // display only: the run behind it keeps going (the line plays on, a
+  // recording keeps recording, a saved take stays saved), so one tap on Got
+  // it puts the practice back exactly where it was. Nothing pauses: the
+  // passes are timed against the audio, and pausing mid-record would cut the
+  // take short. The body below stays mounted under `display: none`, so the
+  // only clocks help starts are the explanation's own, and closing it
+  // unmounts them.
+  const helpPass = helpPassOf(step, programme);
+  const [helpOpen, setHelpOpen] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!open) setHelpOpen(false);
+  }, [open]);
+
   return (
-    <BottomSheet open={open} onClose={onClose} onDismissed={onDismissed} title={t('player.autoEcho')}>
-      <View style={styles.sentenceArea}>
-        {sentence ? <Text style={styles.sentence}>{sentence}</Text> : null}
-        {english ? <Text style={[styles.english, native === 'he' && styles.englishRtl]}>{english}</Text> : null}
-        <View style={styles.feedbackRow}>
-          {(step === 'play' || step === 'done') && moras ? <TakeFeedback moras={moras} analysis={analysis} /> : null}
-        </View>
-        <SparkleResult result={result} />
-      </View>
-
-      <View style={[styles.segments, dir.row]}>
-        {segmentLabels.map((label, i) => (
-          <View key={label} style={styles.segmentCol}>
-            <View style={styles.segmentBar}>
-              {i < segmentIndex ? (
-                <View style={[styles.segmentFill, dir.rtl && styles.segmentFillRtl, styles.segmentFillDone]} />
-              ) : null}
-              {i === segmentIndex ? (
-                <Animated.View style={[styles.segmentFill, dir.rtl && styles.segmentFillRtl, fillStyle]} />
-              ) : null}
-            </View>
-            {i === glowAt ? (
-              <Animated.View
-                pointerEvents="none"
-                style={[styles.segmentGlow, dir.rtl && styles.segmentGlowRtl, glowStyle]}
-              />
-            ) : null}
-            <Text style={[styles.segmentLabel, i <= segmentIndex && styles.segmentLabelDone]}>{label}</Text>
+    <BottomSheet
+      open={open}
+      onClose={onClose}
+      onDismissed={onDismissed}
+      title={t(programme === 'ladder' ? 'player.ladder' : 'player.autoEcho')}>
+      <View style={helpOpen ? styles.hidden : undefined}>
+        {helpPass === null ? null : (
+          <PressScale
+            onPress={() => setHelpOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={t('player.help')}
+            style={[styles.help, dir.rtl ? styles.helpStart : styles.helpEnd]}>
+            <SymbolView name={HELP_ICON} size={19} weight="regular" tintColor={tide.textDim} />
+          </PressScale>
+        )}
+        <View style={styles.sentenceArea}>
+          {sentence ? <Text style={styles.sentence}>{sentence}</Text> : null}
+          {english ? <Text style={[styles.english, native === 'he' && styles.englishRtl]}>{english}</Text> : null}
+          <View style={styles.feedbackRow}>
+            {(played || step === 'done') && moras ? <TakeFeedback moras={moras} analysis={analysis} /> : null}
           </View>
-        ))}
-      </View>
+          <SparkleResult result={result} />
+        </View>
 
-      <View style={styles.ripplesRow}>{step === 'speak' ? <VoiceRipples level={level} /> : null}</View>
+        <View style={[styles.segments, dir.row]}>
+          {segments.map((segment, i) => (
+            <View key={segment.labelKey} style={styles.segmentCol}>
+              <View style={styles.segmentBar}>
+                {i < segmentIndex ? (
+                  <View
+                    style={[
+                      styles.segmentFill,
+                      dir.rtl && styles.segmentFillRtl,
+                      styles.segmentFillDone,
+                      { backgroundColor: segment.colour },
+                    ]}
+                  />
+                ) : null}
+                {i === segmentIndex ? (
+                  <Animated.View
+                    style={[styles.segmentFill, dir.rtl && styles.segmentFillRtl, fillStyle, { backgroundColor: segment.colour }]}
+                  />
+                ) : null}
+              </View>
+              {i === glowAt ? (
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.segmentGlow,
+                    dir.rtl && styles.segmentGlowRtl,
+                    glowStyle,
+                    { backgroundColor: segment.colour, shadowColor: segment.colour },
+                  ]}
+                />
+              ) : null}
+              <Text style={[styles.segmentLabel, i <= segmentIndex && styles.segmentLabelDone]}>{t(segment.labelKey)}</Text>
+            </View>
+          ))}
+        </View>
 
-      <View style={styles.hintRow}>
-        <Animated.Text
-          key={step}
-          entering={reducedMotion ? FadeIn.duration(180) : SlideInRight.duration(220).easing(Easing.out(Easing.cubic))}
-          exiting={reducedMotion ? FadeOut.duration(180) : SlideOutLeft.duration(220).easing(Easing.out(Easing.cubic))}
-          style={styles.hint}>
-          {t(STEP_HINT_KEY[step])}
-        </Animated.Text>
-        {step === 'echo' && countdown !== null ? <Text style={styles.countdown}>{countdown}</Text> : null}
-        {step === 'speak' ? <LevelBars level={level} live /> : null}
-      </View>
+        <View style={styles.ripplesRow}>{speaking ? <VoiceRipples level={level} /> : null}</View>
 
-      <View style={styles.buttonRow}>
-        {step === 'idle' || step === 'done' ? (
-          <PressScale onPress={onStart} accessibilityRole="button" accessibilityLabel={step === 'idle' ? t('player.start') : t('player.startAgain')} style={styles.pill}>
-            <Text style={styles.pillLabel}>{step === 'idle' ? t('player.start') : t('player.startAgain')}</Text>
-          </PressScale>
-        ) : null}
-        {step === 'armed' ? (
-          <PressScale onPress={onRecord} accessibilityRole="button" accessibilityLabel={t('player.record')} style={[styles.round, styles.recordRound]}>
-            <View style={styles.recordDot} />
-          </PressScale>
-        ) : null}
-        {step === 'speak' && !stopping ? (
-          <>
-            <PressScale onPress={onStop} accessibilityRole="button" accessibilityLabel={t('player.stop')} style={[styles.round, styles.recordRound]}>
-              <View style={styles.stopSquare} />
+        <View style={styles.hintRow}>
+          <Animated.Text
+            key={step}
+            entering={reducedMotion ? FadeIn.duration(180) : SlideInRight.duration(220).easing(Easing.out(Easing.cubic))}
+            exiting={reducedMotion ? FadeOut.duration(180) : SlideOutLeft.duration(220).easing(Easing.out(Easing.cubic))}
+            style={styles.hint}>
+            {t(hintKeyOf(step, programme))}
+          </Animated.Text>
+          {step === 'echo' && countdown !== null ? <Text style={styles.countdown}>{countdown}</Text> : null}
+          {speaking ? <LevelBars level={level} live /> : null}
+        </View>
+
+        <View style={styles.buttonRow}>
+          {step === 'idle' || step === 'done' ? (
+            <PressScale onPress={onStart} accessibilityRole="button" accessibilityLabel={step === 'idle' ? t('player.start') : t('player.startAgain')} style={styles.pill}>
+              <Text style={styles.pillLabel}>{step === 'idle' ? t('player.start') : t('player.startAgain')}</Text>
             </PressScale>
-            <PressScale onPress={onRetry} accessibilityRole="button" accessibilityLabel={t('common.retry')} style={[styles.round, styles.retryRound]}>
-              <Text style={styles.retryGlyph}>↻</Text>
+          ) : null}
+          {armed ? (
+            <PressScale
+              onPress={onRecord}
+              accessibilityRole="button"
+              accessibilityLabel={countIn === null ? t('player.record') : t('player.cancelCountIn')}
+              style={[styles.round, styles.recordRound]}>
+              {countIn === null ? (
+                <View style={styles.recordDot} />
+              ) : (
+                <>
+                  <Animated.View pointerEvents="none" style={[styles.beatRing, beatStyle]} />
+                  <Text style={styles.countIn}>{countIn}</Text>
+                </>
+              )}
             </PressScale>
-          </>
-        ) : null}
+          ) : null}
+          {speaking && !stopping ? (
+            <>
+              <PressScale onPress={onStop} accessibilityRole="button" accessibilityLabel={t('player.stop')} style={[styles.round, styles.recordRound]}>
+                <View style={styles.stopSquare} />
+              </PressScale>
+              <PressScale onPress={onRetry} accessibilityRole="button" accessibilityLabel={t('common.retry')} style={[styles.round, styles.retryRound]}>
+                <Text style={styles.retryGlyph}>↻</Text>
+              </PressScale>
+            </>
+          ) : null}
+        </View>
+
+        <SheetToggle
+          label={t('player.autoEchoToggle')}
+          value={autoEcho}
+          onValueChange={onToggleAutoEcho}
+          icon={{ ios: 'forward.end', android: 'skip_next' }}
+        />
+        <SheetToggle
+          label={t('player.autoRecordToggle')}
+          value={autoRecord}
+          onValueChange={onToggleAutoRecord}
+          icon={{ ios: 'mic', android: 'mic' }}
+        />
+        <Text style={[styles.note, dir.text]}>
+          {headset === true ? t('player.headsetIn') : t('player.headsetPrompt')}
+        </Text>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
       </View>
 
-      <SheetToggle
-        label={t('player.autoEchoToggle')}
-        value={autoEcho}
-        onValueChange={onToggleAutoEcho}
-        icon={{ ios: 'forward.end', android: 'skip_next' }}
-      />
-      <SheetToggle
-        label={t('player.autoRecordToggle')}
-        value={autoRecord}
-        onValueChange={onToggleAutoRecord}
-        icon={{ ios: 'mic', android: 'mic' }}
-      />
-      <Text style={[styles.note, dir.text]}>
-        {headset === true ? t('player.headsetIn') : t('player.headsetPrompt')}
-      </Text>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {helpOpen && helpPass !== null ? (
+        <View style={styles.helpBody}>
+          <PassExplainer pass={helpPass} learning={language} understood={native} />
+          <View style={styles.helpAction}>
+            <StepAction
+              verb={PASSES[helpPass].nextVerb}
+              label={t('settings.onboarding.gotIt')}
+              onPress={() => setHelpOpen(false)}
+            />
+          </View>
+        </View>
+      ) : null}
     </BottomSheet>
   );
 }
@@ -255,6 +368,17 @@ function AutoEchoSheetBase({
 export const AutoEchoSheet = memo(AutoEchoSheetBase);
 
 const styles = StyleSheet.create({
+  // The running sheet stays mounted while help is up: hiding it keeps the
+  // segment fill, the ripples and a recording in progress exactly as they
+  // were, and costs no layout.
+  hidden: { display: 'none' },
+  // A quiet mark in the sheet's top corner, clear of the Start and Record
+  // controls in the middle. Temporary: this sheet is being redesigned.
+  help: { position: 'absolute', top: -6, width: 36, height: 36, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
+  helpEnd: { right: -8 },
+  helpStart: { left: -8 },
+  helpBody: { gap: 16, paddingTop: 4, paddingBottom: 8 },
+  helpAction: { alignItems: 'center' },
   // minHeight keeps room for the SparkleResult overlay even when Blind hides
   // the sentence and English is off, so the result still has a place to sit.
   sentenceArea: { minHeight: 56, justifyContent: 'center' },
@@ -307,9 +431,22 @@ const styles = StyleSheet.create({
   pill: { paddingVertical: 14, paddingHorizontal: 36, borderRadius: 26, backgroundColor: tide.lang.ja, alignItems: 'center', justifyContent: 'center' },
   pillLabel: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 16, color: tide.water },
   round: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
-  recordRound: { backgroundColor: tide.record },
+  // overflow: the count's ring grows past the button and must not be clipped.
+  recordRound: { backgroundColor: tide.record, overflow: 'visible' },
   retryRound: { backgroundColor: tide.lang.ja },
   recordDot: { width: 16, height: 16, borderRadius: 8, backgroundColor: tide.sky[0] },
+  // Sits around the 52pt record button and grows past it on each count beat.
+  beatRing: {
+    position: 'absolute',
+    top: -8,
+    left: -8,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    borderWidth: 2,
+    borderColor: tide.record,
+  },
+  countIn: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 24, color: tide.sky[0], fontVariant: ['tabular-nums'] },
   stopSquare: { width: 16, height: 16, borderRadius: 3, backgroundColor: tide.sky[0] },
   retryGlyph: { fontFamily: fonts.ui, fontSize: 24, color: tide.sky[0] },
   note: { fontFamily: fonts.ui, fontSize: 12, lineHeight: 17, color: tide.textDim, marginTop: 4 },

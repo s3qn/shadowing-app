@@ -9,6 +9,7 @@ import { documentDirectory, getInfoAsync, readAsStringAsync, writeAsStringAsync 
 
 import { SPEED_MAX, SPEED_MIN } from '@/constants/theme';
 import { getLanguage } from '@/lib/languages';
+import type { Programme } from '@/lib/pass-programme';
 
 export const DEFAULT_VOICE = 3;
 // languages: VOICEVOX style id for Japanese, Kokoro voice ids for Spanish and
@@ -98,6 +99,9 @@ export type Settings = {
   register: Register;
   autoEcho: boolean;
   autoRecord: boolean;
+  /** The player's step machine when the record button starts a run: the
+   * five-pass ladder (default) or the plain Auto Echo loop. */
+  programme: Programme;
   /** Playback speed a new island's player opens at, `SPEED_MIN`-`SPEED_MAX`. */
   defaultSpeed: number;
   /** Plays per line a new island's player opens with. */
@@ -143,6 +147,7 @@ const DEFAULTS: Settings = {
   register: DEFAULT_REGISTER,
   autoEcho: true,
   autoRecord: true,
+  programme: 'ladder',
   defaultSpeed: DEFAULT_DEFAULT_SPEED,
   defaultTimes: DEFAULT_DEFAULT_TIMES,
   defaultPauseMs: DEFAULT_DEFAULT_PAUSE,
@@ -248,6 +253,7 @@ async function read(): Promise<Settings> {
     register: REGISTER_OPTIONS.includes(parsed.register as Register) ? (parsed.register as Register) : DEFAULT_REGISTER,
     autoEcho: parsed.autoEcho !== false,
     autoRecord: parsed.autoRecord !== false,
+    programme: parsed.programme === 'echo' ? 'echo' : 'ladder',
     defaultSpeed:
       typeof parsed.defaultSpeed === 'number' && parsed.defaultSpeed >= SPEED_MIN && parsed.defaultSpeed <= SPEED_MAX
         ? parsed.defaultSpeed
@@ -407,6 +413,10 @@ export async function setAutoEcho(autoEcho: boolean): Promise<void> {
 
 export async function setAutoRecord(autoRecord: boolean): Promise<void> {
   await update({ autoRecord });
+}
+
+export async function setProgramme(programme: Programme): Promise<void> {
+  await update({ programme });
 }
 
 export async function setDefaultSpeed(defaultSpeed: number): Promise<void> {
