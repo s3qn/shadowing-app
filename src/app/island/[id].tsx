@@ -128,7 +128,6 @@ import {
   setAutoEcho as persistAutoEcho,
   setAutoRecord as persistAutoRecord,
   setBlind as persistBlind,
-  setProgramme as persistProgramme,
   setReading as persistReading,
   TIMES_MAX,
   type ReadingMode,
@@ -548,9 +547,11 @@ export default function IslandScreen() {
     echoRef.current = echoStep;
   }, [echoStep]);
   // Which programme the record button runs: the five-pass ladder or the plain
-  // Auto Echo loop. Remembered in the settings file and switched in the sheet.
+  // Auto Echo loop. Read once at mount from Settings > Playback; a change
+  // made there while this sheet is open only takes effect the next time the
+  // player opens, so a run in progress can never end up half in one
+  // programme and half in the other.
   const [programme, setProgrammeState] = useState<Programme>(() => getSettingsSync().programme);
-  const programmeTouched = useRef(false);
   // The island's speed as the current session's line started: every pass plays
   // relative to it (passSpeed) and leaving a session mid-pass restores it. The
   // session itself never writes the rung.
@@ -834,7 +835,7 @@ export default function IslandScreen() {
       if (!englishTouched.current) setEnglishShown(!settings.hideEnglish);
       if (!autoEchoTouched.current) setAutoEchoState(settings.autoEcho);
       if (!autoRecordTouched.current) setAutoRecordState(settings.autoRecord);
-      if (!programmeTouched.current) setProgrammeState(settings.programme);
+      setProgrammeState(settings.programme);
       if (!readingTouched.current) setReadingMode(settings.reading);
       if (!pitchTouched.current) setPitchOn(settings.pitch);
       if (!timesTouched.current) setTimes(settings.defaultTimes);
@@ -2647,15 +2648,6 @@ export default function IslandScreen() {
   const onEchoStart = useStableHandler(startEcho);
   const onToggleAutoEchoStable = useStableHandler(toggleAutoEcho);
   const onToggleAutoRecordStable = useStableHandler(toggleAutoRecord);
-  // Switching the mode ends the run that is going; the sheet then shows Start
-  // for the mode that was picked.
-  const onProgrammeStable = useStableHandler((next: Programme) => {
-    if (next === programme) return;
-    stopEcho();
-    programmeTouched.current = true;
-    setProgrammeState(next);
-    persistProgramme(next).catch(() => {});
-  });
   const onSheetDismissed = useStableHandler(runAfterSheet);
   const onMenuClose = useStableHandler(() => setSheet(null));
   const onMenuRename = useStableHandler((t: string) => closeSheetThen(() => void renameTitle(t)));
@@ -3376,7 +3368,6 @@ export default function IslandScreen() {
         analysis={hidden ? null : feedback}
         step={echoStep}
         programme={programme}
-        onProgramme={onProgrammeStable}
         countdown={countdown}
         level={take.level}
         fill={echoFill}

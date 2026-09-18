@@ -16,7 +16,6 @@ import Animated, {
 
 import { LevelBars } from '@/components/level-bars';
 import { PressScale } from '@/components/press-scale';
-import { Segmented } from '@/components/segmented';
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
 import { SheetToggle } from '@/components/sheet/sheet-rows';
 import { ROW_HEIGHT, TakeFeedback } from '@/components/take-feedback';
@@ -56,11 +55,9 @@ type AutoEchoSheetProps = {
   analysis: TakeAnalysis | null;
   step: PassStep;
   /** The step machine the record button runs: the five-pass ladder or the
-   * plain Auto Echo loop. Optional only so this component still compiles
-   * ahead of the screen that wires it in (Task 2); every real caller passes
-   * both. */
+   * plain Auto Echo loop, chosen in Settings > Playback. The sheet only reads
+   * it to pick its title and its segments; it has no control to change it. */
   programme?: Programme;
-  onProgramme?: (next: Programme) => void;
   countdown: number | null;
   /** 0..1 live meter level, read on the UI thread by the ripples and bars. */
   level: SharedValue<number>;
@@ -104,7 +101,6 @@ function AutoEchoSheetBase({
   analysis,
   step,
   programme = 'ladder',
-  onProgramme = () => {},
   countdown,
   level,
   fill,
@@ -174,18 +170,6 @@ function AutoEchoSheetBase({
           {(played || step === 'done') && moras ? <TakeFeedback moras={moras} analysis={analysis} /> : null}
         </View>
         <SparkleResult result={result} />
-      </View>
-
-      <View style={styles.programmeRow}>
-        <Segmented
-          label={t('player.programme')}
-          value={programme}
-          onChange={onProgramme}
-          options={[
-            { value: 'ladder', label: t('player.ladder'), description: t('settings.onboarding.ladderTitle') },
-            { value: 'echo', label: t('player.autoEcho'), description: t('player.echoDescription') },
-          ]}
-        />
       </View>
 
       <View style={[styles.segments, dir.row]}>
@@ -292,7 +276,6 @@ const styles = StyleSheet.create({
   sentence: { fontFamily: fonts.serifJp, fontSize: 20, color: tide.text, textAlign: 'center' },
   english: { fontFamily: fonts.ui, fontSize: 13, color: tide.textDim, textAlign: 'center', marginTop: 4 },
   englishRtl: { writingDirection: 'rtl' },
-  programmeRow: { marginTop: 12 },
   // Reserved at this height on every step, not just play/done, so the row
   // mounting in and out doesn't resize the sheet (bottom-sheet.tsx sizes to
   // content) on every Play and every Echo.
