@@ -46,7 +46,17 @@ export const he = {
   // Practice card
   'home.practiceToday': 'היום',
   'home.practiceStreak': 'רצף',
-  'home.practiceGoal': 'מתוך {goal}',
+  // Isolated: the run is all neutral ("/" and digits), so without it the
+  // slash takes the line's right to left direction and drifts off the
+  // numbers it joins.
+  'home.practiceGoal': isolate('/{goal}'),
+  'home.weekdaySun': 'א',
+  'home.weekdayMon': 'ב',
+  'home.weekdayTue': 'ג',
+  'home.weekdayWed': 'ד',
+  'home.weekdayThu': 'ה',
+  'home.weekdayFri': 'ו',
+  'home.weekdaySat': 'ש',
 
   // Island search
   'home.searchPlaceholder': 'חיפוש איים',

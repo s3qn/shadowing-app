@@ -17,12 +17,26 @@ import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSeque
 
 import { fonts } from '@/constants/fonts';
 import { useDir, useT } from '@/lib/i18n';
+import { type Key } from '@/locales/en';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import { dayKey, lastSevenDays, minutesOn, streakDays, type PracticeLog } from '@/lib/practice';
 import { getSettingsSync, subscribeSettings } from '@/lib/settings';
 
 const DIGIT_HEIGHT = 34;
 const ROLL_DURATION = 450;
+
+/** Indexed by `Date.getDay()`, Sunday first. The letters come from the
+ * catalogue rather than `toLocaleDateString(locale, { weekday: 'narrow' })`:
+ * Hermes hands back a Latin letter for he-IL. */
+const WEEKDAY_KEY: Key[] = [
+  'home.weekdaySun',
+  'home.weekdayMon',
+  'home.weekdayTue',
+  'home.weekdayWed',
+  'home.weekdayThu',
+  'home.weekdayFri',
+  'home.weekdaySat',
+];
 
 function digitsOf(value: number): number[] {
   return Math.trunc(Math.abs(value)).toString().split('').map(Number);
@@ -139,14 +153,12 @@ function Odometer({ value, reducedMotion, textStyle }: { value: number; reducedM
 /** One weekday cell in the 7-day row. Today's cell lights up in the Japanese accent
  * once it holds minutes, with a soft one-time glow the moment it first crosses from
  * zero, not on mount. */
-function DayCell({ dayKey: key, minutes, isToday, reducedMotion, locale }: {
-  dayKey: string;
+function DayCell({ letter, minutes, isToday, reducedMotion }: {
+  letter: string;
   minutes: number;
   isToday: boolean;
   reducedMotion: boolean;
-  locale: string;
 }) {
-  const letter = new Date(`${key}T12:00:00`).toLocaleDateString(locale, { weekday: 'narrow' });
   const lit = isToday && minutes > 0;
 
   const mounted = useRef(false);
@@ -181,7 +193,7 @@ function DayCell({ dayKey: key, minutes, isToday, reducedMotion, locale }: {
 }
 
 export function PracticeCard({ log, dueCount }: { log: PracticeLog; dueCount: number }) {
-  const { t, locale } = useT();
+  const { t } = useT();
   const dir = useDir();
   const reducedMotion = useReducedMotion();
   // The goal is read here rather than passed down, so Home does not have to
@@ -200,7 +212,9 @@ export function PracticeCard({ log, dueCount }: { log: PracticeLog; dueCount: nu
     <View style={StyleSheet.flatten([styles.card, { backgroundColor: tide.water, borderColor: tide.waterline }])}>
       <View style={[styles.numbers, dir.row]}>
         <View style={styles.stat}>
-          <View style={[styles.todayValue, dir.row]}>
+          {/* Not `dir.row`: "1/10" is one number pair and keeps its order in
+              every language, the way a clock or a score does. */}
+          <View style={styles.todayValue}>
             <Odometer
               value={todayMinutes}
               reducedMotion={reducedMotion}
@@ -223,7 +237,13 @@ export function PracticeCard({ log, dueCount }: { log: PracticeLog; dueCount: nu
       </View>
       <View style={[styles.week, dir.row]}>
         {week.map((key) => (
-          <DayCell key={key} dayKey={key} minutes={minutesOn(log, key)} isToday={key === todayKey} reducedMotion={reducedMotion} locale={locale} />
+          <DayCell
+            key={key}
+            letter={t(WEEKDAY_KEY[new Date(`${key}T12:00:00`).getDay()])}
+            minutes={minutesOn(log, key)}
+            isToday={key === todayKey}
+            reducedMotion={reducedMotion}
+          />
         ))}
       </View>
     </View>
@@ -239,7 +259,7 @@ const styles = StyleSheet.create({
   odometerRow: { flexDirection: 'row' },
   // flex-end, not baseline: a rolling digit is a clipped View, so a baseline
   // row would shift the target text while the odometer animates.
-  todayValue: { flexDirection: 'row', alignItems: 'flex-end', gap: 4 },
+  todayValue: { flexDirection: 'row', alignItems: 'flex-end' },
   target: { fontSize: 13, fontWeight: '600', fontFamily: fonts.ui, paddingBottom: 4 },
   digitClip: { height: DIGIT_HEIGHT, overflow: 'hidden' },
   digitText: { height: DIGIT_HEIGHT, lineHeight: DIGIT_HEIGHT },

@@ -45,7 +45,7 @@ import { LONG_ISLAND } from '@/components/tide/transcript-window';
 import { useContentReveal, usePieceStyle } from '@/components/tide/use-content-reveal';
 import { Toolbar, type ToolbarItem } from '@/components/tide/toolbar';
 import { BlindPopover } from '@/components/tide/blind-popover';
-import { READING_LABEL, ReadingPopover } from '@/components/tide/reading-popover';
+import { READING_LABEL_KEY, ReadingPopover } from '@/components/tide/reading-popover';
 import { RepeatPopover, repeatTileLabel } from '@/components/tide/repeat-popover';
 import { speedLabel, SpeedPopover } from '@/components/tide/speed-popover';
 import { BlindIcon, ReadingIcon, RepeatIcon, SpeedIcon } from '@/components/tide/toolbar-icons';
@@ -2313,7 +2313,7 @@ export default function IslandScreen() {
         key: 'repeat',
         icon: <RepeatIcon color={repeatOn ? verb.listen.c1 : tide.textDim} size={22} />, // prism-player-buttons: verb listen tint
         label: t('player.toolbarRepeat'),
-        value: repeatTileLabel(times, pauseMs),
+        value: repeatTileLabel(t, times, pauseMs),
         active: repeatOn,
         onPress: () => {
           setSpeedPopOpen(false);
@@ -2332,7 +2332,7 @@ export default function IslandScreen() {
         key: 'reading',
         icon: <ReadingIcon color={readingOn ? verb.listen.c1 : tide.textDim} size={22} />, // prism-player-buttons: verb listen tint
         label: t('player.toolbarReading'),
-        value: READING_LABEL[readingMode],
+        value: t(READING_LABEL_KEY[readingMode]),
         active: readingOn,
         onPress: () => {
           setSpeedPopOpen(false);
@@ -2376,7 +2376,7 @@ export default function IslandScreen() {
     ];
     // languages: reading modes (furigana, kana, romaji) only exist for Japanese.
     return items.filter((item) => isJa || item.key !== 'reading');
-  }, [speedLive, times, pauseMs, readingMode, blind, englishShown, anchorMoved, isJa, island]);
+  }, [t, speedLive, times, pauseMs, readingMode, blind, englishShown, anchorMoved, isJa, island]);
 
   // A tapped transcript line jumps there and plays it, even from a paused
   // state (go alone would leave a paused line paused).
@@ -2739,6 +2739,7 @@ export default function IslandScreen() {
       </Animated.View>
     );
   }, [
+    t,
     line,
     blind,
     hidden,

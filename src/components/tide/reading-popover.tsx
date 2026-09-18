@@ -6,8 +6,9 @@ import { PressScale } from '@/components/press-scale';
 import { PopoverBubble } from '@/components/tide/popover-bubble';
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
-import { t, useDir } from '@/lib/i18n';
+import { useDir, useT } from '@/lib/i18n';
 import { READING_OPTIONS, type ReadingMode } from '@/lib/settings';
+import { type Key } from '@/locales/en';
 
 const BUTTON = 44;
 const GAP = 10;
@@ -19,22 +20,15 @@ const BODY_H = BUTTON + 2 * BODY_PAD;
 /** Heavily overdamped: the pill slides to its new icon without a wobble. */
 const PILL_SPRING = { damping: 40, stiffness: 300, mass: 1 } as const;
 
-// A getter object, not a plain literal: each property reads the current
-// language fresh, so a caller elsewhere (the island screen's tile readout)
-// stays correct across an app language switch without re-importing anything.
-export const READING_LABEL: Record<ReadingMode, string> = {
-  get off() {
-    return t('player.off');
-  },
-  get furigana() {
-    return t('player.readingFurigana');
-  },
-  get kana() {
-    return t('player.readingKana');
-  },
-  get romaji() {
-    return t('player.readingRomaji');
-  },
+// Keys, not strings: the caller translates with its own `t` from `useT()`,
+// whose identity changes with the language. A label resolved here against
+// the module-level `t` would be cached by the React Compiler and stay in
+// the language the screen first rendered in.
+export const READING_LABEL_KEY: Record<ReadingMode, Key> = {
+  off: 'player.off',
+  furigana: 'player.readingFurigana',
+  kana: 'player.readingKana',
+  romaji: 'player.readingRomaji',
 };
 const READING_GLYPH: Record<ReadingMode, string> = { off: '⊘', furigana: 'ふ', kana: 'あ', romaji: 'A' };
 
@@ -57,6 +51,7 @@ type Props = {
  */
 export function ReadingPopover({ anchorX, anchorTop, width, value, onChange, onClose }: Props) {
   const reducedMotion = useReducedMotion();
+  const { t } = useT();
   const dir = useDir();
   // The pill is positioned by an absolute translateX, which a row-reverse
   // flexDirection does not touch, so its target index is flipped by hand
@@ -94,7 +89,7 @@ export function ReadingPopover({ anchorX, anchorTop, width, value, onChange, onC
             key={mode}
             onPress={() => onChange(mode)}
             accessibilityRole="radio"
-            accessibilityLabel={READING_LABEL[mode]}
+            accessibilityLabel={t(READING_LABEL_KEY[mode])}
             accessibilityState={{ selected }}
             style={styles.button}>
             <Text

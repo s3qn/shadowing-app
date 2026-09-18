@@ -88,7 +88,7 @@ export default function PlaybackSettingsScreen() {
 
         <SettingsSection title={t('settings.playback.times')} footnote={t('settings.playback.timesFootnote')}>
           <View style={styles.rulerBox} onLayout={(e) => setRulerW(e.nativeEvent.layout.width - 2 * Spacing.md)}>
-            <Text style={styles.readout}>{timesLabel(defaultTimes)}</Text>
+            <Text style={styles.readout}>{timesLabel(t, defaultTimes)}</Text>
             {rulerW > 0 ? (
               <TickRuler
                 width={rulerW}
@@ -98,7 +98,7 @@ export default function PlaybackSettingsScreen() {
                 onSettle={(i) => void setDefaultTimes(i + TIMES_MIN)}
                 isMajor={() => true}
                 tickLabel={(i) => String(i + TIMES_MIN)}
-                accessibilityLabel={t('settings.playback.timesAccessibility', { label: timesLabel(defaultTimes) })}
+                accessibilityLabel={t('settings.playback.timesAccessibility', { label: timesLabel(t, defaultTimes) })}
               />
             ) : null}
           </View>

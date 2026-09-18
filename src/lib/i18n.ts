@@ -81,10 +81,7 @@ function interpolate(template: string, vars?: Vars): string {
   return template.replace(/\{(\w+)\}/g, (whole, name: string) => (name in vars ? isolate(String(vars[name])) : whole));
 }
 
-/** Reads the current settings synchronously, so it works outside a
- * component (an Alert body, a thrown error message) as well as inside one. */
-export function t(key: Key, vars?: Vars): string {
-  const lang = resolveAppLanguage(getSettingsSync());
+function translate(lang: Lang, key: Key, vars?: Vars): string {
   let resolvedKey: string = key;
   if (vars && typeof vars.count === 'number') {
     const suffixed = `${key}_${pluralSuffix(lang, vars.count)}`;
@@ -99,11 +96,36 @@ export function t(key: Key, vars?: Vars): string {
   return interpolate(template, vars);
 }
 
+export type TFn = (key: Key, vars?: Vars) => string;
+
+/** Reads the current settings synchronously, so it works outside a
+ * component (an Alert body, a thrown error message) as well as inside one.
+ * Inside a component use `useT()` instead: this one's identity never
+ * changes, see the note there. */
+export const t: TFn = (key, vars) => translate(resolveAppLanguage(getSettingsSync()), key, vars);
+
+// One `t` per language, built once and kept. The identity is the point: the
+// React Compiler (`experiments.reactCompiler` in app.json) caches a `t(...)`
+// result, and the whole JSX node around it, on `$[n] !== t`. With a single
+// module-level `t` that test never flips, so a screen keeps the text it
+// first rendered for its whole life. A `t` that is a different function per
+// language invalidates every cache chain that reads it the moment the
+// language changes.
+const translators = new Map<Lang, TFn>();
+
+function translatorFor(lang: Lang): TFn {
+  const cached = translators.get(lang);
+  if (cached) return cached;
+  const fn: TFn = (key, vars) => translate(lang, key, vars);
+  translators.set(lang, fn);
+  return fn;
+}
+
 /** For a component: re-renders when the app language changes (a settings
  * write, or an onboarding preview), without a Context provider. */
-export function useT(): { t: typeof t; lang: Lang; rtl: boolean; locale: string } {
+export function useT(): { t: TFn; lang: Lang; rtl: boolean; locale: string } {
   const lang = useSyncExternalStore(subscribeLang, () => resolveAppLanguage(getSettingsSync()));
-  return { t, lang, rtl: LOCALES[lang].rtl, locale: LOCALES[lang].tag };
+  return { t: translatorFor(lang), lang, rtl: LOCALES[lang].rtl, locale: LOCALES[lang].tag };
 }
 
 export type Dir = {

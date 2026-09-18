@@ -7,7 +7,7 @@ import { PopoverBubble } from '@/components/tide/popover-bubble';
 import { TICK_RULER_H, TickRuler } from '@/components/tide/tick-ruler';
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
-import { t, useDir, useT } from '@/lib/i18n';
+import { type TFn, useDir, useT } from '@/lib/i18n';
 import { PAUSE_MAX_MS, PAUSE_STEP_MS, TIMES_MAX, TIMES_MIN } from '@/lib/settings';
 
 const PAD = 12;
@@ -21,8 +21,11 @@ const POP_H = 2 * PAD + 2 * ROW_H + ROW_GAP;
 export const TIMES_STEPS = TIMES_MAX - TIMES_MIN + 1;
 export const PAUSE_STEPS = PAUSE_MAX_MS / PAUSE_STEP_MS + 1;
 
-/** "Off" at one play, "2×" and up otherwise. */
-export function timesLabel(times: number): string {
+/** "Off" at one play, "2×" and up otherwise. Takes the caller's `t` (from
+ * `useT()`) so the label follows an app language change: the module-level
+ * `t` has one identity forever, and the React Compiler would cache the
+ * result of this call on it. */
+export function timesLabel(t: TFn, times: number): string {
   return times <= 1 ? t('player.off') : `${times}×`;
 }
 
@@ -31,7 +34,7 @@ export function pauseLabel(ms: number): string {
 }
 
 /** The Repeat tile's value: "Off" with one play and no pause, else e.g. "3× · 1.5s". */
-export function repeatTileLabel(times: number, pauseMs: number): string {
+export function repeatTileLabel(t: TFn, times: number, pauseMs: number): string {
   if (times <= 1 && pauseMs <= 0) return t('player.off');
   return `${times}× · ${pauseLabel(pauseMs)}`;
 }
@@ -69,7 +72,7 @@ export function RepeatPopover({ anchorX, anchorTop, width, times, pauseMs, onTim
       radius={20}
       bodyStyle={styles.body}
       onClose={onClose}>
-      <RulerRow label={t('player.times')} icon={{ ios: 'repeat', android: 'repeat' }} readout={timesLabel(times)}>
+      <RulerRow label={t('player.times')} icon={{ ios: 'repeat', android: 'repeat' }} readout={timesLabel(t, times)}>
         <TickRuler
           width={RULER_W}
           steps={TIMES_STEPS}
@@ -77,7 +80,7 @@ export function RepeatPopover({ anchorX, anchorTop, width, times, pauseMs, onTim
           onIndexChange={(i) => onTimes(i + TIMES_MIN)}
           isMajor={() => true}
           tickLabel={(i) => String(i + TIMES_MIN)}
-          accessibilityLabel={t('player.timesAccessibility', { label: timesLabel(times) })}
+          accessibilityLabel={t('player.timesAccessibility', { label: timesLabel(t, times) })}
         />
       </RulerRow>
       <RulerRow label={t('player.pause')} icon={{ ios: 'pause', android: 'pause' }} readout={pauseLabel(pauseMs)}>

@@ -46,7 +46,19 @@ export const en = {
   // Practice card
   'home.practiceToday': 'Today',
   'home.practiceStreak': 'Streak',
-  'home.practiceGoal': 'of {goal}',
+  // A slash pair, not "1 of 10": the two figures read as one number, the way
+  // a score does, and no word wedges between them. Same shape in Hebrew.
+  'home.practiceGoal': '/{goal}',
+  // Narrow weekday letters for the 7-day row, Sunday first. Hermes' Intl
+  // answers `weekday: 'narrow'` with a Latin letter whatever locale it is
+  // handed, so the letters are spelled out here instead.
+  'home.weekdaySun': 'S',
+  'home.weekdayMon': 'M',
+  'home.weekdayTue': 'T',
+  'home.weekdayWed': 'W',
+  'home.weekdayThu': 'T',
+  'home.weekdayFri': 'F',
+  'home.weekdaySat': 'S',
 
   // Island search
   'home.searchPlaceholder': 'Search islands',
