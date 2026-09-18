@@ -61,7 +61,7 @@ export const he = {
   'islandError.no_lines': 'לא נמצאו שורות.',
   'islandError.voice_no_audio': 'הקול לא הפיק שמע.',
   'islandError.audio_undecodable': 'לא ניתן לפענח את הקול.',
-  'islandError.no_line_cut': 'לא ניתן היה לחתוך שורה.',
+  'islandError.no_line_cut': 'לא ניתן לחתוך שורה.',
   'islandError.media_undecodable': 'לא ניתן לפענח את המדיה.',
   'islandError.media_no_audio': 'אין שמע במדיה.',
   'islandError.start_past_end': 'זמן ההתחלה מאוחר מזמן הסיום.',

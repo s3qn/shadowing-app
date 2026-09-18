@@ -252,12 +252,17 @@ async function read(): Promise<Settings> {
     skyAlwaysNight: parsed.skyAlwaysNight === true,
     keepAwake: parsed.keepAwake !== false,
     homeWaveDate: typeof parsed.homeWaveDate === 'string' ? parsed.homeWaveDate : '',
-    // Validated against the catalogue, not the old 3/2-value unions: any
-    // language `src/lib/languages.ts` knows about is a valid pick. Islands
-    // already stored with `language: 'ja'` need no migration, since 'ja'
-    // stays a valid catalogue id forever.
+    // Validated against the catalogue's `learnable` flag, not just presence:
+    // a "coming soon" pick (French, Korean...) can end up here from a build
+    // that let the picker store it (see `setLearningLanguage`'s own guard,
+    // and `language-picker.tsx`'s learn mode, for the current one that does
+    // not). `toIslandLanguage` would silently narrow it to 'ja' at every use
+    // site while this field kept showing the coming-soon pick, so the
+    // Settings picker and everything that actually generates islands would
+    // disagree about what is being learned. Falling back here instead keeps
+    // the two in step: the ticked pick is always the one islands use.
     learningLanguage:
-      typeof parsed.learningLanguage === 'string' && getLanguage(parsed.learningLanguage)
+      typeof parsed.learningLanguage === 'string' && getLanguage(parsed.learningLanguage)?.learnable
         ? parsed.learningLanguage
         : DEFAULT_LEARNING_LANGUAGE,
     understoodLanguage:
@@ -419,7 +424,14 @@ export async function setHomeWaveDate(homeWaveDate: string): Promise<void> {
   await update({ homeWaveDate });
 }
 
+/** Ignores a "coming soon" catalogue pick (not yet `learnable`): the current
+ * value stays, so `learningLanguage` can never hold a language the app does
+ * not actually generate islands in. `language-picker.tsx` already stops a
+ * learn-mode tap from reaching this for such a pick; this guard is the last
+ * line so no other caller can reintroduce the old tick-versus-behaviour
+ * mismatch by calling this directly. */
 export async function setLearningLanguage(learningLanguage: LearningLanguage): Promise<void> {
+  if (!getLanguage(learningLanguage)?.learnable) return;
   await update({ learningLanguage });
 }
 
@@ -450,7 +462,12 @@ export function toNativeLanguage(id: UnderstoodLanguage): 'he' | 'en' {
   return (UNDERSTOOD_LANGUAGE_OPTIONS as readonly string[]).includes(id) ? (id as 'he' | 'en') : 'en';
 }
 
+// Same guard as `setLearningLanguage`, kept for symmetry: the understand
+// picker never lists a non-`understandable` entry in the first place (see
+// `language-picker.tsx`'s `understand` mode filter), so this should never
+// actually reject anything today.
 export async function setUnderstoodLanguage(understoodLanguage: UnderstoodLanguage): Promise<void> {
+  if (!getLanguage(understoodLanguage)?.understandable) return;
   await update({ understoodLanguage });
 }
 

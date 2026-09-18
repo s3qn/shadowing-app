@@ -42,7 +42,7 @@ export const he = {
   'record.podcastBuildHint': 'זה לוקח כמה דקות. אפשר לסגור את המסך הזה, האי ממשיך להיבנות ומופיע ברשימה כשהוא מוכן.',
   'record.defaultEpisodeTitle': 'פרק פודקאסט',
 
-  'record.micOff': 'הגישה למיקרופון כבויה. אפשר להפעיל אותה בהגדרות ולנסות שוב.',
+  'record.micOff': 'הגישה למיקרופון כבויה. יש להפעיל אותה בהגדרות ולנסות שוב.',
   'record.backgroundStopped': 'ההקלטה נעצרה כשהאפליקציה עברה לרקע.',
   'record.uploadFailed': 'ההעלאה נכשלה',
   'record.episodeDownloadFailed': 'הורדת הפרק נכשלה.',

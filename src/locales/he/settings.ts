@@ -28,8 +28,7 @@ export const he = {
   'settings.picker.comingSoon': 'בקרוב',
   'settings.picker.suggested': 'מוצע',
   'settings.picker.allLanguages': 'כל השפות',
-  'settings.picker.soonNote':
-    'עדיין לא זמינה לאיים. בחירה בשפה כזו מספרת לנו מה לבנות הבא בתור; איים עדיין משתמשים ביפנית בינתיים.',
+  'settings.picker.soonNote': 'עדיין לא זמינה ללימוד. התרגול נשאר ב{lang} עד שאחת מהשפות האלה תיבנה.',
   'settings.picker.noMatch': 'אין שפות התואמות ל-"{query}".',
 
   'settings.languages.learn': 'שפת הלימוד',
@@ -95,14 +94,14 @@ export const he = {
 
   'settings.suggest.hint': 'תיאור של מה שהאפליקציה צריכה לעשות. כל הצעה נקראת.',
   'settings.suggest.placeholder': 'מה האפליקציה צריכה לעשות?',
-  'settings.suggest.error': 'לא ניתן היה לשלוח. ניסיון חוזר.',
+  'settings.suggest.error': 'לא ניתן לשלוח. כדאי לנסות שוב.',
   'settings.suggest.sent': 'נשלח. תודה.',
   'settings.suggest.send': 'שליחה',
   'settings.suggest.sending': 'בשליחה',
 
   'settings.voice.comingSoonNote': '{name} עדיין לא זמינה. איים נבנים ב{lang} בינתיים.',
   'settings.voice.availableFor': 'קולות עבור {lang}. הקשה על קול תשמיע אותו; הקול שנבחר ישמש לאיי {lang} חדשים.',
-  'settings.voice.loadError': 'לא ניתן היה לטעון קולות',
+  'settings.voice.loadError': 'לא ניתן לטעון קולות',
   'settings.voice.credit': 'שמע שנוצר בקול הזה מיוחס בתור VOICEVOX:{name}',
 
   'settings.onboarding.skip': 'דילוג',

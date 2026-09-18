@@ -16,6 +16,7 @@ import {
   setHideEnglish,
   setPitch,
   setReading,
+  toIslandLanguage,
   type ReadingMode,
 } from '@/lib/settings';
 
@@ -32,6 +33,9 @@ export default function PracticeSettingsScreen() {
   const [pitch, setPitchState] = useState(true);
   const [hideEnglish, setHideEnglishState] = useState(false);
   const [blind, setBlindState] = useState(false);
+  // Furigana, Kana, Romaji and pitch marks are Japanese-only concepts: hidden
+  // for any other learning language, same as the Style row in record.tsx.
+  const [isJapanese, setIsJapanese] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
@@ -42,6 +46,7 @@ export default function PracticeSettingsScreen() {
         setPitchState(s.pitch);
         setHideEnglishState(s.hideEnglish);
         setBlindState(s.blind);
+        setIsJapanese(toIslandLanguage(s.learningLanguage) === 'ja');
       });
       return () => {
         alive = false;
@@ -57,40 +62,44 @@ export default function PracticeSettingsScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       <ScrollView contentContainerStyle={styles.list}>
-        <SettingsSection title={t('settings.practice.reading')} footnote={t('settings.playback.defaultFootnote')}>
-          <View style={styles.chipRow}>
-            {READING_OPTIONS.map((opt) => {
-              const on = opt === reading;
-              return (
-                <PressScale
-                  key={opt}
-                  onPress={() => pickReading(opt)}
-                  style={[
-                    styles.chip,
-                    {
-                      backgroundColor: on ? tide.lang.ja : 'rgba(255,255,255,0.08)',
-                      borderColor: on ? tide.lang.ja : 'rgba(255,255,255,0.14)',
-                    },
-                  ]}>
-                  <Text style={[styles.chipText, { color: on ? tide.sky[0] : tide.text }]}>
-                    {t(READING_LABEL_KEY[opt])}
-                  </Text>
-                </PressScale>
-              );
-            })}
-          </View>
-        </SettingsSection>
+        {isJapanese ? (
+          <SettingsSection title={t('settings.practice.reading')} footnote={t('settings.playback.defaultFootnote')}>
+            <View style={styles.chipRow}>
+              {READING_OPTIONS.map((opt) => {
+                const on = opt === reading;
+                return (
+                  <PressScale
+                    key={opt}
+                    onPress={() => pickReading(opt)}
+                    style={[
+                      styles.chip,
+                      {
+                        backgroundColor: on ? tide.lang.ja : 'rgba(255,255,255,0.08)',
+                        borderColor: on ? tide.lang.ja : 'rgba(255,255,255,0.14)',
+                      },
+                    ]}>
+                    <Text style={[styles.chipText, { color: on ? tide.sky[0] : tide.text }]}>
+                      {t(READING_LABEL_KEY[opt])}
+                    </Text>
+                  </PressScale>
+                );
+              })}
+            </View>
+          </SettingsSection>
+        ) : null}
 
         <SettingsSection title={t('settings.practice.defaults')} footnote={t('settings.playback.defaultFootnote')}>
-          <SettingsRow
-            label={t('settings.practice.pitchMarks')}
-            icon={{ ios: 'textformat', android: 'text_fields' }}
-            switchValue={pitch}
-            onSwitchChange={(next) => {
-              setPitchState(next);
-              void setPitch(next);
-            }}
-          />
+          {isJapanese ? (
+            <SettingsRow
+              label={t('settings.practice.pitchMarks')}
+              icon={{ ios: 'textformat', android: 'text_fields' }}
+              switchValue={pitch}
+              onSwitchChange={(next) => {
+                setPitchState(next);
+                void setPitch(next);
+              }}
+            />
+          ) : null}
           <SettingsRow
             label={t('settings.practice.hideEnglish')}
             icon={{ ios: 'text.badge.xmark', android: 'subtitles_off' }}

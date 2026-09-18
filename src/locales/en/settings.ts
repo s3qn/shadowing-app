@@ -35,8 +35,7 @@ export const en = {
   'settings.picker.comingSoon': 'Coming soon',
   'settings.picker.suggested': 'Suggested',
   'settings.picker.allLanguages': 'All languages',
-  'settings.picker.soonNote':
-    'Not ready for islands yet. Picking one tells us what to build next; islands still use Japanese for now.',
+  'settings.picker.soonNote': 'Not ready to learn yet. Practice stays in {lang} until one of these is built.',
   'settings.picker.noMatch': 'No languages match "{query}".',
 
   // Settings > Language (learn / understand pickers).

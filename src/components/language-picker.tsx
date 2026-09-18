@@ -92,11 +92,24 @@ function RegionChip({ label, active, onPress }: { label: string; active: boolean
   );
 }
 
-function LanguageRow({ entry, selected, onPress }: { entry: LanguageEntry; selected: boolean; onPress: () => void }) {
+function LanguageRow({
+  entry,
+  selected,
+  disabled,
+  onPress,
+}: {
+  entry: LanguageEntry;
+  selected: boolean;
+  /** A "coming soon" language in learn mode: tapping it must not change
+   * what is being learned, so `PressScale`'s own `disabled` blocks the
+   * press outright rather than relying on `onPress` to no-op. */
+  disabled?: boolean;
+  onPress: () => void;
+}) {
   const { t } = useT();
   const dir = useDir();
   return (
-    <PressScale onPress={onPress} style={[styles.row, dir.row]}>
+    <PressScale onPress={onPress} disabled={disabled} style={[styles.row, dir.row, disabled ? styles.rowDisabled : null]}>
       <View style={styles.badgeBox}>
         <Text style={styles.badge}>{entry.badge}</Text>
       </View>
@@ -186,12 +199,21 @@ export function LanguagePicker({ mode, value, onChange, exclude }: LanguagePicke
       renderSectionHeader={({ section }) => (
         <View style={styles.sectionHeaderWrap}>
           {mode === 'learn' && section.title === 'Coming soon' ? (
-            <Text style={styles.soonNote}>{t('settings.picker.soonNote')}</Text>
+            <Text style={styles.soonNote}>{t('settings.picker.soonNote', { lang: languageName(t, value) })}</Text>
           ) : null}
           <Text style={styles.sectionHeader}>{sectionTitle(t, section.title)}</Text>
         </View>
       )}
-      renderItem={({ item }) => <LanguageRow entry={item} selected={item.id === value} onPress={() => onChange(item.id)} />}
+      renderItem={({ item }) => {
+        // A "coming soon" pick can never become what the app is actually
+        // learning (see `setLearningLanguage`), so a learn-mode tap on one
+        // must not reach `onChange` at all: `disabled` blocks the press
+        // itself, rather than letting `onChange` silently no-op it.
+        const disabled = mode === 'learn' && !item.learnable;
+        return (
+          <LanguageRow entry={item} selected={item.id === value} disabled={disabled} onPress={() => onChange(item.id)} />
+        );
+      }}
     />
   );
 }
@@ -241,6 +263,7 @@ const styles = StyleSheet.create({
     borderColor: tide.waterline,
     backgroundColor: tide.water,
   },
+  rowDisabled: { opacity: 0.45 },
   badgeBox: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   badge: { fontSize: 20 },
   rowBody: { flex: 1, gap: 2 },
