@@ -138,6 +138,15 @@ export type Dir = {
    * it a line opening with Latin ("Echo Tail מקשיב לך") takes its base
    * direction from that first word and reads in the wrong order. */
   writing?: { writingDirection: 'rtl' };
+  /** For a `Text` that shows content rather than interface: an island title,
+   * a transcript line, a podcast description. Content can be in any language
+   * and must be ordered by its own characters, so the writing direction is
+   * `'auto'` (resolved per string from its first strong one) whatever the
+   * interface is. Only the alignment follows the interface, so a list of
+   * titles still sits on the reading edge. Set even in a left to right
+   * interface: the title of an island being learned in Hebrew or Arabic
+   * needs it there too. */
+  content: { textAlign: 'right'; writingDirection: 'auto' } | { writingDirection: 'auto' };
   /** The "go forward" chevron glyph, mirrored for a reversed reading order. */
   chevron: '›' | '‹';
 };
@@ -154,6 +163,7 @@ export function useDir(): Dir {
       row: rtl ? ({ flexDirection: 'row-reverse' } as const) : undefined,
       text: rtl ? ({ textAlign: 'right', writingDirection: 'rtl' } as const) : undefined,
       writing: rtl ? ({ writingDirection: 'rtl' } as const) : undefined,
+      content: rtl ? ({ textAlign: 'right', writingDirection: 'auto' } as const) : ({ writingDirection: 'auto' } as const),
       chevron: rtl ? ('‹' as const) : ('›' as const),
     }),
     [rtl],

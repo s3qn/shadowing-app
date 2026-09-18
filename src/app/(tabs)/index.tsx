@@ -849,6 +849,7 @@ export default function IslandsScreen() {
         onClose={() => setMenuItem(null)}
         onDismissed={runAfterSheet}
         title={menuItem?.title || t('home.untitledIsland')}
+        contentTitle
         avoidKeyboard>
         {/* prism-home: edited region */}
         {renaming ? (
@@ -859,7 +860,7 @@ export default function IslandsScreen() {
               onChangeText={setDraftTitle}
               onSubmitEditing={saveRename}
               returnKeyType="done"
-              style={styles.sheetInput}
+              style={[styles.sheetInput, dir.content]}
             />
             <GlassPanel style={[styles.sheetActionsRow, dir.rtl && styles.sheetActionsRowRtl]}>
               <PrismButton shape="pill" verb="tools" flat label={t('home.save')} onPress={saveRename}>
@@ -1255,7 +1256,9 @@ const IslandRow = memo(function IslandRow({
         <Animated.View pointerEvents="none" style={[styles.flashFill, { backgroundColor: tide.lang.ja }, flashFillStyle]} />
         <Animated.View pointerEvents="none" style={[styles.flashBorder, { borderColor: tide.lang.ja }, flashBorderStyle]} />
         <View style={styles.cardTop}>
-          <Text numberOfLines={2} style={[styles.cardTitle, dir.text, { color: tide.text, opacity: titleHidden ? 0 : 1 }]}>
+          {/* `dir.content`, not `dir.text`: a title is content, ordered by
+              its own script whatever the interface language is. */}
+          <Text numberOfLines={2} style={[styles.cardTitle, dir.content, { color: tide.text, opacity: titleHidden ? 0 : 1 }]}>
             {item.title || t('home.untitledIsland')}
           </Text>
         </View>

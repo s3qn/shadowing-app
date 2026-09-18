@@ -185,7 +185,9 @@ function ExplainSheetBase({
       <Frost
         frosted={blind && !(whole || marked.length === 0)}
         style={[styles.markedWrap, dir.rtl && styles.markedWrapRtl]}>
-        <Text style={[styles.marked, dir.text]}>{markedLabel}</Text>
+        {/* Either "the whole line" or the marked words themselves, so it is
+            laid out by its own script, not the interface's. */}
+        <Text style={[styles.marked, dir.content]}>{markedLabel}</Text>
       </Frost>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         {loading ? (
@@ -370,7 +372,7 @@ function VocabRow({
           </Text>
         ) : null}
       </View>
-      <Text style={[styles.vocabMeaning, dir.text]} numberOfLines={2}>
+      <Text style={[styles.vocabMeaning, dir.content]} numberOfLines={2}>
         {item.meaning}
       </Text>
     </Animated.View>
@@ -413,7 +415,7 @@ function GrammarChip({
       <View style={[styles.grammarChip, dir.rtl && styles.grammarChipRtl]}>
         <Text style={styles.grammarChipText}>{item.pattern}</Text>
       </View>
-      <Text style={[styles.grammarExplanation, dir.text]}>{item.explanation}</Text>
+      <Text style={[styles.grammarExplanation, dir.content]}>{item.explanation}</Text>
       {span ? (
         <View style={styles.grammarSentenceRow}>
           <Text style={styles.grammarSentenceText}>{before}</Text>
@@ -431,7 +433,7 @@ function GrammarChip({
 function SummaryBlock({ text, index, reducedMotion }: { text: string; index: number; reducedMotion: boolean }) {
   const { style } = useStagger(index, reducedMotion);
   const dir = useDir();
-  return <Animated.Text style={[styles.summary, dir.text, style]}>{text}</Animated.Text>;
+  return <Animated.Text style={[styles.summary, dir.content, style]}>{text}</Animated.Text>;
 }
 
 // One full sweep of the shimmer: dim to bright and back.

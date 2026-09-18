@@ -7,6 +7,7 @@ import { LanguagePicker } from '@/components/language-picker';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
 import { useDir, useT } from '@/lib/i18n';
+import { applyUnderstoodLanguage } from '@/lib/language-sync';
 import { LANGUAGES } from '@/lib/languages';
 import {
   getSettings,
@@ -54,6 +55,9 @@ export default function LanguagesSettingsScreen() {
       const fallback = LANGUAGES.find((l) => l.understandable && l.id !== next);
       if (fallback) {
         setUnderstandState(fallback.id);
+        // The plain setter, not `applyUnderstoodLanguage`: this move is the
+        // pair rule's, not the learner's, and a question about a language
+        // they did not just tap would come out of nowhere.
         void setUnderstoodLanguage(fallback.id);
       }
     }
@@ -61,7 +65,9 @@ export default function LanguagesSettingsScreen() {
 
   function pickUnderstand(next: UnderstoodLanguage) {
     setUnderstandState(next);
-    void setUnderstoodLanguage(next);
+    // Writes the pick, then asks about the interface language if this is the
+    // moment the two part (see `applyUnderstoodLanguage`).
+    void applyUnderstoodLanguage(next);
   }
 
   return (

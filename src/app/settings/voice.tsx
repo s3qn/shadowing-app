@@ -144,7 +144,9 @@ export default function VoiceScreen() {
                     </View>
                   )
                 ) : null}
-                <Text style={[styles.name, { color: tide.text }, dir.text]}>{sp.name}</Text>
+                {/* A voice's own name (Japanese for VOICEVOX), so it reads by
+                    its own script, not the interface's. */}
+                <Text style={[styles.name, { color: tide.text }, dir.content]}>{sp.name}</Text>
               </View>
               <View style={[styles.chips, dir.row]}>
                 {sp.styles.map((st) => {

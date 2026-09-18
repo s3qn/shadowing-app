@@ -34,11 +34,10 @@ function languageName(t: (key: Key) => string, id: LanguageId): string {
 const SECTION_KEY: Record<string, Key> = {
   'Ready to learn': 'settings.picker.readyToLearn',
   'Coming soon': 'settings.picker.comingSoon',
-  Suggested: 'settings.picker.suggested',
   'All languages': 'settings.picker.allLanguages',
 };
 
-/** `Section.title` is one of the four fixed English labels the picker
+/** `Section.title` is one of the three fixed English labels the picker
  * builds internally (see `sections` below), so this is a lookup, not a
  * translation of arbitrary content. */
 function sectionTitle(t: (key: Key) => string, title: string): string {
@@ -59,21 +58,6 @@ export type LanguagePickerProps = {
    * can never collide (for example English understanding English). */
   exclude?: LanguageId;
 };
-
-// Intl.DateTimeFormat is built into Hermes, no new package needed. A locale
-// Hermes cannot resolve (should not happen, but this runs at import time on
-// every device) falls back to no suggestion rather than crashing the screen.
-function suggestedLanguageId(): LanguageId | null {
-  try {
-    const locale = Intl.DateTimeFormat().resolvedOptions().locale;
-    const subtag = locale.split(/[-_]/)[0]?.toLowerCase();
-    if (!subtag) return null;
-    const match = LANGUAGES.find((l) => l.understandable && l.id.toLowerCase() === subtag);
-    return match?.id ?? null;
-  } catch {
-    return null;
-  }
-}
 
 function matchesQuery(entry: LanguageEntry, query: string): boolean {
   const q = query.trim().toLowerCase();
@@ -117,7 +101,7 @@ function LanguageRow({
   return (
     <PressScale onPress={onPress} disabled={soon} style={[styles.row, dir.row]}>
       <View style={styles.avatar}>
-        <Text style={styles.letter}>{entry.letter}</Text>
+        <Text style={entry.flag ? styles.flag : styles.letter}>{entry.flag ?? entry.letter}</Text>
       </View>
       <View style={styles.rowBody}>
         <Text style={[styles.native, dir.text]}>{entry.native}</Text>
@@ -141,8 +125,6 @@ export function LanguagePicker({ mode, value, onChange, exclude }: LanguagePicke
   const [query, setQuery] = useState('');
   const [activeRegion, setActiveRegion] = useState<Region | null>(null);
 
-  const suggested = useMemo(() => (mode === 'understand' ? suggestedLanguageId() : null), [mode]);
-
   const sections = useMemo<Section[]>(() => {
     // `exclude` only applies in understand mode: hiding the learn language's
     // pick there keeps the pair from colliding. Learn mode ignores it, so
@@ -161,13 +143,12 @@ export function LanguagePicker({ mode, value, onChange, exclude }: LanguagePicke
       if (soon.length) out.push({ title: 'Coming soon', data: soon });
       return out;
     }
-    const suggestedList = suggested ? base.filter((l) => l.id === suggested) : [];
-    const rest = base.filter((l) => l.id !== suggested);
-    const out: Section[] = [];
-    if (suggestedList.length) out.push({ title: 'Suggested', data: suggestedList });
-    if (rest.length) out.push({ title: 'All languages', data: rest });
-    return out;
-  }, [mode, exclude, query, activeRegion, suggested]);
+    // Understand mode is one flat list. It used to lead with a "Suggested"
+    // pick taken from the device locale, which is the one thing this screen
+    // must not assume: the phone being set to English says nothing about
+    // whether its owner reads English.
+    return base.length ? [{ title: 'All languages', data: base }] : [];
+  }, [mode, exclude, query, activeRegion]);
 
   return (
     <SectionList
@@ -276,9 +257,9 @@ const styles = StyleSheet.create({
     borderColor: tide.waterline,
     backgroundColor: tide.water,
   },
-  // The artifact's round glyph: a letter from the language's own script on
-  // glass, with the prism edges (warm on one side, cool on the other) drawn
-  // as per-side borders.
+  // The artifact's round glyph: the language's flag (a letter from its own
+  // script where no flag fits) on glass, with the prism edges (warm on one
+  // side, cool on the other) drawn as per-side borders.
   avatar: {
     width: 36,
     height: 36,
@@ -294,6 +275,7 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(255,255,255,0.30)',
     borderBottomColor: 'rgba(255,255,255,0.08)',
   },
+  flag: { fontSize: 20 },
   letter: { fontSize: 16, fontWeight: '700', color: tide.text, fontFamily: fonts.uiMedium },
   soonPill: {
     fontSize: 11,

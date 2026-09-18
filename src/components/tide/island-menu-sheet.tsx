@@ -91,7 +91,8 @@ function IslandMenuSheetBase({
             onChangeText={setDraft}
             onSubmitEditing={saveRename}
             returnKeyType="done"
-            style={[styles.input, dir.text]}
+            // The island's own title, ordered by its own script.
+            style={[styles.input, dir.content]}
           />
           <SheetAction label={t('player.save')} icon={ICONS.save} discColor={verb.tools.c1} onPress={saveRename} />
         </>

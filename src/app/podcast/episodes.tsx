@@ -105,7 +105,7 @@ export default function PodcastEpisodesScreen() {
             const meta = [dur, pub].filter(Boolean).join(' · ');
             return (
               <PressScale onPress={() => buildFrom(item)} accessibilityRole="button" style={styles.episode}>
-                <Text style={[styles.episodeTitle, dir.text]} numberOfLines={2}>
+                <Text style={[styles.episodeTitle, dir.content]} numberOfLines={2}>
                   {item.title || t('home.untitledEpisode')}
                 </Text>
                 {meta ? <Text style={[styles.episodeMeta, dir.text]}>{meta}</Text> : null}

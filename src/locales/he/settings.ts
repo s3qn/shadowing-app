@@ -49,13 +49,19 @@ export const he = {
   'settings.picker.regionAmericas': 'אמריקה',
   'settings.picker.readyToLearn': 'שפות זמינות ללמידה',
   'settings.picker.comingSoon': 'בקרוב',
-  'settings.picker.suggested': 'מוצע',
   'settings.picker.allLanguages': 'כל השפות',
   'settings.picker.soon': 'בקרוב',
   'settings.picker.noMatch': 'אין שפות התואמות ל-"{query}".',
 
   'settings.languages.learn': 'שפת הלימוד',
   'settings.languages.understand': 'שפה מובנת',
+
+  'settings.langPair.translationsTitle': 'לשנות גם את התרגומים?',
+  'settings.langPair.translationsBody':
+    'האפליקציה מוצגת עכשיו ב{lang}. התרגומים וההסברים עדיין ב{other}. לשנות גם אותם ל{lang}? האיים הקיימים שומרים על התרגומים שלהם.',
+  'settings.langPair.appTitle': 'לשנות גם את שפת האפליקציה?',
+  'settings.langPair.appBody':
+    'איים חדשים יתורגמו ל{lang}. האפליקציה עצמה עדיין ב{other}. לשנות גם אותה ל{lang}? האיים הקיימים שומרים על התרגומים שלהם.',
 
   'settings.about.app': 'אפליקציה',
   'settings.about.appFootnote': 'האיים שייכים למכשיר הזה. שון זקוק למזהה הזה פעם אחת כדי לשמור על האיים שלו.',

@@ -7,13 +7,16 @@ import { PrismButton } from '@/components/prism';
 import { SettingsSection } from '@/components/tide/settings-row';
 import { Spacing, tide } from '@/constants/theme';
 import { LOCALES, useT } from '@/lib/i18n';
-import { type AppLanguage, getSettings, setAppLanguage } from '@/lib/settings';
+import { applyAppLanguage } from '@/lib/language-sync';
+import { type AppLanguage, getSettings } from '@/lib/settings';
 
 /**
  * Three pills: follow the understood language, or pin English or Hebrew.
  * Native names are always shown in their own script (never translated), and
  * a tap writes straight to settings, no confirm step: the whole app
- * re-renders through `useT()` as soon as it does.
+ * re-renders through `useT()` as soon as it does. A pick that would split
+ * the interface from the understood language asks about that afterwards
+ * (see `applyAppLanguage`); the pick itself is never held up by the question.
  */
 export default function AppLanguageScreen() {
   const { t } = useT();
@@ -34,7 +37,7 @@ export default function AppLanguageScreen() {
 
   function pick(next: AppLanguage) {
     setCurrentState(next);
-    void setAppLanguage(next);
+    void applyAppLanguage(next);
   }
 
   return (

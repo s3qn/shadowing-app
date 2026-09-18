@@ -56,7 +56,6 @@ export const en = {
   'settings.picker.regionAmericas': 'Americas',
   'settings.picker.readyToLearn': 'Ready to learn',
   'settings.picker.comingSoon': 'Coming soon',
-  'settings.picker.suggested': 'Suggested',
   'settings.picker.allLanguages': 'All languages',
   'settings.picker.soon': 'Soon',
   'settings.picker.noMatch': 'No languages match "{query}".',
@@ -64,6 +63,15 @@ export const en = {
   // Settings > Language (learn / understand pickers).
   'settings.languages.learn': 'I want to learn',
   'settings.languages.understand': 'I understand',
+
+  // Asked only at the moment the interface language and the understood
+  // language would stop matching (see `src/lib/language-sync.ts`).
+  'settings.langPair.translationsTitle': 'Change translations too?',
+  'settings.langPair.translationsBody':
+    'The app is in {lang} now. Translations and explanations still come in {other}. Change those to {lang} too? Existing islands keep their translations.',
+  'settings.langPair.appTitle': 'Change the app language too?',
+  'settings.langPair.appBody':
+    'New islands will be translated into {lang}. The app itself is still in {other}. Change it to {lang} too? Existing islands keep their translations.',
 
   // Settings > About.
   'settings.about.app': 'App',

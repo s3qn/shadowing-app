@@ -31,6 +31,9 @@ type BottomSheetProps = {
    * onPress, so they never race the Modal dismissing. */
   onDismissed?: () => void;
   title?: string;
+  /** The title is content (an island's own name), not interface copy: it
+   * keeps its own writing direction whatever language the app is in. */
+  contentTitle?: boolean;
   /** A short explanation shown once under the title, in the muted style,
    * instead of repeating the same note on every row. */
   hint?: string;
@@ -44,7 +47,7 @@ type BottomSheetProps = {
  * dismiss. An internal `mounted` state keeps the Modal on screen through the
  * exit animation instead of yanking it away the instant `open` goes false.
  */
-export function BottomSheet({ open, onClose, onDismissed, title, hint, avoidKeyboard, children }: BottomSheetProps) {
+export function BottomSheet({ open, onClose, onDismissed, title, contentTitle, hint, avoidKeyboard, children }: BottomSheetProps) {
   const insets = useSafeAreaInsets();
   const { t } = useT();
   const dir = useDir();
@@ -127,7 +130,7 @@ export function BottomSheet({ open, onClose, onDismissed, title, hint, avoidKeyb
           }}
           style={[styles.panel, { paddingBottom: insets.bottom + 16 }, panelStyle]}>
           <View style={styles.grab} />
-          {title ? <Text style={[styles.title, dir.rtl && styles.rtlText]}>{title}</Text> : null}
+          {title ? <Text style={[styles.title, contentTitle ? styles.autoText : dir.rtl && styles.rtlText]}>{title}</Text> : null}
           {hint ? <Text style={[styles.hint, dir.rtl && styles.rtlText]}>{hint}</Text> : null}
           <View style={styles.body}>{children}</View>
         </Animated.View>
@@ -188,6 +191,9 @@ const styles = StyleSheet.create({
   // The title and hint stay centred in every language: only their writing
   // direction changes, so Hebrew punctuation sits on the right of the line.
   rtlText: { writingDirection: 'rtl' },
+  // A content title (an island name, which can be in any script) resolves its
+  // direction from its own first strong character instead.
+  autoText: { writingDirection: 'auto' },
   hint: {
     fontFamily: fonts.ui,
     fontSize: 12,

@@ -55,13 +55,13 @@ const PodcastRow = memo(function PodcastRow({ show, number, onPress }: PodcastRo
         <View style={[styles.artwork, styles.artworkPlaceholder]} />
       )}
       <View style={styles.rowBody}>
-        <Text style={[styles.rowTitle, dir.text]} numberOfLines={1}>
+        <Text style={[styles.rowTitle, dir.content]} numberOfLines={1}>
           {show.title}
         </Text>
         <View style={[styles.rowMetaRow, dir.row]}>
           {show.level ? <LevelPill level={show.level} /> : null}
           {show.tagline ? (
-            <Text style={[styles.rowTagline, dir.text]} numberOfLines={1}>
+            <Text style={[styles.rowTagline, dir.content]} numberOfLines={1}>
               {show.tagline}
             </Text>
           ) : null}
@@ -228,8 +228,8 @@ export default function PodcastScreen() {
             keyExtractor={(item, i) => `${item.collectionId ?? item.feedUrl}-${i}`}
             renderSectionHeader={({ section }) => (
               <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, dir.text]}>{section.title}</Text>
-                <Text style={[styles.sectionSubtitle, dir.text]}>{section.subtitle}</Text>
+                <Text style={[styles.sectionTitle, dir.content]}>{section.title}</Text>
+                <Text style={[styles.sectionSubtitle, dir.content]}>{section.subtitle}</Text>
               </View>
             )}
             renderItem={({ item, index }) => (

@@ -86,7 +86,7 @@ export function WordPanel({ word, gloss, context, left, top, romaji = false, dic
         ) : context === null ? (
           <Text style={[styles.meaning, dir.text]}>{t('player.nothingToAdd')}</Text>
         ) : (
-          <Text style={[styles.meaning, dir.text]}>{context}</Text>
+          <Text style={[styles.meaning, dir.content]}>{context}</Text>
         )}
       </ScrollView>
 
