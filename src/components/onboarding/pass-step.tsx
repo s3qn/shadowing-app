@@ -120,12 +120,33 @@ export const PASSES: PassInfo[] = [
 const COMPARE_ART = 56;
 const COMPARE_GAP = 6;
 
-const LOTTIE_SOURCES = [
-  require('../../../assets/lottie/listen-ear.json'),
-  require('../../../assets/lottie/mumble-lips.json'),
-  require('../../../assets/lottie/read-eyes.json'),
-  require('../../../assets/lottie/shadow-head.json'),
-];
+// Each Lottie file (18KB to 40KB of JSON) is required only the first time
+// its pass is actually explained, then kept here so a second look is
+// instant. The onboarding walks all five passes on first run and needs them
+// up front, but the island player's help sheet (`AutoEchoSheet`, this
+// module's other caller) renders `PassExplainer` only once someone taps
+// help. Requiring all four eagerly at module init used to cost about 108KB
+// of JSON parsing on the JS thread every time an island mounted, whether or
+// not help was ever opened.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LottieSource = any;
+
+const lottieCache: Partial<Record<0 | 1 | 2 | 3, LottieSource>> = {};
+
+function getLottieSource(index: 0 | 1 | 2 | 3): LottieSource {
+  const cached = lottieCache[index];
+  if (cached) return cached;
+  const source =
+    index === 0
+      ? require('../../../assets/lottie/listen-ear.json')
+      : index === 1
+        ? require('../../../assets/lottie/mumble-lips.json')
+        : index === 2
+          ? require('../../../assets/lottie/read-eyes.json')
+          : require('../../../assets/lottie/shadow-head.json');
+  lottieCache[index] = source;
+  return source;
+}
 
 /**
  * One pass's explanation: the art card with its Lottie body part and the
@@ -185,14 +206,14 @@ export function PassExplainer({
                   progress={0.5}
                   resizeMode="contain"
                   style={{ width: COMPARE_ART, height: COMPARE_ART }}
-                  source={LOTTIE_SOURCES[0]}
+                  source={getLottieSource(0)}
                 />
                 <LottieView
                   autoPlay={false}
                   progress={0.5}
                   resizeMode="contain"
                   style={{ width: COMPARE_ART, height: COMPARE_ART }}
-                  source={LOTTIE_SOURCES[3]}
+                  source={getLottieSource(3)}
                 />
               </View>
             ) : (
@@ -202,7 +223,7 @@ export function PassExplainer({
                 progress={lottiePaused ? 0.5 : undefined}
                 resizeMode="contain"
                 style={{ width: info.a, height: info.a }}
-                source={LOTTIE_SOURCES[pass]}
+                source={getLottieSource(pass)}
               />
             )}
           </View>
