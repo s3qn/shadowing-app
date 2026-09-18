@@ -104,6 +104,7 @@ import {
 } from '@/lib/audio-mode';
 import { wordPitches } from '@/lib/pitch';
 import { lineRomaji } from '@/lib/romaji';
+import { forgetRung, getRung, peekRung, recordTake, setRungSpeed } from '@/lib/speed-ladder';
 import {
   DEFAULT_VOICE_BY_LANGUAGE,
   getSettings,
@@ -259,7 +260,7 @@ export default function IslandScreen() {
   const [idx, setIdx] = useState(() => warmStart?.idx ?? 0);
   // `speed` is what the audio was rendered at; the Speed sheet shows the
   // live drag position, and only a release re-renders the line.
-  const [speed, setSpeed] = useState<number>(() => getSettingsSync().defaultSpeed);
+  const [speed, setSpeed] = useState<number>(() => peekRung(id)?.speed ?? getSettingsSync().defaultSpeed);
   // The island always plays on, line after line, wrapping from the last to
   // the first until paused. Each line plays `times` times, with `pauseMs` of
   // silence after every play (between its repeats and before the next line).
@@ -289,7 +290,21 @@ export default function IslandScreen() {
   const speedTile = useRef<TileBox | null>(null);
   // The readout the Speed popover's ruler follows live; only its settle
   // commits to `speed` and restarts the line, like the Pause ruler's padMs.
-  const [speedLive, setSpeedLive] = useState<number>(() => getSettingsSync().defaultSpeed);
+  const [speedLive, setSpeedLive] = useState<number>(() => peekRung(id)?.speed ?? getSettingsSync().defaultSpeed);
+  // A speed the ladder decided while a line was already loaded: held here
+  // until the next line change so it never swaps the audio, and with it the
+  // word marks, out from under a playing take. `ladderMove` is the same
+  // decision, kept only to show the kept-up line's message until it lands.
+  const ladderNext = useRef<number | null>(null);
+  const [ladderMove, setLadderMove] = useState<{ dir: 'up' | 'down'; speed: number } | null>(null);
+  // The most recent take's `recordedAt` the ladder has already scored, so
+  // reopening a line already judged does not score it twice.
+  const ladderSeenAt = useRef(Date.now());
+  // Bumped by every manual speed pick. `ladderDecision` reads it before its
+  // file round trip and drops the answer if it changed while it was away:
+  // otherwise a decision that started before the pick would land after it and
+  // overwrite the chosen speed at the next line change. The slider wins.
+  const ladderEpoch = useRef(0);
   // The Repeat tile's popover and the tile's box, anchored like Blind's.
   const [repeatPopOpen, setRepeatPopOpen] = useState(false);
   const repeatTile = useRef<TileBox | null>(null);
@@ -787,16 +802,20 @@ export default function IslandScreen() {
       if (!autoRecordTouched.current) setAutoRecordState(settings.autoRecord);
       if (!readingTouched.current) setReadingMode(settings.reading);
       if (!pitchTouched.current) setPitchOn(settings.pitch);
-      if (!speedTouched.current) {
-        setSpeed(settings.defaultSpeed);
-        setSpeedLive(settings.defaultSpeed);
-      }
       if (!timesTouched.current) setTimes(settings.defaultTimes);
       if (!pauseTouched.current) {
         setPauseMs(settings.defaultPauseMs);
         setPadMs(settings.defaultPauseMs);
       }
       setKeepAwakeState(settings.keepAwake);
+      // Last, and after everything the settings file alone answers: the rung
+      // is a second file read, and nothing above it should wait for it.
+      const rung = await getRung(id, settings.defaultSpeed);
+      if (!alive) return;
+      if (!speedTouched.current) {
+        setSpeed(rung.speed);
+        setSpeedLive(rung.speed);
+      }
     })();
     return () => {
       alive = false;
@@ -1453,6 +1472,7 @@ export default function IslandScreen() {
     setPlayWhenLoaded(true);
     resetHighlight();
     resetForNewAudio();
+    applyLadderNext();
     setIdx((i) => (i + 1) % island.lines.length);
   });
   useEffect(() => {
@@ -1477,6 +1497,7 @@ export default function IslandScreen() {
     setHandleDragging(false);
     setExplainOpen(false);
     setChatGeneration((g) => g + 1);
+    setLadderMove(null);
   }
 
   async function tapWord(i: number) {
@@ -1852,6 +1873,16 @@ export default function IslandScreen() {
     phrase.clear();
   }
 
+  // A ladder decision lands here, at a line change, never under a playing
+  // line: swapping `speed` mid-line would cut the audio and desync the word
+  // marks and Auto Echo.
+  function applyLadderNext() {
+    if (ladderNext.current === null) return;
+    setSpeed(ladderNext.current);
+    setSpeedLive(ladderNext.current);
+    ladderNext.current = null;
+  }
+
   // Switching lines: stop the old audio first, reset everything that belonged
   // to it, and carry on playing on the new line if we were playing.
   function go(target: number) {
@@ -1867,6 +1898,7 @@ export default function IslandScreen() {
     resetHighlight();
     resetForNewAudio();
     setPlayWhenLoaded(wasActive);
+    applyLadderNext();
     setIdx(clamped);
   }
   const next = () => go(idx + 1);
@@ -2002,6 +2034,10 @@ export default function IslandScreen() {
   // going silent.
   function commitSpeed(next: number) {
     speedTouched.current = true;
+    ladderEpoch.current += 1;
+    ladderNext.current = null;
+    setLadderMove(null);
+    if (island) void setRungSpeed(island.id, next);
     setSpeedLive(next);
     if (next === speed) return;
     const wasActive = status.playing || pendingPlayRef.current;
@@ -2196,6 +2232,36 @@ export default function IslandScreen() {
     playSavedTake();
   }, [take.phase, take.take?.recordedAt, take.takeLoaded, take.clean.state]);
 
+  // Feeds a freshly scored take to the island's rung. `ladderSeenAt` keeps a
+  // take recorded before this visit, or a line switched away and back, from
+  // being scored twice. A move is only written to `ladderNext`, not the
+  // audio: it lands at the next line change (see `applyLadderNext`).
+  const ladderDecision = useEffectEvent(() => {
+    if (!island || take.phase !== 'ready') return;
+    const recordedAt = take.take?.recordedAt;
+    if (!recordedAt || recordedAt <= ladderSeenAt.current) return;
+    const keptUp = wordsKeptUp(take.take?.score ?? null);
+    if (!keptUp) return;
+    ladderSeenAt.current = recordedAt;
+    // A decision is already waiting for the next line change, so this take
+    // was spoken at the speed the ladder is stepping away from. Pooling it
+    // into the rung it is stepping to would let the next decision skip a
+    // rung (0.50 straight to 0.60), so count it as seen and drop it.
+    if (ladderNext.current !== null) return;
+    const epoch = ladderEpoch.current;
+    // `speed` is what this player is actually playing, which is the rung to
+    // create when the island has none yet; the device default may be something
+    // else entirely.
+    void recordTake(island.id, speed, keptUp).then(({ moved, speed: next }) => {
+      if (ladderEpoch.current !== epoch || !moved) return;
+      ladderNext.current = next;
+      setLadderMove({ dir: moved, speed: next });
+    });
+  });
+  useEffect(() => {
+    ladderDecision();
+  }, [take.phase, take.take?.recordedAt, take.take?.score]);
+
   // The Play step's take finishing on its own is a stop point: Android gives
   // audio focus back by itself when the take player stops; on iOS the duck
   // lasts as long as the session is active, so a scheduled release hands
@@ -2274,6 +2340,7 @@ export default function IslandScreen() {
       invalidateLineAudio(island.id);
       invalidateCachedIsland(island.id);
       deleteTakes(island.id);
+      forgetRung(island.id);
       void releaseAudioSession();
       plainBack();
     } catch (e) {
@@ -2285,7 +2352,10 @@ export default function IslandScreen() {
   // popover. Opening one closes the others, and never touches playback.
   const toolbarItems = useMemo((): ToolbarItem[] => {
     const repeatOn = times > 1 || pauseMs > 0;
-    const speedOn = Math.abs(speedLive - 1) > 0.001;
+    // Lit when this island plays at something other than the person's own
+    // default, not other than 1×: the default is 0.5 on a fresh install, which
+    // would otherwise light the tile on every island.
+    const speedOn = Math.abs(speedLive - getSettingsSync().defaultSpeed) > 0.001;
     const readingOn = readingMode !== 'off';
     // languages: typed here (not just the useMemo return) so the array
     // literal below keeps its contextual typing once .filter() is chained.
@@ -2445,6 +2515,11 @@ export default function IslandScreen() {
   // How many of the last ready take's scoreable words were kept up with,
   // hidden until there is something to count.
   const keptUp = take.phase === 'ready' ? wordsKeptUp(take.take?.score ?? null) : null;
+  // The pending ladder move, while it is still pending. It outlives the take
+  // that earned it: discarding or retrying that take clears `keptUp`, but the
+  // move still lands at the next line change, so its sentence has to stay up
+  // to explain the speed that is about to change.
+  const ladderNote = ladderMove && ladderMove.speed !== speed ? ladderMove : null;
   // The last ready take's mora feedback (length and pitch), same gate as marks.
   const feedback = take.phase === 'ready' ? (take.take?.analysis ?? null) : null;
   // Under the sentence: the kana or romaji line by mode, nothing in Furigana
@@ -2698,8 +2773,18 @@ export default function IslandScreen() {
         {/* languages: mora feedback only exists for Japanese timelines. */}
         {isJa && feedback && !hidden ? <TakeFeedback moras={line.timeline} analysis={feedback} /> : null}
 
-        {keptUp !== null ? (
-          <Text style={styles.keptUp}>{t('player.keptUpWords', { kept: keptUp.kept, total: keptUp.total })}</Text>
+        {keptUp !== null || ladderNote ? (
+          <Text
+            style={[
+              styles.keptUp,
+              ladderNote ? { color: ladderNote.dir === 'up' ? tide.listen : tide.text } : null,
+            ]}
+          >
+            {keptUp !== null ? t('player.keptUpWords', { kept: keptUp.kept, total: keptUp.total }) : ''}
+            {ladderNote
+              ? `${keptUp !== null ? ' · ' : ''}${t(ladderNote.dir === 'up' ? 'player.ladderUp' : 'player.ladderDown', { speed: speedLabel(ladderNote.speed) })}`
+              : ''}
+          </Text>
         ) : null}
 
         {/* The English in its own inset strip at the foot of the card. Blind
@@ -2752,6 +2837,7 @@ export default function IslandScreen() {
     phrase.span,
     marks,
     keptUp,
+    ladderNote,
     feedback,
     pitches,
     glossData,

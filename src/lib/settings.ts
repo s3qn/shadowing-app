@@ -55,7 +55,7 @@ export const REGISTER_OPTIONS = ['polite', 'casual'] as const;
 export type Register = (typeof REGISTER_OPTIONS)[number];
 export const DEFAULT_REGISTER: Register = 'polite';
 
-const DEFAULT_DEFAULT_SPEED = 1;
+const DEFAULT_DEFAULT_SPEED = 0.5;
 const DEFAULT_HAPTICS = true;
 const DEFAULT_SKY_ALWAYS_NIGHT = false;
 const DEFAULT_KEEP_AWAKE = true;

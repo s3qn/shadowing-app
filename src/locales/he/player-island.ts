@@ -31,5 +31,7 @@ export const he = {
   'player.blindBoth': 'שניהם',
   'player.blindOff': 'כבוי',
   'player.keptUpWords': '{kept} מתוך {total} מילים בקצב',
+  'player.ladderUp': 'השורה הבאה ב־{speed}',
+  'player.ladderDown': 'חזרה ל־{speed} מהשורה הבאה',
   'player.translationHidden': 'תרגום, מוסתר',
 } satisfies Record<keyof typeof enPlayerIsland, string>;
