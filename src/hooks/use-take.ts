@@ -44,7 +44,7 @@ const WATCHDOG_SLACK_MS = 5000;
 export const WATCHDOG_FALLBACK_MS = 30000;
 // How long after a line change its take is read from disk: past the line
 // change's render and the new sentence's rise, so the read never lands in it.
-const FIND_TAKE_DELAY_MS = 450;
+export const FIND_TAKE_DELAY_MS = 450;
 
 export type TakePhase = 'idle' | 'recording' | 'ready';
 
@@ -439,7 +439,7 @@ export function useTake(
           }
         } else {
           try {
-            const saved = await saveTake(savedFor.islandId, savedFor.idx, uri);
+            const saved = await saveTake(savedFor.islandId, savedFor.idx, uri, savedFor.speed);
             // Stored for the line it was recorded on, which shows it only
             // while that line is on screen.
             putTake(savedFor.key, saved);
