@@ -83,6 +83,24 @@ const WAVE_STAGGER_MS = 40;
 // The wheel: one fixed card height, a gap between cards, and the step a
 // scroll of one card takes. Centring math and snapping both key off STEP.
 const CARD_H = 128;
+/** The build stages, in the order they happen. A recording skips downloading
+ * and extracting, a podcast import runs all of them, so a stage's place in
+ * this list is how much of the cat is lit rather than a count of stages: a
+ * skipped stage lights its stars all the same. A stage that is not here (a
+ * newer backend) falls back to counting the stages this card has seen. */
+const STAGE_ORDER: readonly string[] = [
+  'queued',
+  'downloading',
+  'extracting',
+  'transcribing',
+  'writing',
+  'speaking',
+  'slicing',
+];
+/** The last stars wait for the island itself: a running build never draws a
+ * complete cat, so a full one means ready. */
+const BUILD_MAX = 0.92;
+const BUILD_STEP = BUILD_MAX / STAGE_ORDER.length;
 const GAP = 8;
 const STEP = CARD_H + GAP;
 /** How long the wheel has to stay at rest before the centred card lights. */
@@ -751,6 +769,7 @@ export default function IslandsScreen() {
           lit={lit}
           tiers={tiers}
           busy={busy}
+          stage={busy ? item.stage : ''}
           due={due}
           fraction={fraction}
           meta={meta}
@@ -1009,6 +1028,10 @@ type IslandRowProps = {
    * light (busy or failed). */
   tiers: LineTier[] | null;
   busy: boolean;
+  /** The build stage the backend reports, or `''` once the island is not
+   * building. Its own prop so a card repaints on every stage the build
+   * moves through: the constellation lights another star for each one. */
+  stage: string;
   /** Whether this island is due for practice today, per `getDueToday`. */
   due: boolean;
   fraction: number;
@@ -1040,10 +1063,12 @@ type IslandRowProps = {
  * scale change and keeps only the border. Deleting a row is handled by the
  * exit animation below, not by anything here.
  *
- * While the island is still building, a light sweep loops across the card
- * and the status gets a pulsing dot; reduced motion holds the dot still and
- * drops the sweep. The moment the card turns ready, it flashes the accent
- * once and gives a haptic.
+ * While the island is still building, the card carries the app's loading
+ * visual instead of its status line: the cat constellation, the stage label
+ * and the three dots, with another of the cat's stars lit for every stage
+ * the build passes. The moment the card turns ready the constellation goes,
+ * the lanterns come back, and the card flashes the accent once with a
+ * haptic.
  */
 const IslandRow = memo(function IslandRow({
   item,
@@ -1055,6 +1080,7 @@ const IslandRow = memo(function IslandRow({
   lit,
   tiers,
   busy,
+  stage,
   due,
   fraction,
   meta,
@@ -1189,19 +1215,32 @@ const IslandRow = memo(function IslandRow({
   // The morph's flying title stands in for this one while it runs.
   const titleHidden = useMorphHidesTitle(itemId, 'card');
 
-  // The building sweep, its width against the card's own measured width. The
-  // status line itself carries the busy state now, with the compact
-  // constellation next to the stage text.
-  const rowWidth = useSharedValue(0);
-  const sweep = useSharedValue(0);
+  // How much of the building card's cat is drawn, 0 to 1. Kept in a ref as
+  // well so it only ever goes forward: a stage the backend repeats, or one
+  // this build skips, must never put a star out.
+  const build = useSharedValue(0);
+  const built = useRef(0);
+  const stagesSeen = useRef(0);
+  const lastStage = useRef('');
   useEffect(() => {
-    if (busy && !reducedMotion) {
-      sweep.value = withRepeat(withTiming(1, { duration: 2400, easing: Easing.linear }), -1, false);
-    } else {
-      cancelAnimation(sweep);
-      sweep.value = 0;
+    if (!busy) {
+      cancelAnimation(build);
+      build.value = 0;
+      built.current = 0;
+      stagesSeen.current = 0;
+      lastStage.current = '';
+      return;
     }
-  }, [busy, reducedMotion, sweep]);
+    if (stage !== lastStage.current) {
+      lastStage.current = stage;
+      stagesSeen.current += 1;
+    }
+    const known = STAGE_ORDER.indexOf(stage);
+    const step = known >= 0 ? known + 1 : stagesSeen.current;
+    const target = Math.max(built.current, Math.min(BUILD_MAX, step * BUILD_STEP));
+    built.current = target;
+    build.value = reducedMotion ? target : withTiming(target, { duration: 700, easing: Easing.out(Easing.quad) });
+  }, [busy, stage, reducedMotion, build]);
 
   // One flash of the accent the moment a busy card turns ready.
   const flash = useSharedValue(0);
@@ -1295,16 +1334,6 @@ const IslandRow = memo(function IslandRow({
     };
   });
 
-  const sweepStyle = useAnimatedStyle(() => {
-    const width = rowWidth.value;
-    const band = width * 0.5;
-    return {
-      opacity: busy && !reducedMotion ? 1 : 0,
-      width: band,
-      transform: [{ translateX: interpolate(sweep.value, [0, 1], [-band, width + band]) }, { rotate: '20deg' }],
-    };
-  });
-
   const flashFillStyle = useAnimatedStyle(() => ({ opacity: flash.value * 0.14 }));
   const flashBorderStyle = useAnimatedStyle(() => ({ opacity: flash.value }));
 
@@ -1320,9 +1349,6 @@ const IslandRow = memo(function IslandRow({
         delayLongPress={LONG_PRESS_MS}
         entering={waveIndex !== null ? waveEntering(waveIndex * WAVE_STAGGER_MS) : undefined}
         exiting={exitFade ? FadeOut.duration(220) : undefined}
-        onLayout={(e) => {
-          rowWidth.value = e.nativeEvent.layout.width;
-        }}
         style={[styles.row, cardStyle]}>
         <View
           pointerEvents="none"
@@ -1332,9 +1358,6 @@ const IslandRow = memo(function IslandRow({
             { width: `${fraction * 100}%`, backgroundColor: tide.lang.ja },
           ]}
         />
-        {busy ? (
-          <Animated.View pointerEvents="none" style={[styles.sweepBand, sweepStyle]} />
-        ) : null}
         <Animated.View pointerEvents="none" style={[styles.flashFill, { backgroundColor: tide.lang.ja }, flashFillStyle]} />
         <Animated.View pointerEvents="none" style={[styles.flashBorder, { borderColor: tide.lang.ja }, flashBorderStyle]} />
         <View style={styles.cardTop}>
@@ -1345,7 +1368,6 @@ const IslandRow = memo(function IslandRow({
           </Text>
         </View>
         <View style={[styles.metaRow, dir.row]}>
-          {busy ? <CatConstellation compact /> : null}
           {/* The dot is its own cell, not part of the label: kept inside it,
               the dot would follow "Due today" in Hebrew as well and end up on
               the wrong side of the row once `dir.row` reverses the order. */}
@@ -1355,13 +1377,18 @@ const IslandRow = memo(function IslandRow({
               <Text style={[styles.cardMeta, { color: tide.turn }]}>·</Text>
             </>
           ) : null}
-          <Text style={[styles.cardMeta, dir.text, { color: tide.textDim }]}>{meta}</Text>
+          {busy ? null : <Text style={[styles.cardMeta, dir.text, { color: tide.textDim }]}>{meta}</Text>}
           {langPill ? (
             <View style={styles.langPill}>
               <Text style={styles.langPillText}>{langPill}</Text>
             </View>
           ) : null}
         </View>
+        {busy ? (
+          <View pointerEvents="none" style={styles.building}>
+            <CatConstellation compact size={50} label={meta} progress={build} />
+          </View>
+        ) : null}
         {showLanterns ? (
           <LanternRow count={item.line_count} tiers={tiers} holdColours={!settled} weakest={weakest} litMs={litMs} flick={flick} power={power} />
         ) : (
@@ -1397,14 +1424,6 @@ const styles = StyleSheet.create({
   rowFill: { position: 'absolute', left: 0, top: 0, bottom: 0, opacity: 0.16 },
   // The ownership band grows from the edge the card is read from.
   rowFillRtl: { left: undefined, right: 0 },
-  // Clipped by the row's own overflow:hidden, so it never spills past the card.
-  sweepBand: {
-    position: 'absolute',
-    left: 0,
-    top: -20,
-    bottom: -20,
-    backgroundColor: 'rgba(255,255,255,0.16)',
-  },
   flashFill: { ...StyleSheet.absoluteFill },
   flashBorder: { ...StyleSheet.absoluteFill, borderWidth: 2, borderRadius: 16 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
@@ -1421,6 +1440,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.10)',
   },
   langPillText: { fontSize: 11, color: tide.textDim, fontFamily: fonts.uiMedium, fontWeight: '500' },
+  // The building card's constellation, laid out over the meta row and the
+  // lantern spacer rather than in the flow: the card keeps its height and its
+  // title where they are, so nothing moves when the island turns ready.
+  building: { position: 'absolute', left: 12, right: 12, bottom: 9 },
   // Matches LanternRow's own height: a busy or failed card has no lanterns
   // but still needs the row's height so every card lines up.
   lanternSpacer: { height: 24 },

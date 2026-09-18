@@ -60,11 +60,12 @@ function circleD(x: number, y: number, r: number) {
 }
 
 type Props = {
-  /** Outline height in pt. */
+  /** Outline height in pt. Defaults to 150, or 44 when compact. */
   size?: number;
   /** Defaults to the translated "Loading" when not given. */
   label?: string;
-  /** Inline busy state: a small cat and small dots in a row, no label. */
+  /** Inline busy state: a shorter cat with the label and dots beside it,
+   * instead of under it. Without a `label` it is the cat and small dots. */
   compact?: boolean;
   /** Loose twinkling stars around the cat. Always off when compact. */
   stars?: boolean;
@@ -72,6 +73,10 @@ type Props = {
    * starting a frame callback of its own: for the pre-mounted loading
    * overlay, which must do no per-frame work while idle. */
   clock?: SharedValue<number>;
+  /** How much of the cat is drawn, 0 to 1, instead of the looping draw: the
+   * outline becomes progress, lighting star by star and holding where it got
+   * to. The label and the dots keep animating. */
+  progress?: SharedValue<number>;
   /** Exposes the progressbar role to screen readers. Off while a pre-mounted
    * loader sits idle. Defaults to on. */
   announce?: boolean;
@@ -85,11 +90,12 @@ type Props = {
  * `clock` is passed in, in which case it drives from that one instead.
  */
 export const CatConstellation = memo(function CatConstellation({
-  size = 150,
+  size,
   label,
   compact = false,
   stars = true,
   clock: sharedClock,
+  progress,
   announce = true,
 }: Props) {
   const { t } = useT();
@@ -109,15 +115,18 @@ export const CatConstellation = memo(function CatConstellation({
     return () => frame.setActive(false);
   }, [reducedMotion, frame, ownNow, sharedClock]);
 
-  const catSize = compact ? 44 : size;
+  const catSize = size ?? (compact ? 44 : 150);
   const showStars = stars && !compact;
+  // The cat with dots and no words: the inline busy state that has its text
+  // somewhere else on the row.
+  const bare = compact && label === undefined;
 
   const content = (
     <>
-      <CatCanvas size={catSize} stars={showStars} now={now} still={reducedMotion} />
-      <View style={compact ? styles.dotsCompact : [styles.labelRow, dir.row]}>
-        {compact ? null : <Text style={[styles.label, dir.rtl && styles.labelRtl]}>{displayLabel}</Text>}
-        <Dots dot={compact ? 5 : 7} now={now} still={reducedMotion} lift={compact ? 0 : LABEL_LINE / 3 - 3.5} />
+      <CatCanvas size={catSize} stars={showStars} now={now} still={reducedMotion} progress={progress} />
+      <View style={bare ? styles.dotsCompact : [styles.labelRow, dir.row]}>
+        {bare ? null : <Text style={[styles.label, dir.rtl && styles.labelRtl]}>{displayLabel}</Text>}
+        <Dots dot={bare ? 5 : 7} now={now} still={reducedMotion} lift={bare ? 0 : LABEL_LINE / 3 - 3.5} />
       </View>
     </>
   );
@@ -127,7 +136,7 @@ export const CatConstellation = memo(function CatConstellation({
       accessible={announce}
       accessibilityRole={announce ? 'progressbar' : undefined}
       accessibilityLabel={announce ? displayLabel : undefined}
-      style={compact ? styles.compact : styles.full}>
+      style={compact ? [styles.compact, dir.row] : styles.full}>
       {content}
     </View>
   );
@@ -138,11 +147,13 @@ function CatCanvas({
   stars,
   now,
   still,
+  progress,
 }: {
   size: number;
   stars: boolean;
   now: SharedValue<number>;
   still: boolean;
+  progress?: SharedValue<number>;
 }) {
   const safeSize = Number.isFinite(size) && size > 0 ? size : 150;
   const k = safeSize / BOX_H;
@@ -158,10 +169,14 @@ function CatCanvas({
   const unlitR = 1.4 * k;
   const strokeW = Math.max(1, 1.2 * k);
 
+  /** How much of the outline is drawn: the caller's progress when it drives
+   * this cat, otherwise the loop's own first 55%. */
+  const drawn = useDerivedValue(() => {
+    if (progress) return Math.max(0, Math.min(1, finiteOr(progress.value, 0)));
+    return Math.min(1, loopT(now.value, still) / 0.55);
+  });
   const outlineD = useDerivedValue(() => {
-    const t = loopT(now.value, still);
-    const draw = Math.min(1, t / 0.55);
-    const segs = (pts.length - 1) * draw;
+    const segs = (pts.length - 1) * drawn.value;
     const n = Math.max(0, Math.min(pts.length - 1, Math.floor(segs)));
     let d = `M${pts[0][0].toFixed(2)},${pts[0][1].toFixed(2)}`;
     for (let i = 1; i <= n; i++) d += ` L${pts[i][0].toFixed(2)},${pts[i][1].toFixed(2)}`;
@@ -174,28 +189,24 @@ function CatCanvas({
     return d;
   });
   const fade = useDerivedValue(() => {
+    if (progress) return 1;
     const t = loopT(now.value, still);
     return finiteOr(t > 0.85 ? 1 - (t - 0.85) / 0.15 : 1, 1);
   });
   const outlineOpacity = useDerivedValue(() => 0.85 * fade.value);
   const litD = useDerivedValue(() => {
-    const t = loopT(now.value, still);
-    const segs = (pts.length - 1) * Math.min(1, t / 0.55);
+    const segs = (pts.length - 1) * drawn.value;
     let d = '';
     for (let i = 0; i < pts.length; i++) if (i <= segs) d += circleD(pts[i][0], pts[i][1], litR) + ' ';
     return d || 'M0,0';
   });
   const unlitD = useDerivedValue(() => {
-    const t = loopT(now.value, still);
-    const segs = (pts.length - 1) * Math.min(1, t / 0.55);
+    const segs = (pts.length - 1) * drawn.value;
     let d = '';
     for (let i = 0; i < pts.length; i++) if (i > segs) d += circleD(pts[i][0], pts[i][1], unlitR) + ' ';
     return d || 'M0,0';
   });
-  const eyesOpacity = useDerivedValue(() => {
-    const t = loopT(now.value, still);
-    return t / 0.55 >= 1 ? fade.value : 0;
-  });
+  const eyesOpacity = useDerivedValue(() => (drawn.value >= 1 ? fade.value : 0));
 
   return (
     <Canvas pointerEvents="none" style={{ width: W, height: H }}>
