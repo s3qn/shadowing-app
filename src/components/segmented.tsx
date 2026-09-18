@@ -82,9 +82,9 @@ export function Segmented<T extends string>({ label, options, value, onChange }:
   return (
     <View style={styles.section}>
       <View style={[styles.row, dir.row]}>
-        <Text style={styles.label}>{label}</Text>
+        <Text style={[styles.label, dir.text]}>{label}</Text>
         <View style={styles.trayWrap} accessibilityRole="tablist">
-          <PillTrayShell style={styles.tray}>
+          <PillTrayShell style={[styles.tray, dir.row]}>
             {options.map((o) => (
               <SegmentPill
                 key={o.value}
@@ -98,7 +98,7 @@ export function Segmented<T extends string>({ label, options, value, onChange }:
           </PillTrayShell>
         </View>
       </View>
-      <Text style={styles.description}>{options[index]?.description}</Text>
+      <Text style={[styles.description, dir.text]}>{options[index]?.description}</Text>
     </View>
   );
 }

@@ -1,9 +1,8 @@
 import LottieView from 'lottie-react-native';
-import { useEffect } from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
+import { StyleSheet, Text, View } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 
-import { GlassDisc } from '@/components/onboarding/glass-disc';
+import { ArtCard } from '@/components/onboarding/art-card';
 import {
   CompareLanes,
   ListenEffect,
@@ -12,14 +11,13 @@ import {
   ShadowBubbles,
   WaveLane,
 } from '@/components/onboarding/pass-effects';
-import { PrismButton, type Verb } from '@/components/prism';
+import { StepAction, StepCopy, StepFrame } from '@/components/onboarding/step-frame';
+import { type Verb } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide, verb } from '@/constants/theme';
-import { useDir, useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n';
 import { type LearningLanguage, type UnderstoodLanguage } from '@/lib/settings';
 import { type Key } from '@/locales/en';
-
-const STAGE_HEIGHT = 300;
 
 const READ_ALONG_WORDS: Record<LearningLanguage, string[]> = {
   ja: ['今日は', 'いい', '天気', 'ですね'],
@@ -33,81 +31,75 @@ const TRANSLATIONS: Record<UnderstoodLanguage, string> = {
 };
 
 type PassInfo = {
+  /** The pass name, which the kicker reads out. */
   titleKey: Key;
+  headlineKey: Key;
   lineKey: Key;
+  /** The speed this pass plays at (Compare names the next round's speed). */
+  speed: string;
   colour: string;
   a: number;
-  discTop: number;
+  artTop: number;
   nextVerb: Verb;
 };
 
 const PASSES: PassInfo[] = [
   {
     titleKey: 'settings.onboarding.passListenTitle',
+    headlineKey: 'settings.onboarding.passListenHeadline',
     lineKey: 'settings.onboarding.passListenLine',
+    speed: '0.7',
     colour: verb.listen.c1,
     a: 84,
-    discTop: 0.46,
+    artTop: 0.46,
     nextVerb: 'listen',
   },
   {
     titleKey: 'settings.onboarding.passMumbleTitle',
+    headlineKey: 'settings.onboarding.passMumbleHeadline',
     lineKey: 'settings.onboarding.passMumbleLine',
+    speed: '0.7',
     colour: verb.speak.c2,
     a: 84,
-    discTop: 0.46,
+    artTop: 0.46,
     nextVerb: 'speak',
   },
   {
     titleKey: 'settings.onboarding.passReadTitle',
+    headlineKey: 'settings.onboarding.passReadHeadline',
     lineKey: 'settings.onboarding.passReadLine',
+    speed: '0.85',
     colour: verb.read.c1,
     a: 102,
-    discTop: 0.34,
+    artTop: 0.34,
     nextVerb: 'read',
   },
   {
     titleKey: 'settings.onboarding.passShadowTitle',
+    headlineKey: 'settings.onboarding.passShadowHeadline',
     lineKey: 'settings.onboarding.passShadowLine',
+    speed: '0.85',
     colour: verb.speak.c1,
     a: 102,
-    discTop: 0.46,
+    artTop: 0.46,
     nextVerb: 'speak',
   },
   {
     titleKey: 'settings.onboarding.passCompareTitle',
+    headlineKey: 'settings.onboarding.passCompareHeadline',
     lineKey: 'settings.onboarding.passCompareLine',
+    speed: '1.0',
     colour: tide.pos.verb,
-    // The disc itself keeps the base art size (120, so D = 180); the two
-    // Lotties inside are smaller (56 each), set directly where they render.
+    // The two Lotties here are smaller than the single body part of the
+    // other passes; `a` still sets the effects' scale.
     a: 120,
-    discTop: 0.34,
+    artTop: 0.34,
     nextVerb: 'tools',
   },
 ];
 
 const COMPARE_ART = 56;
-
-/** A finite number or the fallback, for values reaching a Reanimated style
- * on the UI thread, where a NaN throws and exits Expo Go with no red box. */
-function finiteOr(x: number, fallback: number) {
-  'worklet';
-  return Number.isFinite(x) ? x : fallback;
-}
-
-/** One pass-progress dot: widens from 6 to 18 over 200ms when it becomes the
- * active pass. */
-function PassDot({ active, colour }: { active: boolean; colour: string }) {
-  const width = useSharedValue(active ? 18 : 6);
-  useEffect(() => {
-    width.value = withTiming(active ? 18 : 6, { duration: 200 });
-  }, [active, width]);
-  const style = useAnimatedStyle(() => ({
-    width: finiteOr(width.value, active ? 18 : 6),
-    backgroundColor: active ? colour : 'rgba(236,232,244,0.2)',
-  }));
-  return <Animated.View style={[styles.dot, style]} />;
-}
+const COMPARE_GAP = 6;
 
 const LOTTIE_SOURCES = [
   require('../../../assets/lottie/listen-ear.json'),
@@ -117,11 +109,12 @@ const LOTTIE_SOURCES = [
 ];
 
 /**
- * One of the five onboarding passes: title, one line, the Glass Disc with
- * its Lottie body part, and the pass's effect in the stage (syllable pops,
- * humming dots and whispers, word by word glow with the translation under
- * it, rising language bubbles with the two waveform lanes). Effects live in
- * `pass-effects.tsx` and are still under reduced motion.
+ * One of the five onboarding passes: the progress dots, the art card with
+ * its Lottie body part and the pass's effect (syllable pops, humming dots
+ * and whispers, word by word glow with the translation under it, rising
+ * language bubbles with the two waveform lanes), the copy block, and the
+ * button. Effects live in `pass-effects.tsx` and are still under reduced
+ * motion.
  */
 export function PassStep({
   pass,
@@ -135,38 +128,44 @@ export function PassStep({
   onNext: () => void;
 }) {
   const { t } = useT();
-  const dir = useDir();
-  const { width: windowWidth } = useWindowDimensions();
   const reducedMotion = useReducedMotion();
   const info = PASSES[pass];
-  const stageWidth = Math.min(windowWidth - 48, 300);
+  const last = pass === 4;
   // Compare's two Lotties are always paused: the waveforms below carry the
   // motion. Under reduced motion every Lottie is paused the same way.
-  const lottiePaused = pass === 4 || reducedMotion;
+  const lottiePaused = last || reducedMotion;
+  const artWidth = last ? 2 * COMPARE_ART + COMPARE_GAP : info.a;
+  const artHeight = last ? COMPARE_ART : info.a;
+  const kicker = t(last ? 'settings.onboarding.passKickerNext' : 'settings.onboarding.passKicker', {
+    n: pass + 1,
+    name: t(info.titleKey),
+    speed: info.speed,
+  });
 
   return (
-    <View style={styles.content}>
-      <View style={[styles.dots, dir.row]}>
-        {PASSES.map((p, i) => (
-          <PassDot key={p.titleKey} active={i === pass} colour={info.colour} />
-        ))}
-      </View>
-      <Text style={styles.title}>{t(info.titleKey)}</Text>
-      <Text style={styles.line}>{t(info.lineKey)}</Text>
-      <View style={[styles.stage, { width: stageWidth, height: STAGE_HEIGHT }]}>
-        <View
-          style={[
-            styles.discWrap,
-            {
-              width: info.a * 1.5,
-              height: info.a * 1.5,
-              marginLeft: -(info.a * 1.5) / 2,
-              marginTop: -(info.a * 1.5) / 2,
-              top: `${info.discTop * 100}%`,
-            },
-          ]}>
-          <GlassDisc size={info.a} colour={info.colour}>
-            {pass === 4 ? (
+    <StepFrame
+      dots={{ count: PASSES.length, active: pass, colour: info.colour }}
+      footer={
+        <StepAction
+          verb={info.nextVerb}
+          label={t(last ? 'settings.onboarding.gotIt' : 'settings.onboarding.next')}
+          onPress={onNext}
+        />
+      }>
+      <ArtCard colour={info.colour}>
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <View
+            style={[
+              styles.artWrap,
+              {
+                width: artWidth,
+                height: artHeight,
+                marginLeft: -artWidth / 2,
+                marginTop: -artHeight / 2,
+                top: `${info.artTop * 100}%`,
+              },
+            ]}>
+            {last ? (
               <View style={styles.compareArts}>
                 <LottieView
                   autoPlay={false}
@@ -193,75 +192,73 @@ export function PassStep({
                 source={LOTTIE_SOURCES[pass]}
               />
             )}
-          </GlassDisc>
-        </View>
+          </View>
 
-        <View pointerEvents="none" style={[styles.effectAnchor, { top: `${info.discTop * 100}%` }]}>
-          {pass === 0 ? <ListenEffect colour={info.colour} a={info.a} /> : null}
-          {pass === 1 ? <MumbleEffect colour={info.colour} a={info.a} /> : null}
-          {pass === 3 ? <ShadowBubbles a={info.a} /> : null}
-        </View>
+          <View style={[styles.effectAnchor, { top: `${info.artTop * 100}%` }]}>
+            {pass === 0 ? <ListenEffect colour={info.colour} a={info.a} /> : null}
+            {pass === 1 ? <MumbleEffect colour={info.colour} a={info.a} /> : null}
+            {pass === 3 ? <ShadowBubbles a={info.a} /> : null}
+          </View>
 
-        {pass === 2 ? (
-          <View style={styles.readArea}>
-            <View style={styles.readRow}>
-              <ReadAlongRow words={READ_ALONG_WORDS[learning]} colour={info.colour} />
+          {pass === 2 ? (
+            <View style={styles.readArea}>
+              <View style={styles.readRow}>
+                <ReadAlongRow words={READ_ALONG_WORDS[learning]} colour={info.colour} />
+              </View>
+              <Text style={[styles.translation, understood === 'he' ? styles.translationRtl : null]}>
+                {TRANSLATIONS[understood]}
+              </Text>
             </View>
-            <Text
-              style={[
-                styles.translation,
-                understood === 'he' ? styles.translationRtl : null,
-              ]}>
-              {TRANSLATIONS[understood]}
-            </Text>
-          </View>
-        ) : null}
+          ) : null}
 
-        {pass === 3 ? (
-          <View style={styles.lanesArea}>
-            <Text style={styles.laneLabel}>{t('settings.onboarding.voiceLane')}</Text>
-            <WaveLane colour={verb.listen.c1} />
-            <Text style={styles.laneLabel}>{t('settings.onboarding.youLane')}</Text>
-            <WaveLane colour={info.colour} opacity={0.8} lagMs={250} />
-          </View>
-        ) : null}
-
-        {pass === 4 ? (
-          <>
+          {pass === 3 ? (
             <View style={styles.lanesArea}>
-              <CompareLanes topColour={verb.listen.c1} bottomColour={verb.speak.c1} />
+              <Text style={styles.laneLabel}>{t('settings.onboarding.voiceLane')}</Text>
+              <WaveLane colour={verb.listen.c1} />
+              <Text style={styles.laneLabel}>{t('settings.onboarding.youLane')}</Text>
+              <WaveLane colour={info.colour} opacity={0.8} lagMs={250} />
             </View>
-            <Text style={styles.kept}>{t('settings.onboarding.keptUp')}</Text>
-          </>
-        ) : null}
-      </View>
-      <PrismButton
-        shape="pill"
-        verb={info.nextVerb}
-        label={t('settings.onboarding.next')}
-        onPress={onNext}
-        containerStyle={styles.action}
-      />
-    </View>
+          ) : null}
+
+          {last ? (
+            <>
+              <View style={styles.lanesArea}>
+                <CompareLanes topColour={verb.listen.c1} bottomColour={verb.speak.c1} />
+              </View>
+              <Text style={styles.kept}>{t('settings.onboarding.keptUp')}</Text>
+            </>
+          ) : null}
+        </View>
+      </ArtCard>
+      <StepCopy kicker={kicker} kickerColour={info.colour} title={t(info.headlineKey)} body={t(info.lineKey)} />
+    </StepFrame>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, gap: Spacing.md },
-  dots: { flexDirection: 'row', gap: 6, alignItems: 'center' },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(236,232,244,0.2)' },
-  title: { fontFamily: fonts.uiMedium, fontSize: 24, color: tide.text },
-  line: { fontFamily: fonts.ui, fontSize: 16, color: tide.textDim, textAlign: 'center' },
-  stage: { position: 'relative' },
-  discWrap: { position: 'absolute', left: '50%', alignItems: 'center', justifyContent: 'center' },
+  artWrap: { position: 'absolute', left: '50%', alignItems: 'center', justifyContent: 'center' },
   effectAnchor: { position: 'absolute', left: '50%', width: 0, height: 0 },
-  compareArts: { flexDirection: 'row', gap: 6 },
-  readArea: { position: 'absolute', left: 0, right: 0, top: '76%', alignItems: 'center', gap: Spacing.xs },
+  compareArts: { flexDirection: 'row', gap: COMPARE_GAP },
+  readArea: { position: 'absolute', left: 0, right: 0, top: '62%', alignItems: 'center', gap: Spacing.xs },
   readRow: { flexDirection: 'row', gap: 8 },
   translation: { fontFamily: fonts.ui, fontSize: 15, color: tide.textDim, textAlign: 'center' },
   translationRtl: { writingDirection: 'rtl', textAlign: 'right' },
-  lanesArea: { position: 'absolute', left: 0, right: 0, top: '76%', alignItems: 'center', gap: Spacing.xs },
+  lanesArea: {
+    position: 'absolute',
+    left: Spacing.lg,
+    right: Spacing.lg,
+    bottom: Spacing.md,
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
   laneLabel: { fontFamily: fonts.ui, fontSize: 11, color: tide.textDim },
-  kept: { position: 'absolute', top: 0, right: 0, fontFamily: fonts.uiMedium, fontSize: 13, fontWeight: '800', color: tide.pos.verb },
-  action: { marginTop: Spacing.md },
+  kept: {
+    position: 'absolute',
+    top: Spacing.md,
+    right: Spacing.lg,
+    fontFamily: fonts.uiMedium,
+    fontSize: 13,
+    fontWeight: '800',
+    color: tide.pos.verb,
+  },
 });

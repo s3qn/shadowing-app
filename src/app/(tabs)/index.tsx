@@ -725,7 +725,9 @@ export default function IslandsScreen() {
       <View style={styles.headerFixed}>
         <PracticeCard log={log} dueCount={dueIds.size} />
         {/* pill-tray-tab-bar: sort row start */}
-        <PillTrayShell wrapStyle={styles.sortRowWrap} style={styles.sortRow}>
+        <PillTrayShell
+          wrapStyle={[styles.sortRowWrap, dir.rtl && styles.sortRowWrapRtl]}
+          style={[styles.sortRow, dir.row]}>
           {SORTS.map((s) => (
             <SortPill
               key={s}
@@ -859,7 +861,7 @@ export default function IslandsScreen() {
               returnKeyType="done"
               style={styles.sheetInput}
             />
-            <GlassPanel style={styles.sheetActionsRow}>
+            <GlassPanel style={[styles.sheetActionsRow, dir.rtl && styles.sheetActionsRowRtl]}>
               <PrismButton shape="pill" verb="tools" flat label={t('home.save')} onPress={saveRename}>
                 <SymbolView name={{ ios: 'checkmark', android: 'check' }} size={16} weight="regular" tintColor={verb.tools.c1} />
               </PrismButton>
@@ -1241,7 +1243,11 @@ const IslandRow = memo(function IslandRow({
         style={[styles.row, cardStyle]}>
         <View
           pointerEvents="none"
-          style={[styles.rowFill, { width: `${fraction * 100}%`, backgroundColor: tide.lang.ja }]}
+          style={[
+            styles.rowFill,
+            dir.rtl && styles.rowFillRtl,
+            { width: `${fraction * 100}%`, backgroundColor: tide.lang.ja },
+          ]}
         />
         {busy ? (
           <Animated.View pointerEvents="none" style={[styles.sweepBand, sweepStyle]} />
@@ -1298,6 +1304,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   rowFill: { position: 'absolute', left: 0, top: 0, bottom: 0, opacity: 0.16 },
+  // The ownership band grows from the edge the card is read from.
+  rowFillRtl: { left: undefined, right: 0 },
   // Clipped by the row's own overflow:hidden, so it never spills past the card.
   sweepBand: {
     position: 'absolute',
@@ -1337,6 +1345,7 @@ const styles = StyleSheet.create({
   },
   // prism-home: one row of pill actions sharing a single GlassPanel blur.
   sheetActionsRow: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.sm, alignSelf: 'flex-start' },
+  sheetActionsRowRtl: { alignSelf: 'flex-end' },
   // The Rename/Delete row: both pills share the sheet's full width (no
   // alignSelf hug), evenly split with a 12pt gap between them.
   sheetMenuRow: { flexDirection: 'row', gap: Spacing.md, padding: Spacing.sm },
@@ -1362,6 +1371,8 @@ const styles = StyleSheet.create({
   // default alignItems: 'stretch', which also keeps the offset pane a small
   // corner peek instead of a full-width strip (the pane sizes off this wrap).
   sortRowWrap: { alignSelf: 'flex-start' },
+  // Hebrew reads from the right, so the tray hugs the opposite edge.
+  sortRowWrapRtl: { alignSelf: 'flex-end' },
   pill: {
     alignItems: 'center',
     justifyContent: 'center',

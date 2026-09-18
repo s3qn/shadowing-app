@@ -42,7 +42,7 @@ const PodcastRow = memo(function PodcastRow({ show, number, onPress }: PodcastRo
   const dir = useDir();
   return (
     <PressScale onPress={onPress} accessibilityRole="button" style={[styles.row, dir.row]}>
-      {number != null ? <Text style={[styles.rowNumber, dir.text]}>{number}</Text> : null}
+      {number != null ? <Text style={styles.rowNumber}>{number}</Text> : null}
       {show.artworkUrl ? (
         <Image
           source={{ uri: show.artworkUrl }}

@@ -180,7 +180,7 @@ export function LanguagePicker({ mode, value, onChange, exclude }: LanguagePicke
             />
           </View>
           {mode === 'learn' ? (
-            <View style={styles.chipRow}>
+            <View style={[styles.chipRow, dir.row]}>
               {REGIONS.map((region) => (
                 <RegionChip
                   key={region}
@@ -194,14 +194,16 @@ export function LanguagePicker({ mode, value, onChange, exclude }: LanguagePicke
         </View>
       }
       ListEmptyComponent={
-        query.trim() ? <Text style={styles.empty}>{t('settings.picker.noMatch', { query: query.trim() })}</Text> : null
+        query.trim() ? (
+          <Text style={[styles.empty, dir.text]}>{t('settings.picker.noMatch', { query: query.trim() })}</Text>
+        ) : null
       }
       renderSectionHeader={({ section }) => (
         <View style={styles.sectionHeaderWrap}>
           {mode === 'learn' && section.title === 'Coming soon' ? (
-            <Text style={styles.soonNote}>{t('settings.picker.soonNote', { lang: languageName(t, value) })}</Text>
+            <Text style={[styles.soonNote, dir.text]}>{t('settings.picker.soonNote', { lang: languageName(t, value) })}</Text>
           ) : null}
-          <Text style={styles.sectionHeader}>{sectionTitle(t, section.title)}</Text>
+          <Text style={[styles.sectionHeader, dir.text]}>{sectionTitle(t, section.title)}</Text>
         </View>
       )}
       renderItem={({ item }) => {

@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LanguagePicker } from '@/components/language-picker';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
-import { useT } from '@/lib/i18n';
+import { useDir, useT } from '@/lib/i18n';
 import { LANGUAGES } from '@/lib/languages';
 import {
   getSettings,
@@ -26,6 +26,7 @@ import {
  */
 export default function LanguagesSettingsScreen() {
   const { t } = useT();
+  const dir = useDir();
   const [learning, setLearningState] = useState<LearningLanguage>('ja');
   const [understand, setUnderstandState] = useState<UnderstoodLanguage>('en');
 
@@ -66,11 +67,11 @@ export default function LanguagesSettingsScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       <View style={styles.half}>
-        <Text style={styles.label}>{t('settings.languages.learn')}</Text>
+        <Text style={[styles.label, dir.text, dir.rtl && styles.labelRtl]}>{t('settings.languages.learn')}</Text>
         <LanguagePicker mode="learn" value={learning} onChange={pickLearning} exclude={understand} />
       </View>
       <View style={styles.half}>
-        <Text style={styles.label}>{t('settings.languages.understand')}</Text>
+        <Text style={[styles.label, dir.text, dir.rtl && styles.labelRtl]}>{t('settings.languages.understand')}</Text>
         <LanguagePicker mode="understand" value={understand} onChange={pickUnderstand} exclude={learning} />
       </View>
     </SafeAreaView>
@@ -90,4 +91,5 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.lg + Spacing.sm,
     marginBottom: Spacing.xs,
   },
+  labelRtl: { marginLeft: 0, marginRight: Spacing.lg + Spacing.sm },
 });

@@ -7,7 +7,7 @@ import { PressScale } from '@/components/press-scale';
 import { SettingsRow, SettingsSection } from '@/components/tide/settings-row';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
-import { useT } from '@/lib/i18n';
+import { useDir, useT } from '@/lib/i18n';
 import { type Key } from '@/locales/en';
 import {
   getSettings,
@@ -29,6 +29,7 @@ const READING_LABEL_KEY: Record<ReadingMode, Key> = {
 
 export default function PracticeSettingsScreen() {
   const { t } = useT();
+  const dir = useDir();
   const [reading, setReadingState] = useState<ReadingMode>('furigana');
   const [pitch, setPitchState] = useState(true);
   const [hideEnglish, setHideEnglishState] = useState(false);
@@ -64,7 +65,7 @@ export default function PracticeSettingsScreen() {
       <ScrollView contentContainerStyle={styles.list}>
         {isJapanese ? (
           <SettingsSection title={t('settings.practice.reading')} footnote={t('settings.playback.defaultFootnote')}>
-            <View style={styles.chipRow}>
+            <View style={[styles.chipRow, dir.row]}>
               {READING_OPTIONS.map((opt) => {
                 const on = opt === reading;
                 return (

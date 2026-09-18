@@ -126,6 +126,7 @@ function ExplainSheetBase({
   onPlaySentence,
 }: Props) {
   const { t } = useT();
+  const dir = useDir();
   const [answer, setAnswer] = useState<ExplainAnswer | null>(null);
   const [loading, setLoading] = useState(false);
   const reducedMotion = useReducedMotion();
@@ -181,8 +182,10 @@ function ExplainSheetBase({
         blind={blind}
         onPress={onPlaySentence}
       />
-      <Frost frosted={blind && !(whole || marked.length === 0)} style={styles.markedWrap}>
-        <Text style={styles.marked}>{markedLabel}</Text>
+      <Frost
+        frosted={blind && !(whole || marked.length === 0)}
+        style={[styles.markedWrap, dir.rtl && styles.markedWrapRtl]}>
+        <Text style={[styles.marked, dir.text]}>{markedLabel}</Text>
       </Frost>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         {loading ? (
@@ -352,9 +355,10 @@ function VocabRow({
   reducedMotion: boolean;
 }) {
   const { style } = useStagger(index, reducedMotion);
+  const dir = useDir();
   const color = tide.pos[item.pos] ?? tide.pos.other;
   return (
-    <Animated.View style={[styles.vocabRow, style]}>
+    <Animated.View style={[styles.vocabRow, dir.row, style]}>
       <View style={[styles.vocabBar, { backgroundColor: color }]} />
       <View style={styles.vocabWord}>
         <Text style={styles.vocabWordText} numberOfLines={1}>
@@ -366,7 +370,7 @@ function VocabRow({
           </Text>
         ) : null}
       </View>
-      <Text style={styles.vocabMeaning} numberOfLines={2}>
+      <Text style={[styles.vocabMeaning, dir.text]} numberOfLines={2}>
         {item.meaning}
       </Text>
     </Animated.View>
@@ -389,6 +393,7 @@ function GrammarChip({
   reducedMotion: boolean;
 }) {
   const { style, delay } = useStagger(index, reducedMotion);
+  const dir = useDir();
   const [before, span, after] = item.span ? splitOn(sentenceJa, item.span) : ['', '', ''];
   const highlight = useSharedValue(0);
   useEffect(() => {
@@ -405,10 +410,10 @@ function GrammarChip({
   );
   return (
     <Animated.View style={[styles.grammarItem, style]}>
-      <View style={styles.grammarChip}>
+      <View style={[styles.grammarChip, dir.rtl && styles.grammarChipRtl]}>
         <Text style={styles.grammarChipText}>{item.pattern}</Text>
       </View>
-      <Text style={styles.grammarExplanation}>{item.explanation}</Text>
+      <Text style={[styles.grammarExplanation, dir.text]}>{item.explanation}</Text>
       {span ? (
         <View style={styles.grammarSentenceRow}>
           <Text style={styles.grammarSentenceText}>{before}</Text>
@@ -425,7 +430,8 @@ function GrammarChip({
 
 function SummaryBlock({ text, index, reducedMotion }: { text: string; index: number; reducedMotion: boolean }) {
   const { style } = useStagger(index, reducedMotion);
-  return <Animated.Text style={[styles.summary, style]}>{text}</Animated.Text>;
+  const dir = useDir();
+  return <Animated.Text style={[styles.summary, dir.text, style]}>{text}</Animated.Text>;
 }
 
 // One full sweep of the shimmer: dim to bright and back.
@@ -510,6 +516,7 @@ const styles = StyleSheet.create({
   headerEn: { fontFamily: fonts.ui, fontSize: 13, lineHeight: 18, color: tide.textDim, marginTop: 4 },
   headerEnRtl: { writingDirection: 'rtl' },
   markedWrap: { alignSelf: 'flex-start', marginBottom: Spacing.lg },
+  markedWrapRtl: { alignSelf: 'flex-end' },
   marked: {
     fontFamily: fonts.uiMedium,
     fontWeight: '500',
@@ -539,6 +546,7 @@ const styles = StyleSheet.create({
 
   grammarList: { gap: Spacing.md },
   grammarItem: { gap: Spacing.xs },
+  grammarChipRtl: { alignSelf: 'flex-end' },
   grammarChip: {
     alignSelf: 'flex-start',
     backgroundColor: tide.lang.ja,

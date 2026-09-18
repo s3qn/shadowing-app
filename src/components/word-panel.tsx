@@ -48,7 +48,7 @@ export function WordPanel({ word, gloss, context, left, top, romaji = false, dic
   const shownReading = gloss ? (romaji ? toRomajiReading(gloss) : gloss.reading) : '';
   return (
     <View style={[styles.pop, { left, top, backgroundColor: tide.water, borderColor: tide.waterline, shadowColor: '#000' }]}>
-      <View style={styles.head}>
+      <View style={[styles.head, dir.row]}>
         <View style={styles.headText}>
           <Text style={styles.word} numberOfLines={1}>
             {word}
@@ -86,12 +86,12 @@ export function WordPanel({ word, gloss, context, left, top, romaji = false, dic
         ) : context === null ? (
           <Text style={[styles.meaning, dir.text]}>{t('player.nothingToAdd')}</Text>
         ) : (
-          <Text style={styles.meaning}>{context}</Text>
+          <Text style={[styles.meaning, dir.text]}>{context}</Text>
         )}
       </ScrollView>
 
       {dictionary && gloss !== null && context ? (
-        <Text style={styles.context}>{t('player.inThisSentence', { context })}</Text>
+        <Text style={[styles.context, dir.text]}>{t('player.inThisSentence', { context })}</Text>
       ) : dictionary && gloss !== null && context === undefined ? (
         <Text style={styles.contextLoading}>…</Text>
       ) : null}

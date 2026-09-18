@@ -190,7 +190,7 @@ export function PracticeCard({ log, dueCount }: { log: PracticeLog; dueCount: nu
 
   return (
     <View style={StyleSheet.flatten([styles.card, { backgroundColor: tide.water, borderColor: tide.waterline }])}>
-      <View style={styles.numbers}>
+      <View style={[styles.numbers, dir.row]}>
         <View style={styles.stat}>
           <Odometer value={todayMinutes} reducedMotion={reducedMotion} textStyle={[styles.value, { color: tide.text }]} />
           <Text style={[styles.label, { color: tide.textDim }]}>{t('home.practiceToday')}</Text>

@@ -16,22 +16,24 @@ import { fonts } from '@/constants/fonts';
 /** A finite number or the fallback. Every value below reaches a Reanimated
  * style on the UI thread, where a NaN throws and exits Expo Go with no red
  * box (see `cat-constellation.tsx`). */
-function finiteOr(x: number, fallback: number) {
+export function finiteOr(x: number, fallback: number) {
   'worklet';
   return Number.isFinite(x) ? x : fallback;
 }
 
 /** Positive modulo: keeps a repeating phase in `[0, period)` even while
  * `now - delay` is still negative, just after mount. */
-function phase(now: number, delay: number, period: number) {
+export function phase(now: number, delay: number, period: number) {
   'worklet';
   return finiteOr((((now - delay) % period) + period) % period, 0);
 }
 
-/** A UI-thread millisecond clock for one mounted pass's effects, frozen at 0
- * under reduced motion. Every effect below derives its motion from this one
- * clock instead of its own timers, so nothing here is per-frame JS. */
-function useEffectClock(reducedMotion: boolean) {
+/** A UI-thread millisecond clock for one mounted step's effects, frozen at 0
+ * under reduced motion and stopped when the step unmounts. Every effect below
+ * derives its motion from this one clock instead of its own timers, so nothing
+ * here is per-frame JS. The microphone step's rings (`mic-art.tsx`) run on the
+ * same three helpers. */
+export function useEffectClock(reducedMotion: boolean) {
   const now = useSharedValue(0);
   const frame = useFrameCallback((info) => {
     now.value = finiteOr(info.timeSinceFirstFrame, 0);

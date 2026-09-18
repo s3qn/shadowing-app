@@ -25,7 +25,7 @@ export function SettingsSection({
   const dir = useDir();
   return (
     <View style={styles.section}>
-      <Text style={[styles.title, { color: tide.textDim }, dir.text]}>{title}</Text>
+      <Text style={[styles.title, { color: tide.textDim }, dir.text, dir.rtl && styles.titleRtl]}>{title}</Text>
       <View style={[styles.card, { backgroundColor: tide.water }]}>{children}</View>
       {footnote ? <Text style={[styles.footnote, { color: tide.textDim }, dir.text]}>{footnote}</Text> : null}
     </View>
@@ -85,7 +85,7 @@ export function SettingsRow({
           trackColor={{ false: 'rgba(255,255,255,0.14)', true: tide.lang.ja }}
         />
       ) : (
-        <View style={[styles.rightGroup, singleLineValue && styles.shrink]}>
+        <View style={[styles.rightGroup, dir.row, singleLineValue && styles.shrink]}>
           {dotColor ? <View style={[styles.dot, { backgroundColor: dotColor }]} /> : null}
           {value ? (
             <Text
@@ -119,6 +119,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginLeft: Spacing.sm,
   },
+  titleRtl: { marginLeft: 0, marginRight: Spacing.sm },
   card: { borderRadius: Radius.md, overflow: 'hidden' },
   row: {
     flexDirection: 'row',

@@ -22,7 +22,7 @@ import { Segmented, type SegmentOption } from '@/components/segmented';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, prism, tide, verb as verbTokens } from '@/constants/theme'; // icon-buttons: discard
 import * as api from '@/lib/api';
-import { useT } from '@/lib/i18n';
+import { useDir, useT } from '@/lib/i18n';
 import {
   applyPlaybackMode,
   applyRecordingMode,
@@ -98,6 +98,7 @@ function TakeWave({ bars, progress }: { bars: number[]; progress: number }) {
 
 export default function RecordScreen() {
   const { t } = useT();
+  const dir = useDir();
   const router = useRouter();
   const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true });
   const state = useAudioRecorderState(recorder, 50);
@@ -379,7 +380,7 @@ export default function RecordScreen() {
         <>
           <ScrollView style={styles.fill} contentContainerStyle={styles.content}>
             <View style={styles.header}>
-              <Text style={styles.title}>
+              <Text style={[styles.title, dir.text]}>
                 {phase === 'review'
                   ? t('record.title.review')
                   : recording
@@ -387,7 +388,7 @@ export default function RecordScreen() {
                     : t('record.title.idle')}
               </Text>
               {phase !== 'review' ? (
-                <Text style={styles.hint}>{t('record.promptHint', { language: languageName[language] })}</Text>
+                <Text style={[styles.hint, dir.text]}>{t('record.promptHint', { language: languageName[language] })}</Text>
               ) : null}
             </View>
 
@@ -449,7 +450,7 @@ export default function RecordScreen() {
               </View>
             )}
 
-            {error ? <Text style={styles.error}>{error}</Text> : null}
+            {error ? <Text style={[styles.error, dir.text]}>{error}</Text> : null}
           </ScrollView>
 
           <View style={styles.actions}>
@@ -493,7 +494,7 @@ export default function RecordScreen() {
                   <View style={[styles.recordDot, recording && styles.recordDotActive]} />
                 </PrismButton>
                 {/* Always laid out, so the button does not move when it appears. */}
-                <Text style={styles.keepGoing}>
+                <Text style={[styles.keepGoing, dir.text]}>
                   {recording && !longEnough
                     ? t('record.keepGoing', { seconds: MIN_SECONDS - Math.floor(elapsed) })
                     : recording

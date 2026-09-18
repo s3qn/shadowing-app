@@ -175,10 +175,19 @@ function AutoEchoSheetBase({
         {segmentLabels.map((label, i) => (
           <View key={label} style={styles.segmentCol}>
             <View style={styles.segmentBar}>
-              {i < segmentIndex ? <View style={[styles.segmentFill, styles.segmentFillDone]} /> : null}
-              {i === segmentIndex ? <Animated.View style={[styles.segmentFill, fillStyle]} /> : null}
+              {i < segmentIndex ? (
+                <View style={[styles.segmentFill, dir.rtl && styles.segmentFillRtl, styles.segmentFillDone]} />
+              ) : null}
+              {i === segmentIndex ? (
+                <Animated.View style={[styles.segmentFill, dir.rtl && styles.segmentFillRtl, fillStyle]} />
+              ) : null}
             </View>
-            {i === glowAt ? <Animated.View pointerEvents="none" style={[styles.segmentGlow, glowStyle]} /> : null}
+            {i === glowAt ? (
+              <Animated.View
+                pointerEvents="none"
+                style={[styles.segmentGlow, dir.rtl && styles.segmentGlowRtl, glowStyle]}
+              />
+            ) : null}
             <Text style={[styles.segmentLabel, i <= segmentIndex && styles.segmentLabelDone]}>{label}</Text>
           </View>
         ))}
@@ -233,7 +242,7 @@ function AutoEchoSheetBase({
         onValueChange={onToggleAutoRecord}
         icon={{ ios: 'mic', android: 'mic' }}
       />
-      <Text style={styles.note}>
+      <Text style={[styles.note, dir.text]}>
         {headset === true ? t('player.headsetIn') : t('player.headsetPrompt')}
       </Text>
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -269,6 +278,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   segmentFill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 3, backgroundColor: tide.lang.ja },
+  // The bars run in reading order, so each one fills from the end it starts at.
+  segmentFillRtl: { left: undefined, right: 0 },
   segmentFillDone: { width: '100%' },
   // Sits over the gap to the right of a segment bar, at the boundary where
   // it just finished and the next one takes over.
@@ -286,6 +297,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     elevation: 6,
   },
+  segmentGlowRtl: { right: undefined, left: -8 },
   segmentLabel: { fontFamily: fonts.ui, fontSize: 11, color: tide.textDim },
   segmentLabelDone: { color: tide.text },
   hintRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 14, minHeight: 32 },

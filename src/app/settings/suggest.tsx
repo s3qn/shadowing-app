@@ -8,10 +8,11 @@ import { PressScale } from '@/components/press-scale';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
-import { useT } from '@/lib/i18n';
+import { useDir, useT } from '@/lib/i18n';
 
 export default function SuggestFeatureScreen() {
   const { t } = useT();
+  const dir = useDir();
   const router = useRouter();
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -37,7 +38,7 @@ export default function SuggestFeatureScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       <ScrollView contentContainerStyle={styles.list}>
-        <Text style={[styles.hint, { color: tide.textDim }]}>{t('settings.suggest.hint')}</Text>
+        <Text style={[styles.hint, { color: tide.textDim }, dir.text]}>{t('settings.suggest.hint')}</Text>
 
         <TextInput
           value={text}
@@ -51,10 +52,10 @@ export default function SuggestFeatureScreen() {
           textAlignVertical="top"
           placeholder={t('settings.suggest.placeholder')}
           placeholderTextColor={tide.textDim}
-          style={[styles.input, { color: tide.text }]}
+          style={[styles.input, { color: tide.text }, dir.text]}
         />
 
-        {error ? <Text style={[styles.error, { color: tide.record }]}>{error}</Text> : null}
+        {error ? <Text style={[styles.error, { color: tide.record }, dir.text]}>{error}</Text> : null}
 
         {sent ? (
           <Text style={[styles.sent, { color: tide.text }]}>{t('settings.suggest.sent')}</Text>

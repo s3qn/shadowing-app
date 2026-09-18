@@ -127,8 +127,8 @@ export function BottomSheet({ open, onClose, onDismissed, title, hint, avoidKeyb
           }}
           style={[styles.panel, { paddingBottom: insets.bottom + 16 }, panelStyle]}>
           <View style={styles.grab} />
-          {title ? <Text style={[styles.title, dir.text]}>{title}</Text> : null}
-          {hint ? <Text style={styles.hint}>{hint}</Text> : null}
+          {title ? <Text style={[styles.title, dir.rtl && styles.rtlText]}>{title}</Text> : null}
+          {hint ? <Text style={[styles.hint, dir.rtl && styles.rtlText]}>{hint}</Text> : null}
           <View style={styles.body}>{children}</View>
         </Animated.View>
       </GestureDetector>
@@ -185,6 +185,9 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 4,
   },
+  // The title and hint stay centred in every language: only their writing
+  // direction changes, so Hebrew punctuation sits on the right of the line.
+  rtlText: { writingDirection: 'rtl' },
   hint: {
     fontFamily: fonts.ui,
     fontSize: 12,

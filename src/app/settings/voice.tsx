@@ -17,7 +17,7 @@ import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
 import { applyPlaybackMode, scheduleAudioSessionRelease, startPlayback, useSessionPlayer } from '@/lib/audio-mode';
-import { useT } from '@/lib/i18n';
+import { useDir, useT } from '@/lib/i18n';
 import { getLanguage, type LanguageId } from '@/lib/languages';
 import { getSettingsSync, getVoice, setVoice, subscribeSettings, toIslandLanguage } from '@/lib/settings';
 import { type Key } from '@/locales/en';
@@ -33,6 +33,7 @@ function languageName(t: (key: Key) => string, id: LanguageId): string {
 
 export default function VoiceScreen() {
   const { t } = useT();
+  const dir = useDir();
   const [speakers, setSpeakers] = useState<api.Speaker[]>([]);
   const [chosen, setChosen] = useState<number | null>(null);
   const [error, setError] = useState('');
@@ -102,20 +103,20 @@ export default function VoiceScreen() {
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <View style={styles.header}>
-            <Text style={[styles.title, { color: tide.text }]}>{t('title.voice')}</Text>
+            <Text style={[styles.title, { color: tide.text }, dir.text]}>{t('title.voice')}</Text>
             {comingSoonName ? (
-              <Text style={[styles.hint, { color: tide.textDim }]}>
+              <Text style={[styles.hint, { color: tide.textDim }, dir.text]}>
                 {t('settings.voice.comingSoonNote', { name: comingSoonName, lang: islandName })}
               </Text>
             ) : null}
-            <Text style={[styles.hint, { color: tide.textDim }]}>
+            <Text style={[styles.hint, { color: tide.textDim }, dir.text]}>
               {t('settings.voice.availableFor', { lang: islandName })}
             </Text>
           </View>
         }
         ListEmptyComponent={
           error ? (
-            <Text style={[styles.hint, { color: tide.record }]}>{error}</Text>
+            <Text style={[styles.hint, { color: tide.record }, dir.text]}>{error}</Text>
           ) : (
             <View style={{ marginTop: Spacing.xl, alignItems: 'center' }}>
               <CatConstellation size={110} />
@@ -133,7 +134,7 @@ export default function VoiceScreen() {
           const active = sp.styles.find((st) => st.id === chosen) ?? sp.styles[0];
           return (
             <View style={[styles.row, { backgroundColor: tide.water, borderColor: tide.waterline }]}>
-              <View style={styles.rowTop}>
+              <View style={[styles.rowTop, dir.row]}>
                 {active ? (
                   active.icon ? (
                     <Image source={{ uri: api.iconUrl(active.icon) }} style={styles.icon} />
@@ -143,9 +144,9 @@ export default function VoiceScreen() {
                     </View>
                   )
                 ) : null}
-                <Text style={[styles.name, { color: tide.text }]}>{sp.name}</Text>
+                <Text style={[styles.name, { color: tide.text }, dir.text]}>{sp.name}</Text>
               </View>
-              <View style={styles.chips}>
+              <View style={[styles.chips, dir.row]}>
                 {sp.styles.map((st) => {
                   const on = st.id === chosen;
                   return (

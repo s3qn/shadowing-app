@@ -2,15 +2,18 @@ import { requestRecordingPermissionsAsync } from 'expo-audio';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LanguagePicker } from '@/components/language-picker';
+import { MicArt } from '@/components/onboarding/mic-art';
+import { OnboardingSky } from '@/components/onboarding/onboarding-sky';
 import { PassStep } from '@/components/onboarding/pass-step';
+import { StepAction, StepCopy, StepFrame } from '@/components/onboarding/step-frame';
 import { WelcomeStep } from '@/components/onboarding/welcome-step';
 import { PrismButton } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
-import { Spacing, tide } from '@/constants/theme';
-import { previewAppLanguage, useT } from '@/lib/i18n';
+import { Spacing, prism, tide, verb } from '@/constants/theme';
+import { previewAppLanguage, useDir, useT } from '@/lib/i18n';
 import { LANGUAGES } from '@/lib/languages';
 import {
   type LearningLanguage,
@@ -22,21 +25,30 @@ import {
 } from '@/lib/settings';
 
 const STEP_WELCOME = 0;
-const STEP_LANGUAGES = 1;
-const STEP_MIC = 2;
-const STEP_PASS_FIRST = 3;
-const STEP_PASS_LAST = 7;
-const STEP_READY = 8;
+const STEP_LEARN = 1;
+const STEP_UNDERSTAND = 2;
+const STEP_MIC = 3;
+const STEP_PASS_FIRST = 4;
+const STEP_PASS_LAST = 8;
+const STEP_READY = 9;
 const LAST_STEP = STEP_READY;
 
 /**
- * First-run flow: explains shadowing, picks the two languages, asks for the
+ * First-run flow: explains shadowing, picks the language to learn and the
+ * language already understood (one question per screen), asks for the
  * microphone, then launches the first island. One component with internal
- * step state rather than four routes, since nothing here needs deep-linking
+ * step state rather than a route each, since nothing here needs deep-linking
  * or back-button history.
+ *
+ * Every step sits in the same `StepFrame` over one `OnboardingSky`: the
+ * background is mounted once for the whole flow, so stepping forward never
+ * flashes it, and the button stays at one height from the first screen to
+ * the last.
  */
 export default function OnboardingScreen() {
   const { t } = useT();
+  const dir = useDir();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [step, setStep] = useState(0);
   // Start from the saved pair (the root layout loads settings before any
@@ -103,114 +115,153 @@ export default function OnboardingScreen() {
     setStep(STEP_PASS_FIRST);
   }
 
+  // The route draws no header, so the top inset is this screen's own to
+  // handle: only the bottom edge comes from SafeAreaView (the same split the
+  // player uses), and Skip is placed under the status bar by hand, on the
+  // same row the frame keeps for the progress dots.
   return (
-    <SafeAreaView style={styles.fill}>
-      {step < LAST_STEP ? (
-        <PrismButton
-          shape="pill"
-          verb="tools"
-          flat
-          press="light"
-          label={t('settings.onboarding.skip')}
-          onPress={skip}
-          containerStyle={styles.skip}
-        />
-      ) : null}
-
-      {step === STEP_WELCOME ? <WelcomeStep onNext={() => setStep(STEP_LANGUAGES)} /> : null}
-
-      {/* language-picker: start */}
-      {step === STEP_LANGUAGES ? (
-        <View style={styles.languageStep}>
-          <View style={styles.languageHalf}>
-            <Text style={styles.rowLabel}>{t('settings.languages.learn')}</Text>
-            <LanguagePicker mode="learn" value={learning} onChange={selectLearning} exclude={understand} />
-          </View>
-          <View style={styles.languageHalf}>
-            <Text style={styles.rowLabel}>{t('settings.languages.understand')}</Text>
-            <LanguagePicker mode="understand" value={understand} onChange={setUnderstand} exclude={learning} />
-          </View>
-          <PrismButton
-            shape="pill"
-            verb="read"
-            label={t('settings.onboarding.next')}
-            onPress={() => setStep(STEP_MIC)}
-            containerStyle={styles.action}
-          />
-        </View>
-      ) : null}
-      {/* language-picker: end */}
-
-      {step === STEP_MIC ? (
-        <View style={styles.content}>
-          <Text style={styles.title}>{t('settings.onboarding.micPrompt')}</Text>
-          <PrismButton
-            shape="pill"
-            verb="speak"
-            label={t('settings.onboarding.allowMicrophone')}
-            onPress={() => void allowMic()}
-            containerStyle={styles.action}
-          />
-          {micError ? <Text style={styles.error}>{t('settings.onboarding.micError')}</Text> : null}
-          <PrismButton
-            shape="pill"
-            verb="speak"
-            flat
-            press="light"
-            label={t('settings.onboarding.notNow')}
-            onPress={notNow}
-            containerStyle={styles.notNow}
-          />
-        </View>
-      ) : null}
-
-      {step >= STEP_PASS_FIRST && step <= STEP_PASS_LAST ? (
-        <PassStep
-          pass={(step - STEP_PASS_FIRST) as 0 | 1 | 2 | 3 | 4}
-          learning={learning}
-          understood={understand}
-          onNext={() => setStep(step + 1)}
-        />
-      ) : null}
-
-      {step === STEP_READY ? (
-        <View style={styles.content}>
-          <Text style={styles.readyTitle}>{t('settings.onboarding.ready')}</Text>
-          <PrismButton
-            shape="round"
-            size={88}
-            verb="speak"
-            accessibilityLabel={t('settings.onboarding.recordFirstIsland')}
-            onPress={() => void finish('record')}>
-            <View style={styles.recordDot} />
-          </PrismButton>
-          <Text style={styles.readyCaption}>{t('settings.onboarding.recordFirstIsland')}</Text>
+    <View style={styles.fill}>
+      <OnboardingSky />
+      <SafeAreaView edges={['bottom']} style={styles.flow}>
+        {step < LAST_STEP ? (
           <PrismButton
             shape="pill"
             verb="tools"
             flat
-            label={t('settings.onboarding.pickPodcast')}
-            onPress={() => void finish('podcast')}
-            containerStyle={styles.action}
+            press="light"
+            label={t('settings.onboarding.skip')}
+            onPress={skip}
+            containerStyle={[styles.skip, dir.rtl && styles.skipRtl, { top: insets.top + Spacing.sm }]}
           />
-        </View>
-      ) : null}
-    </SafeAreaView>
+        ) : null}
+
+        {step === STEP_WELCOME ? <WelcomeStep onNext={() => setStep(STEP_LEARN)} /> : null}
+
+        {/* language-picker: start */}
+        {step === STEP_LEARN ? (
+          <StepFrame
+            fill
+            footer={
+              <StepAction
+                verb="read"
+                label={t('settings.onboarding.continue')}
+                onPress={() => setStep(STEP_UNDERSTAND)}
+              />
+            }>
+            <StepCopy
+              kicker={t('settings.onboarding.languagesStep1')}
+              kickerColour={verb.read.c1}
+              title={t('settings.languages.learn')}
+            />
+            <View style={styles.pickerBleed}>
+              <LanguagePicker mode="learn" value={learning} onChange={selectLearning} exclude={understand} />
+            </View>
+          </StepFrame>
+        ) : null}
+
+        {step === STEP_UNDERSTAND ? (
+          <StepFrame
+            fill
+            footer={
+              <StepAction verb="listen" label={t('settings.onboarding.continue')} onPress={() => setStep(STEP_MIC)} />
+            }>
+            <StepCopy
+              kicker={t('settings.onboarding.languagesStep2')}
+              kickerColour={verb.listen.c1}
+              title={t('settings.languages.understand')}
+            />
+            <View style={styles.pickerBleed}>
+              <LanguagePicker mode="understand" value={understand} onChange={setUnderstand} exclude={learning} />
+            </View>
+          </StepFrame>
+        ) : null}
+        {/* language-picker: end */}
+
+        {step === STEP_MIC ? (
+          <StepFrame
+            footer={
+              <>
+                <StepAction
+                  verb="speak"
+                  label={t('settings.onboarding.allowMicrophone')}
+                  onPress={() => void allowMic()}
+                />
+                {micError ? <Text style={styles.error}>{t('settings.onboarding.micError')}</Text> : null}
+                <PrismButton
+                  shape="pill"
+                  verb="speak"
+                  flat
+                  press="light"
+                  label={t('settings.onboarding.notNow')}
+                  onPress={notNow}
+                />
+              </>
+            }>
+            <View style={styles.micArt}>
+              <MicArt />
+            </View>
+            <StepCopy
+              centered
+              kicker={t('settings.onboarding.micKicker')}
+              kickerColour={verb.speak.c1}
+              title={t('settings.onboarding.micTitle')}
+              body={t('settings.onboarding.micLine')}
+            />
+          </StepFrame>
+        ) : null}
+
+        {step >= STEP_PASS_FIRST && step <= STEP_PASS_LAST ? (
+          <PassStep
+            pass={(step - STEP_PASS_FIRST) as 0 | 1 | 2 | 3 | 4}
+            learning={learning}
+            understood={understand}
+            onNext={() => setStep(step + 1)}
+          />
+        ) : null}
+
+        {step === STEP_READY ? (
+          <StepFrame
+            footer={
+              <>
+                <PrismButton
+                  shape="round"
+                  size={88}
+                  verb="speak"
+                  accessibilityLabel={t('settings.onboarding.recordFirstIsland')}
+                  onPress={() => void finish('record')}>
+                  <View style={styles.recordDot} />
+                </PrismButton>
+                <Text style={styles.readyCaption}>{t('settings.onboarding.recordFirstIsland')}</Text>
+                <StepAction
+                  verb="tools"
+                  on={false}
+                  label={t('settings.onboarding.pickPodcast')}
+                  onPress={() => void finish('podcast')}
+                />
+              </>
+            }>
+            <StepCopy
+              kicker={t('settings.onboarding.allSet')}
+              kickerColour={tide.pos.verb}
+              title={t('settings.onboarding.ready')}
+            />
+          </StepFrame>
+        ) : null}
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: tide.sky[0] },
-  content: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, gap: Spacing.lg },
-  // language-picker: the language step needs top alignment and full width
-  // for its two catalogue lists, unlike the other steps' centered `content`.
-  languageStep: { flex: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, gap: Spacing.sm },
-  languageHalf: { flex: 1, gap: Spacing.xs },
-  skip: { position: 'absolute', top: Spacing.lg, right: Spacing.lg, zIndex: 1 },
-  title: { fontFamily: fonts.ui, fontSize: 20, lineHeight: 28, color: tide.text, textAlign: 'center' },
-  rowLabel: { fontFamily: fonts.uiMedium, fontSize: 15, color: tide.textDim, alignSelf: 'flex-start' },
-  action: { marginTop: Spacing.md },
-  notNow: { marginTop: Spacing.xs },
+  flow: { flex: 1 },
+  skip: { position: 'absolute', right: Spacing.lg, zIndex: 1, height: prism.sizes.pill.h },
+  // Skip sits at the end of the reading direction, so Hebrew puts it left.
+  skipRtl: { right: undefined, left: Spacing.lg },
+  // language-picker: the catalogue list carries its own side padding, so it
+  // bleeds back out of the frame's gutter to keep the rows where they were.
+  pickerBleed: { flex: 1, marginHorizontal: -(Spacing.xl - Spacing.lg) },
+  micArt: { alignItems: 'center' },
   error: {
     fontFamily: fonts.ui,
     fontSize: 14,
@@ -218,7 +269,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 280,
   },
-  readyTitle: { fontFamily: fonts.uiMedium, fontSize: 28, color: tide.text },
   readyCaption: { fontFamily: fonts.ui, fontSize: 15, color: tide.textDim },
   recordDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: tide.record },
 });

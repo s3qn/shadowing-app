@@ -4,7 +4,7 @@ import Animated, { runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, 
 
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
-import { useT } from '@/lib/i18n';
+import { useDir, useT } from '@/lib/i18n';
 
 type Props = {
   title: string;
@@ -32,6 +32,9 @@ const NUMBER_GAP = 4;
 export function PlayerTitle({ title, lineIndex, lineCount, hidden = false, onTitleRect, placeholder = false }: Props) {
   const reducedMotion = useReducedMotion();
   const { t } = useT();
+  // `dir` below is the roll's up/down direction, so the writing direction
+  // keeps its own name here.
+  const writing = useDir();
   const number = lineIndex + 1;
   const titleRef = useRef<Text>(null);
   const reportTitleRect = () => {
@@ -101,7 +104,7 @@ export function PlayerTitle({ title, lineIndex, lineCount, hidden = false, onTit
       <Text ref={titleRef} style={styles.title} numberOfLines={1} onLayout={reportTitleRect}>
         {title}
       </Text>
-      <View style={[styles.lineRow, lineCount > 0 || placeholder ? null : styles.waiting]}>
+      <View style={[styles.lineRow, writing.row, lineCount > 0 || placeholder ? null : styles.waiting]}>
         <Text style={styles.line}>{t('player.lineLabel')}</Text>
         <View style={[styles.numberClip, { width: clipWidth }]}>
           {outNumber !== null && (
@@ -126,7 +129,7 @@ export function PlayerTitle({ title, lineIndex, lineCount, hidden = false, onTit
         <Text style={styles.line}>{t('player.ofLabel')}</Text>
         {/* At least the pill's width, so a count of up to three digits
             replaces it without moving the row. */}
-        <View style={styles.countBox}>
+        <View style={[styles.countBox, writing.rtl && styles.countBoxRtl]}>
           {lineCount > 0 ? <Text style={styles.line}>{lineCount}</Text> : <View style={styles.countPill} />}
         </View>
       </View>
@@ -148,6 +151,7 @@ const styles = StyleSheet.create({
   // gap after "OF" is always exactly NUMBER_GAP, the same as every other gap
   // in the row, instead of centering a narrow count inside a wider box.
   countBox: { height: ROLL_HEIGHT, marginLeft: NUMBER_GAP, alignItems: 'center', justifyContent: 'center' },
+  countBoxRtl: { marginLeft: 0, marginRight: NUMBER_GAP },
   countPill: { width: 22, height: 10, borderRadius: 5, backgroundColor: tide.textDim, opacity: 0.35 },
   line: {
     fontFamily: fonts.ui,

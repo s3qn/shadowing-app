@@ -9,7 +9,7 @@ import { PAUSE_STEPS, pauseLabel, TIMES_STEPS, timesLabel } from '@/components/t
 import { TickRuler } from '@/components/tide/tick-ruler';
 import { fonts } from '@/constants/fonts';
 import { Radius, SPEED_MAX, SPEED_MIN, Spacing, tide } from '@/constants/theme';
-import { useT } from '@/lib/i18n';
+import { useDir, useT } from '@/lib/i18n';
 import {
   getSettings,
   PAUSE_STEP_MS,
@@ -26,6 +26,7 @@ const SPEED_OPTIONS = [0.5, 0.7, 0.85, 1, 1.15, 1.3, 1.5];
 
 export default function PlaybackSettingsScreen() {
   const { t } = useT();
+  const dir = useDir();
   const [defaultSpeed, setDefaultSpeedState] = useState(1);
   const [defaultTimes, setDefaultTimesState] = useState(1);
   const [defaultPauseMs, setDefaultPauseMsState] = useState(0);
@@ -142,7 +143,7 @@ export default function PlaybackSettingsScreen() {
             }}
           />
         </SettingsSection>
-        <Text style={[styles.footnote, { color: tide.textDim }]}>{t('settings.playback.autoRecordFootnote')}</Text>
+        <Text style={[styles.footnote, { color: tide.textDim }, dir.text]}>{t('settings.playback.autoRecordFootnote')}</Text>
 
         <SettingsSection title={t('settings.playback.screen')}>
           <SettingsRow
