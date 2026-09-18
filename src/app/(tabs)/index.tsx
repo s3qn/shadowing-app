@@ -49,7 +49,7 @@ import { PrismButton } from '@/components/prism/prism-button';
 import { SearchIcon } from '@/components/tide/toolbar-icons';
 import { fonts } from '@/constants/fonts';
 import { prism, Radius, Spacing, tide, verb, withAlpha } from '@/constants/theme';
-import { LitPillFill, LitPillRim, PILL_H, PILL_ICON_OFF, PILL_LABEL_SIZE, PILL_PAD_X, PillTrayShell } from '@/components/prism/pill-tray';
+import { LitPillCover, LitPillRim, PILL_H, PILL_ICON_OFF, PILL_LABEL_SIZE, PILL_PAD_X, PillTrayShell } from '@/components/prism/pill-tray';
 import { useSkyStyle, isNight } from '@/lib/sky';
 import { useT, useDir } from '@/lib/i18n';
 import * as api from '@/lib/api';
@@ -130,9 +130,16 @@ type Sort = (typeof SORTS)[number];
 
 // pill-tray-tab-bar: sort row start
 const SORT_PILL_BORDER = 1;
-/** One sort option in the Home sort row: a pill that crossfades its own lit fill. */
+/** The box inside a sort pill's border, which the lit fill and rim fill. */
+const SORT_PILL_INNER_H = PILL_H - 2 * SORT_PILL_BORDER;
+/**
+ * One sort option in the Home sort row: a pill that hugs its label and
+ * crossfades its own lit fill. The fill and rim take the pill's real size
+ * from their own absolute fill, not from a measurement kept in state, so a
+ * label that changes width (the app language switching between "Newest" and
+ * "החדשים ביותר") takes them with it.
+ */
 function SortPill({ on, label, onPress }: { on: boolean; label: string; onPress: () => void }) {
-  const [size, setSize] = useState({ width: 0, height: 0 });
   const litOpacity = useSharedValue(on ? 1 : 0);
   const scale = useSharedValue(1);
   useEffect(() => {
@@ -147,16 +154,10 @@ function SortPill({ on, label, onPress }: { on: boolean; label: string; onPress:
       }}
       onPressOut={() => {
         scale.value = withSpring(1, prism.press.spring);
-      }}
-      onLayout={(e) => {
-        // The fill and rim sit inside the pill's border, so size them to
-        // the box inside it rather than the pill's outer size.
-        const { width, height } = e.nativeEvent.layout;
-        setSize({ width: Math.max(0, width - 2 * SORT_PILL_BORDER), height: Math.max(0, height - 2 * SORT_PILL_BORDER) });
       }}>
       <Animated.View style={[styles.pill, scaleStyle]}>
-        <LitPillFill width={size.width} height={size.height} opacity={litOpacity} />
-        {size.height > 0 && <LitPillRim radius={size.height / 2} opacity={litOpacity} />}
+        <LitPillCover height={SORT_PILL_INNER_H} opacity={litOpacity} />
+        <LitPillRim radius={SORT_PILL_INNER_H / 2} opacity={litOpacity} />
         <Text style={[styles.pillText, { color: on ? prism.tray.lit.label : PILL_ICON_OFF }]}>{label}</Text>
       </Animated.View>
     </Pressable>
