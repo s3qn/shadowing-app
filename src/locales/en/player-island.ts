@@ -31,4 +31,8 @@ export const en = {
   'player.toolbarBlind': 'Blind',
   'player.blindBoth': 'Both',
   'player.blindOff': 'Off',
+  'player.keptUpWords': 'Kept up with {kept} of {total} words',
+  // The strip holds the translation into whatever language the learner
+  // understands, so the label never names one.
+  'player.translationHidden': 'Translation, hidden',
 };

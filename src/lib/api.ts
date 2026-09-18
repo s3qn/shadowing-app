@@ -305,10 +305,16 @@ export type PodcastShow = {
 export type PodcastSection = { id: string; title: string; subtitle: string; shows: PodcastShow[] };
 export type PodcastCatalog = { sections: PodcastSection[] };
 
-/** The hand-picked catalog of browsable shows for a language. */
-export async function podcastCatalog(language: Language): Promise<PodcastCatalog> {
+/** The hand-picked catalog of browsable shows for a learning language. Its
+ * section copy and show taglines are editorial text that lives on the
+ * server, so the interface language travels with the request as `ui` and the
+ * server writes them in it: someone learning Japanese while reading Hebrew
+ * gets Hebrew section copy over Japanese shows. */
+export async function podcastCatalog(language: Language, ui: string): Promise<PodcastCatalog> {
   return json<PodcastCatalog>(
-    await fetch(`${BASE}/podcasts/catalog?language=${encodeURIComponent(language)}`, { headers: headers() }),
+    await fetch(`${BASE}/podcasts/catalog?language=${encodeURIComponent(language)}&ui=${encodeURIComponent(ui)}`, {
+      headers: headers(),
+    }),
   );
 }
 

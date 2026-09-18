@@ -21,10 +21,49 @@ _COUNTRY_FOR_LANGUAGE = {"ja": "JP", "en": "US", "es": "ES"}
 _APPLE_ID_RE = re.compile(r"podcasts\.apple\.com/.*/id(\d+)")
 
 
-def catalog(language: str) -> dict:
-    """The editorial sections for `language`. Raises KeyError on an unknown
-    language, which the route maps to a 404."""
-    return _CATALOG[language]
+# The interface language a learner reads the catalog in, which is not the
+# language they are learning: someone learning Japanese while reading Hebrew
+# gets Hebrew section copy over Japanese shows. Each translated field sits in
+# the JSON next to its English one under this suffix ("title" / "titleHe"),
+# and an interface language with no copy yet falls back to English.
+_UI_SUFFIX = {"he": "He"}
+
+
+def _pick(entry: dict, field: str, suffix: str) -> str | None:
+    if suffix:
+        translated = entry.get(f"{field}{suffix}")
+        if translated:
+            return translated
+    return entry.get(field)
+
+
+def catalog(language: str, ui: str = "en") -> dict:
+    """The editorial sections for `language`, written in the interface
+    language `ui`. Raises KeyError on an unknown learning language, which the
+    route maps to a 404."""
+    suffix = _UI_SUFFIX.get(ui, "")
+    return {
+        "sections": [
+            {
+                "id": section["id"],
+                "title": _pick(section, "title", suffix),
+                "subtitle": _pick(section, "subtitle", suffix),
+                "shows": [
+                    {
+                        "collectionId": show["collectionId"],
+                        # A show's own title is a proper noun: never translated.
+                        "title": show["title"],
+                        "feedUrl": show["feedUrl"],
+                        "artworkUrl": show["artworkUrl"],
+                        "level": show["level"],
+                        "tagline": _pick(show, "tagline", suffix),
+                    }
+                    for show in section["shows"]
+                ],
+            }
+            for section in _CATALOG[language]["sections"]
+        ],
+    }
 
 
 def _show_from_lookup(result: dict) -> dict:

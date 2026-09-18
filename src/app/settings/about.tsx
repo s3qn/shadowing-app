@@ -72,7 +72,7 @@ export default function AboutSettingsScreen() {
 
         <SettingsSection
           title={t('settings.about.artwork')}
-          footnote="Animated emoji by Google (Noto Emoji), licensed under CC BY 4.0.">
+          footnote={t('settings.about.artworkFootnote')}>
           <SettingsRow
             label={t('settings.about.animatedEmoji')}
             value="Noto Emoji"
@@ -84,7 +84,7 @@ export default function AboutSettingsScreen() {
         <SettingsSection title={t('settings.about.licences')} footnote={t('settings.about.licencesFootnote')}>
           <SettingsRow
             label={t('settings.about.openSourceLicences')}
-            value="See package.json"
+            value={t('settings.about.seePackageJson')}
             last
             icon={{ ios: 'doc.text', android: 'description' }}
           />

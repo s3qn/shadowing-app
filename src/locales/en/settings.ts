@@ -7,6 +7,28 @@ export const en = {
   'settings.appLanguage': 'App language',
   'settings.appLanguageAuto': 'Same as understood',
 
+  // Settings tab: the section headers and the rows under them. Separate keys
+  // from `title.*` in common.ts, which names the screen a row opens.
+  'settings.section.practice': 'Practice',
+  'settings.section.playback': 'Playback',
+  'settings.section.voice': 'Voice',
+  'settings.section.language': 'Language',
+  'settings.section.appearance': 'Appearance',
+  'settings.section.data': 'Data',
+  'settings.section.about': 'About',
+  'settings.section.feedback': 'Feedback',
+  'settings.row.practice': 'Reading, pitch, defaults',
+  'settings.row.playback': 'Speed, repeat, pause, Auto Echo',
+  'settings.row.voice': 'Voice',
+  'settings.row.languages': 'Learning, understood',
+  'settings.row.showAllLanguages': 'Show all languages',
+  'settings.row.haptics': 'Haptics',
+  'settings.row.alwaysNightSky': 'Always night sky',
+  'settings.row.data': 'Storage, delete takes',
+  'settings.row.about': 'Version, credits',
+  'settings.row.replayOnboarding': 'Replay onboarding',
+  'settings.row.suggest': 'Suggest a feature',
+
   // Language names, shown wherever `LanguageEntry.english` would otherwise
   // render untranslated (the picker's subtitle, a "coming soon" note). The
   // native name (עברית, 日本語, ...) never changes.
@@ -54,10 +76,14 @@ export const en = {
   'settings.about.voiceSynthesis': 'Voice synthesis',
   'settings.about.speechRecognition': 'Speech recognition',
   'settings.about.artwork': 'Artwork',
+  // The names and the licence code stay as they are in every language.
+  'settings.about.artworkFootnote': 'Animated emoji by Google (Noto Emoji), licensed under CC BY 4.0.',
   'settings.about.animatedEmoji': 'Animated emoji',
   'settings.about.licences': 'Licences',
   'settings.about.licencesFootnote': 'Every open source dependency keeps its own licence, unmodified.',
   'settings.about.openSourceLicences': 'Open source licences',
+  // The filename is the value, so it is never translated.
+  'settings.about.seePackageJson': 'See package.json',
 
   // Settings > Data.
   'settings.data.storage': 'Storage',

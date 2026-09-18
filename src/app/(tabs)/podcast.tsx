@@ -75,7 +75,7 @@ type SectionData = { id: string; title: string; subtitle: string; total: number;
 
 export default function PodcastScreen() {
   const router = useRouter();
-  const { t } = useT();
+  const { t, lang } = useT();
   const dir = useDir();
 
   const [catalog, setCatalog] = useState<api.PodcastCatalog | null>(null);
@@ -97,11 +97,13 @@ export default function PodcastScreen() {
   useEffect(() => {
     setCatalog(null);
     setCatalogError('');
+    // The catalog's own copy is written server-side, so a change of
+    // interface language refetches it.
     api
-      .podcastCatalog(toIslandLanguage(learningLanguage))
+      .podcastCatalog(toIslandLanguage(learningLanguage), lang)
       .then(setCatalog)
       .catch((e) => setCatalogError(e instanceof Error ? e.message : t('home.podcastCatalogError')));
-  }, [learningLanguage, t]);
+  }, [learningLanguage, lang, t]);
 
   useEffect(() => () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);

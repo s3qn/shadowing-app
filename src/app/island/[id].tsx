@@ -2699,7 +2699,7 @@ export default function IslandScreen() {
         {isJa && feedback && !hidden ? <TakeFeedback moras={line.timeline} analysis={feedback} /> : null}
 
         {keptUp !== null ? (
-          <Text style={styles.keptUp}>{`Kept up with ${keptUp.kept} of ${keptUp.total} words`}</Text>
+          <Text style={styles.keptUp}>{t('player.keptUpWords', { kept: keptUp.kept, total: keptUp.total })}</Text>
         ) : null}
 
         {/* The English in its own inset strip at the foot of the card. Blind
@@ -2710,7 +2710,7 @@ export default function IslandScreen() {
             content inside that padding) and the strip sits above the card's
             tap-to-play fill, so a press here never plays. */}
         {line.en ? (
-          <Pressable style={styles.enStrip} accessibilityLabel={englishShown ? line.en : 'English translation, hidden'}>
+          <Pressable style={styles.enStrip} accessibilityLabel={englishShown ? line.en : t('player.translationHidden')}>
             <GestureDetector gesture={enReveal.gesture}>
               <View collapsable={false}>
                 {enFrosted ? (

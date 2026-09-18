@@ -1569,11 +1569,14 @@ def rename_island(
 
 
 @app.get("/shadow/podcasts/catalog")
-def podcasts_catalog(language: str, authorization: str | None = Header(None)) -> dict:
-    """The hand-picked, editorial podcast catalog for one language."""
+def podcasts_catalog(language: str, ui: str = "en",
+                     authorization: str | None = Header(None)) -> dict:
+    """The hand-picked, editorial podcast catalog for one learning language,
+    written in the interface language `ui` (a separate setting: Hebrew
+    section copy can sit over Japanese shows)."""
     require_token(authorization)
     try:
-        return podcast_catalog.catalog(language)
+        return podcast_catalog.catalog(language, ui)
     except KeyError:
         raise HTTPException(404, f"no podcast catalog for language: {language}")
 

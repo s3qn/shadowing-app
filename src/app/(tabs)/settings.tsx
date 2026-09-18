@@ -57,27 +57,27 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       <ScrollView contentContainerStyle={styles.list}>
-        <SettingsSection title="Practice">
+        <SettingsSection title={t('settings.section.practice')}>
           <SettingsRow
-            label="Reading, pitch, defaults"
+            label={t('settings.row.practice')}
             last
             icon={{ ios: 'book.closed', android: 'menu_book' }}
             onPress={() => router.push('/settings/practice')}
           />
         </SettingsSection>
 
-        <SettingsSection title="Playback">
+        <SettingsSection title={t('settings.section.playback')}>
           <SettingsRow
-            label="Speed, repeat, pause, Auto Echo"
+            label={t('settings.row.playback')}
             last
             icon={{ ios: 'gauge', android: 'speed' }}
             onPress={() => router.push('/settings/playback')}
           />
         </SettingsSection>
 
-        <SettingsSection title="Voice">
+        <SettingsSection title={t('settings.section.voice')}>
           <SettingsRow
-            label="Voice"
+            label={t('settings.row.voice')}
             value={voiceName}
             last
             icon={{ ios: 'person.wave.2', android: 'record_voice_over' }}
@@ -85,15 +85,15 @@ export default function SettingsScreen() {
           />
         </SettingsSection>
 
-        <SettingsSection title="Language">
+        <SettingsSection title={t('settings.section.language')}>
           <SettingsRow
-            label="Learning, understood"
+            label={t('settings.row.languages')}
             icon={{ ios: 'globe', android: 'language' }}
             onPress={() => router.push('/settings/languages')}
           />
           {/* languages: Home shows every language's islands when on. */}
           <SettingsRow
-            label="Show all languages"
+            label={t('settings.row.showAllLanguages')}
             icon={{ ios: 'globe', android: 'language' }}
             switchValue={showAllLanguages}
             onSwitchChange={(next) => {
@@ -110,9 +110,9 @@ export default function SettingsScreen() {
           />
         </SettingsSection>
 
-        <SettingsSection title="Appearance">
+        <SettingsSection title={t('settings.section.appearance')}>
           <SettingsRow
-            label="Haptics"
+            label={t('settings.row.haptics')}
             icon={{ ios: 'iphone.radiowaves.left.and.right', android: 'vibration' }}
             switchValue={haptics}
             onSwitchChange={(next) => {
@@ -121,7 +121,7 @@ export default function SettingsScreen() {
             }}
           />
           <SettingsRow
-            label="Always night sky"
+            label={t('settings.row.alwaysNightSky')}
             last
             icon={{ ios: 'moon.stars', android: 'nightlight' }}
             switchValue={skyAlwaysNight}
@@ -132,27 +132,28 @@ export default function SettingsScreen() {
           />
         </SettingsSection>
 
-        <SettingsSection title="Data">
+        <SettingsSection title={t('settings.section.data')}>
           <SettingsRow
-            label="Storage, delete takes"
+            label={t('settings.row.data')}
             last
             icon={{ ios: 'internaldrive', android: 'storage' }}
             onPress={() => router.push('/settings/data')}
           />
         </SettingsSection>
 
-        <SettingsSection title="About">
+        <SettingsSection title={t('settings.section.about')}>
           <SettingsRow
-            label="Version, credits"
+            label={t('settings.row.about')}
             icon={{ ios: 'info.circle', android: 'info' }}
             onPress={() => router.push('/settings/about')}
           />
           <SettingsRow
-            label="Replay onboarding"
+            label={t('settings.row.replayOnboarding')}
             last={!__DEV__}
             icon={{ ios: 'arrow.counterclockwise', android: 'replay' }}
             onPress={() => router.push('/onboarding')}
           />
+          {/* Dev-only row, excluded from the app-language inventory. */}
           {__DEV__ ? (
             <SettingsRow
               label="Prism lab"
@@ -163,9 +164,9 @@ export default function SettingsScreen() {
           ) : null}
         </SettingsSection>
 
-        <SettingsSection title="Feedback">
+        <SettingsSection title={t('settings.section.feedback')}>
           <SettingsRow
-            label="Suggest a feature"
+            label={t('settings.row.suggest')}
             last
             icon={{ ios: 'lightbulb', android: 'lightbulb' }}
             onPress={() => router.push('/settings/suggest')}

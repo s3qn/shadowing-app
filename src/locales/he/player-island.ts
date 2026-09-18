@@ -30,4 +30,6 @@ export const he = {
   'player.toolbarBlind': 'ללא טקסט',
   'player.blindBoth': 'שניהם',
   'player.blindOff': 'כבוי',
+  'player.keptUpWords': '{kept} מתוך {total} מילים בקצב',
+  'player.translationHidden': 'תרגום, מוסתר',
 } satisfies Record<keyof typeof enPlayerIsland, string>;
