@@ -88,8 +88,10 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Rename an island: tap its title on the list or in the player. Re-voice keeps
   the new title; Regenerate writes a fresh one.
 - Practice stats and sorting: the home screen shows minutes shadowed today and
-  a streak (a day counts from 60s of line playback, measured from the player
-  itself, takes excluded), with title search and a Newest / Least practiced sort.
+  a streak (a day counts from 10 passes, a line played through or a take saved,
+  or from one finished sentence ladder; days logged before those counters
+  existed still count from 60s of line playback), with title search and a
+  Newest / Least practiced sort.
 - Take score: after Record my take, words that ran early, late or dropped get
   coloured underlines, measured against the take's own median delay, with a
   Behind the voice summary line.

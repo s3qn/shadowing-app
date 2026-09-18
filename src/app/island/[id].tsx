@@ -112,7 +112,6 @@ import {
   isSpeakStep,
   nextOnLineFinish,
   passSpeed,
-  programmeOf,
   speakStepOf,
   textShownAt,
   type PassStep,
@@ -556,6 +555,11 @@ export default function IslandScreen() {
   // relative to it (passSpeed) and leaving a session mid-pass restores it. The
   // session itself never writes the rung.
   const sessionBase = useRef(speed);
+  // Whether the run in progress is a ladder. `programmeOf` reads the programme
+  // off the step's name, which cannot tell the two apart at `idle` and `done`,
+  // and both the speed restore and the rung a take is credited to still need
+  // it after the last pass.
+  const sessionLadder = useRef(false);
   // The Play step's fill: aimed from the take player's status updates rather
   // than a render per tick. Aims once from 0, then re-aims only if the fill
   // has drifted from the real position by more than 0.08.
@@ -1105,6 +1109,9 @@ export default function IslandScreen() {
   function aimEchoLine(s: AudioStatus) {
     const step = echoRef.current;
     if (echoFillStep.current !== step) return;
+    // A position that is not a number would reach the sheet's percentage
+    // width, and a NaN in a worklet ends Expo Go without a red box.
+    if (!Number.isFinite(s.currentTime)) return;
     const end = lineEndOf(s.duration, breathSec);
 
     // Auto Echo's Listen fills to the spoken end, where Echo's pad takes over.
@@ -1246,21 +1253,34 @@ export default function IslandScreen() {
   // has committed, and a new line, speed or pause replaces what is still
   // queued. The phrase's own render is not fetched ahead: it is only ever
   // played for the line on screen.
+  // A ladder waiting to start is warmed at its Listen speed too: that first
+  // pass plays under the rung, which is a source none of the above covers, and
+  // without it Start would wait on the network before the first sound. Every
+  // line after the first is warmed by the Listen of the line before it, which
+  // already runs at that speed.
+  const warmLadderListen = programme === 'ladder' && !isActive(echoStep);
   useEffect(() => {
     if (!island || island.lines.length === 0) return;
     const t = setTimeout(() => {
       const n = island.lines.length;
       const order = [idx + 1, idx + 2, idx - 1, idx].map((i) => (i + n) % n);
       const version = `${island.speaker}-${generation}`;
-      prefetchLineAudio(
-        [...new Set(order)].map((i) => {
-          const l = island.lines[i]!;
-          return { url: api.lineAudioUrl(island.id, l.idx, version, speed, breathMs), tag: l.ja };
-        }),
-      );
+      const items = [...new Set(order)].map((i) => {
+        const l = island.lines[i]!;
+        return { url: api.lineAudioUrl(island.id, l.idx, version, speed, breathMs), tag: l.ja };
+      });
+      const easy = passSpeed(speed, 'ladderListen');
+      if (warmLadderListen && easy !== speed) {
+        const l = island.lines[idx]!;
+        items.unshift({
+          url: api.lineAudioUrl(island.id, l.idx, version, easy, breathMs),
+          tag: l.ja,
+        });
+      }
+      prefetchLineAudio(items);
     }, 0);
     return () => clearTimeout(t);
-  }, [island, idx, generation, speed, breathMs]);
+  }, [island, idx, generation, speed, breathMs, warmLadderListen]);
   // No expo-audio preload() for the next line: on iOS, replace() with a
   // preloaded URL moves that item out of the AVPlayer that loaded it into this
   // one (AudioModule.swift `replace`), and with it the line after the first
@@ -1308,11 +1328,14 @@ export default function IslandScreen() {
     return false;
   }
 
-  // Lock screen / notification text. Blind mode never shows the Japanese.
+  // Lock screen / notification text. A hidden sentence never shows the
+  // Japanese, whether Blind hid it or a ladder pass did.
   function lockMeta(): AudioMetadata {
     const pos = t('player.lineOfTotal', { index: idx + 1, total: island!.lines.length });
     const artist = island!.title || t('player.island');
-    return blind ? { title: pos, artist } : { title: phrase.label ?? line!.ja, artist, albumTitle: pos };
+    return hidden
+      ? { title: pos, artist }
+      : { title: phrase.label ?? line!.ja, artist, albumTitle: pos };
   }
 
   // The line player is the lock screen / notification's active player. It
@@ -1338,7 +1361,7 @@ export default function IslandScreen() {
   });
   useEffect(() => {
     updateLockMeta();
-  }, [blind, idx, island?.title, island?.lines.length, line?.ja, phrase.label]);
+  }, [hidden, idx, island?.title, island?.lines.length, line?.ja, phrase.label]);
 
   // A take made with the phone in a pocket is not a take, and the microphone
   // must never run in the background: dropped as soon as the app backgrounds.
@@ -2293,6 +2316,7 @@ export default function IslandScreen() {
     const hadPhrase = !!phrase.span;
     clearPhrase();
     if (hadPhrase) setPlayWhenLoaded(true);
+    sessionLadder.current = programme === 'ladder';
     if (programme === 'echo') {
       setEchoStep('listen');
       if (!hadPhrase) void playFromTop();
@@ -2321,9 +2345,10 @@ export default function IslandScreen() {
       clearTimeout(advanceHoldRef.current);
       advanceHoldRef.current = null;
     }
-    // `echoRef` still holds the step being left: the idle set below reaches
-    // it at the next commit.
-    const wasLadder = programmeOf(echoRef.current) === 'ladder';
+    // The step being left is `done` after the last pass, which does not say
+    // which programme ran, so the restore reads the session's own flag.
+    const wasLadder = sessionLadder.current;
+    sessionLadder.current = false;
     setEchoStep('idle');
     setEchoResult(null);
     setPlayWhenLoaded(false);
@@ -2380,10 +2405,14 @@ export default function IslandScreen() {
     // rung (0.50 straight to 0.60), so count it as seen and drop it.
     if (ladderNext.current !== null) return;
     const epoch = ladderEpoch.current;
-    // `speed` is what this player is actually playing, which is the rung to
-    // create when the island has none yet; the device default may be something
-    // else entirely.
-    void recordTake(island.id, speed, keptUp).then(({ moved, speed: next }) => {
+    // The rung this take belongs to, which is also the rung to create when the
+    // island has none yet (the device default may be something else entirely).
+    // Outside a ladder run that is what the player is playing. Inside one it is
+    // the session's base: Listen and Mumble play under the rung, and a score
+    // can land after the run has moved on to the next line's Listen, which
+    // would otherwise create the rung 0.15 too low.
+    const rung = sessionLadder.current ? sessionBase.current : speed;
+    void recordTake(island.id, rung, keptUp).then(({ moved, speed: next }) => {
       if (ladderEpoch.current !== epoch || !moved) return;
       ladderNext.current = next;
       setLadderMove({ dir: moved, speed: next });
