@@ -19,8 +19,9 @@ export type LanguageEntry = {
   native: string;
   /** English name, shown as the row's subtitle. */
   english: string;
-  /** A flag emoji, shown as the row's badge. */
-  badge: string;
+  /** One letter from this language's own script, shown in the row's round
+   * avatar. A flag would name a country, not a language. */
+  letter: string;
   region: Region;
   /** The backend can generate islands in this language today. */
   learnable: boolean;
@@ -31,19 +32,19 @@ export type LanguageEntry = {
 };
 
 export const LANGUAGES: LanguageEntry[] = [
-  { id: 'ja', native: '日本語', english: 'Japanese', badge: '🇯🇵', region: 'Asia', learnable: true, understandable: false, rtl: false },
-  { id: 'es', native: 'Español', english: 'Spanish', badge: '🇪🇸', region: 'Europe', learnable: true, understandable: false, rtl: false },
-  { id: 'en', native: 'English', english: 'English', badge: '🇬🇧', region: 'Europe', learnable: true, understandable: true, rtl: false },
-  { id: 'he', native: 'עברית', english: 'Hebrew', badge: '🇮🇱', region: 'Middle East', learnable: false, understandable: true, rtl: true },
-  { id: 'fr', native: 'Français', english: 'French', badge: '🇫🇷', region: 'Europe', learnable: false, understandable: false, rtl: false },
-  { id: 'de', native: 'Deutsch', english: 'German', badge: '🇩🇪', region: 'Europe', learnable: false, understandable: false, rtl: false },
-  { id: 'pt', native: 'Português', english: 'Portuguese', badge: '🇵🇹', region: 'Europe', learnable: false, understandable: false, rtl: false },
-  { id: 'it', native: 'Italiano', english: 'Italian', badge: '🇮🇹', region: 'Europe', learnable: false, understandable: false, rtl: false },
-  { id: 'ru', native: 'Русский', english: 'Russian', badge: '🇷🇺', region: 'Europe', learnable: false, understandable: false, rtl: false },
-  { id: 'ko', native: '한국어', english: 'Korean', badge: '🇰🇷', region: 'Asia', learnable: false, understandable: false, rtl: false },
-  { id: 'zh', native: '中文', english: 'Chinese', badge: '🇨🇳', region: 'Asia', learnable: false, understandable: false, rtl: false },
-  { id: 'hi', native: 'हिन्दी', english: 'Hindi', badge: '🇮🇳', region: 'Asia', learnable: false, understandable: false, rtl: false },
-  { id: 'ar', native: 'العربية', english: 'Arabic', badge: '🇸🇦', region: 'Middle East', learnable: false, understandable: false, rtl: true },
+  { id: 'ja', native: '日本語', english: 'Japanese', letter: 'あ', region: 'Asia', learnable: true, understandable: false, rtl: false },
+  { id: 'es', native: 'Español', english: 'Spanish', letter: 'Ñ', region: 'Europe', learnable: true, understandable: false, rtl: false },
+  { id: 'en', native: 'English', english: 'English', letter: 'A', region: 'Europe', learnable: true, understandable: true, rtl: false },
+  { id: 'he', native: 'עברית', english: 'Hebrew', letter: 'א', region: 'Middle East', learnable: false, understandable: true, rtl: true },
+  { id: 'fr', native: 'Français', english: 'French', letter: 'É', region: 'Europe', learnable: false, understandable: false, rtl: false },
+  { id: 'de', native: 'Deutsch', english: 'German', letter: 'ß', region: 'Europe', learnable: false, understandable: false, rtl: false },
+  { id: 'pt', native: 'Português', english: 'Portuguese', letter: 'Ã', region: 'Europe', learnable: false, understandable: false, rtl: false },
+  { id: 'it', native: 'Italiano', english: 'Italian', letter: 'I', region: 'Europe', learnable: false, understandable: false, rtl: false },
+  { id: 'ru', native: 'Русский', english: 'Russian', letter: 'Я', region: 'Europe', learnable: false, understandable: false, rtl: false },
+  { id: 'ko', native: '한국어', english: 'Korean', letter: '한', region: 'Asia', learnable: false, understandable: false, rtl: false },
+  { id: 'zh', native: '中文', english: 'Chinese', letter: '中', region: 'Asia', learnable: false, understandable: false, rtl: false },
+  { id: 'hi', native: 'हिन्दी', english: 'Hindi', letter: 'अ', region: 'Asia', learnable: false, understandable: false, rtl: false },
+  { id: 'ar', native: 'العربية', english: 'Arabic', letter: 'ع', region: 'Middle East', learnable: false, understandable: false, rtl: true },
 ];
 
 /** Looks up a catalogue entry by id, or `undefined` for an id the catalogue

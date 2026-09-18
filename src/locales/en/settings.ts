@@ -30,7 +30,7 @@ export const en = {
   'settings.row.suggest': 'Suggest a feature',
 
   // Language names, shown wherever `LanguageEntry.english` would otherwise
-  // render untranslated (the picker's subtitle, a "coming soon" note). The
+  // render untranslated (the picker's subtitle). The
   // native name (עברית, 日本語, ...) never changes.
   'language.ja': 'Japanese',
   'language.es': 'Spanish',
@@ -48,6 +48,7 @@ export const en = {
 
   // Language picker (onboarding and Settings > Language).
   'settings.picker.searchPlaceholder': 'Search a language',
+  'settings.picker.regionAll': 'All',
   'settings.picker.regionEurope': 'Europe',
   'settings.picker.regionAsia': 'Asia',
   'settings.picker.regionMiddleEast': 'Middle East',
@@ -57,7 +58,7 @@ export const en = {
   'settings.picker.comingSoon': 'Coming soon',
   'settings.picker.suggested': 'Suggested',
   'settings.picker.allLanguages': 'All languages',
-  'settings.picker.soonNote': 'Not ready to learn yet. Practice stays in {lang} until one of these is built.',
+  'settings.picker.soon': 'Soon',
   'settings.picker.noMatch': 'No languages match "{query}".',
 
   // Settings > Language (learn / understand pickers).
@@ -162,8 +163,19 @@ export const en = {
   'settings.onboarding.allowMicrophone': 'Allow microphone',
   'settings.onboarding.micError': 'Microphone access is off. Turn it on in Settings and try again.',
   'settings.onboarding.notNow': 'Not now',
+  'settings.onboarding.goalKicker': 'Daily goal',
+  'settings.onboarding.goalTitle': 'How long a day?',
+  'settings.onboarding.goalLine':
+    'Short and daily beats long and rare. A day counts once you finish one full sentence ladder.',
+  'settings.onboarding.goalMinutes': '{n} minutes',
+  'settings.onboarding.goalHint5': 'A few sentences',
+  'settings.onboarding.goalHint10': 'One island',
+  'settings.onboarding.goalHint20': 'Deep practice',
   'settings.onboarding.allSet': 'All set',
   'settings.onboarding.ready': 'You’re ready',
+  'settings.onboarding.readyLine': 'Tell Echo Tail about your day and it becomes your first island, in {learn}, with {understand} beside it.',
+  'settings.onboarding.firstIsland': 'Your first island',
+  'settings.onboarding.firstIslandHint': 'Appears here after you record',
   'settings.onboarding.recordFirstIsland': 'Record your first island',
   'settings.onboarding.pickPodcast': 'Pick a podcast instead',
   // The pass kicker names the pass and the speed it plays at: "Pass 1 ·

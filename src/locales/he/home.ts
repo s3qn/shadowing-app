@@ -44,6 +44,7 @@ export const he = {
   // Practice card
   'home.practiceToday': 'היום',
   'home.practiceStreak': 'רצף',
+  'home.practiceGoal': 'מתוך {goal}',
 
   // Island search
   'home.searchPlaceholder': 'חיפוש איים',

@@ -46,6 +46,7 @@ export const en = {
   // Practice card
   'home.practiceToday': 'Today',
   'home.practiceStreak': 'Streak',
+  'home.practiceGoal': 'of {goal}',
 
   // Island search
   'home.searchPlaceholder': 'Search islands',

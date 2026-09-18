@@ -5,9 +5,11 @@ import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LanguagePicker } from '@/components/language-picker';
+import { GoalOptions } from '@/components/onboarding/goal-step';
 import { MicArt } from '@/components/onboarding/mic-art';
 import { OnboardingSky } from '@/components/onboarding/onboarding-sky';
 import { PassStep } from '@/components/onboarding/pass-step';
+import { Confetti, FirstIslandCard, RecordGlow } from '@/components/onboarding/ready-art';
 import { StepAction, StepCopy, StepFrame } from '@/components/onboarding/step-frame';
 import { WelcomeStep } from '@/components/onboarding/welcome-step';
 import { PrismButton } from '@/components/prism';
@@ -16,21 +18,25 @@ import { Spacing, prism, tide, verb } from '@/constants/theme';
 import { previewAppLanguage, useDir, useT } from '@/lib/i18n';
 import { LANGUAGES } from '@/lib/languages';
 import {
+  type DailyGoalMinutes,
   type LearningLanguage,
   type UnderstoodLanguage,
   getSettingsSync,
+  setDailyGoalMinutes,
   setLearningLanguage,
   setOnboarded,
   setUnderstoodLanguage,
 } from '@/lib/settings';
+import { type Key } from '@/locales/en';
 
 const STEP_WELCOME = 0;
 const STEP_LEARN = 1;
 const STEP_UNDERSTAND = 2;
 const STEP_MIC = 3;
-const STEP_PASS_FIRST = 4;
-const STEP_PASS_LAST = 8;
-const STEP_READY = 9;
+const STEP_GOAL = 4;
+const STEP_PASS_FIRST = 5;
+const STEP_PASS_LAST = 9;
+const STEP_READY = 10;
 const LAST_STEP = STEP_READY;
 
 /**
@@ -55,6 +61,7 @@ export default function OnboardingScreen() {
   // screen renders), so Replay onboarding plus Skip keeps the learner's choice.
   const [learning, setLearning] = useState<LearningLanguage>(() => getSettingsSync().learningLanguage);
   const [understand, setUnderstand] = useState<UnderstoodLanguage>(() => getSettingsSync().understoodLanguage);
+  const [goal, setGoal] = useState<DailyGoalMinutes>(() => getSettingsSync().dailyGoalMinutes);
   const [micError, setMicError] = useState(false);
   const leaving = useRef(false);
 
@@ -86,7 +93,12 @@ export default function OnboardingScreen() {
     if (leaving.current) return;
     leaving.current = true;
     try {
-      await Promise.all([setOnboarded(true), setLearningLanguage(learning), setUnderstoodLanguage(understand)]);
+      await Promise.all([
+        setOnboarded(true),
+        setLearningLanguage(learning),
+        setUnderstoodLanguage(understand),
+        setDailyGoalMinutes(goal),
+      ]);
     } catch (err: unknown) {
       console.warn('saving onboarding failed', err);
     }
@@ -104,7 +116,7 @@ export default function OnboardingScreen() {
     const perm = await requestRecordingPermissionsAsync();
     if (perm.granted) {
       setMicError(false);
-      setStep(STEP_PASS_FIRST);
+      setStep(STEP_GOAL);
     } else {
       setMicError(true);
     }
@@ -112,7 +124,7 @@ export default function OnboardingScreen() {
 
   function notNow() {
     setMicError(false);
-    setStep(STEP_PASS_FIRST);
+    setStep(STEP_GOAL);
   }
 
   // The route draws no header, so the top inset is this screen's own to
@@ -210,6 +222,25 @@ export default function OnboardingScreen() {
           </StepFrame>
         ) : null}
 
+        {step === STEP_GOAL ? (
+          <StepFrame
+            footer={
+              <StepAction
+                verb="listen"
+                label={t('settings.onboarding.continue')}
+                onPress={() => setStep(STEP_PASS_FIRST)}
+              />
+            }>
+            <StepCopy
+              kicker={t('settings.onboarding.goalKicker')}
+              kickerColour={verb.listen.c1}
+              title={t('settings.onboarding.goalTitle')}
+              body={t('settings.onboarding.goalLine')}
+            />
+            <GoalOptions value={goal} onChange={setGoal} />
+          </StepFrame>
+        ) : null}
+
         {step >= STEP_PASS_FIRST && step <= STEP_PASS_LAST ? (
           <PassStep
             pass={(step - STEP_PASS_FIRST) as 0 | 1 | 2 | 3 | 4}
@@ -220,32 +251,43 @@ export default function OnboardingScreen() {
         ) : null}
 
         {step === STEP_READY ? (
-          <StepFrame
-            footer={
-              <>
-                <PrismButton
-                  shape="round"
-                  size={88}
-                  verb="speak"
-                  accessibilityLabel={t('settings.onboarding.recordFirstIsland')}
-                  onPress={() => void finish('record')}>
-                  <View style={styles.recordDot} />
-                </PrismButton>
-                <Text style={styles.readyCaption}>{t('settings.onboarding.recordFirstIsland')}</Text>
-                <StepAction
-                  verb="tools"
-                  on={false}
-                  label={t('settings.onboarding.pickPodcast')}
-                  onPress={() => void finish('podcast')}
-                />
-              </>
-            }>
-            <StepCopy
-              kicker={t('settings.onboarding.allSet')}
-              kickerColour={tide.pos.verb}
-              title={t('settings.onboarding.ready')}
-            />
-          </StepFrame>
+          <>
+            <Confetti />
+            <StepFrame
+              footer={
+                <>
+                  <View style={styles.recordWrap}>
+                    <RecordGlow size={132} />
+                    <PrismButton
+                      shape="round"
+                      size={88}
+                      verb="speak"
+                      accessibilityLabel={t('settings.onboarding.recordFirstIsland')}
+                      onPress={() => void finish('record')}>
+                      <View style={styles.recordDot} />
+                    </PrismButton>
+                  </View>
+                  <Text style={styles.readyCaption}>{t('settings.onboarding.recordFirstIsland')}</Text>
+                  <StepAction
+                    verb="tools"
+                    on={false}
+                    label={t('settings.onboarding.pickPodcast')}
+                    onPress={() => void finish('podcast')}
+                  />
+                </>
+              }>
+              <StepCopy
+                kicker={t('settings.onboarding.allSet')}
+                kickerColour={tide.pos.verb}
+                title={t('settings.onboarding.ready')}
+                body={t('settings.onboarding.readyLine', {
+                  learn: t(`language.${learning}` as Key),
+                  understand: t(`language.${understand}` as Key),
+                })}
+              />
+              <FirstIslandCard />
+            </StepFrame>
+          </>
         ) : null}
       </SafeAreaView>
     </View>
@@ -269,6 +311,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 280,
   },
+  recordWrap: { alignItems: 'center', justifyContent: 'center' },
   readyCaption: { fontFamily: fonts.ui, fontSize: 15, color: tide.textDim },
   recordDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: tide.record },
 });

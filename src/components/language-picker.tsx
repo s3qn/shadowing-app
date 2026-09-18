@@ -4,7 +4,7 @@ import { SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
 import { PressScale } from '@/components/press-scale';
 import { CheckIcon, SearchIcon } from '@/components/tide/toolbar-icons';
 import { fonts } from '@/constants/fonts';
-import { Radius, Spacing, tide } from '@/constants/theme';
+import { Radius, Spacing, tide, verb, withAlpha } from '@/constants/theme';
 import { useDir, useT } from '@/lib/i18n';
 import { getLanguage, LANGUAGES, type LanguageEntry, type LanguageId, type Region } from '@/lib/languages';
 import { type Key } from '@/locales/en';
@@ -46,7 +46,7 @@ type Section = { title: string; data: LanguageEntry[] };
 export type LanguagePickerProps = {
   /** Whether the app can generate islands in the pick (`'learn'`) or only
    * explain in it (`'understand'`). Only `'learn'` shows region chips and the
-   * "coming soon" fallback note. */
+   * "coming soon" section. */
   mode: 'learn' | 'understand';
   value: LanguageId;
   onChange: (id: LanguageId) => void;
@@ -95,28 +95,30 @@ function RegionChip({ label, active, onPress }: { label: string; active: boolean
 function LanguageRow({
   entry,
   selected,
-  disabled,
+  soon,
   onPress,
 }: {
   entry: LanguageEntry;
   selected: boolean;
-  /** A "coming soon" language in learn mode: tapping it must not change
-   * what is being learned, so `PressScale`'s own `disabled` blocks the
-   * press outright rather than relying on `onPress` to no-op. */
-  disabled?: boolean;
+  /** A "coming soon" language in learn mode: it carries a Soon pill, and
+   * tapping it must not change what is being learned, so `PressScale`'s own
+   * `disabled` blocks the press outright rather than relying on `onPress` to
+   * no-op. */
+  soon?: boolean;
   onPress: () => void;
 }) {
   const { t } = useT();
   const dir = useDir();
   return (
-    <PressScale onPress={onPress} disabled={disabled} style={[styles.row, dir.row, disabled ? styles.rowDisabled : null]}>
-      <View style={styles.badgeBox}>
-        <Text style={styles.badge}>{entry.badge}</Text>
+    <PressScale onPress={onPress} disabled={soon} style={[styles.row, dir.row]}>
+      <View style={styles.avatar}>
+        <Text style={styles.letter}>{entry.letter}</Text>
       </View>
       <View style={styles.rowBody}>
         <Text style={[styles.native, dir.text]}>{entry.native}</Text>
         <Text style={[styles.english, dir.text]}>{languageName(t, entry.id)}</Text>
       </View>
+      {soon ? <Text style={styles.soonPill}>{t('settings.picker.soon')}</Text> : null}
       {selected ? <CheckIcon color={tide.listen} size={20} /> : null}
     </PressScale>
   );
@@ -181,6 +183,11 @@ export function LanguagePicker({ mode, value, onChange, exclude }: LanguagePicke
           </View>
           {mode === 'learn' ? (
             <View style={[styles.chipRow, dir.row]}>
+              <RegionChip
+                label={t('settings.picker.regionAll')}
+                active={activeRegion === null}
+                onPress={() => setActiveRegion(null)}
+              />
               {REGIONS.map((region) => (
                 <RegionChip
                   key={region}
@@ -200,9 +207,6 @@ export function LanguagePicker({ mode, value, onChange, exclude }: LanguagePicke
       }
       renderSectionHeader={({ section }) => (
         <View style={styles.sectionHeaderWrap}>
-          {mode === 'learn' && section.title === 'Coming soon' ? (
-            <Text style={[styles.soonNote, dir.text]}>{t('settings.picker.soonNote', { lang: languageName(t, value) })}</Text>
-          ) : null}
           <Text style={[styles.sectionHeader, dir.text]}>{sectionTitle(t, section.title)}</Text>
         </View>
       )}
@@ -211,10 +215,8 @@ export function LanguagePicker({ mode, value, onChange, exclude }: LanguagePicke
         // learning (see `setLearningLanguage`), so a learn-mode tap on one
         // must not reach `onChange` at all: `disabled` blocks the press
         // itself, rather than letting `onChange` silently no-op it.
-        const disabled = mode === 'learn' && !item.learnable;
-        return (
-          <LanguageRow entry={item} selected={item.id === value} disabled={disabled} onPress={() => onChange(item.id)} />
-        );
+        const soon = mode === 'learn' && !item.learnable;
+        return <LanguageRow entry={item} selected={item.id === value} soon={soon} onPress={() => onChange(item.id)} />;
       }}
     />
   );
@@ -254,7 +256,6 @@ const styles = StyleSheet.create({
   empty: { fontSize: 14, lineHeight: 20, color: tide.textDim, fontFamily: fonts.ui, paddingTop: Spacing.sm },
   sectionHeaderWrap: { gap: Spacing.xs, paddingTop: Spacing.md, paddingBottom: Spacing.xs },
   sectionHeader: { fontSize: 13, fontWeight: '700', color: tide.textDim, letterSpacing: 0.5, fontFamily: fonts.uiMedium },
-  soonNote: { fontSize: 13, lineHeight: 18, color: tide.textDim, fontFamily: fonts.ui },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -265,9 +266,36 @@ const styles = StyleSheet.create({
     borderColor: tide.waterline,
     backgroundColor: tide.water,
   },
-  rowDisabled: { opacity: 0.45 },
-  badgeBox: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  badge: { fontSize: 20 },
+  // The artifact's round glyph: a letter from the language's own script on
+  // glass, with the prism edges (warm on one side, cool on the other) drawn
+  // as per-side borders.
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1,
+    borderLeftWidth: 2,
+    borderRightWidth: 2,
+    borderLeftColor: 'rgba(255,70,110,0.30)',
+    borderRightColor: 'rgba(70,170,255,0.35)',
+    borderTopColor: 'rgba(255,255,255,0.30)',
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+  letter: { fontSize: 16, fontWeight: '700', color: tide.text, fontFamily: fonts.uiMedium },
+  soonPill: {
+    fontSize: 11,
+    fontWeight: '700',
+    fontFamily: fonts.uiMedium,
+    color: verb.read.c1,
+    backgroundColor: withAlpha(verb.read.c1, 0.12),
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    overflow: 'hidden',
+  },
   rowBody: { flex: 1, gap: 2 },
   native: { fontSize: 17, fontWeight: '600', color: tide.text, fontFamily: fonts.uiMedium },
   english: { fontSize: 13, color: tide.textDim, fontFamily: fonts.ui },

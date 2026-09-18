@@ -45,6 +45,12 @@ export type ReadingMode = (typeof READING_OPTIONS)[number];
 const DEFAULT_READING: ReadingMode = 'furigana';
 const DEFAULT_PITCH = true;
 
+// Minutes of practice a day the learner aims for, picked in onboarding and
+// shown on Home as today's target.
+export const DAILY_GOAL_OPTIONS = [5, 10, 20] as const;
+export type DailyGoalMinutes = (typeof DAILY_GOAL_OPTIONS)[number];
+const DEFAULT_DAILY_GOAL: DailyGoalMinutes = 10;
+
 export const REGISTER_OPTIONS = ['polite', 'casual'] as const;
 export type Register = (typeof REGISTER_OPTIONS)[number];
 export const DEFAULT_REGISTER: Register = 'polite';
@@ -98,6 +104,9 @@ export type Settings = {
   defaultTimes: number;
   /** Pause after each play a new island's player opens with. */
   defaultPauseMs: number;
+  /** Minutes of practice a day the learner aims for. Home shows it as the
+   * target next to today's minutes. */
+  dailyGoalMinutes: DailyGoalMinutes;
   /** Haptic feedback on presses, across the whole app. */
   hapticsEnabled: boolean;
   /** Sky always shows the night palette instead of following the clock. */
@@ -137,6 +146,7 @@ const DEFAULTS: Settings = {
   defaultSpeed: DEFAULT_DEFAULT_SPEED,
   defaultTimes: DEFAULT_DEFAULT_TIMES,
   defaultPauseMs: DEFAULT_DEFAULT_PAUSE,
+  dailyGoalMinutes: DEFAULT_DAILY_GOAL,
   hapticsEnabled: DEFAULT_HAPTICS,
   skyAlwaysNight: DEFAULT_SKY_ALWAYS_NIGHT,
   keepAwake: DEFAULT_KEEP_AWAKE,
@@ -248,6 +258,9 @@ async function read(): Promise<Settings> {
         ? TIMES_MAX
         : migrateTimes(parsed.defaultRepeat),
     defaultPauseMs: isPause(parsed.defaultPauseMs) ? parsed.defaultPauseMs : migratePause(parsed.lagMs),
+    dailyGoalMinutes: (DAILY_GOAL_OPTIONS as readonly number[]).includes(parsed.dailyGoalMinutes as number)
+      ? (parsed.dailyGoalMinutes as DailyGoalMinutes)
+      : DEFAULT_DAILY_GOAL,
     hapticsEnabled: parsed.hapticsEnabled !== false,
     skyAlwaysNight: parsed.skyAlwaysNight === true,
     keepAwake: parsed.keepAwake !== false,
@@ -406,6 +419,11 @@ export async function setDefaultTimes(defaultTimes: number): Promise<void> {
 
 export async function setDefaultPauseMs(defaultPauseMs: number): Promise<void> {
   await update({ defaultPauseMs });
+}
+
+/** Remembers the daily practice goal in minutes. */
+export async function setDailyGoalMinutes(dailyGoalMinutes: DailyGoalMinutes): Promise<void> {
+  await update({ dailyGoalMinutes });
 }
 
 export async function setHaptics(hapticsEnabled: boolean): Promise<void> {
