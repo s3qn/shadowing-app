@@ -143,7 +143,7 @@ export default function OnboardingScreen() {
             press="light"
             label={t('settings.onboarding.skip')}
             onPress={skip}
-            containerStyle={[styles.skip, dir.rtl && styles.skipRtl, { top: insets.top + Spacing.sm }]}
+            containerStyle={[styles.skip, { top: insets.top + Spacing.sm, ...(dir.rtl ? { left: Spacing.lg } : { right: Spacing.lg }) }]}
           />
         ) : null}
 
@@ -299,10 +299,13 @@ const styles = StyleSheet.create({
   flow: { flex: 1 },
   // Skip lies on the row `StepFrame` reserves at the top of every step, so
   // the picker's search field starts below it and a tap near the pill's
-  // bottom edge cannot land on the field underneath.
-  skip: { position: 'absolute', right: Spacing.lg, zIndex: 1, height: prism.sizes.pill.h },
-  // Skip sits at the end of the reading direction, so Hebrew puts it left.
-  skipRtl: { right: undefined, left: Spacing.lg },
+  // bottom edge cannot land on the field underneath. It hugs the end of the
+  // reading direction (left in Hebrew, right in English), and that one side
+  // is set where it is used rather than overridden by a second style here:
+  // React Native merges a style array key by key, so a later `right:
+  // undefined` does not unset an earlier `right`, and a box with both sides
+  // pinned stretches the whole width. That is how Skip became a banner.
+  skip: { position: 'absolute', zIndex: 1, height: prism.sizes.pill.h },
   // language-picker: the catalogue list carries its own side padding, so it
   // bleeds back out of the frame's gutter to keep the rows where they were.
   pickerBleed: { flex: 1, marginHorizontal: -(Spacing.xl - Spacing.lg) },

@@ -13,6 +13,7 @@ import { useMemo, useSyncExternalStore } from 'react';
 
 import { type Key, en } from '@/locales/en';
 import { he } from '@/locales/he';
+import { isolate } from '@/lib/bidi';
 import { getSettingsSync, subscribeSettings, type Settings } from '@/lib/settings';
 
 export type Lang = 'en' | 'he';
@@ -71,9 +72,13 @@ function lookup(lang: Lang, key: string): string | undefined {
   return CATALOGUES[lang][key];
 }
 
+// Every substituted value is isolated (see `lib/bidi`): a language name, a
+// voice name, an island title or a search term can run the other way from the
+// sentence around it, and a Latin value at the head of a Hebrew string would
+// otherwise lay the whole line out left to right.
 function interpolate(template: string, vars?: Vars): string {
   if (!vars) return template;
-  return template.replace(/\{(\w+)\}/g, (whole, name: string) => (name in vars ? String(vars[name]) : whole));
+  return template.replace(/\{(\w+)\}/g, (whole, name: string) => (name in vars ? isolate(String(vars[name])) : whole));
 }
 
 /** Reads the current settings synchronously, so it works outside a
@@ -107,6 +112,10 @@ export type Dir = {
   row?: { flexDirection: 'row-reverse' };
   /** Right-aligns and (iOS) sets the writing direction of a leading `Text`. */
   text?: { textAlign: 'right'; writingDirection: 'rtl' };
+  /** The writing direction alone, for a `Text` that stays centred: without
+   * it a line opening with Latin ("Echo Tail מקשיב לך") takes its base
+   * direction from that first word and reads in the wrong order. */
+  writing?: { writingDirection: 'rtl' };
   /** The "go forward" chevron glyph, mirrored for a reversed reading order. */
   chevron: '›' | '‹';
 };
@@ -122,6 +131,7 @@ export function useDir(): Dir {
       rtl,
       row: rtl ? ({ flexDirection: 'row-reverse' } as const) : undefined,
       text: rtl ? ({ textAlign: 'right', writingDirection: 'rtl' } as const) : undefined,
+      writing: rtl ? ({ writingDirection: 'rtl' } as const) : undefined,
       chevron: rtl ? ('‹' as const) : ('›' as const),
     }),
     [rtl],

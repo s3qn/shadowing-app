@@ -1,5 +1,7 @@
 import type { en as enSettings } from '../en/settings';
 
+import { isolate } from '@/lib/bidi';
+
 export const he = {
   'settings.appLanguage': 'שפת האפליקציה',
   'settings.appLanguageAuto': 'כמו השפה המובנת',
@@ -62,16 +64,16 @@ export const he = {
   'settings.about.deviceId': 'מזהה מכשיר',
   'settings.about.credits': 'קרדיטים',
   'settings.about.creditsFootnote':
-    'הדיבור נוצר באמצעות VOICEVOX והתמלול נעשה באמצעות faster-whisper, שניהם בקוד פתוח ופועלים ברשת של המכשיר הזה בלבד.',
+    `הדיבור נוצר באמצעות ${isolate('VOICEVOX')} והתמלול נעשה באמצעות ${isolate('faster-whisper')}, שניהם בקוד פתוח ופועלים ברשת של המכשיר הזה בלבד.`,
   'settings.about.voiceSynthesis': 'סינתזת קול',
   'settings.about.speechRecognition': 'זיהוי דיבור',
   'settings.about.artwork': 'עיצוב',
-  'settings.about.artworkFootnote': 'אמוג׳י מונפש של Google (Noto Emoji), ברישיון CC BY 4.0.',
+  'settings.about.artworkFootnote': `אמוג׳י מונפש של ${isolate('Google (Noto Emoji)')}, ברישיון ${isolate('CC BY 4.0')}.`,
   'settings.about.animatedEmoji': 'אמוג׳י מונפש',
   'settings.about.licences': 'רישיונות',
   'settings.about.licencesFootnote': 'לכל ספריית קוד פתוח יש רישיון משלה, ללא שינוי.',
   'settings.about.openSourceLicences': 'רישיונות קוד פתוח',
-  'settings.about.seePackageJson': 'בקובץ package.json',
+  'settings.about.seePackageJson': `בקובץ ${isolate('package.json')}`,
 
   'settings.data.storage': 'אחסון',
   'settings.data.storageFootnote': 'כל הקלטה שנעשית בזמן הצללה, בכל האיים.',
@@ -125,7 +127,7 @@ export const he = {
   'settings.voice.comingSoonNote': '{name} עדיין לא זמינה. איים נבנים ב{lang} בינתיים.',
   'settings.voice.availableFor': 'קולות עבור {lang}. הקשה על קול תשמיע אותו; הקול שנבחר ישמש לאיי {lang} חדשים.',
   'settings.voice.loadError': 'לא ניתן לטעון קולות',
-  'settings.voice.credit': 'שמע שנוצר בקול הזה מיוחס בתור VOICEVOX:{name}',
+  'settings.voice.credit': `שמע שנוצר בקול הזה מיוחס בתור ${isolate('VOICEVOX:{name}')}`,
 
   'settings.onboarding.skip': 'דילוג',
   'settings.onboarding.next': 'הבא',
@@ -136,7 +138,7 @@ export const he = {
   'settings.onboarding.languagesStep1': 'שפות · 1 מתוך 2',
   'settings.onboarding.languagesStep2': 'שפות · 2 מתוך 2',
   'settings.onboarding.micKicker': 'מיקרופון',
-  'settings.onboarding.micTitle': 'Echo Tail מקשיב לך',
+  'settings.onboarding.micTitle': `${isolate('Echo Tail')} מקשיב לך`,
   'settings.onboarding.micLine': 'הקול שלך מושווה לקול של דובר שפת אם, כדי לשמוע את ההבדל. שום דבר לא משותף.',
   'settings.onboarding.allowMicrophone': 'אישור מיקרופון',
   'settings.onboarding.micError': 'הגישה למיקרופון כבויה. יש להפעיל אותה בהגדרות ולנסות שוב.',
@@ -155,8 +157,8 @@ export const he = {
   'settings.onboarding.firstIslandHint': 'יופיע כאן אחרי ההקלטה',
   'settings.onboarding.recordFirstIsland': 'הקלטת האי הראשון',
   'settings.onboarding.pickPodcast': 'בחירת פודקאסט במקום זאת',
-  'settings.onboarding.passKicker': 'מעבר {n} · {name} · {speed}×',
-  'settings.onboarding.passKickerNext': 'מעבר {n} · {name} · בפעם הבאה {speed}×',
+  'settings.onboarding.passKicker': `מעבר {n} · {name} · ${isolate('{speed}×')}`,
+  'settings.onboarding.passKickerNext': `מעבר {n} · {name} · בפעם הבאה ${isolate('{speed}×')}`,
   'settings.onboarding.passListenHeadline': 'האזנה בעיניים עצומות',
   'settings.onboarding.passMumbleHeadline': 'מלמול יחד עם הקול',
   'settings.onboarding.passReadHeadline': 'קריאה בקול יחד עם הטקסט',

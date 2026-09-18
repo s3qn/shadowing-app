@@ -17,9 +17,13 @@ export type GlassDiscProps = {
 
 /**
  * The onboarding passes' shared disc: a blurred glass circle tinted with the
- * pass colour, chromatic fringe on the left and right rim, a top highlight
- * line, and a glow behind it. `children` (the Lottie body part, or nothing
- * yet) sits centred on top.
+ * pass colour, chromatic fringe on the left and right rim, and a glow behind
+ * it. `children` (the Lottie body part, or nothing yet) sits centred on top.
+ *
+ * The light on top comes from the radial gradient, which is off-centre
+ * towards the upper left. There is no separate highlight bar on the rim: a
+ * straight one gets clipped by the round edge down to a short hard dash at
+ * the crown, which reads as an artifact over the art rather than as glass.
  */
 export function GlassDisc({ size, colour, children }: GlassDiscProps) {
   const d = size * 1.5;
@@ -51,7 +55,6 @@ export function GlassDisc({ size, colour, children }: GlassDiscProps) {
             },
           ]}
         />
-        <View pointerEvents="none" style={[styles.topLine, { left: 0.25 * d, right: 0.25 * d }]} />
         <View style={styles.content}>{children}</View>
       </View>
     </View>
@@ -60,6 +63,5 @@ export function GlassDisc({ size, colour, children }: GlassDiscProps) {
 
 const styles = StyleSheet.create({
   inner: { overflow: 'hidden' },
-  topLine: { position: 'absolute', top: 1, height: 1.5, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.45)' },
   content: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
 });

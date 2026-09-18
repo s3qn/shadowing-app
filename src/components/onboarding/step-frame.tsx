@@ -70,7 +70,10 @@ export function StepCopy({
   centered?: boolean;
 }) {
   const dir = useDir();
-  const align = centered ? styles.centered : dir.text;
+  // Centred copy still needs the writing direction: without it a headline
+  // that opens with Latin ("Echo Tail מקשיב לך") takes its base direction
+  // from that first word and puts the name at the wrong end of the line.
+  const align = centered ? [styles.centered, dir.writing] : dir.text;
   return (
     <View style={styles.copy}>
       {kicker ? <Text style={[styles.kicker, kickerColour ? { color: kickerColour } : null, align]}>{kicker}</Text> : null}

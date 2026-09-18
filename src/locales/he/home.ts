@@ -1,10 +1,12 @@
 import type { en as enHome } from '../en/home';
 
+import { isolate } from '@/lib/bidi';
+
 export const he = {
   // Home screen chrome
   'home.searchAccessibilityLabel': 'חיפוש איים',
   'home.recordAccessibilityLabel': 'הקלטת אי חדש',
-  'home.notConfigured': 'יש להגדיר את EXPO_PUBLIC_SHADOW_API_URL ואת EXPO_PUBLIC_SHADOW_TOKEN בקובץ .env, ולאחר מכן להפעיל מחדש את שרת הפיתוח.',
+  'home.notConfigured': `יש להגדיר את ${isolate('EXPO_PUBLIC_SHADOW_API_URL')} ואת ${isolate('EXPO_PUBLIC_SHADOW_TOKEN')} בקובץ ${isolate('.env')}, ולאחר מכן להפעיל מחדש את שרת הפיתוח.`,
   'home.serverUnreachable': 'לא ניתן להגיע לשרת',
   'home.serverNoAnswer': 'השרת לא הגיב.',
 
@@ -28,7 +30,7 @@ export const he = {
   'home.minutes_one': '{count} דקה',
   'home.minutes_two': '{count} דקות',
   'home.minutes_other': '{count} דקות',
-  'home.keptUp': 'עמידה בקצב {kept}/{total}',
+  'home.keptUp': `עמידה בקצב ${isolate('{kept}/{total}')}`,
   'home.complexitySimple': 'פשוט',
   'home.complexityComplex': 'מורכב',
 
@@ -51,7 +53,7 @@ export const he = {
   'home.closeSearchAccessibilityLabel': 'סגירת חיפוש',
 
   // Podcast tab
-  'home.podcastSearchPlaceholder': 'חיפוש פודקאסט או כתובת URL',
+  'home.podcastSearchPlaceholder': `חיפוש פודקאסט או כתובת ${isolate('URL')}`,
   'home.podcastCatalogError': 'לא ניתן לטעון את הקטלוג.',
   'home.podcastSearchError': 'החיפוש נכשל.',
   'home.podcastNoShowsFound': 'לא נמצאו תוכניות.',

@@ -1,5 +1,7 @@
 import type { en as enRecord } from '../en/record';
 
+import { isolate } from '@/lib/bidi';
+
 export const he = {
   'record.close': 'סגירה',
 
@@ -24,7 +26,7 @@ export const he = {
 
   'record.styleLabel': 'סגנון',
   'record.register.polite.label': 'מנומס',
-  'record.register.polite.description': 'です/ます, הסגנון היומיומי הרגיל.',
+  'record.register.polite.description': `${isolate('です/ます')}, הסגנון היומיומי הרגיל.`,
   'record.register.casual.label': 'יומיומי',
   'record.register.casual.description': 'צורת מילון, כמו שמדברים עם חבר.',
 
