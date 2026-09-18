@@ -47,6 +47,7 @@ export const he = {
   'player.ofLabel': 'מתוך',
 
   'player.close': 'סגירה',
+  'player.help': 'איך עושים את השלב הזה',
 
   'player.off': 'כבוי',
   'player.readingFurigana': 'פוריגנה',

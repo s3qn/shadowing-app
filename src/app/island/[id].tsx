@@ -3364,6 +3364,7 @@ export default function IslandScreen() {
         sentence={hidden ? null : (phrase.label ?? line.ja)}
         english={englishShown ? line.en : null}
         native={island?.native ?? 'en'} // languages: RTL translation line for Hebrew.
+        language={island?.language ?? 'ja'} // The help's Read along sample is in the island's language.
         moras={line.timeline}
         analysis={hidden ? null : feedback}
         step={echoStep}

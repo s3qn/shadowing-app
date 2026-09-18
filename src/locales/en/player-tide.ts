@@ -46,6 +46,7 @@ export const en = {
   'player.ofLabel': 'OF',
 
   'player.close': 'Close',
+  'player.help': 'How this pass works',
 
   'player.off': 'Off',
   'player.readingFurigana': 'Furigana',

@@ -1,3 +1,4 @@
+import { SymbolView } from 'expo-symbols';
 import { memo, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
@@ -15,9 +16,11 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { LevelBars } from '@/components/level-bars';
+import { PASSES, PassExplainer } from '@/components/onboarding/pass-step';
+import { StepAction } from '@/components/onboarding/step-frame';
 import { PressScale } from '@/components/press-scale';
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
-import { SheetToggle } from '@/components/sheet/sheet-rows';
+import { SheetToggle, type SheetIcon } from '@/components/sheet/sheet-rows';
 import { ROW_HEIGHT, TakeFeedback } from '@/components/take-feedback';
 import { SparkleResult, type SparkleResultData } from '@/components/tide/sparkle-result';
 import { STRIP_HEIGHT, VoiceRipples } from '@/components/tide/voice-ripples';
@@ -26,6 +29,7 @@ import { tide } from '@/constants/theme';
 import { useDir, useT } from '@/lib/i18n';
 import type { Mora, NativeLanguage, TakeAnalysis } from '@/lib/api';
 import {
+  helpPassOf,
   hintKeyOf,
   isArmedStep,
   isPlayStep,
@@ -35,6 +39,11 @@ import {
   type PassStep,
   type Programme,
 } from '@/lib/pass-programme';
+import type { LearningLanguage } from '@/lib/settings';
+
+/** The help affordance's symbol: quiet, and the same question mark on both
+ * platforms. */
+const HELP_ICON: SheetIcon = { ios: 'questionmark.circle', android: 'help_outline' };
 
 /** Old name for `PassStep`, kept so a step prop typed against it still
  * compiles. */
@@ -49,6 +58,9 @@ type AutoEchoSheetProps = {
   /** The island's understood language: 'he' lays the translation line out
    * right to left. Defaults to 'en'. */
   native?: NativeLanguage;
+  /** The island's learning language: the Read along help shows its sample
+   * words. Defaults to Japanese. */
+  language?: LearningLanguage;
   /** The line's moras, for the feedback row's kana and phrase grouping. */
   moras: Mora[] | null;
   /** The last take's mora feedback, shown under the English at Play and Done. */
@@ -97,6 +109,7 @@ function AutoEchoSheetBase({
   sentence,
   english,
   native = 'en',
+  language = 'ja',
   moras,
   analysis,
   step,
@@ -157,110 +170,149 @@ function AutoEchoSheetBase({
   }, [segmentIndex]);
   const glowStyle = useAnimatedStyle(() => ({ opacity: glow.value }));
 
+  // The pass the help button explains, and whether it is showing. Help is
+  // display only: the run behind it keeps going (the line plays on, a
+  // recording keeps recording, a saved take stays saved), so one tap on Got
+  // it puts the practice back exactly where it was. Nothing pauses: the
+  // passes are timed against the audio, and pausing mid-record would cut the
+  // take short. The body below stays mounted under `display: none`, so the
+  // only clocks help starts are the explanation's own, and closing it
+  // unmounts them.
+  const helpPass = helpPassOf(step, programme);
+  const [helpOpen, setHelpOpen] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!open) setHelpOpen(false);
+  }, [open]);
+
   return (
     <BottomSheet
       open={open}
       onClose={onClose}
       onDismissed={onDismissed}
       title={t(programme === 'ladder' ? 'player.ladder' : 'player.autoEcho')}>
-      <View style={styles.sentenceArea}>
-        {sentence ? <Text style={styles.sentence}>{sentence}</Text> : null}
-        {english ? <Text style={[styles.english, native === 'he' && styles.englishRtl]}>{english}</Text> : null}
-        <View style={styles.feedbackRow}>
-          {(played || step === 'done') && moras ? <TakeFeedback moras={moras} analysis={analysis} /> : null}
+      <View style={helpOpen ? styles.hidden : undefined}>
+        {helpPass === null ? null : (
+          <PressScale
+            onPress={() => setHelpOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={t('player.help')}
+            style={[styles.help, dir.rtl ? styles.helpStart : styles.helpEnd]}>
+            <SymbolView name={HELP_ICON} size={19} weight="regular" tintColor={tide.textDim} />
+          </PressScale>
+        )}
+        <View style={styles.sentenceArea}>
+          {sentence ? <Text style={styles.sentence}>{sentence}</Text> : null}
+          {english ? <Text style={[styles.english, native === 'he' && styles.englishRtl]}>{english}</Text> : null}
+          <View style={styles.feedbackRow}>
+            {(played || step === 'done') && moras ? <TakeFeedback moras={moras} analysis={analysis} /> : null}
+          </View>
+          <SparkleResult result={result} />
         </View>
-        <SparkleResult result={result} />
-      </View>
 
-      <View style={[styles.segments, dir.row]}>
-        {segments.map((segment, i) => (
-          <View key={segment.labelKey} style={styles.segmentCol}>
-            <View style={styles.segmentBar}>
-              {i < segmentIndex ? (
-                <View
+        <View style={[styles.segments, dir.row]}>
+          {segments.map((segment, i) => (
+            <View key={segment.labelKey} style={styles.segmentCol}>
+              <View style={styles.segmentBar}>
+                {i < segmentIndex ? (
+                  <View
+                    style={[
+                      styles.segmentFill,
+                      dir.rtl && styles.segmentFillRtl,
+                      styles.segmentFillDone,
+                      { backgroundColor: segment.colour },
+                    ]}
+                  />
+                ) : null}
+                {i === segmentIndex ? (
+                  <Animated.View
+                    style={[styles.segmentFill, dir.rtl && styles.segmentFillRtl, fillStyle, { backgroundColor: segment.colour }]}
+                  />
+                ) : null}
+              </View>
+              {i === glowAt ? (
+                <Animated.View
+                  pointerEvents="none"
                   style={[
-                    styles.segmentFill,
-                    dir.rtl && styles.segmentFillRtl,
-                    styles.segmentFillDone,
-                    { backgroundColor: segment.colour },
+                    styles.segmentGlow,
+                    dir.rtl && styles.segmentGlowRtl,
+                    glowStyle,
+                    { backgroundColor: segment.colour, shadowColor: segment.colour },
                   ]}
                 />
               ) : null}
-              {i === segmentIndex ? (
-                <Animated.View
-                  style={[styles.segmentFill, dir.rtl && styles.segmentFillRtl, fillStyle, { backgroundColor: segment.colour }]}
-                />
-              ) : null}
+              <Text style={[styles.segmentLabel, i <= segmentIndex && styles.segmentLabelDone]}>{t(segment.labelKey)}</Text>
             </View>
-            {i === glowAt ? (
-              <Animated.View
-                pointerEvents="none"
-                style={[
-                  styles.segmentGlow,
-                  dir.rtl && styles.segmentGlowRtl,
-                  glowStyle,
-                  { backgroundColor: segment.colour, shadowColor: segment.colour },
-                ]}
-              />
-            ) : null}
-            <Text style={[styles.segmentLabel, i <= segmentIndex && styles.segmentLabelDone]}>{t(segment.labelKey)}</Text>
+          ))}
+        </View>
+
+        <View style={styles.ripplesRow}>{speaking ? <VoiceRipples level={level} /> : null}</View>
+
+        <View style={styles.hintRow}>
+          <Animated.Text
+            key={step}
+            entering={reducedMotion ? FadeIn.duration(180) : SlideInRight.duration(220).easing(Easing.out(Easing.cubic))}
+            exiting={reducedMotion ? FadeOut.duration(180) : SlideOutLeft.duration(220).easing(Easing.out(Easing.cubic))}
+            style={styles.hint}>
+            {t(hintKeyOf(step, programme))}
+          </Animated.Text>
+          {step === 'echo' && countdown !== null ? <Text style={styles.countdown}>{countdown}</Text> : null}
+          {speaking ? <LevelBars level={level} live /> : null}
+        </View>
+
+        <View style={styles.buttonRow}>
+          {step === 'idle' || step === 'done' ? (
+            <PressScale onPress={onStart} accessibilityRole="button" accessibilityLabel={step === 'idle' ? t('player.start') : t('player.startAgain')} style={styles.pill}>
+              <Text style={styles.pillLabel}>{step === 'idle' ? t('player.start') : t('player.startAgain')}</Text>
+            </PressScale>
+          ) : null}
+          {armed ? (
+            <PressScale onPress={onRecord} accessibilityRole="button" accessibilityLabel={t('player.record')} style={[styles.round, styles.recordRound]}>
+              <View style={styles.recordDot} />
+            </PressScale>
+          ) : null}
+          {speaking && !stopping ? (
+            <>
+              <PressScale onPress={onStop} accessibilityRole="button" accessibilityLabel={t('player.stop')} style={[styles.round, styles.recordRound]}>
+                <View style={styles.stopSquare} />
+              </PressScale>
+              <PressScale onPress={onRetry} accessibilityRole="button" accessibilityLabel={t('common.retry')} style={[styles.round, styles.retryRound]}>
+                <Text style={styles.retryGlyph}>↻</Text>
+              </PressScale>
+            </>
+          ) : null}
+        </View>
+
+        <SheetToggle
+          label={t('player.autoEchoToggle')}
+          value={autoEcho}
+          onValueChange={onToggleAutoEcho}
+          icon={{ ios: 'forward.end', android: 'skip_next' }}
+        />
+        <SheetToggle
+          label={t('player.autoRecordToggle')}
+          value={autoRecord}
+          onValueChange={onToggleAutoRecord}
+          icon={{ ios: 'mic', android: 'mic' }}
+        />
+        <Text style={[styles.note, dir.text]}>
+          {headset === true ? t('player.headsetIn') : t('player.headsetPrompt')}
+        </Text>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+      </View>
+
+      {helpOpen && helpPass !== null ? (
+        <View style={styles.helpBody}>
+          <PassExplainer pass={helpPass} learning={language} understood={native} />
+          <View style={styles.helpAction}>
+            <StepAction
+              verb={PASSES[helpPass].nextVerb}
+              label={t('settings.onboarding.gotIt')}
+              onPress={() => setHelpOpen(false)}
+            />
           </View>
-        ))}
-      </View>
-
-      <View style={styles.ripplesRow}>{speaking ? <VoiceRipples level={level} /> : null}</View>
-
-      <View style={styles.hintRow}>
-        <Animated.Text
-          key={step}
-          entering={reducedMotion ? FadeIn.duration(180) : SlideInRight.duration(220).easing(Easing.out(Easing.cubic))}
-          exiting={reducedMotion ? FadeOut.duration(180) : SlideOutLeft.duration(220).easing(Easing.out(Easing.cubic))}
-          style={styles.hint}>
-          {t(hintKeyOf(step, programme))}
-        </Animated.Text>
-        {step === 'echo' && countdown !== null ? <Text style={styles.countdown}>{countdown}</Text> : null}
-        {speaking ? <LevelBars level={level} live /> : null}
-      </View>
-
-      <View style={styles.buttonRow}>
-        {step === 'idle' || step === 'done' ? (
-          <PressScale onPress={onStart} accessibilityRole="button" accessibilityLabel={step === 'idle' ? t('player.start') : t('player.startAgain')} style={styles.pill}>
-            <Text style={styles.pillLabel}>{step === 'idle' ? t('player.start') : t('player.startAgain')}</Text>
-          </PressScale>
-        ) : null}
-        {armed ? (
-          <PressScale onPress={onRecord} accessibilityRole="button" accessibilityLabel={t('player.record')} style={[styles.round, styles.recordRound]}>
-            <View style={styles.recordDot} />
-          </PressScale>
-        ) : null}
-        {speaking && !stopping ? (
-          <>
-            <PressScale onPress={onStop} accessibilityRole="button" accessibilityLabel={t('player.stop')} style={[styles.round, styles.recordRound]}>
-              <View style={styles.stopSquare} />
-            </PressScale>
-            <PressScale onPress={onRetry} accessibilityRole="button" accessibilityLabel={t('common.retry')} style={[styles.round, styles.retryRound]}>
-              <Text style={styles.retryGlyph}>↻</Text>
-            </PressScale>
-          </>
-        ) : null}
-      </View>
-
-      <SheetToggle
-        label={t('player.autoEchoToggle')}
-        value={autoEcho}
-        onValueChange={onToggleAutoEcho}
-        icon={{ ios: 'forward.end', android: 'skip_next' }}
-      />
-      <SheetToggle
-        label={t('player.autoRecordToggle')}
-        value={autoRecord}
-        onValueChange={onToggleAutoRecord}
-        icon={{ ios: 'mic', android: 'mic' }}
-      />
-      <Text style={[styles.note, dir.text]}>
-        {headset === true ? t('player.headsetIn') : t('player.headsetPrompt')}
-      </Text>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+        </View>
+      ) : null}
     </BottomSheet>
   );
 }
@@ -270,6 +322,17 @@ function AutoEchoSheetBase({
 export const AutoEchoSheet = memo(AutoEchoSheetBase);
 
 const styles = StyleSheet.create({
+  // The running sheet stays mounted while help is up: hiding it keeps the
+  // segment fill, the ripples and a recording in progress exactly as they
+  // were, and costs no layout.
+  hidden: { display: 'none' },
+  // A quiet mark in the sheet's top corner, clear of the Start and Record
+  // controls in the middle. Temporary: this sheet is being redesigned.
+  help: { position: 'absolute', top: -6, width: 36, height: 36, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
+  helpEnd: { right: -8 },
+  helpStart: { left: -8 },
+  helpBody: { gap: 16, paddingTop: 4, paddingBottom: 8 },
+  helpAction: { alignItems: 'center' },
   // minHeight keeps room for the SparkleResult overlay even when Blind hides
   // the sentence and English is off, so the result still has a place to sit.
   sentenceArea: { minHeight: 56, justifyContent: 'center' },

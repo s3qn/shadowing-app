@@ -128,23 +128,24 @@ const LOTTIE_SOURCES = [
 ];
 
 /**
- * One of the five onboarding passes: the progress dots, the art card with
- * its Lottie body part and the pass's effect (syllable pops, humming dots
- * and whispers, word by word glow with the translation under it, rising
- * language bubbles with the two waveform lanes), the copy block, and the
- * button. Effects live in `pass-effects.tsx` and are still under reduced
- * motion.
+ * One pass's explanation: the art card with its Lottie body part and the
+ * pass's effect (syllable pops, humming dots and whispers, word by word glow
+ * with the translation under it, rising language bubbles with the two
+ * waveform lanes), then the copy block. Effects live in `pass-effects.tsx`,
+ * run off one frame clock each that stops when this unmounts, and are still
+ * under reduced motion.
+ *
+ * The onboarding wraps it in a step (`PassStep` below) and the practice
+ * sheet's help shows it on its own, so both read the same explanation.
  */
-export function PassStep({
+export function PassExplainer({
   pass,
   learning,
   understood,
-  onNext,
 }: {
   pass: 0 | 1 | 2 | 3 | 4;
   learning: LearningLanguage;
   understood: UnderstoodLanguage;
-  onNext: () => void;
 }) {
   const { t } = useT();
   const dir = useDir();
@@ -163,15 +164,7 @@ export function PassStep({
   });
 
   return (
-    <StepFrame
-      dots={{ count: PASSES.length, active: pass, colour: info.colour }}
-      footer={
-        <StepAction
-          verb={info.nextVerb}
-          label={t(last ? 'settings.onboarding.gotIt' : 'settings.onboarding.next')}
-          onPress={onNext}
-        />
-      }>
+    <>
       <ArtCard colour={info.colour}>
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
           <View
@@ -251,6 +244,39 @@ export function PassStep({
         </View>
       </ArtCard>
       <StepCopy kicker={kicker} kickerColour={info.colour} title={t(info.headlineKey)} body={t(info.lineKey)} />
+    </>
+  );
+}
+
+/**
+ * One of the five onboarding pass screens: the progress dots, the pass's own
+ * explanation, and the button on to the next one.
+ */
+export function PassStep({
+  pass,
+  learning,
+  understood,
+  onNext,
+}: {
+  pass: 0 | 1 | 2 | 3 | 4;
+  learning: LearningLanguage;
+  understood: UnderstoodLanguage;
+  onNext: () => void;
+}) {
+  const { t } = useT();
+  const info = PASSES[pass];
+
+  return (
+    <StepFrame
+      dots={{ count: PASSES.length, active: pass, colour: info.colour }}
+      footer={
+        <StepAction
+          verb={info.nextVerb}
+          label={t(pass === 4 ? 'settings.onboarding.gotIt' : 'settings.onboarding.next')}
+          onPress={onNext}
+        />
+      }>
+      <PassExplainer pass={pass} learning={learning} understood={understood} />
     </StepFrame>
   );
 }

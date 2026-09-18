@@ -177,6 +177,36 @@ export function hintKeyOf(step: PassStep, programme: Programme): Key {
 }
 
 /**
+ * Which pass's explanation the practice sheet's help should show for a step,
+ * 0 based over the five ladder passes, or `null` where there is nothing to
+ * show. Auto Echo returns `null` at every step: the onboarding only teaches
+ * the ladder, so its four steps have no explanation to open. The ladder's
+ * `idle` and `done` return Listen, the pass Start (or Start again) begins
+ * with.
+ */
+export function helpPassOf(step: PassStep, programme: Programme): 0 | 1 | 2 | 3 | 4 | null {
+  if (programme === 'echo') return null;
+  switch (step) {
+    case 'ladderMumble':
+      return 1;
+    case 'ladderRead':
+      return 2;
+    case 'ladderArmed':
+    case 'ladderShadow':
+      return 3;
+    case 'ladderCompare':
+    case 'ladderPlay':
+      return 4;
+    case 'ladderListen':
+    case 'idle':
+    case 'done':
+      return 0;
+    default:
+      return null;
+  }
+}
+
+/**
  * What the active segment's fill animates against: a `line`'s own playback
  * position, the `pad` (the post-line silence Echo listens through), a
  * `record`ing in progress, or a saved `take` playing back. `none` for the
