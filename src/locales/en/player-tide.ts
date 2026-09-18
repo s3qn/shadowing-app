@@ -14,6 +14,7 @@ export const en = {
   'player.segmentListen': 'Listen',
   'player.segmentEcho': 'Echo',
   'player.segmentSpeak': 'Speak',
+  'player.passOf': 'Pass {n} of {total}',
   'player.start': 'Start',
   'player.startAgain': 'Start again',
   'player.record': 'Record',

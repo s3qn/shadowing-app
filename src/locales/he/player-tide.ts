@@ -15,6 +15,7 @@ export const he = {
   'player.segmentListen': 'האזנה',
   'player.segmentEcho': 'הד',
   'player.segmentSpeak': 'דיבור',
+  'player.passOf': 'שלב {n} מתוך {total}',
   'player.start': 'התחלה',
   'player.startAgain': 'התחלה מחדש',
   'player.record': 'הקלטה',

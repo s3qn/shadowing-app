@@ -1,17 +1,17 @@
 import { SymbolView } from 'expo-symbols';
+import { BlurView } from 'expo-blur';
 import { memo, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
-  FadeIn,
-  FadeOut,
-  SlideInRight,
-  SlideOutLeft,
+  Extrapolation,
+  interpolate,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
-  withSequence,
+  withDelay,
+  withSpring,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
@@ -26,7 +26,7 @@ import { ROW_HEIGHT, TakeFeedback } from '@/components/take-feedback';
 import { SparkleResult, type SparkleResultData } from '@/components/tide/sparkle-result';
 import { STRIP_HEIGHT, VoiceRipples } from '@/components/tide/voice-ripples';
 import { fonts } from '@/constants/fonts';
-import { tide } from '@/constants/theme';
+import { prism, tide, withAlpha } from '@/constants/theme';
 import { useDir, useT } from '@/lib/i18n';
 import type { Mora, NativeLanguage, TakeAnalysis } from '@/lib/api';
 import {
@@ -50,6 +50,34 @@ const HELP_ICON: SheetIcon = { ios: 'questionmark.circle', android: 'help_outlin
 /** Old name for `PassStep`, kept so a step prop typed against it still
  * compiles. */
 export type EchoStep = PassStep;
+
+/**
+ * The five rows of the lower zone, top to bottom: the pass rail, the pass
+ * label, the guidance line, the result, the control. Everything about the
+ * current pass is one of these; the sentence above the rule is none of them.
+ */
+const ROWS = 5;
+
+/** The cut. Each row keeps full contrast and falls, bottom row first, and is
+ * gone the instant its own fall lands. Last row out at 4 * 12 + 150 = 198ms. */
+const CUT_MS = 150;
+const CUT_STAGGER_MS = 12;
+const CUT_EASING = Easing.bezier(0.4, 0, 0.72, 0.52);
+
+/** The rise, from the same floor the old rows fell into. The zone is bare
+ * between 198ms and 205ms, so the two passes are never on screen together. */
+const SWAP_MS = 205;
+const RISE_STAGGER_MS = 26;
+const RISE_SPRING = { stiffness: 170, damping: 16, mass: 1 } as const;
+
+/**
+ * How far a row travels, as a fraction of the sheet's width. A fraction of
+ * one shared width, not of each row's own type size: in em the small guidance
+ * text travelled less than the pass name above it and the two closed on each
+ * other on the way up.
+ */
+const RISE_FRACTION = 0.1;
+const FALL_FRACTION = 0.044;
 
 type AutoEchoSheetProps = {
   open: boolean;
@@ -104,9 +132,69 @@ type AutoEchoSheetProps = {
 };
 
 /**
- * The Auto Echo loop: listen to the line, echo it in the pad's silence, speak
- * it back (recorded), then play the take back. Runs on its own while the
- * sheet is open; closing it stops everything.
+ * One row of the lower zone. `y` is the row's offset in points: positive is
+ * below its resting place, which is where both the fall and the rise live.
+ * `phase` is 0 while the old pass is falling and 1 while the new one rises,
+ * and it is set, never animated.
+ *
+ * Falling, the row holds full contrast until its own fall lands and then it
+ * is simply gone: the exit is a cut, not a fade, so the new pass never has to
+ * rise through a ghost of the old one. Rising, the contrast comes back over
+ * the first quarter of the travel.
+ */
+/**
+ * Puts every row at rest with nothing running: for reduced motion, for a
+ * closed sheet, and for the first pass of a fresh sheet.
+ */
+function settleRows(rows: readonly SharedValue<number>[], phase: SharedValue<number>) {
+  phase.value = 0;
+  for (const y of rows) {
+    cancelAnimation(y);
+    y.value = 0;
+  }
+}
+
+/**
+ * The cut. Every row is driven from this one call, so five rows can never
+ * drift apart, and each one leaves from wherever it stands at that instant:
+ * a tap that lands mid-transition retimes the whole zone rather than waiting
+ * for it or jumping.
+ */
+function cutRows(rows: readonly SharedValue<number>[], phase: SharedValue<number>, fall: number) {
+  phase.value = 0;
+  rows.forEach((y, k) => {
+    y.value = withDelay((ROWS - 1 - k) * CUT_STAGGER_MS, withTiming(fall, { duration: CUT_MS, easing: CUT_EASING }));
+  });
+}
+
+/** The rise, out of the floor the old rows fell into, on a real spring. */
+function riseRows(rows: readonly SharedValue<number>[], phase: SharedValue<number>, rise: number) {
+  phase.value = 1;
+  rows.forEach((y, k) => {
+    y.value = rise;
+    y.value = withDelay(k * RISE_STAGGER_MS, withSpring(0, RISE_SPRING));
+  });
+}
+
+function useRowStyle(y: SharedValue<number>, phase: SharedValue<number>, rise: number, fall: number) {
+  return useAnimatedStyle(() => {
+    // A NaN on the UI thread ends the app in Expo Go without a red box.
+    const v = Number.isFinite(y.value) ? y.value : 0;
+    const opacity =
+      phase.value === 0
+        ? v >= fall - 0.01
+          ? 0
+          : 1
+        : interpolate(v, [rise * 0.24, rise * 0.53, rise * 0.84, rise], [1, 0.8, 0.4, 0], Extrapolation.CLAMP);
+    return { opacity, transform: [{ translateY: v }] };
+  }, [rise, fall]);
+}
+
+/**
+ * The practice sheet: the sentence and its translation in a zone that never
+ * moves, and everything about the current pass under the rule below it.
+ * Passes are swapped by cutting the old rows away and springing the new ones
+ * up out of the same floor.
  */
 function AutoEchoSheetBase({
   open,
@@ -137,18 +225,93 @@ function AutoEchoSheetBase({
   onStop,
   onRetry,
 }: AutoEchoSheetProps) {
-  const segmentIndex = segmentIndexOf(step, programme);
   const reducedMotion = useReducedMotion();
   const { t } = useT();
   const dir = useDir();
+  const { width } = useWindowDimensions();
   const segments = segmentsOf(programme);
-  const speaking = isSpeakStep(step);
-  const armed = isArmedStep(step);
+  const passIndex = segmentIndexOf(step, programme);
+
+  // The pass the lower zone is showing, which lags the real one by the length
+  // of the cut so the old rows fall with the old words on them. Only a change
+  // of pass animates: Record to Stop inside one pass swaps straight away, so
+  // the control is never missing at the moment it is wanted.
+  const [shown, setShown] = useState<{ step: PassStep; index: number }>({ step, index: passIndex });
+  const shownRef = useRef(shown);
+
+  const rise = Math.round(width * RISE_FRACTION);
+  const fall = Math.round(width * FALL_FRACTION);
+
+  const phase = useSharedValue(0);
+  const y0 = useSharedValue(0);
+  const y1 = useSharedValue(0);
+  const y2 = useSharedValue(0);
+  const y3 = useSharedValue(0);
+  const y4 = useSharedValue(0);
+  const rowStyles = [
+    useRowStyle(y0, phase, rise, fall),
+    useRowStyle(y1, phase, rise, fall),
+    useRowStyle(y2, phase, rise, fall),
+    useRowStyle(y3, phase, rise, fall),
+    useRowStyle(y4, phase, rise, fall),
+  ];
+  const swapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const ys = [y0, y1, y2, y3, y4];
+    const next = { step, index: passIndex };
+    const samePass = passIndex === shownRef.current.index;
+    if (samePass || reducedMotion || !open) {
+      if (swapTimer.current !== null) {
+        clearTimeout(swapTimer.current);
+        swapTimer.current = null;
+      }
+      if (!samePass) settleRows(ys, phase);
+      shownRef.current = next;
+      setShown(next);
+      return;
+    }
+
+    cutRows(ys, phase, fall);
+    if (swapTimer.current !== null) clearTimeout(swapTimer.current);
+    swapTimer.current = setTimeout(() => {
+      swapTimer.current = null;
+      shownRef.current = next;
+      setShown(next);
+      riseRows(ys, phase, rise);
+    }, SWAP_MS);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, passIndex, reducedMotion, open, rise, fall]);
+
+  useEffect(
+    () => () => {
+      if (swapTimer.current !== null) clearTimeout(swapTimer.current);
+      cancelAnimation(y0);
+      cancelAnimation(y1);
+      cancelAnimation(y2);
+      cancelAnimation(y3);
+      cancelAnimation(y4);
+    },
+    [y0, y1, y2, y3, y4],
+  );
+
+  const shownIndex = shown.index;
+  const shownPass = shownIndex >= 0 && shownIndex < segments.length ? segments[shownIndex] : null;
+  const passColour = shownPass?.colour ?? tide.lang.ja;
+  const speaking = isSpeakStep(shown.step);
+  const armed = isArmedStep(shown.step);
   const played = isPlayStep(step);
 
-  // The one active segment's width, read from the screen's shared value.
-  // Segments before and after it are plain static styles below, so this
-  // never runs for a step that has no active segment (idle, done).
+  // Which tab fills and which ones read as finished. While the zone is
+  // between two passes the outgoing one is already finished, so it falls with
+  // a full underline instead of collapsing to nothing under the screen's
+  // reset of `fill`, and no tab is live until the new pass has risen.
+  const liveTab = passIndex === shownIndex ? shownIndex : -1;
+  const doneBefore = passIndex > shownIndex ? shownIndex + 1 : shownIndex;
+
+  // The live pass's underline, read from the screen's shared value. Rails
+  // before it are full and rails after it are empty, both plain static styles
+  // below, so this never runs for a step with no active segment.
   const fillStyle = useAnimatedStyle(() => ({
     width: `${Math.max(0, Math.min(1, fill.value)) * 100}%`,
   }));
@@ -181,30 +344,6 @@ function AutoEchoSheetBase({
     return { opacity: 0.85 * (1 - b), transform: [{ scale: 1 + 0.22 * b }] };
   }, [reducedMotion]);
 
-  // A short soft glow at the boundary where a segment just finished and the
-  // next one takes over. Display only: it reads `step` (via segmentIndex)
-  // and never touches the step machine, recording or fill logic.
-  const prevSegmentIndex = useRef(segmentIndex);
-  const glow = useSharedValue(0);
-  const [glowAt, setGlowAt] = useState<number | null>(null);
-  useEffect(() => {
-    if (segmentIndex > prevSegmentIndex.current) {
-      const boundary = prevSegmentIndex.current;
-      setGlowAt(boundary);
-      glow.value = 0;
-      glow.value = withSequence(
-        withTiming(1, { duration: 140, easing: Easing.out(Easing.cubic) }),
-        withTiming(0, { duration: 360, easing: Easing.inOut(Easing.cubic) }),
-      );
-      const t = setTimeout(() => setGlowAt(null), 520);
-      prevSegmentIndex.current = segmentIndex;
-      return () => clearTimeout(t);
-    }
-    prevSegmentIndex.current = segmentIndex;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [segmentIndex]);
-  const glowStyle = useAnimatedStyle(() => ({ opacity: glow.value }));
-
   // The pass the help button explains, and whether it is showing. Help is
   // display only: the run behind it keeps going (the line plays on, a
   // recording keeps recording, a saved take stays saved), so one tap on Got
@@ -236,97 +375,148 @@ function AutoEchoSheetBase({
             <SymbolView name={HELP_ICON} size={19} weight="regular" tintColor={tide.textDim} />
           </PressScale>
         )}
-        <View style={styles.sentenceArea}>
+
+        {/* The upper zone. Its height is the same on every pass: the two
+            reserved rows below the sentence see to that, so nothing here
+            moves when the pass under the rule changes. */}
+        <View style={styles.topZone}>
           {sentence ? <Text style={styles.sentence}>{sentence}</Text> : null}
           {english ? <Text style={[styles.english, native === 'he' && styles.englishRtl]}>{english}</Text> : null}
           <View style={styles.feedbackRow}>
             {(played || step === 'done') && moras ? <TakeFeedback moras={moras} analysis={analysis} /> : null}
           </View>
-          <SparkleResult result={result} />
         </View>
 
-        <View style={[styles.segments, dir.row]}>
-          {segments.map((segment, i) => (
-            <View key={segment.labelKey} style={styles.segmentCol}>
-              <View style={styles.segmentBar}>
-                {i < segmentIndex ? (
-                  <View
-                    style={[
-                      styles.segmentFill,
-                      dir.rtl && styles.segmentFillRtl,
-                      styles.segmentFillDone,
-                      { backgroundColor: segment.colour },
-                    ]}
-                  />
-                ) : null}
-                {i === segmentIndex ? (
-                  <Animated.View
-                    style={[styles.segmentFill, dir.rtl && styles.segmentFillRtl, fillStyle, { backgroundColor: segment.colour }]}
-                  />
-                ) : null}
+        <View style={styles.rule}>
+          {shownPass ? <View style={[styles.ruleLit, { backgroundColor: withAlpha(passColour, 0.45) }]} /> : null}
+        </View>
+
+        <View style={styles.lowZone}>
+          {/* One pane of glass with the five passes marked on it: a rail, not
+              five chips. It carries the prism rim and the warm and cool
+              fringe, and withholds the lip, the shadow and any press state,
+              because it says where you are rather than offering a tap. */}
+          <Animated.View style={rowStyles[0]}>
+            <View style={styles.rail}>
+              <BlurView style={StyleSheet.absoluteFill} intensity={prism.blur.intensity} tint={prism.blur.tint} />
+              <View style={[StyleSheet.absoluteFill, styles.railFill]} />
+              <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.railRim]} />
+              <View pointerEvents="none" style={styles.railTop} />
+              <View pointerEvents="none" style={[styles.railFringe, styles.railFringeLeft]} />
+              <View pointerEvents="none" style={[styles.railFringe, styles.railFringeRight]} />
+              <View style={[styles.railRow, dir.row]}>
+                {segments.map((segment, i) => (
+                  <View key={segment.labelKey} style={[styles.tab, { backgroundColor: withAlpha(segment.colour, 0.05) }]}>
+                    {i > 0 ? (
+                      <View pointerEvents="none" style={[styles.divider, dir.rtl ? styles.dividerRtl : styles.dividerLtr]} />
+                    ) : null}
+                    {i === shownIndex ? (
+                      <>
+                        <View
+                          pointerEvents="none"
+                          style={[styles.bloom, styles.bloomLow, { backgroundColor: withAlpha(segment.colour, 0.06) }]}
+                        />
+                        <View
+                          pointerEvents="none"
+                          style={[styles.bloom, styles.bloomMid, { backgroundColor: withAlpha(segment.colour, 0.09) }]}
+                        />
+                        <View
+                          pointerEvents="none"
+                          style={[styles.bloom, styles.bloomHigh, { backgroundColor: withAlpha(segment.colour, 0.14) }]}
+                        />
+                      </>
+                    ) : null}
+                    <Text
+                      numberOfLines={1}
+                      style={[
+                        styles.tabLabel,
+                        i < shownIndex && styles.tabLabelDone,
+                        i === shownIndex && { color: tide.text },
+                      ]}>
+                      {t(segment.labelKey)}
+                    </Text>
+                    {i < doneBefore ? (
+                      <View
+                        pointerEvents="none"
+                        style={[styles.underline, styles.underlineDone, { backgroundColor: withAlpha(segment.colour, 0.5) }]}
+                      />
+                    ) : null}
+                    {i === liveTab ? (
+                      <Animated.View
+                        pointerEvents="none"
+                        style={[
+                          styles.underline,
+                          dir.rtl ? styles.underlineRtl : styles.underlineLtr,
+                          fillStyle,
+                          { backgroundColor: segment.colour },
+                        ]}
+                      />
+                    ) : null}
+                  </View>
+                ))}
               </View>
-              {i === glowAt ? (
-                <Animated.View
-                  pointerEvents="none"
-                  style={[
-                    styles.segmentGlow,
-                    dir.rtl && styles.segmentGlowRtl,
-                    glowStyle,
-                    { backgroundColor: segment.colour, shadowColor: segment.colour },
-                  ]}
-                />
-              ) : null}
-              <Text style={[styles.segmentLabel, i <= segmentIndex && styles.segmentLabelDone]}>{t(segment.labelKey)}</Text>
             </View>
-          ))}
-        </View>
+          </Animated.View>
 
-        <View style={styles.ripplesRow}>{speaking ? <VoiceRipples level={level} /> : null}</View>
+          <Animated.View style={[styles.passLine, dir.row, rowStyles[1]]}>
+            {shownPass ? (
+              <>
+                <View style={[styles.passDot, { backgroundColor: passColour, shadowColor: passColour }]} />
+                <Text style={[styles.passName, { color: passColour }]}>{t(shownPass.labelKey)}</Text>
+                <View style={styles.spacer} />
+                <Text style={styles.passCount}>{t('player.passOf', { n: shownIndex + 1, total: segments.length })}</Text>
+              </>
+            ) : null}
+          </Animated.View>
 
-        <View style={styles.hintRow}>
-          <Animated.Text
-            key={step}
-            entering={reducedMotion ? FadeIn.duration(180) : SlideInRight.duration(220).easing(Easing.out(Easing.cubic))}
-            exiting={reducedMotion ? FadeOut.duration(180) : SlideOutLeft.duration(220).easing(Easing.out(Easing.cubic))}
-            style={styles.hint}>
-            {t(hintKeyOf(step, programme))}
-          </Animated.Text>
-          {step === 'echo' && countdown !== null ? <Text style={styles.countdown}>{countdown}</Text> : null}
-          {speaking ? <LevelBars level={level} live /> : null}
-        </View>
+          <Animated.View style={[styles.guideRow, dir.row, rowStyles[2]]}>
+            <Text style={[styles.guide, dir.text]}>{t(hintKeyOf(shown.step, programme))}</Text>
+            {shown.step === 'echo' && countdown !== null ? <Text style={styles.countdown}>{countdown}</Text> : null}
+          </Animated.View>
 
-        <View style={styles.buttonRow}>
-          {step === 'idle' || step === 'done' ? (
-            <PressScale onPress={onStart} accessibilityRole="button" accessibilityLabel={step === 'idle' ? t('player.start') : t('player.startAgain')} style={styles.pill}>
-              <Text style={styles.pillLabel}>{step === 'idle' ? t('player.start') : t('player.startAgain')}</Text>
-            </PressScale>
-          ) : null}
-          {armed ? (
-            <PressScale
-              onPress={onRecord}
-              accessibilityRole="button"
-              accessibilityLabel={countIn === null ? t('player.record') : t('player.cancelCountIn')}
-              style={[styles.round, styles.recordRound]}>
-              {countIn === null ? (
-                <View style={styles.recordDot} />
-              ) : (
-                <>
-                  <Animated.View pointerEvents="none" style={[styles.beatRing, beatStyle]} />
-                  <Text style={styles.countIn}>{countIn}</Text>
-                </>
-              )}
-            </PressScale>
-          ) : null}
-          {speaking && !stopping ? (
-            <>
-              <PressScale onPress={onStop} accessibilityRole="button" accessibilityLabel={t('player.stop')} style={[styles.round, styles.recordRound]}>
-                <View style={styles.stopSquare} />
+          <Animated.View style={[styles.resultRow, rowStyles[3]]}>
+            {speaking ? <VoiceRipples level={level} /> : null}
+            <SparkleResult result={result} />
+          </Animated.View>
+
+          <Animated.View style={[styles.controlRow, dir.row, rowStyles[4]]}>
+            {shown.step === 'idle' || shown.step === 'done' ? (
+              <PressScale
+                onPress={onStart}
+                accessibilityRole="button"
+                accessibilityLabel={shown.step === 'idle' ? t('player.start') : t('player.startAgain')}
+                style={[styles.pill, { backgroundColor: passColour }]}>
+                <Text style={styles.pillLabel}>{shown.step === 'idle' ? t('player.start') : t('player.startAgain')}</Text>
               </PressScale>
-              <PressScale onPress={onRetry} accessibilityRole="button" accessibilityLabel={t('common.retry')} style={[styles.round, styles.retryRound]}>
-                <Text style={styles.retryGlyph}>↻</Text>
+            ) : null}
+            {armed ? (
+              <PressScale
+                onPress={onRecord}
+                accessibilityRole="button"
+                accessibilityLabel={countIn === null ? t('player.record') : t('player.cancelCountIn')}
+                style={[styles.round, styles.recordRound]}>
+                {countIn === null ? (
+                  <View style={styles.recordDot} />
+                ) : (
+                  <>
+                    <Animated.View pointerEvents="none" style={[styles.beatRing, beatStyle]} />
+                    <Text style={styles.countIn}>{countIn}</Text>
+                  </>
+                )}
               </PressScale>
-            </>
-          ) : null}
+            ) : null}
+            {speaking && !stopping ? (
+              <>
+                <PressScale onPress={onStop} accessibilityRole="button" accessibilityLabel={t('player.stop')} style={[styles.round, styles.recordRound]}>
+                  <View style={styles.stopSquare} />
+                </PressScale>
+                <PressScale onPress={onRetry} accessibilityRole="button" accessibilityLabel={t('common.retry')} style={[styles.round, styles.retryRound]}>
+                  <Text style={styles.retryGlyph}>↻</Text>
+                </PressScale>
+              </>
+            ) : null}
+            {speaking ? <LevelBars level={level} live /> : null}
+          </Animated.View>
         </View>
 
         <SheetToggle
@@ -367,21 +557,23 @@ function AutoEchoSheetBase({
  * nothing to redraw. Its handler props come through useStableHandler. */
 export const AutoEchoSheet = memo(AutoEchoSheetBase);
 
+const RAIL_HEIGHT = 34;
+
 const styles = StyleSheet.create({
   // The running sheet stays mounted while help is up: hiding it keeps the
   // segment fill, the ripples and a recording in progress exactly as they
   // were, and costs no layout.
   hidden: { display: 'none' },
-  // A quiet mark in the sheet's top corner, clear of the Start and Record
-  // controls in the middle. Temporary: this sheet is being redesigned.
+  // A quiet mark in the sheet's top corner: the one affordance here that
+  // belongs to no pass, so it sits outside the zone that moves.
   help: { position: 'absolute', top: -6, width: 36, height: 36, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
   helpEnd: { right: -8 },
   helpStart: { left: -8 },
   helpBody: { gap: 16, paddingTop: 4, paddingBottom: 8 },
   helpAction: { alignItems: 'center' },
-  // minHeight keeps room for the SparkleResult overlay even when Blind hides
-  // the sentence and English is off, so the result still has a place to sit.
-  sentenceArea: { minHeight: 56, justifyContent: 'center' },
+  // The upper zone. minHeight keeps room for the sentence even when Blind
+  // hides it and the translation is off, so the rule below never rides up.
+  topZone: { minHeight: 56, justifyContent: 'center', paddingBottom: 12 },
   sentence: { fontFamily: fonts.serifJp, fontSize: 20, color: tide.text, textAlign: 'center' },
   english: { fontFamily: fonts.ui, fontSize: 13, color: tide.textDim, textAlign: 'center', marginTop: 4 },
   englishRtl: { writingDirection: 'rtl' },
@@ -389,46 +581,52 @@ const styles = StyleSheet.create({
   // mounting in and out doesn't resize the sheet (bottom-sheet.tsx sizes to
   // content) on every Play and every Echo.
   feedbackRow: { minHeight: ROW_HEIGHT, justifyContent: 'center' },
-  // Reserved at this height on every step, not just speak, so VoiceRipples
-  // mounting in only doesn't move the segments and hint row below it.
-  ripplesRow: { height: STRIP_HEIGHT },
-  segments: { flexDirection: 'row', gap: 8, marginTop: 20 },
-  segmentCol: { flex: 1, alignItems: 'center', gap: 4 },
-  segmentBar: {
-    alignSelf: 'stretch',
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    overflow: 'hidden',
-  },
-  segmentFill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 3, backgroundColor: tide.lang.ja },
-  // The bars run in reading order, so each one fills from the end it starts at.
-  segmentFillRtl: { left: undefined, right: 0 },
-  segmentFillDone: { width: '100%' },
-  // Sits over the gap to the right of a segment bar, at the boundary where
-  // it just finished and the next one takes over.
-  segmentGlow: {
-    position: 'absolute',
-    top: -4,
-    right: -8,
-    width: 16,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: tide.lang.ja,
-    shadowColor: tide.lang.ja,
-    shadowOpacity: 0.9,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 6,
-  },
-  segmentGlowRtl: { right: undefined, left: -8 },
-  segmentLabel: { fontFamily: fonts.ui, fontSize: 11, color: tide.textDim },
-  segmentLabelDone: { color: tide.text },
-  hintRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 14, minHeight: 32 },
-  hint: { fontFamily: fonts.ui, fontSize: 13, color: tide.textDim, textAlign: 'center' },
+  // The hard split: above it the sentence, below it the pass.
+  rule: { height: 1, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+  ruleLit: { width: 96, height: 1 },
+  lowZone: { paddingTop: 14 },
+  rail: { height: RAIL_HEIGHT, borderRadius: 10, overflow: 'hidden' },
+  railFill: { backgroundColor: 'rgba(255,255,255,0.045)' },
+  railRim: { borderRadius: 10, borderWidth: 1, borderColor: prism.panel.rim },
+  // The rim light along the top edge, where a pane of glass catches it.
+  railTop: { position: 'absolute', left: 8, right: 8, top: 0, height: 1, backgroundColor: prism.fringe.top },
+  // The chromatic fringe: warm on one edge, cool on the other.
+  railFringe: { position: 'absolute', top: 3, bottom: 3, width: prism.fringe.side },
+  railFringeLeft: { left: 0, backgroundColor: prism.fringe.left },
+  railFringeRight: { right: 0, backgroundColor: prism.fringe.right },
+  railRow: { flexDirection: 'row', flex: 1 },
+  tab: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' },
+  // A hairline between two passes, not a border around one: the rail has to
+  // read as a single surface.
+  divider: { position: 'absolute', top: 6, bottom: 6, width: StyleSheet.hairlineWidth, backgroundColor: prism.panel.rim },
+  dividerLtr: { left: 0 },
+  dividerRtl: { right: 0 },
+  // The live pass lit from under the glass: three bands, deepest at the foot.
+  bloom: { position: 'absolute', left: 0, right: 0, bottom: 0 },
+  bloomLow: { height: '70%' },
+  bloomMid: { height: '42%' },
+  bloomHigh: { height: '20%' },
+  tabLabel: { fontFamily: fonts.ui, fontSize: 11, color: withAlpha(tide.textDim, 0.55), paddingHorizontal: 2 },
+  tabLabelDone: { color: tide.textDim },
+  // Doubles as the pass's progress: the live pass's underline grows with
+  // playback, a finished pass keeps a full one.
+  underline: { position: 'absolute', bottom: 0, height: 2 },
+  underlineLtr: { left: 0 },
+  underlineRtl: { right: 0 },
+  underlineDone: { left: 0, right: 0 },
+  passLine: { flexDirection: 'row', alignItems: 'center', gap: 7, height: 20, marginTop: 14 },
+  passDot: { width: 7, height: 7, borderRadius: 4, shadowOpacity: 0.9, shadowRadius: 6, shadowOffset: { width: 0, height: 0 }, elevation: 4 },
+  passName: { fontFamily: fonts.uiMedium, fontWeight: '600', fontSize: 12, letterSpacing: 1.4, textTransform: 'uppercase' },
+  spacer: { flex: 1 },
+  passCount: { fontFamily: fonts.ui, fontSize: 11, color: withAlpha(tide.textDim, 0.7), fontVariant: ['tabular-nums'] },
+  guideRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 36, marginTop: 8 },
+  guide: { flex: 1, fontFamily: fonts.ui, fontSize: 13, lineHeight: 18, color: tide.textDim },
   countdown: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 16, color: tide.text, fontVariant: ['tabular-nums'] },
-  buttonRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20, marginTop: 16, minHeight: 52 },
-  pill: { paddingVertical: 14, paddingHorizontal: 36, borderRadius: 26, backgroundColor: tide.lang.ja, alignItems: 'center', justifyContent: 'center' },
+  // Reserved at the ripples' height on every pass, so the take result and the
+  // ripples both have a place and neither resizes the zone.
+  resultRow: { height: STRIP_HEIGHT, alignItems: 'center', justifyContent: 'center' },
+  controlRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20, minHeight: 52, marginTop: 4 },
+  pill: { paddingVertical: 14, paddingHorizontal: 36, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
   pillLabel: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 16, color: tide.water },
   round: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
   // overflow: the count's ring grows past the button and must not be clipped.
@@ -449,6 +647,6 @@ const styles = StyleSheet.create({
   countIn: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 24, color: tide.sky[0], fontVariant: ['tabular-nums'] },
   stopSquare: { width: 16, height: 16, borderRadius: 3, backgroundColor: tide.sky[0] },
   retryGlyph: { fontFamily: fonts.ui, fontSize: 24, color: tide.sky[0] },
-  note: { fontFamily: fonts.ui, fontSize: 12, lineHeight: 17, color: tide.textDim, marginTop: 4 },
+  note: { fontFamily: fonts.ui, fontSize: 12, lineHeight: 17, color: tide.textDim, marginTop: 12 },
   error: { fontFamily: fonts.ui, fontSize: 13, lineHeight: 19, textAlign: 'center', color: tide.record, marginTop: 12 },
 });
