@@ -13,6 +13,8 @@
 import { fetch as expoFetch } from 'expo/fetch';
 import { Directory, File, Paths } from 'expo-file-system';
 
+import { deviceIdSync } from '@/lib/device';
+
 const BASE = process.env.EXPO_PUBLIC_SHADOW_API_URL ?? '';
 const TOKEN = process.env.EXPO_PUBLIC_SHADOW_TOKEN ?? '';
 // Icon paths from the backend are absolute (/shadow/...), so they hang off the
@@ -68,6 +70,9 @@ export type Line = {
 export type SpeakerStyle = { id: number; name: string; icon: string };
 export type Speaker = { uuid: string; name: string; policy: string; styles: SpeakerStyle[] };
 
+/** The language the learner already understands, `native` on the island. */
+export type NativeLanguage = 'he' | 'en';
+
 export type IslandSummary = {
   id: string;
   title: string;
@@ -75,6 +80,7 @@ export type IslandSummary = {
   stage: string;
   complexity: Complexity;
   language: Language;
+  native: NativeLanguage;
   created_at: string;
   line_count: number;
 };
@@ -83,7 +89,7 @@ export type IslandSummary = {
 export const STAGE_LABEL: Record<string, string> = {
   queued: 'Queued…',
   transcribing: 'Transcribing…',
-  writing: 'Writing Japanese…',
+  writing: 'Writing the lines…',
   speaking: 'Recording the voice…',
 };
 
@@ -95,7 +101,7 @@ export type Island = IslandSummary & {
 };
 
 function headers(): Record<string, string> {
-  return { Authorization: `Bearer ${TOKEN}` };
+  return { Authorization: `Bearer ${TOKEN}`, 'X-Shadow-Device': deviceIdSync() };
 }
 
 /** Turns any failed response into a short, readable message. Gateway errors
@@ -105,6 +111,10 @@ async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
     if (res.status === 502 || res.status === 503 || res.status === 504) {
       throw new Error('The server is not reachable right now. Try again in a moment.');
+    }
+    if (res.status === 429) {
+      const detail = (await res.json().catch(() => null)) as { detail?: string } | null;
+      throw new Error(detail?.detail || 'Daily limit reached. Try again tomorrow.');
     }
     const body = await res.text().catch(() => '');
     const looksLikeHtml = body.trimStart().startsWith('<');
@@ -164,15 +174,22 @@ export async function createIsland(
   uri: string,
   complexity: Complexity,
   speaker: number,
-  register: Register = 'polite',
+  // Register only applies to Japanese: undefined for any other learning
+  // language, so the form omits it and the backend falls back to its own
+  // default rather than being sent a value nothing on screen offered.
+  register: Register | undefined = 'polite',
   count = 8,
+  language: Language = 'ja',
+  native: NativeLanguage = 'en',
 ): Promise<{ id: string }> {
   const form = new FormData();
   form.append('audio', new File(uri), 'recording.m4a');
   form.append('complexity', complexity);
-  form.append('register', register);
+  if (register) form.append('register', register);
   form.append('speaker', String(speaker));
   form.append('count', String(count));
+  form.append('language', language);
+  form.append('native', native);
 
   return json<{ id: string }>(
     await expoFetch(`${BASE}/islands`, { method: 'POST', headers: headers(), body: form }),
@@ -202,8 +219,10 @@ export async function renameIsland(id: string, title: string): Promise<void> {
   await json<unknown>(res);
 }
 
-export async function listSpeakers(): Promise<Speaker[]> {
-  return json<Speaker[]>(await fetch(`${BASE}/speakers`, { headers: headers() }));
+export async function listSpeakers(language: Language = 'ja'): Promise<Speaker[]> {
+  return json<Speaker[]>(
+    await fetch(`${BASE}/speakers?language=${encodeURIComponent(language)}`, { headers: headers() }),
+  );
 }
 
 /** One item in a podcast feed, matching `podcast.py`'s `parse_feed()`. */
@@ -257,13 +276,16 @@ export async function importPodcastEpisode(
   audioUrl: string,
   title: string,
   speaker: number,
+  language: Language = 'ja',
+  native: NativeLanguage = 'en',
   startMin = 0,
 ): Promise<{ id: string }> {
   const form = new FormData();
   form.append('audio_url', audioUrl);
   form.append('title', title);
   form.append('speaker', String(speaker));
-  form.append('language', 'ja');
+  form.append('language', language);
+  form.append('native', native);
   form.append('start_min', String(startMin));
 
   return json<{ id: string }>(
@@ -273,12 +295,12 @@ export async function importPodcastEpisode(
 
 /** Absolute URL for a style icon path returned by listSpeakers. */
 export function iconUrl(path: string): string {
-  return `${ORIGIN}${path}?token=${encodeURIComponent(TOKEN)}`;
+  return `${ORIGIN}${path}?token=${encodeURIComponent(TOKEN)}&device=${encodeURIComponent(deviceIdSync())}`;
 }
 
 /** The fixed preview sentence rendered in one voice. */
 export function voicePreviewUrl(styleId: number): string {
-  return `${BASE}/voices/${styleId}/preview?token=${encodeURIComponent(TOKEN)}`;
+  return `${BASE}/voices/${styleId}/preview?token=${encodeURIComponent(TOKEN)}&device=${encodeURIComponent(deviceIdSync())}`;
 }
 
 /** Re-render an island's lines in another voice. Poll getIsland until ready. */
@@ -326,8 +348,14 @@ export async function gloss(word: string): Promise<Gloss> {
 /** How a word functions in the particular sentence it was tapped in. Cached
  * server side, keyed on (word, sentence). Empty string means the backend
  * tried and had nothing to say, not a failure the caller needs to surface. */
-export async function explainWord(word: string, sentenceJa: string, sentenceEn: string): Promise<string> {
-  const q = `word=${encodeURIComponent(word)}&sentence_ja=${encodeURIComponent(sentenceJa)}&sentence_en=${encodeURIComponent(sentenceEn)}`;
+export async function explainWord(
+  word: string,
+  sentenceJa: string,
+  sentenceEn: string,
+  language: Language = 'ja',
+  native: NativeLanguage = 'en',
+): Promise<string> {
+  const q = `word=${encodeURIComponent(word)}&sentence_ja=${encodeURIComponent(sentenceJa)}&sentence_en=${encodeURIComponent(sentenceEn)}&language=${encodeURIComponent(language)}&native=${encodeURIComponent(native)}`;
   const out = await json<{ context: string }>(await fetch(`${BASE}/explain-word?${q}`, { headers: headers() }));
   return out.context;
 }
@@ -363,6 +391,8 @@ export async function explainChat(body: {
   marked: string[];
   question: string;
   history: ChatTurn[];
+  language?: Language;
+  native?: NativeLanguage;
 }): Promise<ExplainAnswer> {
   return json<ExplainAnswer>(
     await fetch(`${BASE}/explain-chat`, {
@@ -374,6 +404,8 @@ export async function explainChat(body: {
         marked: body.marked,
         question: body.question,
         history: body.history,
+        language: body.language ?? 'ja',
+        native: body.native ?? 'en',
       }),
     }),
   );
@@ -392,7 +424,7 @@ export async function suggestFeature(text: string): Promise<void> {
 
 /** One word rendered on its own in the given voice. */
 export function wordAudioUrl(text: string, speaker: number): string {
-  return `${BASE}/word-audio?text=${encodeURIComponent(text)}&speaker=${speaker}&token=${encodeURIComponent(TOKEN)}`;
+  return `${BASE}/word-audio?text=${encodeURIComponent(text)}&speaker=${speaker}&token=${encodeURIComponent(TOKEN)}&device=${encodeURIComponent(deviceIdSync())}`;
 }
 
 /**
@@ -414,7 +446,7 @@ export function lineAudioUrl(
   const pad = padMs > 0 ? `&pad=${Math.round(padMs)}` : '';
   // `start`/`end` ask for only that stretch of the render, cut on the backend, so a phrase loops natively like a line.
   const range = span ? `&start=${Math.round(span.startMs)}&end=${Math.round(span.endMs)}` : '';
-  return `${BASE}/islands/${islandId}/lines/${idx}/audio?token=${encodeURIComponent(TOKEN)}&v=${version}&speed=${s}${pad}${range}`;
+  return `${BASE}/islands/${islandId}/lines/${idx}/audio?token=${encodeURIComponent(TOKEN)}&device=${encodeURIComponent(deviceIdSync())}&v=${version}&speed=${s}${pad}${range}`;
 }
 
 /**
@@ -554,5 +586,5 @@ export async function uploadTake(
  * take's recordedAt) keeps the player from ever loading a stale cached file.
  */
 export function cleanTakeUrl(islandId: string, idx: number, version: number): string {
-  return `${BASE}/islands/${islandId}/lines/${idx}/take/clean?token=${encodeURIComponent(TOKEN)}&v=${version}`;
+  return `${BASE}/islands/${islandId}/lines/${idx}/take/clean?token=${encodeURIComponent(TOKEN)}&device=${encodeURIComponent(deviceIdSync())}&v=${version}`;
 }

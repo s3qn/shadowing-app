@@ -252,3 +252,91 @@ def test_translate_lines_nonzero_exit_returns_empty(monkeypatch):
     )
 
     assert generate.translate_lines(["起きます"]) == []
+
+
+def test_translate_lines_native_hebrew_prompt_names_hebrew(monkeypatch):
+    captured = {}
+
+    def fake_run(*args, **kw):
+        captured["prompt"] = kw.get("input")
+        return FakeCompleted(returncode=0, stdout=json.dumps(["x"]))
+
+    monkeypatch.setattr(generate.subprocess, "run", fake_run)
+
+    generate.translate_lines(["起きます"], native="he")
+
+    assert "Hebrew" in captured["prompt"]
+    assert "English" not in captured["prompt"]
+
+
+# -- generate_lines: learning languages (es/en) ----------------------------
+
+
+def test_generate_lines_ja_prompt_is_byte_identical_to_today(monkeypatch):
+    # learning="ja", native="en" are the defaults: adding es/en support must
+    # not change a single byte of the prompt Japanese islands have always
+    # gotten, or every existing island's generation behaviour would drift.
+    captured = {}
+
+    def fake_run(*args, **kw):
+        captured["prompt"] = kw.get("input")
+        return FakeCompleted(returncode=0, stdout=json.dumps({"title": "t", "lines": []}))
+
+    monkeypatch.setattr(generate.subprocess, "run", fake_run)
+
+    generate.generate_lines("I went to the store.", complexity="simple", count=8, language="en")
+
+    expected = generate.PROMPT_TEMPLATE.format(
+        transcript="I went to the store.",
+        count=8,
+        rules=generate.COMPLEXITY_RULES["simple"],
+        register_rules=generate.REGISTER_RULES["polite"],
+        language="English",
+        native_name="English",
+    )
+    assert captured["prompt"] == expected
+
+
+def test_generate_lines_es_prompt_names_spanish_and_hebrew_and_asks_for_text_translation(monkeypatch):
+    captured = {}
+
+    def fake_run(*args, **kw):
+        captured["prompt"] = kw.get("input")
+        return FakeCompleted(returncode=0, stdout=json.dumps({"title": "t", "lines": []}))
+
+    monkeypatch.setattr(generate.subprocess, "run", fake_run)
+
+    generate.generate_lines(
+        "Fui a la tienda.", complexity="simple", count=5, language="es",
+        learning="es", native="he",
+    )
+
+    prompt = captured["prompt"]
+    assert "Spanish" in prompt
+    assert "Hebrew" in prompt
+    assert '"text"' in prompt
+    assert '"translation"' in prompt
+    assert "Japanese" not in prompt
+
+
+def test_generate_lines_es_parses_text_and_translation_into_ja_and_en(monkeypatch):
+    stdout = json.dumps({
+        "title": "At the store",
+        "lines": [
+            {"text": "Fui a la tienda ayer.", "translation": "I went to the store yesterday."},
+            {"text": "   ", "translation": "blank text dropped"},
+        ],
+    })
+    monkeypatch.setattr(
+        generate.subprocess, "run",
+        lambda *a, **k: FakeCompleted(returncode=0, stdout=stdout),
+    )
+
+    result = generate.generate_lines(
+        "I went to the store.", complexity="simple", learning="es", native="en",
+    )
+
+    assert result["lines"] == [
+        {"ja": "Fui a la tienda ayer.", "kana": "", "romaji": "",
+         "en": "I went to the store yesterday."},
+    ]

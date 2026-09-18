@@ -18,7 +18,7 @@ _ASS_RE = re.compile(r"\{[^}]*\}")
 _WS_RE = re.compile(r"[ \t]+")
 _CJK_RE = re.compile("[　-ヿ一-鿿＀-￯]")
 _WRAP_PAIRS = (("（", "）"), ("(", ")"), ("［", "］"), ("[", "]"))
-_SENTENCE_END = set("。！？、")
+_SENTENCE_END = set("。！？、.!?,")
 
 
 def _timestamp_seconds(hours: str, minutes: str, seconds: str, millis: str) -> float:
@@ -195,7 +195,7 @@ def split_long(cues: list[dict], max_seconds: float = 8.0, min_gap: float = 0.35
 
     Only cues that carry `words` are split; the boundary is the latest one
     before `max_seconds` from the piece's own start whose word ends with
-    `。！？、` or whose gap to the next word is at least `min_gap`, falling
+    `。！？、.!?,` or whose gap to the next word is at least `min_gap`, falling
     back to the last boundary before `max_seconds` when none qualify. A cue
     with a single word is left as is, even over length. Stage 2 (whisper
     segments as cues) uses this; it lives here so the module is complete and

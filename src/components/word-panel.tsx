@@ -20,6 +20,9 @@ type Props = {
   top: number;
   /** Show the reading as romaji instead of kana, following the reading mode. */
   romaji?: boolean;
+  /** Whether the word has a JMdict entry to show. False (es and en, which
+   * JMdict does not cover) shows the context line as the body instead. */
+  dictionary?: boolean;
   onHear: () => void;
   onClose: () => void;
 };
@@ -38,7 +41,7 @@ function toRomajiReading(gloss: Gloss): string {
  * hear the word again. Absolutely positioned so the sentence never moves.
  * It never touches playback itself; the screen decides what Hear it does.
  */
-export function WordPanel({ word, gloss, context, left, top, romaji = false, onHear, onClose }: Props) {
+export function WordPanel({ word, gloss, context, left, top, romaji = false, dictionary = true, onHear, onClose }: Props) {
   const shownReading = gloss ? (romaji ? toRomajiReading(gloss) : gloss.reading) : '';
   return (
     <View style={[styles.pop, { left, top, backgroundColor: tide.water, borderColor: tide.waterline, shadowColor: '#000' }]}>
@@ -60,25 +63,33 @@ export function WordPanel({ word, gloss, context, left, top, romaji = false, onH
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={{ gap: 4 }} nestedScrollEnabled>
-        {gloss === null ? (
-          <Text style={styles.meaning}>Looking up…</Text>
-        ) : !gloss.found ? (
-          <Text style={styles.meaning}>No dictionary entry.</Text>
-        ) : (
-          gloss.entries.slice(0, 2).map((entry, i) =>
-            entry.senses.slice(0, 3).map((sense, j) => (
-              <Text key={`${i}-${j}`} style={styles.meaning}>
-                {sense.glosses.join('; ')}
-                {sense.pos.length ? <Text style={{ color: tide.textDim }}>  {sense.pos[0]}</Text> : null}
-              </Text>
-            )),
+        {dictionary ? (
+          gloss === null ? (
+            <Text style={styles.meaning}>Looking up…</Text>
+          ) : !gloss.found ? (
+            <Text style={styles.meaning}>No dictionary entry.</Text>
+          ) : (
+            gloss.entries.slice(0, 2).map((entry, i) =>
+              entry.senses.slice(0, 3).map((sense, j) => (
+                <Text key={`${i}-${j}`} style={styles.meaning}>
+                  {sense.glosses.join('; ')}
+                  {sense.pos.length ? <Text style={{ color: tide.textDim }}>  {sense.pos[0]}</Text> : null}
+                </Text>
+              )),
+            )
           )
+        ) : context === undefined ? (
+          <Text style={styles.meaning}>…</Text>
+        ) : context === null ? (
+          <Text style={styles.meaning}>Nothing to add.</Text>
+        ) : (
+          <Text style={styles.meaning}>{context}</Text>
         )}
       </ScrollView>
 
-      {gloss !== null && context ? (
+      {dictionary && gloss !== null && context ? (
         <Text style={styles.context}>In this sentence: {context}</Text>
-      ) : gloss !== null && context === undefined ? (
+      ) : dictionary && gloss !== null && context === undefined ? (
         <Text style={styles.contextLoading}>…</Text>
       ) : null}
 

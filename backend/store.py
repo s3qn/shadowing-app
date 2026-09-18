@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS islands (
   complexity  TEXT NOT NULL DEFAULT 'simple',
   register    TEXT NOT NULL DEFAULT 'polite',
   language    TEXT NOT NULL DEFAULT 'ja',
+  native      TEXT NOT NULL DEFAULT 'en',
   source      TEXT NOT NULL DEFAULT 'voice',
   source_name TEXT NOT NULL DEFAULT '',
   speaker     INTEGER NOT NULL DEFAULT 3,
@@ -67,6 +68,14 @@ CREATE TABLE IF NOT EXISTS explain_cache (
   created_at  TEXT NOT NULL,
   PRIMARY KEY (sentence, marked, question)
 );
+CREATE TABLE IF NOT EXISTS builds (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  device      TEXT NOT NULL,
+  kind        TEXT NOT NULL,
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_builds_device_kind_created
+  ON builds (device, kind, created_at);
 """
 
 
@@ -134,19 +143,28 @@ def init() -> None:
             conn.execute("ALTER TABLE islands ADD COLUMN source TEXT NOT NULL DEFAULT 'voice'")
         if "source_name" not in island_cols:
             conn.execute("ALTER TABLE islands ADD COLUMN source_name TEXT NOT NULL DEFAULT ''")
+        # Databases created before islands remembered their understood language lack it.
+        if "native" not in island_cols:
+            conn.execute("ALTER TABLE islands ADD COLUMN native TEXT NOT NULL DEFAULT 'en'")
+        # device-scope: databases created before per-device islands existed
+        # lack the column that scopes an island to the phone that made it.
+        # Rows without it (device='') belong to nobody until claimed.
+        if "device" not in island_cols:
+            conn.execute("ALTER TABLE islands ADD COLUMN device TEXT NOT NULL DEFAULT ''")
 
 
 def create_island(
     complexity: str, speaker: int, register: str = "polite", language: str = "ja",
-    source: str = "voice", source_name: str = "",
+    source: str = "voice", source_name: str = "", native: str = "en", device: str = "",
 ) -> str:
     island_id = uuid.uuid4().hex[:12]
     with connect() as conn:
         conn.execute(
-            "INSERT INTO islands (id, status, stage, complexity, register, language, source,"
-            " source_name, speaker, created_at)"
-            " VALUES (?, 'pending', 'queued', ?, ?, ?, ?, ?, ?, ?)",
-            (island_id, complexity, register, language, source, source_name, speaker, _now()),
+            "INSERT INTO islands (id, status, stage, complexity, register, language, native,"
+            " source, source_name, speaker, created_at, device)"
+            " VALUES (?, 'pending', 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (island_id, complexity, register, language, native, source, source_name, speaker,
+             _now(), device),
         )
     (AUDIO_DIR / island_id).mkdir(parents=True, exist_ok=True)
     return island_id
@@ -285,7 +303,7 @@ def set_word_context(word: str, sentence: str, context: str) -> None:
 # v3: grammar items can carry a "span" (the exact substring of the sentence
 # the pattern appears in); a v2 row was cached before spans existed, so it
 # must not be served in place of a fresh answer that has one.
-EXPLAIN_CACHE_VERSION = "v3"
+EXPLAIN_CACHE_VERSION = "v4"
 
 
 def get_explain_answer(sentence: str, marked: list[str], question: str) -> str | None:
@@ -339,14 +357,21 @@ def get_island(island_id: str) -> dict | None:
     return island
 
 
-def list_islands() -> list[dict]:
+def list_islands(device: str | None = None) -> list[dict]:
+    """`device=None` lists every island regardless of owner, which startup
+    healing relies on. A string filters to that device's own islands."""
+    query = (
+        "SELECT i.id, i.title, i.status, i.stage, i.complexity, i.language, i.native,"
+        " i.source, i.created_at, i.device, COUNT(l.idx) AS line_count"
+        " FROM islands i LEFT JOIN lines l ON l.island_id = i.id"
+    )
+    params: tuple = ()
+    if device is not None:
+        query += " WHERE i.device = ?"
+        params = (device,)
+    query += " GROUP BY i.id ORDER BY i.created_at DESC"
     with connect() as conn:
-        rows = conn.execute(
-            "SELECT i.id, i.title, i.status, i.stage, i.complexity, i.language, i.source,"
-            " i.created_at, COUNT(l.idx) AS line_count"
-            " FROM islands i LEFT JOIN lines l ON l.island_id = i.id"
-            " GROUP BY i.id ORDER BY i.created_at DESC"
-        ).fetchall()
+        rows = conn.execute(query, params).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -357,6 +382,35 @@ def delete_island(island_id: str) -> None:
         conn.execute("DELETE FROM islands WHERE id=?", (island_id,))
     shutil.rmtree(AUDIO_DIR / island_id, ignore_errors=True)
     shutil.rmtree(TAKES_DIR / island_id, ignore_errors=True)
+
+
+# device-scope: per-device ownership and the daily build limit.
+def claim_unowned(device: str) -> int:
+    """Gives every unowned island to `device`. Called once at startup when
+    `SHADOW_OWNER_DEVICE` is set, so Sean's pre-existing islands (device='')
+    become his rather than staying invisible to everyone."""
+    with connect() as conn:
+        cur = conn.execute("UPDATE islands SET device=? WHERE device=''", (device,))
+        return cur.rowcount
+
+
+def count_builds_today(device: str, kind: str) -> int:
+    today = _now()[:10]
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM builds WHERE device=? AND kind=?"
+            " AND substr(created_at,1,10)=?",
+            (device, kind, today),
+        ).fetchone()
+    return row["n"]
+
+
+def log_build(device: str, kind: str) -> None:
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO builds (device, kind, created_at) VALUES (?, ?, ?)",
+            (device, kind, _now()),
+        )
 
 
 def line_audio_path(island_id: str, idx: int) -> Path:

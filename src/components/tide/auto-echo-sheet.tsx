@@ -23,7 +23,7 @@ import { SparkleResult, type SparkleResultData } from '@/components/tide/sparkle
 import { STRIP_HEIGHT, VoiceRipples } from '@/components/tide/voice-ripples';
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
-import type { Mora, TakeAnalysis } from '@/lib/api';
+import type { Mora, NativeLanguage, TakeAnalysis } from '@/lib/api';
 
 /** The four steps of one Echo pass, in order. `idle` is before Start and
  * `done` is after the last Play, both outside the segment row. */
@@ -58,6 +58,9 @@ type AutoEchoSheetProps = {
   onDismissed?: () => void;
   sentence: string | null;
   english: string | null;
+  /** The island's understood language: 'he' lays the translation line out
+   * right to left. Defaults to 'en'. */
+  native?: NativeLanguage;
   /** The line's moras, for the feedback row's kana and phrase grouping. */
   moras: Mora[] | null;
   /** The last take's mora feedback, shown under the English at Play and Done. */
@@ -101,6 +104,7 @@ function AutoEchoSheetBase({
   onDismissed,
   sentence,
   english,
+  native = 'en',
   moras,
   analysis,
   step,
@@ -158,7 +162,7 @@ function AutoEchoSheetBase({
     <BottomSheet open={open} onClose={onClose} onDismissed={onDismissed} title="Auto Echo">
       <View style={styles.sentenceArea}>
         {sentence ? <Text style={styles.sentence}>{sentence}</Text> : null}
-        {english ? <Text style={styles.english}>{english}</Text> : null}
+        {english ? <Text style={[styles.english, native === 'he' && styles.englishRtl]}>{english}</Text> : null}
         <View style={styles.feedbackRow}>
           {(step === 'play' || step === 'done') && moras ? <TakeFeedback moras={moras} analysis={analysis} /> : null}
         </View>
@@ -247,6 +251,7 @@ const styles = StyleSheet.create({
   sentenceArea: { minHeight: 56, justifyContent: 'center' },
   sentence: { fontFamily: fonts.serifJp, fontSize: 20, color: tide.text, textAlign: 'center' },
   english: { fontFamily: fonts.ui, fontSize: 13, color: tide.textDim, textAlign: 'center', marginTop: 4 },
+  englishRtl: { writingDirection: 'rtl' },
   // Reserved at this height on every step, not just play/done, so the row
   // mounting in and out doesn't resize the sheet (bottom-sheet.tsx sizes to
   // content) on every Play and every Echo.

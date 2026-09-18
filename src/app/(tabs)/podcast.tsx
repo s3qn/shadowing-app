@@ -12,6 +12,7 @@ import { GlassPanel, PrismButton } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, prism, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
+import { getSettingsSync, subscribeSettings, toIslandLanguage } from '@/lib/settings';
 
 const SIDE = 16;
 const SEARCH_DEBOUNCE_MS = 400;
@@ -85,12 +86,17 @@ export default function PodcastScreen() {
   const sectionListRef = useRef<SectionList<api.PodcastShow, SectionData>>(null);
   const [activeChip, setActiveChip] = useState<string | null>(null);
 
+  const [learningLanguage, setLearningLanguage] = useState(() => getSettingsSync().learningLanguage);
+  useEffect(() => subscribeSettings(() => setLearningLanguage(getSettingsSync().learningLanguage)), []);
+
   useEffect(() => {
+    setCatalog(null);
+    setCatalogError('');
     api
-      .podcastCatalog('ja')
+      .podcastCatalog(toIslandLanguage(learningLanguage))
       .then(setCatalog)
       .catch((e) => setCatalogError(e instanceof Error ? e.message : 'The catalog could not be loaded.'));
-  }, []);
+  }, [learningLanguage]);
 
   useEffect(() => () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -109,12 +115,12 @@ export default function PodcastScreen() {
       setSearching(true);
       setSearchError('');
       api
-        .podcastSearch(q, 'ja')
+        .podcastSearch(q, toIslandLanguage(learningLanguage))
         .then(setSearchResults)
         .catch((e) => setSearchError(e instanceof Error ? e.message : 'That could not be searched.'))
         .finally(() => setSearching(false));
     }, SEARCH_DEBOUNCE_MS);
-  }, [query]);
+  }, [query, learningLanguage]);
 
   const sections: SectionData[] = useMemo(
     () =>

@@ -7,13 +7,15 @@ import { PILL_TAB_BAR_REACH } from '@/components/pill-tab-bar';
 import { SettingsRow, SettingsSection } from '@/components/tide/settings-row';
 import { Spacing, prism, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
-import { getSettings, setHaptics, setSkyAlwaysNight } from '@/lib/settings';
+import { getSettings, getVoice, setHaptics, setShowAllLanguages, setSkyAlwaysNight, toIslandLanguage } from '@/lib/settings';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const [voiceName, setVoiceName] = useState('');
   const [haptics, setHapticsState] = useState(true);
   const [skyAlwaysNight, setSkyAlwaysNightState] = useState(false);
+  // languages: Home's show-all toggle, default off.
+  const [showAllLanguages, setShowAllLanguagesState] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -27,12 +29,16 @@ export default function SettingsScreen() {
         if (!alive) return;
         setHapticsState(settings.hapticsEnabled);
         setSkyAlwaysNightState(settings.skyAlwaysNight);
+        setShowAllLanguagesState(settings.showAllLanguages);
 
         try {
-          const speakers = await api.listSpeakers();
+          const [speakers, voiceId] = await Promise.all([
+            api.listSpeakers(toIslandLanguage(settings.learningLanguage)),
+            getVoice(settings.learningLanguage),
+          ]);
           if (!alive) return;
-          const speaker = speakers.find((sp) => sp.styles.some((st) => st.id === settings.voice));
-          const style = speaker?.styles.find((st) => st.id === settings.voice);
+          const speaker = speakers.find((sp) => sp.styles.some((st) => st.id === voiceId));
+          const style = speaker?.styles.find((st) => st.id === voiceId);
           setVoiceName(speaker && style ? `${speaker.name} ${style.name}` : '');
         } catch {
           // Voice list needs the backend; the row still works without a name shown.
@@ -75,6 +81,25 @@ export default function SettingsScreen() {
           />
         </SettingsSection>
 
+        <SettingsSection title="Language">
+          <SettingsRow
+            label="Learning, understood"
+            icon={{ ios: 'globe', android: 'language' }}
+            onPress={() => router.push('/settings/languages')}
+          />
+          {/* languages: Home shows every language's islands when on. */}
+          <SettingsRow
+            label="Show all languages"
+            last
+            icon={{ ios: 'globe', android: 'language' }}
+            switchValue={showAllLanguages}
+            onSwitchChange={(next) => {
+              setShowAllLanguagesState(next);
+              void setShowAllLanguages(next);
+            }}
+          />
+        </SettingsSection>
+
         <SettingsSection title="Appearance">
           <SettingsRow
             label="Haptics"
@@ -109,9 +134,14 @@ export default function SettingsScreen() {
         <SettingsSection title="About">
           <SettingsRow
             label="Version, credits"
-            last={!__DEV__}
             icon={{ ios: 'info.circle', android: 'info' }}
             onPress={() => router.push('/settings/about')}
+          />
+          <SettingsRow
+            label="Replay onboarding"
+            last={!__DEV__}
+            icon={{ ios: 'arrow.counterclockwise', android: 'replay' }}
+            onPress={() => router.push('/onboarding')}
           />
           {__DEV__ ? (
             <SettingsRow

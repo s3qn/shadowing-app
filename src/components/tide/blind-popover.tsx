@@ -44,10 +44,10 @@ export function BlindPopover({ anchorX, anchorTop, width, jaHidden, enHidden, on
       radius={BODY_H / 2}
       bodyStyle={styles.body}
       onClose={onClose}>
-      <Toggle on={enHidden} onPress={onToggleEn} label="Hide the English translation">
+      <Toggle on={enHidden} onPress={onToggleEn} label="Hide the translation">
         <TranslateGlyph color={enHidden ? tide.lang.ja : tide.text} />
       </Toggle>
-      <Toggle on={jaHidden} onPress={onToggleJa} label="Hide the Japanese">
+      <Toggle on={jaHidden} onPress={onToggleJa} label="Hide the sentence">
         <BlindIcon color={jaHidden ? tide.lang.ja : tide.text} size={22} />
       </Toggle>
     </PopoverBubble>

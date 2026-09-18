@@ -73,6 +73,15 @@ def init() -> None:
     _make_dirs()
     with connect() as conn:
         conn.executescript(SCHEMA)
+        # device-scope: databases created before per-device islands existed
+        # lack the column that scopes a practice event or schedule row to
+        # the phone that logged it.
+        events_cols = {row["name"] for row in conn.execute("PRAGMA table_info(practice_events)")}
+        if "device" not in events_cols:
+            conn.execute("ALTER TABLE practice_events ADD COLUMN device TEXT NOT NULL DEFAULT ''")
+        state_cols = {row["name"] for row in conn.execute("PRAGMA table_info(schedule_state)")}
+        if "device" not in state_cols:
+            conn.execute("ALTER TABLE schedule_state ADD COLUMN device TEXT NOT NULL DEFAULT ''")
 
 
 def require_token(authorization: str | None) -> None:
@@ -87,6 +96,26 @@ def require_token(authorization: str | None) -> None:
         raise HTTPException(401, "bad token")
 
 
+def _require_device(x_shadow_device: str) -> str:
+    """Copied from main.py's `_require_device`: main imports this module, so
+    this module cannot import main back without a cycle."""
+    if not x_shadow_device:
+        raise HTTPException(401, "missing device id")
+    return x_shadow_device
+
+
+def claim_unowned(device: str) -> int:
+    """Gives every unowned practice row to `device`, the schedule half of
+    store.claim_unowned. Idempotent: rows already claimed have device != ''
+    and are left alone."""
+    with connect() as conn:
+        n = conn.execute(
+            "UPDATE practice_events SET device=? WHERE device=''", (device,)
+        ).rowcount
+        conn.execute("UPDATE schedule_state SET device=? WHERE device=''", (device,))
+        return n
+
+
 router = APIRouter(prefix="/shadow/schedule")
 
 
@@ -95,43 +124,54 @@ async def log_practice(
     island_id: str = Form(...),
     seconds: float = Form(...),
     authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
 ) -> dict:
     require_token(authorization)
+    device = _require_device(x_shadow_device)
     if seconds <= 0:
         raise HTTPException(400, "seconds must be positive")
 
     today = _today()
     with connect() as conn:
         conn.execute(
-            "INSERT INTO practice_events (island_id, seconds, created_at) VALUES (?, ?, ?)",
-            (island_id, seconds, _now()),
+            "INSERT INTO practice_events (island_id, seconds, created_at, device)"
+            " VALUES (?, ?, ?, ?)",
+            (island_id, seconds, _now(), device),
         )
         row = conn.execute(
-            "SELECT level FROM schedule_state WHERE island_id = ?", (island_id,)
+            "SELECT level FROM schedule_state WHERE island_id = ? AND device = ?",
+            (island_id, device),
         ).fetchone()
         level = spacing.next_level(row["level"] if row else 0)
         due_on = spacing.due_date(datetime.now(timezone.utc).date(), level).isoformat()
         conn.execute(
-            "INSERT INTO schedule_state (island_id, level, due_on, last_practiced_on, updated_at)"
-            " VALUES (?, ?, ?, ?, ?)"
+            "INSERT INTO schedule_state (island_id, level, due_on, last_practiced_on, updated_at, device)"
+            " VALUES (?, ?, ?, ?, ?, ?)"
             " ON CONFLICT(island_id) DO UPDATE SET"
             " level = excluded.level, due_on = excluded.due_on,"
-            " last_practiced_on = excluded.last_practiced_on, updated_at = excluded.updated_at",
-            (island_id, level, due_on, today, _now()),
+            " last_practiced_on = excluded.last_practiced_on, updated_at = excluded.updated_at"
+            # Only the device that owns the row moves it: a post from another
+            # phone for a known island id leaves the owner's due marker alone.
+            " WHERE schedule_state.device = excluded.device",
+            (island_id, level, due_on, today, _now(), device),
         )
 
     return {"island_id": island_id, "level": level, "due_on": due_on}
 
 
 @router.get("/due-today")
-async def due_today(authorization: str | None = Header(None)) -> list[dict]:
+async def due_today(
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> list[dict]:
     require_token(authorization)
+    device = _require_device(x_shadow_device)
     today = _today()
     with connect() as conn:
         rows = conn.execute(
             "SELECT island_id, level, due_on, last_practiced_on FROM schedule_state"
-            " WHERE due_on <= ? ORDER BY due_on ASC, island_id ASC",
-            (today,),
+            " WHERE due_on <= ? AND device = ? ORDER BY due_on ASC, island_id ASC",
+            (today, device),
         ).fetchall()
     return [
         {

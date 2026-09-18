@@ -105,6 +105,7 @@ import {
 import { wordPitches } from '@/lib/pitch';
 import { lineRomaji } from '@/lib/romaji';
 import {
+  DEFAULT_VOICE_BY_LANGUAGE,
   getSettings,
   getSettingsSync,
   setAutoEcho as persistAutoEcho,
@@ -211,6 +212,9 @@ const spanUpdate = (from: number, to: number) => (prev: PhraseSpan | null) =>
   prev && prev.from === from && prev.to === to ? prev : { from, to };
 
 const noop = () => {};
+
+// languages: short code shown on the Blind dock tile and Home's language pill.
+const LANG_CODE: Record<string, string> = { ja: 'JP', es: 'ES', en: 'EN', he: 'HE' };
 
 export default function IslandScreen() {
   const { id, morph } = useLocalSearchParams<{ id: string; morph?: string }>();
@@ -425,6 +429,13 @@ export default function IslandScreen() {
   const [chatGeneration, setChatGeneration] = useState(0);
 
   const line = island?.lines[idx];
+  // languages: reading, furigana, pitch, POS underline, romaji, JMdict and
+  // mora feedback only apply to Japanese. Defaults to Japanese while the
+  // island is still loading so nothing flashes into the wrong gating.
+  const isJa = (island?.language ?? 'ja') === 'ja';
+  // languages: the translation line reads right to left when the learner's
+  // understood language is Hebrew.
+  const isRtl = island?.native === 'he';
   // The transcript's Japanese text, one entry per line: stable across the
   // 50ms position ticks so TideScene's dim lines never see a new array.
   const lines = useMemo(() => island?.lines.map((l) => l.ja) ?? [], [island]);
@@ -754,15 +765,12 @@ export default function IslandScreen() {
     if (island && island.lines.length >= LONG_ISLAND) setLastLine(id, idx);
   }, [id, idx, island]);
 
-  // The chosen voice, and its display name, so the re-voice offer can say
-  // which voice it would switch to. Also loads blind mode and the player defaults, which
-  // live in the same settings file.
+  // Loads blind mode and the player defaults from the settings file.
   useEffect(() => {
     let alive = true;
     (async () => {
       const settings = await getSettings();
       if (!alive) return;
-      setVoice(settings.voice);
       // Settings can land after the user already tapped Blind or a Repeat
       // pill; what they tapped wins.
       if (!blindTouched.current) {
@@ -787,10 +795,30 @@ export default function IslandScreen() {
         setPadMs(settings.defaultPauseMs);
       }
       setKeepAwakeState(settings.keepAwake);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // The chosen voice for this island's language, and its display name, so
+  // the re-voice offer can say which voice it would switch to.
+  // languages: voices are remembered per learning language, so this waits for
+  // the island and runs once per language rather than once per open.
+  const voiceLanguage = island?.language;
+  useEffect(() => {
+    if (!voiceLanguage) return;
+    const lang = voiceLanguage;
+    let alive = true;
+    (async () => {
+      const settings = await getSettings();
+      if (!alive) return;
+      const wantId = settings.voices[lang] ?? DEFAULT_VOICE_BY_LANGUAGE[lang];
+      setVoice(wantId);
       try {
-        const speakers = await api.listSpeakers();
+        const speakers = await api.listSpeakers(lang);
         for (const sp of speakers) {
-          const st = sp.styles.find((s) => s.id === settings.voice);
+          const st = sp.styles.find((s) => s.id === wantId);
           if (st) {
             if (alive) setVoiceName(`${sp.name} ${st.name}`);
             break;
@@ -803,7 +831,7 @@ export default function IslandScreen() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [voiceLanguage]);
 
   // Keeps the screen from locking while this player is open, when the
   // setting is on. Off once the screen unmounts either way.
@@ -1460,17 +1488,24 @@ export default function IslandScreen() {
     setGlossData(null);
     setExplainContext(undefined);
     const requestId = ++wordRequestId.current;
-    try {
-      const g = await api.gloss(line.words[i]!.text);
-      setGlossData(g);
+    const word = line.words[i]!.text;
+    // languages: JMdict only covers Japanese, so es and en skip straight to
+    // the context line instead of a dictionary lookup.
+    if (isJa) {
       try {
-        const ctx = await api.explainWord(line.words[i]!.text, line.ja, line.en);
-        if (wordRequestId.current === requestId) setExplainContext(ctx || null);
+        const g = await api.gloss(word);
+        setGlossData(g);
       } catch {
-        if (wordRequestId.current === requestId) setExplainContext(null);
+        setGlossData({ word, base: '', reading: '', entries: [], found: false });
       }
+    } else {
+      setGlossData({ word, base: '', reading: '', entries: [], found: false });
+    }
+    try {
+      const ctx = await api.explainWord(word, line.ja, line.en, island?.language ?? 'ja', island?.native ?? 'en');
+      if (wordRequestId.current === requestId) setExplainContext(ctx || null);
     } catch {
-      setGlossData({ word: line.words[i]!.text, base: '', reading: '', entries: [], found: false });
+      if (wordRequestId.current === requestId) setExplainContext(null);
     }
   }
 
@@ -2251,7 +2286,9 @@ export default function IslandScreen() {
     const repeatOn = times > 1 || pauseMs > 0;
     const speedOn = Math.abs(speedLive - 1) > 0.001;
     const readingOn = readingMode !== 'off';
-    return [
+    // languages: typed here (not just the useMemo return) so the array
+    // literal below keeps its contextual typing once .filter() is chained.
+    const items: ToolbarItem[] = [
       {
         key: 'speed',
         icon: <SpeedIcon color={speedOn ? verb.listen.c1 : tide.textDim} size={22} />, // prism-player-buttons: verb listen tint
@@ -2313,7 +2350,14 @@ export default function IslandScreen() {
         key: 'blind',
         icon: <BlindIcon color={blind || !englishShown ? verb.listen.c1 : tide.textDim} size={22} />, // prism-player-buttons: verb listen tint
         label: 'Blind',
-        value: blind && !englishShown ? 'Both' : blind ? 'JP' : !englishShown ? 'EN' : 'Off',
+        value:
+          blind && !englishShown
+            ? 'Both'
+            : blind
+              ? LANG_CODE[island?.language ?? 'ja']
+              : !englishShown
+                ? LANG_CODE[island?.native ?? 'en']
+                : 'Off',
         active: blind || !englishShown,
         onPress: () => {
           setSpeedPopOpen(false);
@@ -2329,7 +2373,9 @@ export default function IslandScreen() {
         },
       },
     ];
-  }, [speedLive, times, pauseMs, readingMode, blind, englishShown, anchorMoved]);
+    // languages: reading modes (furigana, kana, romaji) only exist for Japanese.
+    return items.filter((item) => isJa || item.key !== 'reading');
+  }, [speedLive, times, pauseMs, readingMode, blind, englishShown, anchorMoved, isJa, island]);
 
   // A tapped transcript line jumps there and plays it, even from a paused
   // state (go alone would leave a paused line paused).
@@ -2405,16 +2451,19 @@ export default function IslandScreen() {
   // themselves, in every mode.
   const modeLine = useMemo(
     () =>
-      !line
+      // languages: es and en have no reading mode; the tile that sets it is
+      // already gone from the dock, but a saved kana/romaji pick from an
+      // earlier Japanese island must not leak in here.
+      !line || !isJa
         ? null
         : readingMode === 'kana'
           ? line.timeline.map((m) => m.kana).join('')
           : readingMode === 'romaji'
             ? lineRomajiText
             : null,
-    [line, readingMode, lineRomajiText],
+    [line, readingMode, lineRomajiText, isJa],
   );
-  const pitches = pitch ? linePitches : null;
+  const pitches = isJa && pitch ? linePitches : null;
 
   // Stable identities for everything the sentence card hands its children, so
   // the card below is rebuilt only when something it draws changes.
@@ -2545,7 +2594,8 @@ export default function IslandScreen() {
                         <RubyWord
                           key={i}
                           word={line.words[i]!}
-                          showRuby={readingMode === 'furigana'}
+                          showRuby={isJa && readingMode === 'furigana'}
+                          showPosAndRomaji={isJa}
                           index={i}
                           highlight={highlight}
                           concealed={!sharp}
@@ -2564,7 +2614,8 @@ export default function IslandScreen() {
                           <RubyWord
                             key={i}
                             word={w}
-                            showRuby={readingMode === 'furigana'}
+                            showRuby={isJa && readingMode === 'furigana'}
+                            showPosAndRomaji={isJa}
                             index={i}
                             highlight={highlight}
                             concealed={hidden}
@@ -2598,7 +2649,8 @@ export default function IslandScreen() {
                   context={explainContext}
                   left={popLeft}
                   top={popTop}
-                  romaji={readingMode === 'romaji'}
+                  romaji={isJa && readingMode === 'romaji'}
+                  dictionary={isJa}
                   onHear={onHearWord}
                   onClose={onClosePanel}
                 />
@@ -2642,7 +2694,8 @@ export default function IslandScreen() {
           </Frost>
         ) : null}
 
-        {feedback && !hidden ? <TakeFeedback moras={line.timeline} analysis={feedback} /> : null}
+        {/* languages: mora feedback only exists for Japanese timelines. */}
+        {isJa && feedback && !hidden ? <TakeFeedback moras={line.timeline} analysis={feedback} /> : null}
 
         {keptUp !== null ? (
           <Text style={styles.keptUp}>{`Kept up with ${keptUp.kept} of ${keptUp.total} words`}</Text>
@@ -2663,18 +2716,20 @@ export default function IslandScreen() {
                   <SlideReveal
                     finger={enReveal.finger}
                     count={enWords.length}
-                    rowStyle={styles.words}
+                    // languages: a Hebrew translation reveals right to left,
+                    // so wrapping still fills each row starting from the right.
+                    rowStyle={isRtl ? [styles.words, { flexDirection: 'row-reverse' as const }] : styles.words}
                     ink={tide.textDim}
                     blur={3.5}
                     renderChunk={(i) => (
-                      <Text key={i} style={styles.en}>
+                      <Text key={i} style={[styles.en, isRtl && styles.enRtl]}>
                         {enWords[i]}
                         {i < enWords.length - 1 ? ' ' : ''}
                       </Text>
                     )}
                   />
                 ) : (
-                  <Text style={styles.en}>{line.en}</Text>
+                  <Text style={[styles.en, isRtl && styles.enRtl]}>{line.en}</Text>
                 )}
               </View>
             </GestureDetector>
@@ -2687,6 +2742,8 @@ export default function IslandScreen() {
     blind,
     hidden,
     readingMode,
+    isJa,
+    isRtl,
     highlight,
     selected,
     dragSpan,
@@ -3054,6 +3111,7 @@ export default function IslandScreen() {
         onDismissed={onSheetDismissed}
         sentence={blind ? null : (phrase.label ?? line.ja)}
         english={englishShown ? line.en : null}
+        native={island?.native ?? 'en'} // languages: RTL translation line for Hebrew.
         moras={line.timeline}
         analysis={blind ? null : feedback}
         step={echoStep}
@@ -3095,6 +3153,8 @@ export default function IslandScreen() {
         onClose={onExplainClose}
         sentenceJa={line?.ja ?? ''}
         sentenceEn={line?.en ?? ''}
+        language={island?.language ?? 'ja'}
+        native={island?.native ?? 'en'}
         words={line.words}
         span={explainSpan}
         highlight={highlight}
@@ -3222,6 +3282,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
   en: { fontFamily: fonts.ui, fontSize: 13, lineHeight: 18, textAlign: 'center', color: tide.textDim },
+  // languages: iOS honours writingDirection; Android ignores it and falls
+  // back to the string's own first-strong direction, which is right for
+  // Hebrew text anyway.
+  enRtl: { writingDirection: 'rtl' },
   menuGlyph: { fontFamily: fonts.ui, fontSize: 22, color: tide.text },
   backGlyph: { fontFamily: fonts.ui, fontSize: 28, color: tide.text },
   dock: { borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg },

@@ -223,25 +223,30 @@ def test_startup_keeps_a_voice_island_ready_with_its_lines():
 
 
 def test_regenerate_refuses_an_imported_island():
-    island_id = store.create_island("simple", 3, source="import", source_name="clip.mp3")
+    island_id = store.create_island(
+        "simple", 3, source="import", source_name="clip.mp3", device="aaaaaaaa-0000-4000-8000-00000000000a",
+    )
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(main.regenerate(
             island_id, background=None, complexity="complex", count=8,
-            authorization=f"Bearer {main.SHADOW_TOKEN}",
+            authorization=f"Bearer {main.SHADOW_TOKEN}", x_shadow_device="aaaaaaaa-0000-4000-8000-00000000000a",
         ))
 
     assert exc_info.value.status_code == 409
 
 
 def test_revoice_refuses_an_imported_island():
-    island_id = store.create_island("simple", 3, source="import", source_name="clip.mp3")
+    island_id = store.create_island(
+        "simple", 3, source="import", source_name="clip.mp3", device="aaaaaaaa-0000-4000-8000-00000000000a",
+    )
     store.add_line(island_id, 0, {"ja": "a"}, 1.0, [])
     store.set_ready(island_id, "Clip")
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(main.revoice(
-            island_id, background=None, speaker=3, authorization=f"Bearer {main.SHADOW_TOKEN}"
+            island_id, background=None, speaker=3, authorization=f"Bearer {main.SHADOW_TOKEN}",
+            x_shadow_device="aaaaaaaa-0000-4000-8000-00000000000a",
         ))
 
     assert exc_info.value.status_code == 409

@@ -48,7 +48,7 @@ import { GlassPanel } from '@/components/prism/glass-panel';
 import { PrismButton } from '@/components/prism/prism-button';
 import { SearchIcon } from '@/components/tide/toolbar-icons';
 import { fonts } from '@/constants/fonts';
-import { prism, Radius, Spacing, tide, verb } from '@/constants/theme';
+import { prism, Radius, Spacing, tide, verb, withAlpha } from '@/constants/theme';
 import { LitPillFill, LitPillRim, PILL_H, PILL_ICON_OFF, PILL_LABEL_SIZE, PILL_PAD_X, PillTrayShell } from '@/components/prism/pill-tray';
 import { useSkyStyle, isNight } from '@/lib/sky';
 import * as api from '@/lib/api';
@@ -60,8 +60,13 @@ import { PILL_TAB_BAR_REACH } from '@/components/pill-tab-bar';
 import { invalidateLineAudio } from '@/lib/line-audio-cache';
 import { forgetLastLine, getLastLine, peekLastLine } from '@/lib/last-line';
 import { forgetIsland, getPracticeLog, minutesOn, type PracticeLog } from '@/lib/practice';
+import { getSettingsSync, subscribeSettings, toIslandLanguage } from '@/lib/settings';
 import { getSettings, setHomeWaveDate } from '@/lib/settings';
 import { deleteTakes, keptUpTotal, lineTiers, weakestLine, type LineTier } from '@/lib/takes';
+
+/** Small code shown on a card whose language differs from the learning
+ * language, once Show all languages is on. */
+const LANG_CODE: Record<api.Language, string> = { ja: 'JP', es: 'ES', en: 'EN' };
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 // A long press holds this long before it counts, so it reads as deliberate
@@ -169,6 +174,19 @@ export default function IslandsScreen() {
   const night = isNight(new Date());
   const [islands, setIslands] = useState<api.IslandSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  // languages: which islands Home shows. Read synchronously so the first
+  // render already filters, then kept fresh from Settings.
+  const [learningLanguage, setLearningLanguageState] = useState(() => getSettingsSync().learningLanguage);
+  const [showAllLanguages, setShowAllLanguagesState] = useState(() => getSettingsSync().showAllLanguages);
+  useEffect(
+    () =>
+      subscribeSettings(() => {
+        const s = getSettingsSync();
+        setLearningLanguageState(s.learningLanguage);
+        setShowAllLanguagesState(s.showAllLanguages);
+      }),
+    [],
+  );
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -383,11 +401,19 @@ export default function IslandsScreen() {
     }
   }
 
+  // Home's visible pool: every island once Show all languages is on,
+  // otherwise only the ones matching the learning language. Sorting, search,
+  // due counts and the practice card all read from this, not from `islands`.
+  const visibleIslands = useMemo(
+    () => (showAllLanguages ? islands : islands.filter((i) => i.language === toIslandLanguage(learningLanguage))),
+    [islands, showAllLanguages, learningLanguage],
+  );
+
   // Sorted before filtering, so closing search can find where the centred
   // island sits in the full list.
   const sortedAll = useMemo(
     () =>
-      [...islands].sort((a, b) => {
+      [...visibleIslands].sort((a, b) => {
         if (sort === 'least') {
           const diff = (log.islands[a.id]?.seconds ?? 0) - (log.islands[b.id]?.seconds ?? 0);
           if (diff !== 0) return diff;
@@ -395,7 +421,7 @@ export default function IslandsScreen() {
         // Newest first: the tie break above, and the "Newest" sort itself.
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       }),
-    [islands, sort, log],
+    [visibleIslands, sort, log],
   );
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -406,14 +432,17 @@ export default function IslandsScreen() {
   // been practiced at all: schedule.py only tracks islands it has seen, so a
   // brand new island is never in that list even though it is the most due
   // thing on the island. The practice log Home already loads is the source
-  // of truth for "never practiced" (no entry under its id).
+  // of truth for "never practiced" (no entry under its id). Limited to the
+  // visible pool, so the due count on the practice card matches the list.
   const dueIds = useMemo(() => {
-    const ids = new Set(fetchedDueIds);
-    for (const island of islands) {
-      if (island.status === 'ready' && !(island.id in log.islands)) ids.add(island.id);
+    const ids = new Set<string>();
+    for (const island of visibleIslands) {
+      if (fetchedDueIds.has(island.id) || (island.status === 'ready' && !(island.id in log.islands))) {
+        ids.add(island.id);
+      }
     }
     return ids;
-  }, [islands, log, fetchedDueIds]);
+  }, [visibleIslands, log, fetchedDueIds]);
 
   const requestShape = useCallback((next: Shape) => {
     wanted.current = next;
@@ -753,7 +782,7 @@ export default function IslandsScreen() {
               <Text style={[styles.empty, { color: tide.textDim }]}>
                 {error
                   ? error
-                  : query.trim() && islands.length > 0
+                  : query.trim() && visibleIslands.length > 0
                     ? 'No island matches'
                     : 'No islands yet. Record a minute about your day and one gets built from it.'}
               </Text>
@@ -792,6 +821,7 @@ export default function IslandsScreen() {
               due={due}
               fraction={fraction}
               meta={meta}
+              langPill={showAllLanguages ? LANG_CODE[item.language] : null}
               waveIndex={waveIndex}
               exitFade={!searchOpen}
               onOpen={openIsland}
@@ -835,22 +865,35 @@ export default function IslandsScreen() {
             </GlassPanel>
           </>
         ) : (
-          <GlassPanel style={styles.sheetActionsRow}>
-            <PrismButton shape="pill" verb="tools" flat label="Rename" onPress={() => setRenaming(true)}>
-              <SymbolView name={{ ios: 'pencil', android: 'edit' }} size={16} weight="regular" tintColor={verb.tools.c1} />
-            </PrismButton>
+          <GlassPanel style={styles.sheetMenuRow}>
             <PrismButton
               shape="pill"
-              verb="speak"
+              verb="tools"
               flat
-              label="Delete island"
-              onPress={() => {
-                const item = menuItem;
-                if (!item) return;
-                closeSheetThen(() => confirmDelete(item));
-              }}>
-              <SymbolView name={{ ios: 'trash', android: 'delete' }} size={16} weight="regular" tintColor={verb.speak.c1} />
+              containerStyle={styles.sheetActionPill}
+              label="Rename"
+              onPress={() => setRenaming(true)}>
+              <SymbolView name={{ ios: 'pencil', android: 'edit' }} size={16} weight="regular" tintColor={verb.tools.c1} />
             </PrismButton>
+            {/* Delete reads as destructive: red label, red icon, red-tinted glass
+                fill. The label is a plain Text rather than the `label` prop so it
+                can take the verb colour outright, with no "on" state involved. */}
+            <View style={styles.sheetDeleteFill}>
+              <PrismButton
+                shape="pill"
+                verb="speak"
+                flat
+                containerStyle={styles.sheetActionPill}
+                accessibilityLabel="Delete island"
+                onPress={() => {
+                  const item = menuItem;
+                  if (!item) return;
+                  closeSheetThen(() => confirmDelete(item));
+                }}>
+                <SymbolView name={{ ios: 'trash', android: 'delete' }} size={16} weight="regular" tintColor={verb.speak.c1} />
+                <Text style={styles.sheetDeleteLabel}>Delete island</Text>
+              </PrismButton>
+            </View>
           </GlassPanel>
         )}
         {/* prism-home: end */}
@@ -885,6 +928,10 @@ type IslandRowProps = {
   due: boolean;
   fraction: number;
   meta: string;
+  /** `JP`/`ES`/`EN` shown next to the meta line once Show all languages is
+   * on, so a mixed list still reads at a glance. `null` when the toggle is
+   * off, since every card then shares the learning language. */
+  langPill: string | null;
   /** This card's place in the once-a-day Home wave, or `null` to appear
    * instantly: past the first `WAVE_MAX_CARDS` cards, outside the first
    * visit of the day, or with reduced motion on. */
@@ -926,6 +973,7 @@ const IslandRow = memo(function IslandRow({
   due,
   fraction,
   meta,
+  langPill,
   waveIndex,
   exitFade,
   onOpen,
@@ -1208,6 +1256,11 @@ const IslandRow = memo(function IslandRow({
             <Text style={[styles.cardMeta, { color: tide.turn }]}>Due today · </Text>
           ) : null}
           <Text style={[styles.cardMeta, { color: tide.textDim }]}>{meta}</Text>
+          {langPill ? (
+            <View style={styles.langPill}>
+              <Text style={styles.langPillText}>{langPill}</Text>
+            </View>
+          ) : null}
         </View>
         {showLanterns ? (
           <LanternRow count={item.line_count} tiers={tiers} holdColours={!settled} weakest={weakest} litMs={litMs} flick={flick} power={power} />
@@ -1259,6 +1312,13 @@ const styles = StyleSheet.create({
   // a two-line title's lanterns past the card's clip.
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   cardMeta: { fontSize: 13, fontFamily: fonts.ui },
+  langPill: {
+    borderRadius: Radius.pill,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+  },
+  langPillText: { fontSize: 11, color: tide.textDim, fontFamily: fonts.uiMedium, fontWeight: '500' },
   // Matches LanternRow's own height: a busy or failed card has no lanterns
   // but still needs the row's height so every card lines up.
   lanternSpacer: { height: 24 },
@@ -1274,6 +1334,22 @@ const styles = StyleSheet.create({
   },
   // prism-home: one row of pill actions sharing a single GlassPanel blur.
   sheetActionsRow: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.sm, alignSelf: 'flex-start' },
+  // The Rename/Delete row: both pills share the sheet's full width (no
+  // alignSelf hug), evenly split with a 12pt gap between them.
+  sheetMenuRow: { flexDirection: 'row', gap: Spacing.md, padding: Spacing.sm },
+  sheetActionPill: { flex: 1 },
+  // Clips the red tint to the pill's own rounded shape, matching PrismFace's
+  // pill radius (999) rather than the panel's squarer one.
+  sheetDeleteFill: { flex: 1, borderRadius: Radius.pill, overflow: 'hidden', backgroundColor: withAlpha(verb.speak.c1, 0.18) },
+  sheetDeleteLabel: {
+    fontFamily: fonts.ui,
+    fontWeight: '600',
+    fontSize: 13,
+    color: verb.speak.c1,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 6,
+    textShadowColor: withAlpha(verb.speak.c1, 0.55),
+  },
   // Above the wheel, not inside it: the FlatList needs its own full
   // viewport to centre the first card, same horizontal padding as the list.
   headerFixed: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, gap: Spacing.md, marginBottom: Spacing.md },

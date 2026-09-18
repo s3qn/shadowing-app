@@ -1,0 +1,15 @@
+# User unit for the shadowing app production backend. This is the documented
+# upgrade path from the tmux session; it is not installed automatically. See
+# backend/PROD.md for install steps.
+[Unit]
+Description=Shadowing app production backend (127.0.0.1:8030)
+
+[Service]
+WorkingDirectory=/home/sean/shadow-prod/app/backend
+ExecStart=/home/sean/shadow-prod/app/backend/run-prod.sh
+Environment=PATH=/home/sean/.local/bin:/usr/local/bin:/usr/bin:/bin
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

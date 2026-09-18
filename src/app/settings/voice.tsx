@@ -11,11 +11,16 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
+import { languageColor } from '@/components/language-picker';
 import { PressScale } from '@/components/press-scale';
+import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
 import { applyPlaybackMode, scheduleAudioSessionRelease, startPlayback, useSessionPlayer } from '@/lib/audio-mode';
-import { getVoice, setVoice } from '@/lib/settings';
+import { getLanguage } from '@/lib/languages';
+import { LearningLanguage, getSettingsSync, getVoice, setVoice, subscribeSettings, toIslandLanguage } from '@/lib/settings';
+
+const LANGUAGE_NAME: Record<LearningLanguage, string> = { ja: 'Japanese', es: 'Spanish', en: 'English' };
 
 export default function VoiceScreen() {
   const [speakers, setSpeakers] = useState<api.Speaker[]>([]);
@@ -24,6 +29,14 @@ export default function VoiceScreen() {
   const player = useAudioPlayer(null);
   const status = useAudioPlayerStatus(player);
   useSessionPlayer(player);
+
+  const [learningLanguage, setLearningLanguageState] = useState(() => getSettingsSync().learningLanguage);
+  useEffect(() => subscribeSettings(() => setLearningLanguageState(getSettingsSync().learningLanguage)), []);
+  // The language the voice list and the saved pick actually belong to: a
+  // "coming soon" pick from the catalogue (French, Korean and so on) falls
+  // back to Japanese, since that is the only one islands are built in today.
+  const island = toIslandLanguage(learningLanguage);
+  const comingSoonName = island !== learningLanguage ? (getLanguage(learningLanguage)?.english ?? learningLanguage) : null;
 
   useEffect(() => {
     void applyPlaybackMode();
@@ -43,7 +56,10 @@ export default function VoiceScreen() {
       let alive = true;
       (async () => {
         try {
-          const [list, current] = await Promise.all([api.listSpeakers(), getVoice()]);
+          const [list, current] = await Promise.all([
+            api.listSpeakers(island),
+            getVoice(island),
+          ]);
           if (!alive) return;
           setSpeakers(list);
           setChosen(current);
@@ -54,13 +70,13 @@ export default function VoiceScreen() {
       return () => {
         alive = false;
       };
-    }, []),
+    }, [island]),
   );
 
   // Tapping a style both previews it and makes it the voice for new islands.
   async function pick(styleId: number) {
     setChosen(styleId);
-    await setVoice(styleId);
+    await setVoice(styleId, island);
     player.replace({ uri: api.voicePreviewUrl(styleId) });
     startPlayback(player);
   }
@@ -76,8 +92,14 @@ export default function VoiceScreen() {
         ListHeaderComponent={
           <View style={styles.header}>
             <Text style={[styles.title, { color: tide.text }]}>Voice</Text>
+            {comingSoonName ? (
+              <Text style={[styles.hint, { color: tide.textDim }]}>
+                {comingSoonName} is not ready yet. Islands are built in {LANGUAGE_NAME[island]} for now.
+              </Text>
+            ) : null}
             <Text style={[styles.hint, { color: tide.textDim }]}>
-              Tap a style to hear it. The one you pick is used for new islands.
+              Voices for {LANGUAGE_NAME[island]}. Tap one to hear it; the one you pick is used for new{' '}
+              {LANGUAGE_NAME[island]} islands.
             </Text>
           </View>
         }
@@ -91,7 +113,7 @@ export default function VoiceScreen() {
           )
         }
         ListFooterComponent={
-          chosenSpeaker ? (
+          chosenSpeaker && chosenSpeaker.policy ? (
             <Text style={[styles.credit, { color: tide.textDim }]}>
               Audio made with this voice is credited as VOICEVOX:{chosenSpeaker.name}
             </Text>
@@ -103,7 +125,13 @@ export default function VoiceScreen() {
             <View style={[styles.row, { backgroundColor: tide.water, borderColor: tide.waterline }]}>
               <View style={styles.rowTop}>
                 {active ? (
-                  <Image source={{ uri: api.iconUrl(active.icon) }} style={styles.icon} />
+                  active.icon ? (
+                    <Image source={{ uri: api.iconUrl(active.icon) }} style={styles.icon} />
+                  ) : (
+                    <View style={[styles.icon, styles.iconFallback]}>
+                      <Text style={styles.iconFallbackText}>{active.name.charAt(0).toUpperCase()}</Text>
+                    </View>
+                  )
                 ) : null}
                 <Text style={[styles.name, { color: tide.text }]}>{sp.name}</Text>
               </View>
@@ -117,8 +145,8 @@ export default function VoiceScreen() {
                       style={[
                         styles.chip,
                         {
-                          backgroundColor: on ? tide.lang.ja : 'rgba(255,255,255,0.08)',
-                          borderColor: on ? tide.lang.ja : 'rgba(255,255,255,0.14)',
+                          backgroundColor: on ? languageColor(island) : 'rgba(255,255,255,0.08)',
+                          borderColor: on ? languageColor(island) : 'rgba(255,255,255,0.14)',
                         },
                       ]}>
                       <Text style={[styles.chipText, { color: on ? tide.sky[0] : tide.text }]}>
@@ -146,6 +174,8 @@ const styles = StyleSheet.create({
   row: { borderWidth: 1, borderRadius: Radius.md, padding: Spacing.md, gap: Spacing.sm },
   rowTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   icon: { width: 44, height: 44, borderRadius: 22 },
+  iconFallback: { backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
+  iconFallbackText: { fontSize: 17, color: tide.text, fontFamily: fonts.uiMedium, fontWeight: '500' },
   name: { fontSize: 17, fontWeight: '600' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   chip: {

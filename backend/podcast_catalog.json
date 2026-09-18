@@ -264,6 +264,270 @@
       }
     ]
   },
-  "es": {"sections": []},
-  "en": {"sections": []}
+  "es": {
+    "sections": [
+      {
+        "id": "easy-start",
+        "title": "An Easy Place to Begin",
+        "subtitle": "Clear, slow Spanish for new learners",
+        "shows": [
+          {
+            "collectionId": 201598403,
+            "title": "Coffee Break Spanish",
+            "feedUrl": "https://feeds.acast.com/public/shows/985e7c00-8945-4e0d-a4da-b93049180ce1",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts115/v4/8c/60/bb/8c60bbc0-0bfb-13c9-ec70-ec7812061d5e/mza_3440928626851101255.jpg/600x600bb.jpg",
+            "level": "beginner",
+            "tagline": "A classroom-style course that builds up Spanish one lesson at a time."
+          },
+          {
+            "collectionId": 257441540,
+            "title": "Notes in Spanish: Inspired Beginners",
+            "feedUrl": "https://rss.libsyn.com/shows/19057/destinations/14862.xml",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts116/v4/b9/89/d4/b989d466-c83a-8a45-6a88-1c881f855de3/mza_4734047224895628289.jpg/600x600bb.jpg",
+            "level": "beginner",
+            "tagline": "A British husband and Spanish wife talk slowly through daily life."
+          },
+          {
+            "collectionId": 1317493077,
+            "title": "Duolingo Spanish Podcast",
+            "feedUrl": "https://anchor.fm/s/fc714074/podcast/rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts115/v4/aa/a0/f5/aaa0f562-64a8-401f-bfe8-7b6a49ec5943/mza_2619062143639023486.png/600x600bb.jpg",
+            "level": "beginner",
+            "tagline": "True personal stories narrated slowly, in Spanish and English."
+          },
+          {
+            "collectionId": 1166015603,
+            "title": "Españolistos",
+            "feedUrl": "https://feeds.soundcloud.com/users/soundcloud:users:250273737/sounds.rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts115/v4/9c/c9/3e/9cc93e7a-221b-cf7d-13aa-6b40db4f30ca/mza_11810121341173213205.jpg/600x600bb.jpg",
+            "level": "beginner",
+            "tagline": "Two hosts chat about everyday topics at a friendly, clear pace."
+          },
+          {
+            "collectionId": 623732043,
+            "title": "Beginner Spanish with Spanish Obsessed",
+            "feedUrl": "https://feeds.transistor.fm/beginner-spanish-with-spanish-obsessed",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/18/63/b8/1863b89d-ed73-a48a-970f-b940ad3b8af6/mza_17187934987166706228.jpg/600x600bb.jpg",
+            "level": "beginner",
+            "tagline": "Short, structured lessons aimed squarely at first-time listeners."
+          }
+        ]
+      },
+      {
+        "id": "stories-and-conversation",
+        "title": "Stories and Conversation",
+        "subtitle": "Natural talk at a moderate, learnable pace",
+        "shows": [
+          {
+            "collectionId": 189219027,
+            "title": "Notes in Spanish Intermediate",
+            "feedUrl": "https://rss.libsyn.com/shows/18817/destinations/13969.xml",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts116/v4/f9/55/35/f9553507-0448-68ef-e55d-498ebba35e76/mza_3758446935673412446.jpg/600x600bb.jpg",
+            "level": "intermediate",
+            "tagline": "The same hosts, now talking at a more natural conversational speed."
+          },
+          {
+            "collectionId": 1201483158,
+            "title": "Hoy Hablamos",
+            "feedUrl": "https://www.hoyhablamos.com/category/podcast/feed/",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts125/v4/72/ee/37/72ee370b-3d51-27f2-92a2-37a3a3057391/mza_4998403547888481662.jpg/600x600bb.jpg",
+            "level": "intermediate",
+            "tagline": "A daily topic explained clearly, one short episode per day."
+          },
+          {
+            "collectionId": 1060671460,
+            "title": "Unlimited Spanish",
+            "feedUrl": "https://rss.libsyn.com/shows/73741/destinations/320894.xml",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/0f/60/16/0f6016d2-d7a1-c866-acc5-6bfbf69af33d/mza_17493148723606665253.jpg/600x600bb.jpg",
+            "level": "intermediate",
+            "tagline": "Storytelling built to teach grammar through context, not rules."
+          },
+          {
+            "collectionId": 1107849049,
+            "title": "Español Automático",
+            "feedUrl": "https://app.kajabi.com/podcasts/2147495670/feed",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/74/24/35/742435c4-ccb8-f650-1dc6-d315edf86860/mza_17607452549273405464.jpg/600x600bb.jpg",
+            "level": "intermediate",
+            "tagline": "Practical talks aimed at learners ready to think in Spanish."
+          },
+          {
+            "collectionId": 1557471374,
+            "title": "Easy Spanish",
+            "feedUrl": "https://feeds.fireside.fm/easyspanish/rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts114/v4/4c/63/0f/4c630f95-0cd9-2545-ab3a-c1d2588f09ac/mza_9317916818140148952.jpg/600x600bb.jpg",
+            "level": "intermediate",
+            "tagline": "Street interviews with everyday Spanish speakers, subtitled in the app."
+          }
+        ]
+      },
+      {
+        "id": "native-pace",
+        "title": "Native Pace",
+        "subtitle": "Real Spanish shows, full speed",
+        "shows": [
+          {
+            "collectionId": 527614348,
+            "title": "Radio Ambulante",
+            "feedUrl": "https://www.omnycontent.com/d/playlist/e73c998e-6e60-432f-8610-ae210140c5b1/b3c9b6e7-72ba-45c4-aff9-b1e7012d213b/092b66a8-4329-4183-bb12-b1e7012d216f/podcast.rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/d8/cd/6b/d8cd6bfc-e830-636b-120e-b41a033e6daf/mza_3995577235346338075.jpg/600x600bb.jpg",
+            "level": "advanced",
+            "tagline": "NPR's Spanish-language show, narrative journalism at native speed."
+          },
+          {
+            "collectionId": 665143133,
+            "title": "Nadie Sabe Nada",
+            "feedUrl": "https://fapi-top.prisasd.com/podcast/playser/nadie_sabe_nada/itunestfp/podcast.xml",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/60/f1/95/60f19580-54c2-cad7-7180-1210e04531d2/mza_940870946245686152.jpeg/600x600bb.jpg",
+            "level": "advanced",
+            "tagline": "A fast, funny Spanish comedy talk show, unscripted and native speed."
+          },
+          {
+            "collectionId": 1229124446,
+            "title": "Entiende Tu Mente",
+            "feedUrl": "https://feeds.acast.com/public/shows/69779e4cf4b515342e3b249c",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/c4/e0/b4/c4e0b43a-888d-c267-6a85-3f0cb5bbd911/mza_4665026146816110789.jpg/600x600bb.jpg",
+            "level": "advanced",
+            "tagline": "A native-speed psychology talk show about the mind and behaviour."
+          }
+        ]
+      }
+    ]
+  },
+  "en": {
+    "sections": [
+      {
+        "id": "easy-start",
+        "title": "An Easy Place to Begin",
+        "subtitle": "Clear, compact English listening",
+        "shows": [
+          {
+            "collectionId": 262026947,
+            "title": "6 Minute English",
+            "feedUrl": "https://podcasts.files.bbci.co.uk/p02pc9tn.rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/ba/98/35/ba9835eb-1ef3-60e4-bf05-3d141b8d1c7a/mza_3844641997714022659.jpg/600x600bb.jpg",
+            "level": "beginner",
+            "tagline": "The BBC's six-minute topic and vocabulary lesson, twice a week."
+          },
+          {
+            "collectionId": 262026989,
+            "title": "The English We Speak",
+            "feedUrl": "https://podcasts.files.bbci.co.uk/p02pc9zn.rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/9d/9f/9a/9d9f9ac2-18ed-fef1-6b5a-2370cb2d2eca/mza_16678796634995991769.jpg/600x600bb.jpg",
+            "level": "beginner",
+            "tagline": "One short everyday English phrase explained per episode."
+          },
+          {
+            "collectionId": 1036379102,
+            "title": "Learning English Vocabulary",
+            "feedUrl": "https://podcasts.files.bbci.co.uk/p02pc9xz.rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/c9/f7/d1/c9f7d1c3-7d9f-286c-bd34-dd9ed6c8dbae/mza_15142415083290293434.jpg/600x600bb.jpg",
+            "level": "beginner",
+            "tagline": "The BBC builds a small set of useful words around one topic."
+          },
+          {
+            "collectionId": 957223102,
+            "title": "Espresso English Podcast",
+            "feedUrl": "https://rss.libsyn.com/shows/56803/destinations/212704.xml",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts115/v4/83/4a/31/834a31b2-3941-72ae-1253-b9e430796451/mza_16021704442878844145.jpg/600x600bb.jpg",
+            "level": "beginner",
+            "tagline": "Short, plain-spoken lessons on grammar and everyday phrases."
+          },
+          {
+            "collectionId": 1524310725,
+            "title": "American Stories, VOA Learning English",
+            "feedUrl": "https://learningenglish.voanews.com/podcast/?zoneId=1581",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/e1/ed/74/e1ed7429-5b23-e357-311e-d54f6b076a2c/mza_4485705362810054336.jpg/600x600bb.jpg",
+            "level": "beginner",
+            "tagline": "Classic short stories read aloud, slowly and clearly."
+          }
+        ]
+      },
+      {
+        "id": "stories-and-conversation",
+        "title": "Stories and Conversation",
+        "subtitle": "Natural talk at a moderate pace",
+        "shows": [
+          {
+            "collectionId": 312059190,
+            "title": "Luke's English Podcast",
+            "feedUrl": "https://feeds.acast.com/public/shows/62b0ada25c7ea10012f541cb",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts112/v4/07/8c/30/078c3053-2fdf-bd8b-7065-0eb490e27029/mza_8948714377807896144.jpeg/600x600bb.jpg",
+            "level": "intermediate",
+            "tagline": "Long, friendly ramblings on British life and culture."
+          },
+          {
+            "collectionId": 751574016,
+            "title": "All Ears English",
+            "feedUrl": "https://feeds.megaphone.fm/allearsenglish",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/cb/a1/13/cba113a7-999d-3c3d-a594-900adb69624e/mza_7992161192502469150.jpg/600x600bb.jpg",
+            "level": "intermediate",
+            "tagline": "Two hosts unpack American idioms and culture through conversation."
+          },
+          {
+            "collectionId": 600128442,
+            "title": "RealLife English",
+            "feedUrl": "https://rss.libsyn.com/shows/41632/destinations/126390.xml",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts112/v4/6a/16/96/6a16968c-e765-54f6-d222-ed5fbe16efdc/mza_17156835718007196421.png/600x600bb.jpg",
+            "level": "intermediate",
+            "tagline": "Confident, natural English built around real conversation."
+          },
+          {
+            "collectionId": 1535401964,
+            "title": "Thinking in English",
+            "feedUrl": "https://rss.pdrl.fm/699122/feeds.megaphone.fm/ARML8307714981",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/6a/d9/84/6ad984d4-46b5-80f4-801b-ccfda17d6d32/mza_7127684008959106584.jpg/600x600bb.jpg",
+            "level": "intermediate",
+            "tagline": "One idea discussed at length, at a natural but careful pace."
+          },
+          {
+            "collectionId": 1489301603,
+            "title": "English Learning for Curious Minds",
+            "feedUrl": "https://feeds.transistor.fm/leonardo-english-english-language-learning-for-curious-minds",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/23/a3/cd/23a3cd71-88ec-7bee-d0f7-d18752b1d5e1/mza_16883907159795938954.jpg/600x600bb.jpg",
+            "level": "intermediate",
+            "tagline": "Interesting true stories told in clear, unhurried English."
+          }
+        ]
+      },
+      {
+        "id": "native-pace",
+        "title": "Native Pace",
+        "subtitle": "Real English shows, full speed",
+        "shows": [
+          {
+            "collectionId": 1200361736,
+            "title": "The Daily",
+            "feedUrl": "https://feeds.simplecast.com/Sl5CSM3S",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/ab/64/66/ab6466a9-9a7d-e20e-7a3d-bc5be37d29ce/mza_15084852813176276273.jpg/600x600bb.jpg",
+            "level": "advanced",
+            "tagline": "The New York Times' daily news show, native speed."
+          },
+          {
+            "collectionId": 201671138,
+            "title": "This American Life",
+            "feedUrl": "https://www.thisamericanlife.org/podcast/rss.xml",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/64/aa/3a/64aa3a66-a08a-947c-cf21-a5722a1b77ae/mza_11390421932467026234.png/600x600bb.jpg",
+            "level": "advanced",
+            "tagline": "Long-form true stories, one theme per week, native speed."
+          },
+          {
+            "collectionId": 1896860400,
+            "title": "Stuff You Should Know",
+            "feedUrl": "https://feeds.libsyn.com/617835/rss",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/db/1f/25/db1f257c-1953-f4fb-95a8-57fd09bf99bd/mza_16606162378290831207.jpeg/600x600bb.jpg",
+            "level": "advanced",
+            "tagline": "Two hosts explain how everyday things work, native speed."
+          },
+          {
+            "collectionId": 394775318,
+            "title": "99% Invisible",
+            "feedUrl": "https://feeds.simplecast.com/BqbsxVfO",
+            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/79/d0/35/79d035ea-9043-b43e-7380-33cd47bd968b/mza_2606971010425550919.jpg/600x600bb.jpg",
+            "level": "advanced",
+            "tagline": "Design and architecture stories nobody notices, native speed."
+          }
+        ]
+      }
+    ]
+  }
 }
