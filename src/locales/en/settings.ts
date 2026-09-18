@@ -105,7 +105,8 @@ export const en = {
 
   // Settings > Playback.
   'settings.playback.speed': 'Speed',
-  'settings.playback.defaultFootnote': 'Default for new sessions. Change it per session from the player.',
+  'settings.playback.defaultFootnote':
+    'Where a new island starts. Each island climbs toward 1.00× by itself when you keep up with 90% of the words over three takes, and steps back under 85%. The Speed tile in the player still sets it by hand.',
   'settings.playback.times': 'Times',
   'settings.playback.timesFootnote':
     'How many times each line plays before the next. Default for new sessions; change it per session from the player’s Repeat tile.',

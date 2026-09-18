@@ -90,7 +90,8 @@ export const he = {
   'settings.data.offline': 'לא מקוון',
 
   'settings.playback.speed': 'מהירות',
-  'settings.playback.defaultFootnote': 'ברירת מחדל לסשן חדש. אפשר לשנות לכל סשן מתוך הנגן.',
+  'settings.playback.defaultFootnote':
+    'נקודת ההתחלה של אי חדש. כל אי עולה לבד לכיוון 1.00× כשעומדים בקצב של 90% מהמילים לאורך שלושה טייקים, ויורד מתחת ל־85%. כפתור המהירות בנגן עדיין קובע אותה ידנית.',
   'settings.playback.times': 'פעמים',
   'settings.playback.timesFootnote':
     'כמה פעמים כל שורה מתנגנת לפני המעבר לבאה. ברירת מחדל לסשן חדש; אפשר לשנות לכל סשן מתוך אריח החזרה בנגן.',

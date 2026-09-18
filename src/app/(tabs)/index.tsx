@@ -60,6 +60,8 @@ import { LONG_ISLAND } from '@/components/tide/transcript-window';
 import { PILL_TAB_BAR_REACH } from '@/components/pill-tab-bar';
 import { invalidateLineAudio } from '@/lib/line-audio-cache';
 import { forgetLastLine, getLastLine, peekLastLine } from '@/lib/last-line';
+import { forgetRung, getRung, loadLadder, peekRung } from '@/lib/speed-ladder';
+import { speedLabel } from '@/components/tide/speed-popover';
 import { forgetIsland, getPracticeLog, minutesOn, type PracticeLog } from '@/lib/practice';
 import { getSettingsSync, subscribeSettings, toIslandLanguage } from '@/lib/settings';
 import { getSettings, setHomeWaveDate } from '@/lib/settings';
@@ -291,6 +293,7 @@ export default function IslandsScreen() {
   // stay false (no wave) if it has not arrived by the time this decides.
   const [waveHome, setWaveHome] = useState(false);
   useEffect(() => {
+    void loadLadder();
     let cancelled = false;
     void getSettings().then((settings) => {
       if (cancelled) return;
@@ -384,6 +387,7 @@ export default function IslandsScreen() {
       deleteTakes(id);
       void forgetIsland(id);
       forgetLastLine(id);
+      forgetRung(id);
     } catch (e) {
       removed.current.delete(id);
       if (restore) {
@@ -805,11 +809,12 @@ export default function IslandsScreen() {
           const tiers = lit && !busy && item.status !== 'failed' ? tiersFor(item.id, item.line_count) : null;
           const keptUp = tiers ? keptUpFor(item.id, item.line_count) : null;
           const complexityLabel = item.complexity === 'simple' ? t('home.complexitySimple') : t('home.complexityComplex');
+          const rung = !busy && item.status !== 'failed' ? peekRung(item.id) : undefined;
           const meta = item.status === 'failed'
             ? t('home.failed')
             : busy
               ? api.stageLabel(item.stage)
-              : `${t('home.lines', { count: item.line_count })} · ${complexityLabel}${minutes >= 1 ? ` · ${t('home.minutes', { count: minutes })}` : ''}${keptUp && keptUp.total > 0 ? ` · ${t('home.keptUp', { kept: keptUp.kept, total: keptUp.total })}` : ''}`;
+              : `${t('home.lines', { count: item.line_count })} · ${complexityLabel}${minutes >= 1 ? ` · ${t('home.minutes', { count: minutes })}` : ''}${keptUp && keptUp.total > 0 ? ` · ${t('home.keptUp', { kept: keptUp.kept, total: keptUp.total })}` : ''}${rung ? ` · ${speedLabel(rung.speed)}` : ''}`;
           return (
             <IslandRow
               item={item}
@@ -1152,6 +1157,7 @@ const IslandRow = memo(function IslandRow({
       prewarmIsland(itemId);
       // Reads the saved lines file, so the open can show the resume line.
       void getLastLine(itemId);
+      void getRung(itemId, getSettingsSync().defaultSpeed);
     }
     pressed.value = withTiming(1, { duration: 120 });
   }

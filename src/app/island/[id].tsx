@@ -104,6 +104,7 @@ import {
 } from '@/lib/audio-mode';
 import { wordPitches } from '@/lib/pitch';
 import { lineRomaji } from '@/lib/romaji';
+import { forgetRung, getRung, peekRung, recordTake, setRungSpeed } from '@/lib/speed-ladder';
 import {
   DEFAULT_VOICE_BY_LANGUAGE,
   getSettings,
@@ -259,7 +260,7 @@ export default function IslandScreen() {
   const [idx, setIdx] = useState(() => warmStart?.idx ?? 0);
   // `speed` is what the audio was rendered at; the Speed sheet shows the
   // live drag position, and only a release re-renders the line.
-  const [speed, setSpeed] = useState<number>(() => getSettingsSync().defaultSpeed);
+  const [speed, setSpeed] = useState<number>(() => peekRung(id)?.speed ?? getSettingsSync().defaultSpeed);
   // The island always plays on, line after line, wrapping from the last to
   // the first until paused. Each line plays `times` times, with `pauseMs` of
   // silence after every play (between its repeats and before the next line).
@@ -289,7 +290,16 @@ export default function IslandScreen() {
   const speedTile = useRef<TileBox | null>(null);
   // The readout the Speed popover's ruler follows live; only its settle
   // commits to `speed` and restarts the line, like the Pause ruler's padMs.
-  const [speedLive, setSpeedLive] = useState<number>(() => getSettingsSync().defaultSpeed);
+  const [speedLive, setSpeedLive] = useState<number>(() => peekRung(id)?.speed ?? getSettingsSync().defaultSpeed);
+  // A speed the ladder decided while a line was already loaded: held here
+  // until the next line change so it never swaps the audio, and with it the
+  // word marks, out from under a playing take. `ladderMove` is the same
+  // decision, kept only to show the kept-up line's message until it lands.
+  const ladderNext = useRef<number | null>(null);
+  const [ladderMove, setLadderMove] = useState<{ dir: 'up' | 'down'; speed: number } | null>(null);
+  // The most recent take's `recordedAt` the ladder has already scored, so
+  // reopening a line already judged does not score it twice.
+  const ladderSeenAt = useRef(Date.now());
   // The Repeat tile's popover and the tile's box, anchored like Blind's.
   const [repeatPopOpen, setRepeatPopOpen] = useState(false);
   const repeatTile = useRef<TileBox | null>(null);
@@ -787,9 +797,11 @@ export default function IslandScreen() {
       if (!autoRecordTouched.current) setAutoRecordState(settings.autoRecord);
       if (!readingTouched.current) setReadingMode(settings.reading);
       if (!pitchTouched.current) setPitchOn(settings.pitch);
+      const rung = await getRung(id, settings.defaultSpeed);
+      if (!alive) return;
       if (!speedTouched.current) {
-        setSpeed(settings.defaultSpeed);
-        setSpeedLive(settings.defaultSpeed);
+        setSpeed(rung.speed);
+        setSpeedLive(rung.speed);
       }
       if (!timesTouched.current) setTimes(settings.defaultTimes);
       if (!pauseTouched.current) {
@@ -1453,6 +1465,7 @@ export default function IslandScreen() {
     setPlayWhenLoaded(true);
     resetHighlight();
     resetForNewAudio();
+    applyLadderNext();
     setIdx((i) => (i + 1) % island.lines.length);
   });
   useEffect(() => {
@@ -1477,6 +1490,7 @@ export default function IslandScreen() {
     setHandleDragging(false);
     setExplainOpen(false);
     setChatGeneration((g) => g + 1);
+    setLadderMove(null);
   }
 
   async function tapWord(i: number) {
@@ -1852,6 +1866,16 @@ export default function IslandScreen() {
     phrase.clear();
   }
 
+  // A ladder decision lands here, at a line change, never under a playing
+  // line: swapping `speed` mid-line would cut the audio and desync the word
+  // marks and Auto Echo.
+  function applyLadderNext() {
+    if (ladderNext.current === null) return;
+    setSpeed(ladderNext.current);
+    setSpeedLive(ladderNext.current);
+    ladderNext.current = null;
+  }
+
   // Switching lines: stop the old audio first, reset everything that belonged
   // to it, and carry on playing on the new line if we were playing.
   function go(target: number) {
@@ -1867,6 +1891,7 @@ export default function IslandScreen() {
     resetHighlight();
     resetForNewAudio();
     setPlayWhenLoaded(wasActive);
+    applyLadderNext();
     setIdx(clamped);
   }
   const next = () => go(idx + 1);
@@ -2002,6 +2027,9 @@ export default function IslandScreen() {
   // going silent.
   function commitSpeed(next: number) {
     speedTouched.current = true;
+    ladderNext.current = null;
+    setLadderMove(null);
+    if (island) void setRungSpeed(island.id, next);
     setSpeedLive(next);
     if (next === speed) return;
     const wasActive = status.playing || pendingPlayRef.current;
@@ -2196,6 +2224,28 @@ export default function IslandScreen() {
     playSavedTake();
   }, [take.phase, take.take?.recordedAt, take.takeLoaded, take.clean.state]);
 
+  // Feeds a freshly scored take to the island's rung. `ladderSeenAt` keeps a
+  // take recorded before this visit, or a line switched away and back, from
+  // being scored twice. A move is only written to `ladderNext`, not the
+  // audio: it lands at the next line change (see `applyLadderNext`).
+  const ladderDecision = useEffectEvent(() => {
+    if (!island || take.phase !== 'ready') return;
+    const recordedAt = take.take?.recordedAt;
+    if (!recordedAt || recordedAt <= ladderSeenAt.current) return;
+    const keptUp = wordsKeptUp(take.take?.score ?? null);
+    if (!keptUp) return;
+    ladderSeenAt.current = recordedAt;
+    void recordTake(island.id, getSettingsSync().defaultSpeed, keptUp).then(({ moved, speed }) => {
+      if (moved) {
+        ladderNext.current = speed;
+        setLadderMove({ dir: moved, speed });
+      }
+    });
+  });
+  useEffect(() => {
+    ladderDecision();
+  }, [take.phase, take.take?.recordedAt, take.take?.score]);
+
   // The Play step's take finishing on its own is a stop point: Android gives
   // audio focus back by itself when the take player stops; on iOS the duck
   // lasts as long as the session is active, so a scheduled release hands
@@ -2274,6 +2324,7 @@ export default function IslandScreen() {
       invalidateLineAudio(island.id);
       invalidateCachedIsland(island.id);
       deleteTakes(island.id);
+      forgetRung(island.id);
       void releaseAudioSession();
       plainBack();
     } catch (e) {
@@ -2699,7 +2750,19 @@ export default function IslandScreen() {
         {isJa && feedback && !hidden ? <TakeFeedback moras={line.timeline} analysis={feedback} /> : null}
 
         {keptUp !== null ? (
-          <Text style={styles.keptUp}>{t('player.keptUpWords', { kept: keptUp.kept, total: keptUp.total })}</Text>
+          <Text
+            style={[
+              styles.keptUp,
+              ladderMove && ladderMove.speed !== speed
+                ? { color: ladderMove.dir === 'up' ? tide.listen : tide.text }
+                : null,
+            ]}
+          >
+            {t('player.keptUpWords', { kept: keptUp.kept, total: keptUp.total })}
+            {ladderMove && ladderMove.speed !== speed
+              ? ` · ${t(ladderMove.dir === 'up' ? 'player.ladderUp' : 'player.ladderDown', { speed: speedLabel(ladderMove.speed) })}`
+              : ''}
+          </Text>
         ) : null}
 
         {/* The English in its own inset strip at the foot of the card. Blind
