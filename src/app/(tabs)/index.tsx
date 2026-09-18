@@ -168,7 +168,7 @@ function SortPill({ on, label, onPress }: { on: boolean; label: string; onPress:
 }
 // pill-tray-tab-bar: sort row end
 
-const EMPTY_LOG: PracticeLog = { days: {}, islands: {}, passes: {} };
+const EMPTY_LOG: PracticeLog = { days: {}, islands: {}, passes: {}, ladders: {} };
 // 20 minutes of shadowing fills an island's ownership band.
 const TIDE_TARGET_SECONDS = 20 * 60;
 

@@ -16,6 +16,7 @@ import Animated, {
 
 import { LevelBars } from '@/components/level-bars';
 import { PressScale } from '@/components/press-scale';
+import { Segmented } from '@/components/segmented';
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
 import { SheetToggle } from '@/components/sheet/sheet-rows';
 import { ROW_HEIGHT, TakeFeedback } from '@/components/take-feedback';
@@ -25,31 +26,20 @@ import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
 import { useDir, useT } from '@/lib/i18n';
 import type { Mora, NativeLanguage, TakeAnalysis } from '@/lib/api';
+import {
+  hintKeyOf,
+  isArmedStep,
+  isPlayStep,
+  isSpeakStep,
+  segmentsOf,
+  segmentIndexOf,
+  type PassStep,
+  type Programme,
+} from '@/lib/pass-programme';
 
-/** The four steps of one Echo pass, in order. `idle` is before Start and
- * `done` is after the last Play, both outside the segment row. */
-export type EchoStep = 'idle' | 'listen' | 'echo' | 'armed' | 'speak' | 'play' | 'done';
-
-const STEP_HINT_KEY = {
-  idle: 'player.stepReady',
-  listen: 'player.stepListen',
-  echo: 'player.stepEcho',
-  armed: 'player.stepSpeak',
-  speak: 'player.stepSpeak',
-  play: 'player.stepPlay',
-  done: 'player.stepDone',
-} as const;
-
-// idle has no filled segment; done fills every segment (the pass is over).
-const SEGMENT_INDEX: Record<EchoStep, number> = {
-  idle: -1,
-  listen: 0,
-  echo: 1,
-  armed: 2,
-  speak: 2,
-  play: 3,
-  done: 4,
-};
+/** Old name for `PassStep`, kept so a step prop typed against it still
+ * compiles. */
+export type EchoStep = PassStep;
 
 type AutoEchoSheetProps = {
   open: boolean;
@@ -64,7 +54,13 @@ type AutoEchoSheetProps = {
   moras: Mora[] | null;
   /** The last take's mora feedback, shown under the English at Play and Done. */
   analysis: TakeAnalysis | null;
-  step: EchoStep;
+  step: PassStep;
+  /** The step machine the record button runs: the five-pass ladder or the
+   * plain Auto Echo loop. Optional only so this component still compiles
+   * ahead of the screen that wires it in (Task 2); every real caller passes
+   * both. */
+  programme?: Programme;
+  onProgramme?: (next: Programme) => void;
   countdown: number | null;
   /** 0..1 live meter level, read on the UI thread by the ripples and bars. */
   level: SharedValue<number>;
@@ -107,6 +103,8 @@ function AutoEchoSheetBase({
   moras,
   analysis,
   step,
+  programme = 'ladder',
+  onProgramme = () => {},
   countdown,
   level,
   fill,
@@ -123,11 +121,14 @@ function AutoEchoSheetBase({
   onStop,
   onRetry,
 }: AutoEchoSheetProps) {
-  const segmentIndex = SEGMENT_INDEX[step];
+  const segmentIndex = segmentIndexOf(step, programme);
   const reducedMotion = useReducedMotion();
   const { t } = useT();
   const dir = useDir();
-  const segmentLabels = [t('player.segmentListen'), t('player.segmentEcho'), t('player.segmentSpeak'), t('player.play')];
+  const segments = segmentsOf(programme);
+  const speaking = isSpeakStep(step);
+  const armed = isArmedStep(step);
+  const played = isPlayStep(step);
 
   // The one active segment's width, read from the screen's shared value.
   // Segments before and after it are plain static styles below, so this
@@ -161,39 +162,69 @@ function AutoEchoSheetBase({
   const glowStyle = useAnimatedStyle(() => ({ opacity: glow.value }));
 
   return (
-    <BottomSheet open={open} onClose={onClose} onDismissed={onDismissed} title={t('player.autoEcho')}>
+    <BottomSheet
+      open={open}
+      onClose={onClose}
+      onDismissed={onDismissed}
+      title={t(programme === 'ladder' ? 'player.ladder' : 'player.autoEcho')}>
       <View style={styles.sentenceArea}>
         {sentence ? <Text style={styles.sentence}>{sentence}</Text> : null}
         {english ? <Text style={[styles.english, native === 'he' && styles.englishRtl]}>{english}</Text> : null}
         <View style={styles.feedbackRow}>
-          {(step === 'play' || step === 'done') && moras ? <TakeFeedback moras={moras} analysis={analysis} /> : null}
+          {(played || step === 'done') && moras ? <TakeFeedback moras={moras} analysis={analysis} /> : null}
         </View>
         <SparkleResult result={result} />
       </View>
 
+      <View style={styles.programmeRow}>
+        <Segmented
+          label={t('player.programme')}
+          value={programme}
+          onChange={onProgramme}
+          options={[
+            { value: 'ladder', label: t('player.ladder'), description: t('settings.onboarding.ladderTitle') },
+            { value: 'echo', label: t('player.autoEcho'), description: t('player.echoDescription') },
+          ]}
+        />
+      </View>
+
       <View style={[styles.segments, dir.row]}>
-        {segmentLabels.map((label, i) => (
-          <View key={label} style={styles.segmentCol}>
+        {segments.map((segment, i) => (
+          <View key={segment.labelKey} style={styles.segmentCol}>
             <View style={styles.segmentBar}>
               {i < segmentIndex ? (
-                <View style={[styles.segmentFill, dir.rtl && styles.segmentFillRtl, styles.segmentFillDone]} />
+                <View
+                  style={[
+                    styles.segmentFill,
+                    dir.rtl && styles.segmentFillRtl,
+                    styles.segmentFillDone,
+                    { backgroundColor: segment.colour },
+                  ]}
+                />
               ) : null}
               {i === segmentIndex ? (
-                <Animated.View style={[styles.segmentFill, dir.rtl && styles.segmentFillRtl, fillStyle]} />
+                <Animated.View
+                  style={[styles.segmentFill, dir.rtl && styles.segmentFillRtl, fillStyle, { backgroundColor: segment.colour }]}
+                />
               ) : null}
             </View>
             {i === glowAt ? (
               <Animated.View
                 pointerEvents="none"
-                style={[styles.segmentGlow, dir.rtl && styles.segmentGlowRtl, glowStyle]}
+                style={[
+                  styles.segmentGlow,
+                  dir.rtl && styles.segmentGlowRtl,
+                  glowStyle,
+                  { backgroundColor: segment.colour, shadowColor: segment.colour },
+                ]}
               />
             ) : null}
-            <Text style={[styles.segmentLabel, i <= segmentIndex && styles.segmentLabelDone]}>{label}</Text>
+            <Text style={[styles.segmentLabel, i <= segmentIndex && styles.segmentLabelDone]}>{t(segment.labelKey)}</Text>
           </View>
         ))}
       </View>
 
-      <View style={styles.ripplesRow}>{step === 'speak' ? <VoiceRipples level={level} /> : null}</View>
+      <View style={styles.ripplesRow}>{speaking ? <VoiceRipples level={level} /> : null}</View>
 
       <View style={styles.hintRow}>
         <Animated.Text
@@ -201,10 +232,10 @@ function AutoEchoSheetBase({
           entering={reducedMotion ? FadeIn.duration(180) : SlideInRight.duration(220).easing(Easing.out(Easing.cubic))}
           exiting={reducedMotion ? FadeOut.duration(180) : SlideOutLeft.duration(220).easing(Easing.out(Easing.cubic))}
           style={styles.hint}>
-          {t(STEP_HINT_KEY[step])}
+          {t(hintKeyOf(step, programme))}
         </Animated.Text>
         {step === 'echo' && countdown !== null ? <Text style={styles.countdown}>{countdown}</Text> : null}
-        {step === 'speak' ? <LevelBars level={level} live /> : null}
+        {speaking ? <LevelBars level={level} live /> : null}
       </View>
 
       <View style={styles.buttonRow}>
@@ -213,12 +244,12 @@ function AutoEchoSheetBase({
             <Text style={styles.pillLabel}>{step === 'idle' ? t('player.start') : t('player.startAgain')}</Text>
           </PressScale>
         ) : null}
-        {step === 'armed' ? (
+        {armed ? (
           <PressScale onPress={onRecord} accessibilityRole="button" accessibilityLabel={t('player.record')} style={[styles.round, styles.recordRound]}>
             <View style={styles.recordDot} />
           </PressScale>
         ) : null}
-        {step === 'speak' && !stopping ? (
+        {speaking && !stopping ? (
           <>
             <PressScale onPress={onStop} accessibilityRole="button" accessibilityLabel={t('player.stop')} style={[styles.round, styles.recordRound]}>
               <View style={styles.stopSquare} />
@@ -261,6 +292,7 @@ const styles = StyleSheet.create({
   sentence: { fontFamily: fonts.serifJp, fontSize: 20, color: tide.text, textAlign: 'center' },
   english: { fontFamily: fonts.ui, fontSize: 13, color: tide.textDim, textAlign: 'center', marginTop: 4 },
   englishRtl: { writingDirection: 'rtl' },
+  programmeRow: { marginTop: 12 },
   // Reserved at this height on every step, not just play/done, so the row
   // mounting in and out doesn't resize the sheet (bottom-sheet.tsx sizes to
   // content) on every Play and every Echo.

@@ -2,6 +2,10 @@ import type { en as enPlayerTide } from '../en/player-tide';
 
 export const he = {
   'player.autoEcho': 'אקו אוטומטי',
+  'player.programme': 'מצב',
+  'player.ladder': 'סולם',
+  'player.echoDescription': 'האזנה, הד, דיבור, נגינה',
+  'player.ladderDone': 'הסולם הושלם',
   'player.stepReady': 'מוכן',
   'player.stepListen': 'להאזין לשמע',
   'player.stepEcho': 'להיזכר ולהבין את מה שזה עתה נשמע',

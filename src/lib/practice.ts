@@ -20,6 +20,7 @@ export type PracticeLog = {
   days: Record<string, number>; // 'YYYY-MM-DD' -> seconds
   islands: Record<string, { seconds: number; lastAt: number }>; // islandId -> total seconds, Date.now() of last count
   passes: Record<string, number>; // 'YYYY-MM-DD' -> count of full plays + takes
+  ladders: Record<string, number>; // 'YYYY-MM-DD' -> count of finished five-pass ladders
 };
 
 // A day with no `passes` entry (every day logged before this counter
@@ -33,6 +34,11 @@ export const STREAK_THRESHOLD_SECONDS = 60;
 // least this many full plays and takes.
 export const STREAK_THRESHOLD_PASSES = 10;
 
+// A day counts toward the streak once it holds this many finished five-pass
+// ladders, regardless of the passes count: the onboarding's "a day counts
+// once you finish one full sentence ladder".
+export const STREAK_THRESHOLD_LADDERS = 1;
+
 // A stretch of playback under 15s of buffered seconds waits for the next
 // natural flush point (a pause); past that it flushes on its own, so a
 // line repeating on a locked phone still lands on disk without a timer.
@@ -42,7 +48,7 @@ const FILE = `${documentDirectory ?? ''}practice.json`;
 const TMP_FILE = `${FILE}.tmp`;
 
 function emptyLog(): PracticeLog {
-  return { days: {}, islands: {}, passes: {} };
+  return { days: {}, islands: {}, passes: {}, ladders: {} };
 }
 
 // Returns undefined for anything that isn't a parseable PracticeLog shell
@@ -79,7 +85,13 @@ function normalize(parsed: Partial<PracticeLog>): PracticeLog {
       if (typeof value === 'number') passes[key] = value;
     }
   }
-  return { days, islands, passes };
+  const ladders: Record<string, number> = {};
+  if (parsed.ladders && typeof parsed.ladders === 'object') {
+    for (const [key, value] of Object.entries(parsed.ladders)) {
+      if (typeof value === 'number') ladders[key] = value;
+    }
+  }
+  return { days, islands, passes, ladders };
 }
 
 // Defaults when there is no file yet, or when it is genuinely empty. A file
@@ -131,10 +143,16 @@ let pending: Promise<void> = Promise.resolve();
 // memory only; flushPractice() is what puts it on disk. Kept at module level
 // (not in the hook) so a screen can mount and unmount many players across one
 // island session without losing anything between them.
-let buffer: { days: Record<string, number>; islands: Record<string, number>; passes: Record<string, number> } = {
+let buffer: {
+  days: Record<string, number>;
+  islands: Record<string, number>;
+  passes: Record<string, number>;
+  ladders: Record<string, number>;
+} = {
   days: {},
   islands: {},
   passes: {},
+  ladders: {},
 };
 let unflushed = 0;
 
@@ -174,18 +192,31 @@ export function addPass(islandId: string): void {
 }
 
 /**
+ * Adds one finished five-pass ladder to the in-memory buffer for today. No
+ * disk write; flushPractice() merges it. A missing islandId is a no-op, the
+ * same truthiness gate addPass() uses; islandId is not stored per-island for
+ * ladders.
+ */
+export function addLadder(islandId: string): void {
+  if (!islandId) return;
+  const key = dayKey(new Date());
+  buffer.ladders[key] = (buffer.ladders[key] ?? 0) + 1;
+}
+
+/**
  * Merges the buffer into the file (days and islands both += seconds,
  * lastAt = Date.now() for any island touched, passes += count) and clears
  * the buffer. Never rejects, so a caller never needs to catch it.
  */
 export function flushPractice(): Promise<void> {
   const toMerge = buffer;
-  buffer = { days: {}, islands: {}, passes: {} };
+  buffer = { days: {}, islands: {}, passes: {}, ladders: {} };
   unflushed = 0;
   const hasWork =
     Object.keys(toMerge.days).length > 0 ||
     Object.keys(toMerge.islands).length > 0 ||
-    Object.keys(toMerge.passes).length > 0;
+    Object.keys(toMerge.passes).length > 0 ||
+    Object.keys(toMerge.ladders).length > 0;
   const run = pending
     .then(async () => {
       if (!hasWork) return;
@@ -210,7 +241,11 @@ export function flushPractice(): Promise<void> {
       for (const [key, count] of Object.entries(toMerge.passes)) {
         passes[key] = (passes[key] ?? 0) + count;
       }
-      await write({ days, islands, passes });
+      const ladders = { ...current.ladders };
+      for (const [key, count] of Object.entries(toMerge.ladders)) {
+        ladders[key] = (ladders[key] ?? 0) + count;
+      }
+      await write({ days, islands, passes, ladders });
       for (const [id, seconds] of Object.entries(toMerge.islands)) {
         void postPracticeEvent(id, seconds).catch(() => {});
       }
@@ -257,12 +292,17 @@ export function minutesOn(log: PracticeLog, key: string): number {
   return Math.round(seconds / 60);
 }
 
-// A day with a `passes` entry qualifies on passes (STREAK_THRESHOLD_PASSES);
-// a day with no `passes` entry at all (every day logged before passes
-// existed) falls back to the old seconds rule, so a streak built before this
-// change stays intact instead of resetting to 0.
+// A day qualifies once it holds STREAK_THRESHOLD_PASSES passes or at least
+// one finished ladder (STREAK_THRESHOLD_LADDERS), whichever comes first: a
+// single five-pass ladder is a full session even if it falls short of the
+// passes threshold. A day with neither a `passes` nor a `ladders` entry
+// (every day logged before either counter existed) falls back to the old
+// seconds rule, so a streak built before this change stays intact instead of
+// resetting to 0.
 function dayQualifies(log: PracticeLog, key: string): boolean {
-  if (key in log.passes) return log.passes[key] >= STREAK_THRESHOLD_PASSES;
+  if (key in log.passes || key in log.ladders) {
+    return (log.passes[key] ?? 0) >= STREAK_THRESHOLD_PASSES || (log.ladders[key] ?? 0) >= STREAK_THRESHOLD_LADDERS;
+  }
   return (log.days[key] ?? 0) >= STREAK_THRESHOLD_SECONDS;
 }
 

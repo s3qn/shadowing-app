@@ -9,7 +9,8 @@ import type { en as enCommon } from '../en/common';
  * החלפת קול; Calibrate speaker כיול רמקול; Export ייצוא; Rename שינוי שם;
  * Delete מחיקה; Settings הגדרות; Islands (tab) איים; Learning language שפת
  * הלימוד; Understood language שפה מובנת; App language שפת האפליקציה; Daily
- * limit מכסה יומית.
+ * limit מכסה יומית; Ladder סולם (Mumble מלמול, Read along קריאה יחד, Shadow
+ * צל); Mode מצב.
  *
  * Gender-neutral throughout: nouns and infinitives, never a masculine-only
  * imperative (decision 5 in the app-language plan). A verb that only agrees

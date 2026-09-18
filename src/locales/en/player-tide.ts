@@ -1,6 +1,10 @@
 /** Tide components around the player: fills in with Task 3b, tide group. */
 export const en = {
   'player.autoEcho': 'Auto Echo',
+  'player.programme': 'Mode',
+  'player.ladder': 'Ladder',
+  'player.echoDescription': 'Listen, echo, speak, play',
+  'player.ladderDone': 'Ladder complete',
   'player.stepReady': 'Ready',
   'player.stepListen': 'Listen to the audio',
   'player.stepEcho': 'Recall and understand the content just heard',
