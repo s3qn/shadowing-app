@@ -11,6 +11,7 @@ import Animated, {
 
 import { fonts } from '@/constants/fonts';
 import { prism, tide, verb } from '@/constants/theme';
+import { GlassPanel } from '@/components/prism/glass-panel';
 import { PrismButton } from '@/components/prism/prism-button';
 import { RingButton, type RingMode } from '@/components/ring-button';
 import { useT } from '@/lib/i18n';
@@ -33,6 +34,12 @@ type Props = {
  * The player's dock: prev/next, the ring (play/stop) and the round record
  * button. One row, always in the same place at the bottom of the fold, with
  * the toolbar above it.
+ *
+ * All four controls are `flat` inside one `GlassPanel`, the way the toolbar
+ * row is: the dock costs a single blur pass while a line plays instead of one
+ * per control. Each face keeps its own fill, sheen, fringe, verb glow and
+ * press (Tide Drop on the ring and the record button, the light scale on
+ * prev/next).
  */
 export const BottomRow = memo(function BottomRow({
   ringMode,
@@ -72,23 +79,24 @@ export const BottomRow = memo(function BottomRow({
   }));
 
   return (
-    <View style={styles.row}>
-      <RoundButton glyph="‹" onPress={onPrev} disabled={prevDisabled} label={t('player.previousLine')} />
-      <RingButton size={84} mode={ringMode} onPress={onToggle} />
-      <RoundButton glyph="›" onPress={onNext} disabled={nextDisabled} label={t('player.nextLine')} />
+    <GlassPanel style={styles.row}>
+      <RoundButton glyph="‹" onPress={onPrev} disabled={prevDisabled} label={t('player.previousLine')} flat />
+      <RingButton size={84} mode={ringMode} onPress={onToggle} flat />
+      <RoundButton glyph="›" onPress={onNext} disabled={nextDisabled} label={t('player.nextLine')} flat />
       <View style={styles.recordWrap}>
         <Animated.View pointerEvents="none" style={[styles.recordGlow, glowStyle]} />
         <PrismButton
           shape="round"
           verb="speak"
           size={prism.sizes.bigRound}
+          flat
           on={recording}
           onPress={onRecord}
           accessibilityLabel={recording ? t('player.stopRecording') : t('player.recordMyTake')}>
           <View style={[styles.recordDot, recording && styles.recordDotActive]} />
         </PrismButton>
       </View>
-    </View>
+    </GlassPanel>
   );
 });
 
@@ -97,14 +105,17 @@ type RoundButtonProps = {
   onPress: () => void;
   disabled?: boolean;
   label: string;
+  /** Drops this button's own blur and drop shadow: for a dock inside a GlassPanel. */
+  flat?: boolean;
 };
 
-export function RoundButton({ glyph, onPress, disabled, label }: RoundButtonProps) {
+export function RoundButton({ glyph, onPress, disabled, label, flat }: RoundButtonProps) {
   return (
     <PrismButton
       shape="round"
       verb="listen"
       size={prism.sizes.round}
+      flat={flat}
       onPress={onPress}
       disabled={disabled}
       accessibilityLabel={label}>

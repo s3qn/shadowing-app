@@ -6,6 +6,7 @@ import {
   Dimensions,
   Pressable,
   FlatList,
+  type ListRenderItemInfo,
   RefreshControl,
   StyleSheet,
   Text,
@@ -278,12 +279,18 @@ export default function IslandsScreen() {
   const scrollHandler = useAnimatedScrollHandler((e) => {
     scrollY.value = e.contentOffset.y;
   });
-  // Tier per line for the centred card only, keyed by island id. Cleared on
-  // every focus: takes change in the player, never on Home.
-  const tiersCache = useRef<Map<string, LineTier[]>>(new Map());
-  // Kept-up total per island, same cache shape and same clearing as
-  // `tiersCache` above.
-  const keptUpCache = useRef<Map<string, { kept: number; total: number }>>(new Map());
+  // Tier per line and kept-up total for the centred card only, keyed by
+  // island id. Both hold for one focus: takes change in the player, never on
+  // Home. `takesEpoch` moves on every focus and is what drops the stale
+  // entries. It is also the identity that `tiersFor`, `keptUpFor` and
+  // `renderIsland` carry, so a card repaints with what this focus read
+  // instead of freezing on the last one.
+  const takesCache = useRef({
+    epoch: -1,
+    tiers: new Map<string, LineTier[]>(),
+    keptUp: new Map<string, { kept: number; total: number }>(),
+  });
+  const [takesEpoch, setTakesEpoch] = useState(0);
   // True only for the first Home mount of the local day: the list waves in
   // once, then settles for every later visit until the date rolls over.
   // `getSettingsSync` falls back to defaults (homeWaveDate: '') before
@@ -500,8 +507,7 @@ export default function IslandsScreen() {
   useFocusEffect(
     useCallback(() => {
       let alive = true;
-      tiersCache.current.clear();
-      keptUpCache.current.clear();
+      setTakesEpoch((n) => n + 1);
       const tick = async () => {
         if (!alive) return;
         await load();
@@ -613,25 +619,46 @@ export default function IslandsScreen() {
     },
   );
 
+  /** Both caches, emptied the first time either is read in a new epoch.
+   * Clearing here rather than in the focus effect keeps the epoch the one
+   * thing the two readers below depend on. */
+  const freshCache = useCallback(() => {
+    const cache = takesCache.current;
+    if (cache.epoch !== takesEpoch) {
+      cache.epoch = takesEpoch;
+      cache.tiers.clear();
+      cache.keptUp.clear();
+    }
+    return cache;
+  }, [takesEpoch]);
+
   /** Tier per line for one island, computed once per focus and cached: only
    * the centred card needs it, and a folder listing is cheap but not free. */
-  function tiersFor(islandId: string, lineCount: number): LineTier[] {
-    const cached = tiersCache.current.get(islandId);
-    if (cached) return cached;
-    const computed = lineTiers(islandId, lineCount);
-    tiersCache.current.set(islandId, computed);
-    return computed;
-  }
+  const tiersFor = useCallback(
+    (islandId: string, lineCount: number): LineTier[] => {
+      const cache = freshCache();
+      const cached = cache.tiers.get(islandId);
+      if (cached) return cached;
+      const computed = lineTiers(islandId, lineCount);
+      cache.tiers.set(islandId, computed);
+      return computed;
+    },
+    [freshCache],
+  );
 
   /** Island kept-up total, same cache and same one-read-per-focus shape as
    * `tiersFor` above. */
-  function keptUpFor(islandId: string, lineCount: number): { kept: number; total: number } {
-    const cached = keptUpCache.current.get(islandId);
-    if (cached) return cached;
-    const computed = keptUpTotal(islandId, lineCount);
-    keptUpCache.current.set(islandId, computed);
-    return computed;
-  }
+  const keptUpFor = useCallback(
+    (islandId: string, lineCount: number): { kept: number; total: number } => {
+      const cache = freshCache();
+      const cached = cache.keptUp.get(islandId);
+      if (cached) return cached;
+      const computed = keptUpTotal(islandId, lineCount);
+      cache.keptUp.set(islandId, computed);
+      return computed;
+    },
+    [freshCache],
+  );
 
   // Stable across renders, like openIsland, so memo(IslandRow) can skip every
   // row whose own props did not change: a centre change re-renders only the
@@ -665,6 +692,83 @@ export default function IslandsScreen() {
       ),
     }),
     [sky.top, searchOpen, openSearch, searchButtonStyle, t],
+  );
+
+  const wheel = shape.wheel;
+  /**
+   * One card's props, built once per change of what a card can show rather
+   * than on every Home render. A stable identity here is what lets
+   * `memo(IslandRow)` skip a card whose own props held: typing in the search
+   * field then filters the list without re-rendering a single card or
+   * lantern. `takesEpoch` rides in through `tiersFor` and `keptUpFor`, so a
+   * focus that re-reads the takes still repaints the lit card.
+   */
+  const renderIsland = useCallback(
+    ({ item, index }: ListRenderItemInfo<api.IslandSummary>) => {
+      const busy = item.status === 'pending' || item.status === 'working';
+      const due = dueIds.has(item.id);
+      const minutes = minutesOn(log, item.id);
+      const seconds = log.islands[item.id]?.seconds ?? 0;
+      const fraction = Math.min(1, seconds / TIDE_TARGET_SECONDS);
+      // Both of these read a card's place in the list, and both are dead
+      // while search is open: the wheel's maths is off and the day's wave has
+      // already played. Frozen there, so a keystroke that shifts every card
+      // up a place leaves every card's props alone.
+      const slotIndex = wheel ? index : 0;
+      const waveIndex = waveHome && !searchOpen && !reducedMotion && index < WAVE_MAX_CARDS ? index : null;
+      const centred = wheel && index === centreIndex;
+      const lit = wheel && index === litIndex;
+      // Only the lit, ready card reads its takes: a busy or failed
+      // card never lights, so its tiers are never worth the folder read.
+      const tiers = lit && !busy && item.status !== 'failed' ? tiersFor(item.id, item.line_count) : null;
+      const keptUp = tiers ? keptUpFor(item.id, item.line_count) : null;
+      const complexityLabel = item.complexity === 'simple' ? t('home.complexitySimple') : t('home.complexityComplex');
+      const meta = item.status === 'failed'
+        ? t('home.failed')
+        : busy
+          ? api.stageLabel(item.stage)
+          : `${t('home.lines', { count: item.line_count })} · ${complexityLabel}${minutes >= 1 ? ` · ${t('home.minutes', { count: minutes })}` : ''}${keptUp && keptUp.total > 0 ? ` · ${t('home.keptUp', { kept: keptUp.kept, total: keptUp.total })}` : ''}`;
+      return (
+        <IslandRow
+          item={item}
+          slotIndex={slotIndex}
+          scrollY={scrollY}
+          viewportH={viewportH}
+          wheelOn={wheelOn}
+          centred={centred}
+          lit={lit}
+          tiers={tiers}
+          busy={busy}
+          due={due}
+          fraction={fraction}
+          meta={meta}
+          langPill={showAllLanguages ? LANG_CODE[item.language] : null}
+          waveIndex={waveIndex}
+          exitFade={!searchOpen}
+          onOpen={openIsland}
+          onMenu={openRowMenu}
+        />
+      );
+    },
+    [
+      dueIds,
+      log,
+      wheel,
+      waveHome,
+      searchOpen,
+      reducedMotion,
+      centreIndex,
+      litIndex,
+      tiersFor,
+      keptUpFor,
+      t,
+      showAllLanguages,
+      scrollY,
+      viewportH,
+      wheelOn,
+      openIsland,
+      openRowMenu,
+    ],
   );
 
   // Top pad centres card 0 in the visible part; the bottom pad adds the
@@ -792,47 +896,7 @@ export default function IslandsScreen() {
             </View>
           )
         }
-        renderItem={({ item, index }) => {
-          const busy = item.status === 'pending' || item.status === 'working';
-          const due = dueIds.has(item.id);
-          const minutes = minutesOn(log, item.id);
-          const seconds = log.islands[item.id]?.seconds ?? 0;
-          const fraction = Math.min(1, seconds / TIDE_TARGET_SECONDS);
-          const waveIndex = waveHome && !reducedMotion && index < WAVE_MAX_CARDS ? index : null;
-          const centred = shape.wheel && index === centreIndex;
-          const lit = shape.wheel && index === litIndex;
-          // Only the lit, ready card reads its takes: a busy or failed
-          // card never lights, so its tiers are never worth the folder read.
-          const tiers = lit && !busy && item.status !== 'failed' ? tiersFor(item.id, item.line_count) : null;
-          const keptUp = tiers ? keptUpFor(item.id, item.line_count) : null;
-          const complexityLabel = item.complexity === 'simple' ? t('home.complexitySimple') : t('home.complexityComplex');
-          const meta = item.status === 'failed'
-            ? t('home.failed')
-            : busy
-              ? api.stageLabel(item.stage)
-              : `${t('home.lines', { count: item.line_count })} · ${complexityLabel}${minutes >= 1 ? ` · ${t('home.minutes', { count: minutes })}` : ''}${keptUp && keptUp.total > 0 ? ` · ${t('home.keptUp', { kept: keptUp.kept, total: keptUp.total })}` : ''}`;
-          return (
-            <IslandRow
-              item={item}
-              index={index}
-              scrollY={scrollY}
-              viewportH={viewportH}
-              wheelOn={wheelOn}
-              centred={centred}
-              lit={lit}
-              tiers={tiers}
-              busy={busy}
-              due={due}
-              fraction={fraction}
-              meta={meta}
-              langPill={showAllLanguages ? LANG_CODE[item.language] : null}
-              waveIndex={waveIndex}
-              exitFade={!searchOpen}
-              onOpen={openIsland}
-              onMenu={openRowMenu}
-            />
-          );
-        }}
+        renderItem={renderIsland}
       />
       {/* prism-home: edited region */}
       <PrismButton
@@ -909,9 +973,11 @@ export default function IslandsScreen() {
 
 type IslandRowProps = {
   item: api.IslandSummary;
-  /** This card's position in `shown`, for the wheel's distance-from-centre
-   * maths. */
-  index: number;
+  /** This card's slot in the wheel, for the distance-from-centre maths. 0 in
+   * the plain search list, where the wheel is off and nothing reads it: a
+   * live position there would re-render every card below a filtered-out one
+   * on every keystroke. */
+  slotIndex: number;
   /** The list's live scroll offset, shared with every card on the UI
    * thread. */
   scrollY: SharedValue<number>;
@@ -967,7 +1033,7 @@ type IslandRowProps = {
  */
 const IslandRow = memo(function IslandRow({
   item,
-  index,
+  slotIndex,
   scrollY,
   viewportH,
   wheelOn,
@@ -1206,7 +1272,7 @@ const IslandRow = memo(function IslandRow({
   const slotStyle = useAnimatedStyle(() => {
     if (!wheelOn.value) return { transform: [{ scale: 1 }], opacity: 1 };
     const half = Math.max(1, Number.isFinite(viewportH.value) ? viewportH.value / 2 : 1);
-    const raw = Math.min(1, Math.abs(scrollY.value - index * STEP) / half);
+    const raw = Math.min(1, Math.abs(scrollY.value - slotIndex * STEP) / half);
     const d = Number.isFinite(raw) ? raw : 1;
     return {
       transform: [{ scale: reducedMotion ? 1 : 1 - d * 0.05 }],
