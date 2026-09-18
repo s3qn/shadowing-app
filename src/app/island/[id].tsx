@@ -5,6 +5,7 @@ import {
   useAudioPlayer,
 } from 'expo-audio';
 import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -83,7 +84,7 @@ import {
   startBack,
   useMorphHidesTitle,
 } from '@/lib/card-morph';
-import { hapticImpact } from '@/lib/haptics';
+import { hapticImpact, hapticSelection } from '@/lib/haptics';
 import { invalidateCachedIsland, peekCachedIsland, readCachedIsland, writeCachedIsland } from '@/lib/island-cache';
 import { requestLoader } from '@/lib/loading-overlay';
 import { useIslandExport } from '@/hooks/use-island-export';
@@ -105,6 +106,9 @@ import {
 import {
   afterTakePlayed,
   afterTakeSaved,
+  armedStepOf,
+  COUNT_IN_BEATS,
+  COUNT_IN_BEAT_MS,
   fillKindOf,
   isActive,
   isArmedStep,
@@ -387,6 +391,9 @@ export default function IslandScreen() {
   // included, and comes back at a stop point (see `releaseAudioSession`).
   // Anything that interrupts the line also drops a take in progress.
   function dropTake() {
+    // A count waiting to open the microphone belongs to the take this drops:
+    // a line change, a speed change or a tap on the ring ends it too.
+    cancelCountIn();
     take.stopTake();
     void take.cancel();
   }
@@ -609,6 +616,19 @@ export default function IslandScreen() {
   // Stop was tapped on this Speak take: the take is saving, so Stop and Retry
   // are hidden until the next Speak starts.
   const [speakStopped, setSpeakStopped] = useState(false);
+  // The beat the count before a hand-started take is on (3, 2, 1), and the
+  // timer waiting for the next one. The microphone is shut for the whole
+  // count: it opens on the beat after 1. The ref is what the handlers read,
+  // since they can run before the state has rendered.
+  const [countIn, setCountIn] = useState<number | null>(null);
+  const countInRef = useRef<number | null>(null);
+  const countInTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (countInTimer.current) clearTimeout(countInTimer.current);
+    },
+    [],
+  );
   const wasEchoTakePlaying = useRef(false);
   const echoActive = sheet === 'echo' && isActive(echoStep);
   // Auto Echo leaves the text to the Blind setting; the ladder's passes decide
@@ -2267,6 +2287,73 @@ export default function IslandScreen() {
     }
   }
 
+  // Ends a count in progress, with no timer left running and nothing armed
+  // (the microphone was never opened). Reached by a second tap on the record
+  // button, by dropTake, by stopEcho (the sheet closing, the app going to the
+  // background) and by the unmount cleanup above.
+  function cancelCountIn() {
+    if (countInTimer.current) {
+      clearTimeout(countInTimer.current);
+      countInTimer.current = null;
+    }
+    if (countInRef.current === null) return;
+    countInRef.current = null;
+    setCountIn(null);
+  }
+
+  // The last beat opens the microphone through the current render's
+  // startSpeak: the timer that calls it was set up to two seconds earlier.
+  const speakAfterCount = useStableHandler(() => void startSpeak());
+
+  // One beat of the count: the number on the record button, a tick under the
+  // finger, and either the next beat or the take itself.
+  function countBeat(n: number) {
+    countInRef.current = n;
+    setCountIn(n);
+    // Not on the first beat: PressScale already ticks under the tap that
+    // started the count, and two at once read as one long buzz.
+    if (n < COUNT_IN_BEATS) void hapticSelection();
+    countInTimer.current = setTimeout(() => {
+      countInTimer.current = null;
+      if (n > 1) {
+        countBeat(n - 1);
+        return;
+      }
+      countInRef.current = null;
+      setCountIn(null);
+      // A firmer tap than the beats: this one is the moment to speak.
+      void hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
+      speakAfterCount();
+    }, COUNT_IN_BEAT_MS);
+  }
+
+  /**
+   * Record and Retry, the two taps that start a take by hand: the count runs
+   * first and the microphone opens on its last beat, so a take no longer
+   * begins with the tap itself and the breath after it. Tapping again during
+   * the count cancels it and leaves the pass waiting on Record again.
+   */
+  function countInThenSpeak() {
+    if (countInRef.current !== null) {
+      cancelCountIn();
+      return;
+    }
+    // The mic is already opening from an earlier tap: that take owns the pass.
+    if (startingTake.current) return;
+    // Retry, tapped while a take records: that take goes before the count
+    // starts, so nothing is listening through it.
+    if (take.phase === 'recording') {
+      stopPlayback(player);
+      void player.seekTo(0);
+      dropTake();
+    }
+    setSpeakStopped(false);
+    // Retry counts down on the record button, which belongs to the armed
+    // step; for Record the step is already that one.
+    setEchoStep(armedStepOf(programme));
+    countBeat(COUNT_IN_BEATS);
+  }
+
   // Moves the loop on to the next line (or restarts the only line an island
   // has) after a Play step finishes, and starts its Listen step.
   async function advanceEcho() {
@@ -2342,6 +2429,7 @@ export default function IslandScreen() {
   // Ends the loop: called when the sheet closes and when the app backgrounds
   // mid-pass. Drops any take in progress and any that just finished recording.
   function stopEcho() {
+    cancelCountIn();
     if (advanceHoldRef.current) {
       clearTimeout(advanceHoldRef.current);
       advanceHoldRef.current = null;
@@ -2635,7 +2723,7 @@ export default function IslandScreen() {
     stopEcho();
     setSheet(null);
   });
-  const onEchoRecord = useStableHandler(() => void startSpeak());
+  const onEchoRecord = useStableHandler(countInThenSpeak);
   const onEchoStop = useStableHandler(() => {
     // Before the mic is open there is nothing to stop yet.
     if (take.phase !== 'recording') return;
@@ -2644,7 +2732,7 @@ export default function IslandScreen() {
     void player.seekTo(0);
     take.finishNow();
   });
-  const onEchoRetry = useStableHandler(() => void startSpeak());
+  const onEchoRetry = useStableHandler(countInThenSpeak);
   const onEchoStart = useStableHandler(startEcho);
   const onToggleAutoEchoStable = useStableHandler(toggleAutoEcho);
   const onToggleAutoRecordStable = useStableHandler(toggleAutoRecord);
@@ -3370,6 +3458,7 @@ export default function IslandScreen() {
         step={echoStep}
         programme={programme}
         countdown={countdown}
+        countIn={countIn}
         level={take.level}
         fill={echoFill}
         result={echoResult}

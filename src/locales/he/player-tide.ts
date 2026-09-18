@@ -18,6 +18,7 @@ export const he = {
   'player.start': 'התחלה',
   'player.startAgain': 'התחלה מחדש',
   'player.record': 'הקלטה',
+  'player.cancelCountIn': 'ביטול הספירה',
   'player.autoEchoToggle': 'מעבר לשורה הבאה, וחזרה להתחלה אחרי האחרונה',
   'player.autoRecordToggle': 'פתיחת המיקרופון באופן אוטומטי בשלב הדיבור',
   'player.headsetIn': 'האוזניות מחוברות: השורה מתנגנת מתחת לקול שלך.',

@@ -17,6 +17,7 @@ export const en = {
   'player.start': 'Start',
   'player.startAgain': 'Start again',
   'player.record': 'Record',
+  'player.cancelCountIn': 'Cancel the count',
   'player.autoEchoToggle': 'Go on to the next line, and start over after the last',
   'player.autoRecordToggle': 'Speak opens the microphone on its own',
   'player.headsetIn': 'Headphones in: the line plays under your voice.',

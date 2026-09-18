@@ -265,6 +265,20 @@ export function speakStepOf(programme: Programme): PassStep {
   return programme === 'ladder' ? 'ladderShadow' : 'speak';
 }
 
+/** The step that waits on a tap on Record, for the given programme. */
+export function armedStepOf(programme: Programme): PassStep {
+  return programme === 'ladder' ? 'ladderArmed' : 'armed';
+}
+
+/**
+ * The count that runs on the record button before a take started by hand:
+ * three beats of 600ms, so the microphone opens 1.8s after the tap instead
+ * of under it. Shared by the screen, which runs the beats, and by the sheet,
+ * which pulses one ring per beat over the same 600ms.
+ */
+export const COUNT_IN_BEATS = 3;
+export const COUNT_IN_BEAT_MS = 600;
+
 /** True while a take is being recorded, in either programme. */
 export function isSpeakStep(step: PassStep): boolean {
   return step === 'speak' || step === 'ladderShadow';

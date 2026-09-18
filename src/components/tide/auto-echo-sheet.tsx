@@ -2,6 +2,7 @@ import { SymbolView } from 'expo-symbols';
 import { memo, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
+  cancelAnimation,
   Easing,
   FadeIn,
   FadeOut,
@@ -29,6 +30,7 @@ import { tide } from '@/constants/theme';
 import { useDir, useT } from '@/lib/i18n';
 import type { Mora, NativeLanguage, TakeAnalysis } from '@/lib/api';
 import {
+  COUNT_IN_BEAT_MS,
   helpPassOf,
   hintKeyOf,
   isArmedStep,
@@ -71,6 +73,10 @@ type AutoEchoSheetProps = {
    * it to pick its title and its segments; it has no control to change it. */
   programme?: Programme;
   countdown: number | null;
+  /** The beat the count before a hand-started take is on (3, 2, 1), or `null`
+   * when no count is running. The record button shows it instead of its dot,
+   * and one ring pulses out of the button per beat. */
+  countIn: number | null;
   /** 0..1 live meter level, read on the UI thread by the ripples and bars. */
   level: SharedValue<number>;
   /** 0..1, animated on the UI thread by the screen: how far the current
@@ -115,6 +121,7 @@ function AutoEchoSheetBase({
   step,
   programme = 'ladder',
   countdown,
+  countIn,
   level,
   fill,
   stopping,
@@ -145,6 +152,34 @@ function AutoEchoSheetBase({
   const fillStyle = useAnimatedStyle(() => ({
     width: `${Math.max(0, Math.min(1, fill.value)) * 100}%`,
   }));
+
+  // One ring leaves the record button per count beat: 0 at the beat, 1 when
+  // the next one is due. With reduced motion it does not move at all and the
+  // ring simply stands around the button while the count runs, so the digit
+  // is never the only sign of it.
+  const beat = useSharedValue(0);
+  useEffect(() => {
+    if (countIn === null) {
+      cancelAnimation(beat);
+      beat.value = 0;
+      return;
+    }
+    if (reducedMotion) {
+      beat.value = 0;
+      return;
+    }
+    beat.value = 0;
+    beat.value = withTiming(1, { duration: COUNT_IN_BEAT_MS, easing: Easing.out(Easing.cubic) });
+  }, [countIn, reducedMotion, beat]);
+  useEffect(() => () => cancelAnimation(beat), [beat]);
+
+  // Guarded: a NaN or undefined here would throw on the UI thread, which
+  // Expo Go ends the app for without a red box.
+  const beatStyle = useAnimatedStyle(() => {
+    const b = Number.isFinite(beat.value) ? Math.min(Math.max(beat.value, 0), 1) : 0;
+    if (reducedMotion) return { opacity: 0.8, transform: [{ scale: 1.1 }] };
+    return { opacity: 0.85 * (1 - b), transform: [{ scale: 1 + 0.22 * b }] };
+  }, [reducedMotion]);
 
   // A short soft glow at the boundary where a segment just finished and the
   // next one takes over. Display only: it reads `step` (via segmentIndex)
@@ -267,8 +302,19 @@ function AutoEchoSheetBase({
             </PressScale>
           ) : null}
           {armed ? (
-            <PressScale onPress={onRecord} accessibilityRole="button" accessibilityLabel={t('player.record')} style={[styles.round, styles.recordRound]}>
-              <View style={styles.recordDot} />
+            <PressScale
+              onPress={onRecord}
+              accessibilityRole="button"
+              accessibilityLabel={countIn === null ? t('player.record') : t('player.cancelCountIn')}
+              style={[styles.round, styles.recordRound]}>
+              {countIn === null ? (
+                <View style={styles.recordDot} />
+              ) : (
+                <>
+                  <Animated.View pointerEvents="none" style={[styles.beatRing, beatStyle]} />
+                  <Text style={styles.countIn}>{countIn}</Text>
+                </>
+              )}
             </PressScale>
           ) : null}
           {speaking && !stopping ? (
@@ -385,9 +431,22 @@ const styles = StyleSheet.create({
   pill: { paddingVertical: 14, paddingHorizontal: 36, borderRadius: 26, backgroundColor: tide.lang.ja, alignItems: 'center', justifyContent: 'center' },
   pillLabel: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 16, color: tide.water },
   round: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
-  recordRound: { backgroundColor: tide.record },
+  // overflow: the count's ring grows past the button and must not be clipped.
+  recordRound: { backgroundColor: tide.record, overflow: 'visible' },
   retryRound: { backgroundColor: tide.lang.ja },
   recordDot: { width: 16, height: 16, borderRadius: 8, backgroundColor: tide.sky[0] },
+  // Sits around the 52pt record button and grows past it on each count beat.
+  beatRing: {
+    position: 'absolute',
+    top: -8,
+    left: -8,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    borderWidth: 2,
+    borderColor: tide.record,
+  },
+  countIn: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 24, color: tide.sky[0], fontVariant: ['tabular-nums'] },
   stopSquare: { width: 16, height: 16, borderRadius: 3, backgroundColor: tide.sky[0] },
   retryGlyph: { fontFamily: fonts.ui, fontSize: 24, color: tide.sky[0] },
   note: { fontFamily: fonts.ui, fontSize: 12, lineHeight: 17, color: tide.textDim, marginTop: 4 },
