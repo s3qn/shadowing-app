@@ -297,6 +297,9 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: tide.sky[0] },
   flow: { flex: 1 },
+  // Skip lies on the row `StepFrame` reserves at the top of every step, so
+  // the picker's search field starts below it and a tap near the pill's
+  // bottom edge cannot land on the field underneath.
   skip: { position: 'absolute', right: Spacing.lg, zIndex: 1, height: prism.sizes.pill.h },
   // Skip sits at the end of the reading direction, so Hebrew puts it left.
   skipRtl: { right: undefined, left: Spacing.lg },

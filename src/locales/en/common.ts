@@ -25,15 +25,18 @@ export const en = {
   'common.loading': 'Loading',
 
   // Stage labels a running build cycles through. `stage.working` is the
-  // fallback for a stage the client does not recognise.
-  'stage.queued': 'Queued',
-  'stage.transcribing': 'Transcribing',
-  'stage.writing': 'Writing',
-  'stage.speaking': 'Speaking',
-  'stage.slicing': 'Slicing',
-  'stage.extracting': 'Extracting',
-  'stage.downloading': 'Downloading',
+  // fallback for a stage the client does not recognise. The build screens
+  // strip the trailing ellipsis for the cat loader's own label; Home's busy
+  // card keeps it, so every stage but the last one carries it.
+  'stage.queued': 'Queued…',
+  'stage.transcribing': 'Transcribing…',
+  'stage.writing': 'Writing…',
+  'stage.speaking': 'Speaking…',
+  'stage.slicing': 'Slicing…',
+  'stage.extracting': 'Extracting…',
+  'stage.downloading': 'Downloading…',
   'stage.working': 'Working…',
+  'stage.ready': 'Ready.',
 
   // Error codes the backend sends as `detail.code` in an HTTPException.
   'api.unreachable': 'The server is not reachable right now. Try again in a moment.',

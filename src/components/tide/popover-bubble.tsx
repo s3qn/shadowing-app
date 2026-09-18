@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 import Animated, { type EntryAnimationsValues, FadeOut, withSpring, withTiming } from 'react-native-reanimated';
 
 import { tide } from '@/constants/theme';
-import { t } from '@/lib/i18n';
+import { useT } from '@/lib/i18n';
 
 const ARROW = 12;
 /** Space between the arrow's tip and the tile under it. */
@@ -47,6 +47,7 @@ type Props = {
  * Mount it only while open, over the whole player.
  */
 export function PopoverBubble({ anchorX, anchorTop, parentWidth, width, height, radius, bodyStyle, onClose, children }: Props) {
+  const { t } = useT();
   const left = Math.max(EDGE, Math.min(parentWidth - width - EDGE, anchorX - width / 2));
   const top = anchorTop - ANCHOR_GAP - ARROW / 2 - height;
   // Kept on the body's straight run, clear of its rounded corners.

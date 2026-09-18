@@ -172,15 +172,30 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Prism Edge buttons across the app: verb colours, glass pill trays for the
   tab bar and sort control, drag between tabs, Tide Drop on big buttons, icon
   buttons for Retry, Regenerate, Refresh, Discard and Whole line.
+- App renamed to Echo Tail: bundle id build.sean.echotail, scheme echotail.
+- Onboarding: welcome, choose learning and understood languages, request
+  microphone permission, five guided passes (listen, mumble, read along,
+  shadow, compare) with one animated body part per pass, ready screen.
+- Language picker: searchable catalogue of fifteen languages for onboarding and
+  Settings > Language, unavailable languages shown but disabled.
+- Spanish and English as learning languages: use Kokoro for voice and whisper
+  for word timings; Japanese keeps VOICEVOX and mora timings. Islands carry
+  their own learning language, Home filters by it.
+- Islands scoped per device: each island is specific to the device that created
+  it, with a daily build limit.
+- Production backend: own port and data directory with deploy script and
+  systemd unit.
 
 ## Next (approved, in order)
 
-(empty: pick from Ideas)
+- Hebrew interface: the whole app in Hebrew when that is the language you
+  understand, with its own setting to change it, and right-to-left alignment.
+  (In progress on a branch.)
+- A speed ladder that climbs per island.
+- A session ladder per island: the five guided passes the tutorial teaches.
 
 ## Ideas (not approved)
 
-- Onboarding: a few first-run screens that say what each practice step is
-  for, and ask for the learning and understood languages.
 - A speed ladder that climbs: each island moves up from 0.5x toward 1.0x at
   90% or more kept-up words and drops back below 85%; the manual slider stays.
 - A session ladder per island: five guided passes (listen blind, mumble, read
@@ -201,20 +216,6 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   "generate good AI vocals or import existing content"), including podcasts
   as a source.
 - MVP release: accounts with Supabase, sign in with Google and Apple.
-- Languages for the first public version: learn Japanese, Spanish or English,
-  and pick the language you already understand (Hebrew or English) for the
-  app's text, translations and explanations. English is a learning language so
-  Israeli friends can learn it with Hebrew as their language; Hebrew is not a
-  learning language for now. VOICEVOX only speaks Japanese, so the other
-  languages need another voice engine; the word timing and mora logic is
-  Japanese-specific today; Hebrew needs right-to-left layout. Onboarding asks
-  for both languages, and a Languages screen in Settings changes either at any
-  time; switching the understood language between Hebrew and English flips
-  the layout direction, so the app restarts itself. Each island stores its own
-  learning language, so switching never breaks or deletes islands. Sean's
-  idea: islands in other learning languages are hidden by default (learning
-  Japanese hides the Spanish islands), with a toggle in Settings (Languages)
-  to show them all mixed together. They are only hidden, never deleted.
 - Onboarding: a short, good onboarding that explains what shadowing is and
   teaches the user how to get the most out of the app.
 - Music: learn from songs (a friend's request). Integrate Apple Music or

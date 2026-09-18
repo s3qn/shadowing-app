@@ -15,17 +15,27 @@ import { StepAction, StepCopy, StepFrame } from '@/components/onboarding/step-fr
 import { type Verb } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide, verb } from '@/constants/theme';
-import { useT } from '@/lib/i18n';
-import { type LearningLanguage, type UnderstoodLanguage } from '@/lib/settings';
+import { useDir, useT } from '@/lib/i18n';
+import {
+  toIslandLanguage,
+  toNativeLanguage,
+  type LearningLanguage,
+  type UnderstoodLanguage,
+} from '@/lib/settings';
 import { type Key } from '@/locales/en';
 
-const READ_ALONG_WORDS: Record<LearningLanguage, string[]> = {
+// Only the languages with an island have a sample line, and only the two with
+// a catalogue have a translation. Both tables are keyed by the narrowed id,
+// not by `LearningLanguage` (which is any string): a Coming soon pick has to
+// go through `toIslandLanguage` first, or the row below gets `undefined` and
+// `words.map` throws.
+const READ_ALONG_WORDS: Record<'ja' | 'es' | 'en', string[]> = {
   ja: ['今日は', 'いい', '天気', 'ですね'],
   es: ['Hoy', 'hace', 'buen', 'tiempo'],
   en: ['The', 'weather', 'is', 'nice', 'today'],
 };
 
-const TRANSLATIONS: Record<UnderstoodLanguage, string> = {
+const TRANSLATIONS: Record<'he' | 'en', string> = {
   en: 'The weather is nice today.',
   he: 'מזג האוויר יפה היום.',
 };
@@ -128,6 +138,7 @@ export function PassStep({
   onNext: () => void;
 }) {
   const { t } = useT();
+  const dir = useDir();
   const reducedMotion = useReducedMotion();
   const info = PASSES[pass];
   const last = pass === 4;
@@ -203,10 +214,10 @@ export function PassStep({
           {pass === 2 ? (
             <View style={styles.readArea}>
               <View style={styles.readRow}>
-                <ReadAlongRow words={READ_ALONG_WORDS[learning]} colour={info.colour} />
+                <ReadAlongRow words={READ_ALONG_WORDS[toIslandLanguage(learning)]} colour={info.colour} />
               </View>
               <Text style={[styles.translation, understood === 'he' ? styles.translationRtl : null]}>
-                {TRANSLATIONS[understood]}
+                {TRANSLATIONS[toNativeLanguage(understood)]}
               </Text>
             </View>
           ) : null}
@@ -225,7 +236,7 @@ export function PassStep({
               <View style={styles.lanesArea}>
                 <CompareLanes topColour={verb.listen.c1} bottomColour={verb.speak.c1} />
               </View>
-              <Text style={styles.kept}>{t('settings.onboarding.keptUp')}</Text>
+              <Text style={[styles.kept, dir.rtl && styles.keptRtl]}>{t('settings.onboarding.keptUp')}</Text>
             </>
           ) : null}
         </View>
@@ -261,4 +272,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: tide.pos.verb,
   },
+  // The score sits in the corner the copy ends at, so Hebrew puts it left.
+  keptRtl: { right: undefined, left: Spacing.lg },
 });

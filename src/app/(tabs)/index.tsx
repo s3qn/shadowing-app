@@ -61,7 +61,7 @@ import { PILL_TAB_BAR_REACH } from '@/components/pill-tab-bar';
 import { invalidateLineAudio } from '@/lib/line-audio-cache';
 import { forgetLastLine, getLastLine, peekLastLine } from '@/lib/last-line';
 import { forgetIsland, getPracticeLog, minutesOn, type PracticeLog } from '@/lib/practice';
-import { getSettingsSync, subscribeSettings } from '@/lib/settings';
+import { getSettingsSync, subscribeSettings, toIslandLanguage } from '@/lib/settings';
 import { getSettings, setHomeWaveDate } from '@/lib/settings';
 import { deleteTakes, keptUpTotal, lineTiers, weakestLine, type LineTier } from '@/lib/takes';
 
@@ -408,7 +408,7 @@ export default function IslandsScreen() {
   // otherwise only the ones matching the learning language. Sorting, search,
   // due counts and the practice card all read from this, not from `islands`.
   const visibleIslands = useMemo(
-    () => (showAllLanguages ? islands : islands.filter((i) => i.language === learningLanguage)),
+    () => (showAllLanguages ? islands : islands.filter((i) => i.language === toIslandLanguage(learningLanguage))),
     [islands, showAllLanguages, learningLanguage],
   );
 
@@ -1261,8 +1261,14 @@ const IslandRow = memo(function IslandRow({
         </View>
         <View style={[styles.metaRow, dir.row]}>
           {busy ? <CatConstellation compact /> : null}
+          {/* The dot is its own cell, not part of the label: kept inside it,
+              the dot would follow "Due today" in Hebrew as well and end up on
+              the wrong side of the row once `dir.row` reverses the order. */}
           {due ? (
-            <Text style={[styles.cardMeta, dir.text, { color: tide.turn }]}>{t('home.dueToday')} · </Text>
+            <>
+              <Text style={[styles.cardMeta, dir.text, { color: tide.turn }]}>{t('home.dueToday')}</Text>
+              <Text style={[styles.cardMeta, { color: tide.turn }]}>·</Text>
+            </>
           ) : null}
           <Text style={[styles.cardMeta, dir.text, { color: tide.textDim }]}>{meta}</Text>
           {langPill ? (

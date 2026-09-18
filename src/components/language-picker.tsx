@@ -9,7 +9,12 @@ import { useDir, useT } from '@/lib/i18n';
 import { getLanguage, LANGUAGES, type LanguageEntry, type LanguageId, type Region } from '@/lib/languages';
 import { type Key } from '@/locales/en';
 
-const REGIONS: Region[] = ['Europe', 'Asia', 'Middle East', 'Africa', 'Americas'];
+// Only the regions the catalogue actually has entries for get a chip: a chip
+// for an empty region would show a blank list with no explanation, since the
+// empty-state message only fires while there is a search query. Order is the
+// sensible one from the old fixed list, filtered down to what survives.
+const REGION_ORDER: Region[] = ['Europe', 'Asia', 'Middle East', 'Africa', 'Americas'];
+const REGIONS: Region[] = REGION_ORDER.filter((region) => LANGUAGES.some((l) => l.region === region));
 
 const REGION_KEY: Record<Region, Key> = {
   Europe: 'settings.picker.regionEurope',
@@ -139,8 +144,13 @@ export function LanguagePicker({ mode, value, onChange, exclude }: LanguagePicke
   const suggested = useMemo(() => (mode === 'understand' ? suggestedLanguageId() : null), [mode]);
 
   const sections = useMemo<Section[]>(() => {
-    const base = LANGUAGES.filter((l) => l.id !== exclude && (mode === 'learn' || l.understandable)).filter((l) =>
-      matchesQuery(l, query),
+    // `exclude` only applies in understand mode: hiding the learn language's
+    // pick there keeps the pair from colliding. Learn mode ignores it, so
+    // English (the default understood language) can still be picked to
+    // learn on a fresh install; `selectLearning`'s swap handles the collision
+    // from that side instead.
+    const base = LANGUAGES.filter((l) => (mode === 'learn' || l.id !== exclude) && (mode === 'learn' || l.understandable)).filter(
+      (l) => matchesQuery(l, query),
     );
     if (mode === 'learn') {
       const filtered = activeRegion ? base.filter((l) => l.region === activeRegion) : base;

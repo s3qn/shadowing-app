@@ -12,6 +12,7 @@ import { useEffect } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions, type DimensionValue } from 'react-native';
 import Animated, {
   Easing,
+  cancelAnimation,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -42,6 +43,9 @@ function Piece({ left, colour, delay, fall }: { left: DimensionValue; colour: st
   const y = useSharedValue(0);
   useEffect(() => {
     y.value = withDelay(delay, withRepeat(withTiming(1, { duration: FALL_MS, easing: Easing.linear }), -1));
+    // The loop never ends on its own, so leaving the ready screen has to stop
+    // it: an unstopped repeat keeps ticking on the UI thread after unmount.
+    return () => cancelAnimation(y);
   }, [delay, y]);
   const style = useAnimatedStyle(() => ({
     transform: [{ translateY: y.value * fall }],
