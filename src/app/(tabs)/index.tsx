@@ -292,9 +292,16 @@ export default function IslandsScreen() {
   // wave on every cold start. Wait for the real, on-disk value instead, and
   // stay false (no wave) if it has not arrived by the time this decides.
   const [waveHome, setWaveHome] = useState(false);
+  // Counts reads of the rung file. `peekRung` answers from its cache, which is
+  // cold on the first render after a launch, so each row's speed suffix is
+  // missing until something repaints the list. Feeding this to the list's
+  // `extraData` repaints it once, as soon as the cache is warm.
+  const [ladderTick, setLadderTick] = useState(0);
   useEffect(() => {
-    void loadLadder();
     let cancelled = false;
+    void loadLadder().then(() => {
+      if (!cancelled) setLadderTick((n) => n + 1);
+    });
     void getSettings().then((settings) => {
       if (cancelled) return;
       const shouldWave = settings.homeWaveDate !== todayLocal();
@@ -749,6 +756,7 @@ export default function IslandsScreen() {
       <Animated.FlatList
         ref={listRef}
         data={shown}
+        extraData={ladderTick}
         keyExtractor={(item) => item.id}
         style={shapeVisible ? undefined : styles.hidden}
         contentContainerStyle={styles.list}

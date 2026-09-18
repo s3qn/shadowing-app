@@ -12,6 +12,7 @@ import { Radius, SPEED_MAX, SPEED_MIN, Spacing, tide } from '@/constants/theme';
 import { useDir, useT } from '@/lib/i18n';
 import {
   getSettings,
+  getSettingsSync,
   PAUSE_STEP_MS,
   setAutoEcho,
   setAutoRecord,
@@ -27,7 +28,9 @@ const SPEED_OPTIONS = [0.5, 0.7, 0.85, 1, 1.15, 1.3, 1.5];
 export default function PlaybackSettingsScreen() {
   const { t } = useT();
   const dir = useDir();
-  const [defaultSpeed, setDefaultSpeedState] = useState(1);
+  // Seeded from the sync cache so the chip that is already chosen is the one
+  // lit on the first frame, before the file read below answers.
+  const [defaultSpeed, setDefaultSpeedState] = useState(() => getSettingsSync().defaultSpeed);
   const [defaultTimes, setDefaultTimesState] = useState(1);
   const [defaultPauseMs, setDefaultPauseMsState] = useState(0);
   // The rulers span the card's inner width, measured once it lays out.
