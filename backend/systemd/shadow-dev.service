@@ -1,0 +1,40 @@
+# User unit for the DEVELOPMENT backend on 127.0.0.1:8020, the one
+# dev.sean.build/shadow forwards to. install-units.sh installs it but leaves
+# it disabled: pass --with-dev to enable it, and read this first.
+#
+# It conflicts with the feature-dev loop. serve-wave.sh, restore-main.sh and
+# accept-push.sh own port 8020 through tmux and `fuser -k 8020/tcp`: they kill
+# whatever holds the port and start their own uvicorn there. With this unit
+# enabled and Restart=always, systemd would race them back onto the port and
+# the wave's backend would fail to bind. Restart=on-failure with a short start
+# limit keeps that race survivable (systemd gives up after a few seconds and
+# the wave wins), but the honest answer is that this unit is for a machine
+# that is serving the dev backend and not running waves.
+#
+# Nothing a TestFlight tester touches depends on this. It is the convenience
+# of finding :8020 already up after a reboot, nothing more.
+[Unit]
+Description=Shadowing app development backend (127.0.0.1:8020)
+Documentation=file:///home/sean/app-projects/shadowing-app/OPERATIONS.md
+Wants=shadow-voicevox.service
+After=shadow-voicevox.service
+# Deliberately short: see the conflict note above. Three tries over a minute.
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+WorkingDirectory=/home/sean/app-projects/shadowing-app/backend
+# run.sh binds 127.0.0.1 only. Settings come from this checkout's backend/.env
+# through load_dotenv(), which points SHADOW_DATA_DIR at ~/shadowing-data, a
+# different directory and a different port from the prod backend's.
+ExecStart=/home/sean/app-projects/shadowing-app/backend/run.sh
+Environment=PATH=/home/sean/.local/bin:/usr/local/bin:/usr/bin:/bin
+
+# on-failure, and it gives up quickly. A dev backend that keeps grabbing :8020
+# back is worse than a dev backend that is down, because the second one is
+# obvious and the first one breaks serve-wave.sh in a confusing way.
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

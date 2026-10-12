@@ -1,0 +1,38 @@
+# User unit for the dev.sean.build QR dashboard. The code lives outside this
+# repo, in ~/www/dev-sean-build; only the unit is version controlled here.
+# Install it with backend/systemd/install-units.sh. See OPERATIONS.md.
+[Unit]
+Description=Shadowing app feature-dev QR dashboard (127.0.0.1:4599)
+Documentation=file:///home/sean/app-projects/shadowing-app/OPERATIONS.md
+# Five tries over two minutes, then stop, see the Restart comment below.
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+WorkingDirectory=/home/sean/www/dev-sean-build
+# The distro node, not the nvm one. An nvm path carries its version number
+# (~/.nvm/versions/node/v20.20.2/bin/node), so the unit would break silently
+# the next time nvm installs a newer node. The dashboard is plain JavaScript
+# with one pure-JS dependency (qrcode) and runs on node 18.
+ExecStart=/usr/bin/node /home/sean/www/dev-sean-build/server.js
+
+# The dashboard fails closed without DASH_PASSWORD_HASH, so this file is
+# required, not optional: a missing one should name itself in `systemctl
+# status` rather than look like a crash. Template: dashboard.env.example.
+EnvironmentFile=%h/.config/shadow-autostart/dashboard.env
+# After EnvironmentFile on purpose, so the last word on the bind address
+# belongs to the unit and a stray DASH_HOST in that file cannot widen it.
+# Public IP, no NAT: the cloudflared tunnel is the only way to this page.
+Environment=DASH_HOST=127.0.0.1
+Environment=DASH_PORT=4599
+Environment=PATH=/home/sean/.local/bin:/usr/local/bin:/usr/bin:/bin
+
+# on-failure with a start limit, unlike the tester-facing services. The
+# dashboard is a development convenience, and the way it fails is usually a
+# bad or missing password hash, which no amount of retrying fixes. Five tries
+# over two minutes, then the unit sits in `failed` where it can be seen.
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

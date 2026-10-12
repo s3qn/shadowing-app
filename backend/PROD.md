@@ -51,15 +51,15 @@ Local: `curl -s http://127.0.0.1:8030/health`. Public:
 
 `deploy-prod.sh` starts in tmux (`tmux attach -t shadow-prod` shows logs) and
 restarts through tmux until the systemd unit is installed. To move to
-systemd:
+systemd, install the whole autostart chain at once (VOICEVOX, this backend,
+cloudflared and the dashboard). Full story in
+[../OPERATIONS.md](../OPERATIONS.md):
 ```
-loginctl enable-linger sean
 tmux kill-session -t =shadow-prod
 fuser -k 8030/tcp
-mkdir -p ~/.config/systemd/user
-cp backend/systemd/shadow-prod.service ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now shadow-prod
+backend/systemd/install-units.sh
+loginctl enable-linger sean
+systemctl --user start shadow-voicevox shadow-prod shadow-dashboard shadow-cloudflared
 ```
 Once `systemctl --user is-active shadow-prod` says active, `deploy-prod.sh`
 restarts through systemd instead of tmux. Logs move to
@@ -96,10 +96,13 @@ cd ~ && nohup cloudflared tunnel run dev-dashboard > ~/cloudflared.log 2>&1 &
 
 ## After a reboot
 
-VOICEVOX and cloudflared are not services, and the tmux session does not
-survive a reboot. Start, in order:
+With the systemd units installed and lingering on, nothing to do. Check with
+`backend/systemd/shadow-health.sh`, see [../OPERATIONS.md](../OPERATIONS.md).
+
+Without them, VOICEVOX and cloudflared are not services and the tmux session
+does not survive a reboot. Start, in order:
 1. VOICEVOX: `~/voicevox/run --host 127.0.0.1 --port 50021`
-2. Production backend (skip if the systemd unit is enabled):
+2. Production backend:
    `backend/deploy-prod.sh $(git -C ~/shadow-prod/app rev-parse HEAD)`
 3. cloudflared: the `nohup` command above.
 

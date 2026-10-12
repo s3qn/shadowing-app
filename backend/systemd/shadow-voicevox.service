@@ -1,0 +1,30 @@
+# User unit for the VOICEVOX engine, the bottom of the shadowing app's service
+# chain. Install it with backend/systemd/install-units.sh. See OPERATIONS.md.
+[Unit]
+Description=VOICEVOX engine for the shadowing app (127.0.0.1:50021)
+Documentation=file:///home/sean/app-projects/shadowing-app/OPERATIONS.md
+# No start limit, see the Restart comment below.
+StartLimitIntervalSec=0
+
+[Service]
+WorkingDirectory=/home/sean/voicevox
+# --host 127.0.0.1 is not optional. This machine has a public IP and no NAT,
+# and VOICEVOX has no authentication of any kind.
+ExecStart=/home/sean/voicevox/run --host 127.0.0.1 --port 50021
+Environment=PATH=/home/sean/.local/bin:/usr/local/bin:/usr/bin:/bin
+
+# Restart forever. This is a synthesis engine with no configuration that can go
+# wrong at runtime, so any exit is a crash and retrying is always the right
+# answer. There is no start limit for the same reason: a backend that cannot
+# reach VOICEVOX still serves every route except voicing, but a VOICEVOX that
+# systemd has given up on stays dead until someone notices.
+Restart=always
+RestartSec=5
+
+# Model loading takes a while on a cold boot and the engine is CPU-hungry.
+# Below the backend in priority so synthesis never starves the API.
+Nice=5
+TimeoutStopSec=20
+
+[Install]
+WantedBy=default.target

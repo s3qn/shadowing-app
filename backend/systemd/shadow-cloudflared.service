@@ -1,0 +1,55 @@
+# User unit for the cloudflared tunnel that fronts everything. Replaces the
+# `nohup cloudflared tunnel run dev-dashboard &` in backend/PROD.md.
+# Install it with backend/systemd/install-units.sh. See OPERATIONS.md.
+#
+# One tunnel, dev-dashboard, carries every hostname. Its ingress rules live in
+# ~/.cloudflared/config.yml, not here:
+#   dev.sean.build/scan    -> 127.0.0.1:8010  (a different project)
+#   dev.sean.build/shadow  -> 127.0.0.1:8020  (dev backend)
+#   dev.sean.build/*       -> 127.0.0.1:4599  (QR dashboard)
+#   shadow.sean.build/shadow -> 127.0.0.1:8030 (prod backend, see PROD.md)
+[Unit]
+Description=cloudflared tunnel dev-dashboard for dev.sean.build and shadow.sean.build
+Documentation=file:///home/sean/app-projects/shadowing-app/OPERATIONS.md
+Documentation=https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/
+# Ordered after everything it fronts, so a reboot does not open the tunnel to
+# a row of 502s while uvicorn is still starting. Wants pulls the two services
+# a phone actually reaches. shadow-dev is After only, with no Wants: ordering
+# applies when both happen to start together and does nothing otherwise, so
+# this never drags the disabled dev backend onto port 8020.
+Wants=shadow-prod.service shadow-dashboard.service
+After=shadow-prod.service shadow-dashboard.service shadow-dev.service shadow-voicevox.service
+#
+# No `After=network-online.target` on purpose: that is a system target and a
+# user manager cannot order against it. With lingering on, this unit can start
+# before the network is up. cloudflared's own connection retries plus
+# Restart=always below are what cover that, which is the other reason this one
+# has no start limit.
+StartLimitIntervalSec=0
+StartLimitIntervalSec=0
+
+[Service]
+WorkingDirectory=/home/sean
+# --no-autoupdate because systemd owns the restarts here. Left on, cloudflared
+# replaces its own binary and exits to be restarted, which collides with
+# Restart=always and swaps the running version with nobody watching.
+ExecStart=/usr/local/bin/cloudflared tunnel --no-autoupdate run dev-dashboard
+Environment=PATH=/home/sean/.local/bin:/usr/local/bin:/usr/bin:/bin
+
+# Restart forever, with no start limit, and this is the one service where that
+# is clearly right. It is the only path from a tester's phone to this machine.
+# If DNS or the network is not up yet at boot, or Cloudflare has an outage, the
+# failure is transient and outside our control, and a tunnel systemd has given
+# up on means every TestFlight phone is dead until Sean notices by hand. A
+# genuinely broken config.yml does loop, but cloudflared exits in well under a
+# second on one and RestartSec=10 keeps that to six wasted starts a minute.
+Restart=always
+RestartSec=10
+
+# cloudflared drains connections on SIGTERM; give it room to do that so a
+# restart does not cut a tester off mid-request.
+KillSignal=SIGTERM
+TimeoutStopSec=45
+
+[Install]
+WantedBy=default.target
