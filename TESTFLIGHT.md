@@ -30,8 +30,8 @@ token is the `SHADOW_TOKEN` line of `~/shadow-prod/env` (not the dev token in
 history or in this doc:
 
 ```bash
-eas env:create --environment production --name EXPO_PUBLIC_SHADOW_API_URL --value https://shadow.sean.build/shadow --visibility plain
-eas env:create --environment production --name EXPO_PUBLIC_SHADOW_TOKEN --value "$(grep '^SHADOW_TOKEN=' ~/shadow-prod/env | cut -d= -f2-)" --visibility secret
+eas env:create --environment production --name EXPO_PUBLIC_SHADOW_API_URL --value https://shadow.sean.build/shadow --visibility plaintext
+eas env:create --environment production --name EXPO_PUBLIC_SHADOW_TOKEN --value "$(grep '^SHADOW_TOKEN=' ~/shadow-prod/env | cut -d= -f2-)" --visibility sensitive
 ```
 
 ## Smoke test first: preview build
