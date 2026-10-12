@@ -187,84 +187,38 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   it, with a daily build limit.
 - Production backend: own port and data directory with deploy script and
   systemd unit.
+- Hebrew interface: the whole app in Hebrew when that is the language you
+  understand, with its own setting, and right-to-left alignment.
+- Speed ladder: each island climbs from 0.5x toward 1.0x on kept-up words; the
+  manual slider stays and wins a race with a scored take.
+- Session ladder: the five guided passes run in the player, with help for the
+  pass you are on and a count before the microphone opens.
+- First take kept: the first take of every line is stored for a later before
+  and after comparison.
+- Operations: systemd user units for VOICEVOX, the prod backend, cloudflared
+  and the dashboard (written; installing them is Sean's step).
+- Schedule: an island moves up the schedule at most once a day.
 
 ## Next (approved, in order)
 
-- Hebrew interface: the whole app in Hebrew when that is the language you
-  understand, with its own setting to change it, and right-to-left alignment.
-  (In progress on a branch.)
-- A speed ladder that climbs per island.
-- A session ladder per island: the five guided passes the tutorial teaches.
+- TestFlight: deploy the production backend, route shadow.sean.build, EAS
+  build and submit, friends and family testing group.
+- Auto practice: one button that goes through every island due today, one
+  after another, and has you shadow each one.
+- Accounts with Supabase: sign in with Google and Apple.
 
 ## Ideas (not approved)
 
-- A speed ladder that climbs: each island moves up from 0.5x toward 1.0x at
-  90% or more kept-up words and drops back below 85%; the manual slider stays.
-- A session ladder per island: five guided passes (listen blind, mumble, read
-  in sync, record blind, compare).
-- Before and after: replay your first take on an island next to your latest
-  (first takes need to be kept from now on).
-- Anime player: import your own anime episode (video or audio) plus its SRT
-  subtitle file; the app plays the video with the subtitles moving along with
-  it, the subtitle lines become the island's lines with their own timings, and
-  the shadowing tools and word highlighting run on top.
-- Shadow a YouTube video: paste a link, it opens the video with subtitles, the
-  audio is transcribed to Japanese automatically (whisper), and every
-  shadowing feature of the app works on it with the words highlighted while
-  the video plays. Timings would come from whisper's word timestamps rather
-  than VOICEVOX, so the aligner needs a second input path (shared with the
-  SRT import).
-- Import existing audio or text as an island (was part of the original pitch:
-  "generate good AI vocals or import existing content"), including podcasts
-  as a source.
-- MVP release: accounts with Supabase, sign in with Google and Apple.
-- Onboarding: a short, good onboarding that explains what shadowing is and
-  teaches the user how to get the most out of the app.
-- Music: learn from songs (a friend's request). Integrate Apple Music or
-  Spotify, or look up lyrics online, so a song becomes something to shadow.
-  Needs a check of what those services and lyrics licensing allow.
-- Suggest a feature: a Settings entry where users send feature ideas,
-  delivered to Telegram, Discord or inside the app (pick the common practice
-  when it is built).
-- Cat animation in Rive: Sean is learning Rive to make a proper animated cat;
-  the app keeps the current cat until then.
-- Shadowing revamp: rebuild the shadowing flow (Auto Echo and the shadowing
-  button) around the research in designs/13-shadowing-research.md:
-  simultaneous Speak with headphones, a step ladder per island (listen blind,
-  mumble, with text, blind and recorded, compare), at most 5 passes per
-  sitting, a speed ladder that climbs on 90 to 95% kept-up words, "kept up
-  with X of Y" as the progress number, and duration and pitch feedback on
-  takes.
-- Spaced repetition: resurface islands on a schedule. Auto practice builds on
-  it: one button that goes through every island due today, one after another,
-  and has you shadow each one.
-- Operations: autostart VOICEVOX, backend, cloudflared and the dashboard on
-  boot (systemd user units); Cloudflare Access in front of dev.sean.build.
-- Building island look on Home: an island that is still being built
-  (transcribing, writing Japanese, recording the voice) needs a new look. The
-  current diagonal light sweep with the small cat is awful. Options to pick
-  from later: the lantern row lights one lantern per stage with the stage
-  label and 3 pulsing dots; three stage steps (Transcribe, Write, Voice) with
-  the current one pulsing; the Cat Constellation drawn larger on the card
-  with stars appearing per stage; or a quiet shimmer on the title with the
-  stage label.
-- Slide to reveal, for both the Japanese and the English line (Sean loved it).
-  Based on the slide-to-reveal demo
-  (https://github.com/enzomanuelmangano/demos/tree/main/src/animations/slide-to-reveal):
-  a Skia blur mask that follows the finger, gesture handler, the characters
-  under the finger come into focus and grow slightly, everything blurs again
-  on release. Japanese: in Blind mode the sentence stays on screen blurred
-  instead of the Tap to peek placeholder, and sliding a finger shows only the
-  words under it. English: with Hide EN the translation stays blurred, and
-  sliding shows the meaning of just that part of the line (fits the research's
-  meaning pass last step). Our sentence is regular text with furigana and
-  part-of-speech underlines, not Skia text, so it likely needs a blur and mask
-  layer over it (the app already has a Frost blur component).
-- SF Symbols in every sheet: the island menu already has icons (SheetAction's
-  optional `icon`, SF Symbols with Material fallbacks on Android). Go through
-  every other bottom sheet and modal (Speed, Repeat, Reading, Blind, Lag, Auto
-  Echo, Explain, Home's rename and delete sheet, the settings screens' rows)
-  and add a fitting SF Symbol wherever a row or option has none, with the same
-  size, weight and tint rules.
-- Micro-animations around the app: small, quick animations on the UI thread in
-  more places, from a research list to be picked from.
+- Before and after: a screen that plays your first take on a line next to
+  your latest (first takes are already kept).
+- Offline islands: download an island in full so it can be practised with no
+  network, on a plane or a train.
+- Anime player: import an episode (video or audio) plus its SRT; the subtitle
+  lines become the island's lines with their own timings.
+- Shadow a YouTube video: paste a link, transcribe with whisper, word timings
+  from whisper instead of VOICEVOX (shares the SRT import path).
+- Import existing audio or text as an island.
+- Music: learn from songs through Apple Music, Spotify or online lyrics.
+  Needs a check of what licensing allows.
+- Cat animation in Rive: the app keeps the current cat until then.
+- Micro-animations around the app, from a research list to be picked from.
