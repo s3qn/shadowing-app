@@ -198,6 +198,8 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Operations: systemd user units for VOICEVOX, the prod backend, cloudflared
   and the dashboard (written; installing them is Sean's step).
 - Schedule: an island moves up the schedule at most once a day.
+- Practice sheet rebuilt to its chosen design; a building island on Home
+  lights its constellation stage by stage.
 
 ## Next (approved, in order)
 
