@@ -110,7 +110,9 @@ def require_token(authorization: str | None) -> None:
     prefix = "Bearer "
     if not authorization or not authorization.startswith(prefix):
         raise HTTPException(401, "missing bearer token")
-    if not secrets.compare_digest(authorization[len(prefix):], SHADOW_TOKEN):
+    if not secrets.compare_digest(
+        authorization[len(prefix):].encode("utf-8"), SHADOW_TOKEN.encode("utf-8")
+    ):
         raise HTTPException(401, "bad token")
 
 

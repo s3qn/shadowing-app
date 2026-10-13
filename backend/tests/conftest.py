@@ -44,3 +44,13 @@ def _block_claude_cli(monkeypatch):
     replaces the guard for its own duration, which is fine: its fake never
     reaches the CLI either."""
     monkeypatch.setattr(subprocess, "run", _guarded_run)
+
+
+@pytest.fixture(autouse=True)
+def _device_only_requests(monkeypatch):
+    """Sign-in is required by default; most route tests drive the routes with
+    a bare device id, so they run with the switch off. tests/test_security.py
+    turns it back on for the tests that cover it."""
+    import main
+
+    monkeypatch.setattr(main, "REQUIRE_SIGNIN", False)

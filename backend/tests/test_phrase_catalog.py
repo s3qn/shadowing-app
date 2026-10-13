@@ -97,7 +97,7 @@ def test_good_post_builds_ready_island(fakes):
     assert island["lines"][0]["kana"]
     assert island["lines"][0]["en"]
     assert fakes == []
-    assert store.count_builds_today(DEV, "create") == 0
+    assert store.count_builds_today(DEV, "create") == 1
 
 
 def test_native_he_translates_and_failure_stays_ready(fakes, monkeypatch):

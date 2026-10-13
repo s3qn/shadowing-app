@@ -32,7 +32,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import parse_qs
 
-from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 
@@ -120,7 +120,9 @@ def require_token(authorization: str | None) -> None:
     prefix = "Bearer "
     if not authorization or not authorization.startswith(prefix):
         raise HTTPException(401, "missing bearer token")
-    if not secrets.compare_digest(authorization[len(prefix):], SHADOW_TOKEN):
+    if not secrets.compare_digest(
+        authorization[len(prefix):].encode("utf-8"), SHADOW_TOKEN.encode("utf-8")
+    ):
         raise HTTPException(401, "bad token")
 
 
@@ -238,7 +240,8 @@ async def voice_preview(style_id: int, token: str = "",
         try:
             wav, _, _, _ = await voices.speak(text, style_id)
         except (voicevox.VoicevoxError, kokoro_tts.KokoroError) as exc:
-            raise HTTPException(502, str(exc)) from exc
+            log.warning("voice failed: %s", exc)
+            raise HTTPException(502, {"code": "voice_unreachable"}) from exc
         path.write_bytes(wav)
     return FileResponse(path, media_type="audio/wav")
 
@@ -813,12 +816,13 @@ async def podcast_episodes(url: str, authorization: str | None = Header(None)) -
     require_token(authorization)
     try:
         await podcast.check_url(url)
-    except ValueError as exc:
-        raise HTTPException(400, str(exc))
+    except ValueError:
+        raise HTTPException(400, "that url could not be used")
     try:
         xml = await podcast.fetch(url, None, podcast.FEED_MAX_BYTES)
     except podcast.PodcastError as exc:
-        raise HTTPException(502, str(exc))
+        log.warning("feed fetch failed: %s", exc)
+        raise HTTPException(502, "that feed could not be fetched")
     return podcast.parse_feed(xml)
 
 
@@ -871,8 +875,8 @@ async def import_podcast_episode(
         raise HTTPException(400, "start_min must be a finite number >= 0")
     try:
         await podcast.check_url(audio_url)
-    except ValueError as exc:
-        raise HTTPException(400, str(exc))
+    except ValueError:
+        raise HTTPException(400, "that url could not be used")
 
     island_title = title.strip() or "Podcast episode"
     _take_build_slot(device, "create")
@@ -1066,7 +1070,8 @@ async def _resolve_line_audio(island: dict, idx: int, speed: float,
                 try:
                     wav, _, _, _ = await voices.speak(line["ja"], island["speaker"], speed)
                 except (voicevox.VoicevoxError, kokoro_tts.KokoroError) as exc:
-                    raise HTTPException(502, str(exc)) from exc
+                    log.warning("voice failed: %s", exc)
+                    raise HTTPException(502, {"code": "voice_unreachable"}) from exc
                 await asyncio.to_thread(_write_atomic, path, wav)
     if span:
         sliced = path.with_name(_variant(idx, speed, span) + ".wav")
@@ -1332,6 +1337,7 @@ async def upload_take(
     if len(raw) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, "take too large")
 
+    _take_use_slot(device, "take")
     tmp_dir = Path(tempfile.mkdtemp(prefix=f"take-{island_id}-{idx}-"))
     try:
         suffix = Path(take.filename or "take.wav").suffix or ".wav"
@@ -1471,11 +1477,14 @@ WORD_STRIP = "、。！？!?…「」『』（）() ,.;:¿¡«»\"'"
 
 @app.get("/shadow/word-audio")
 async def word_audio(text: str, speaker: int = voicevox.DEFAULT_SPEAKER, token: str = "",
-                     authorization: str | None = Header(None)) -> FileResponse:
+                     authorization: str | None = Header(None),
+                     x_shadow_device: str = Header(""),
+                     device_q: str = Query("", alias="device")) -> FileResponse:
     """One word rendered on its own, so hearing it again is a complete,
     natural utterance rather than a slice cut out of the line. Cached per
     voice and text."""
     _token_or_header(token, authorization)
+    device = _require_device(x_shadow_device, device_q)
     clean = text.strip(WORD_STRIP)
     if not clean:
         raise HTTPException(400, "empty word")
@@ -1483,10 +1492,12 @@ async def word_audio(text: str, speaker: int = voicevox.DEFAULT_SPEAKER, token: 
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{hashlib.sha1(clean.encode()).hexdigest()[:16]}.wav"
     if not path.exists():
+        _take_use_slot(device, "word_audio")
         try:
             wav, _, _, _ = await voices.speak(clean, speaker)
         except (voicevox.VoicevoxError, kokoro_tts.KokoroError) as exc:
-            raise HTTPException(502, str(exc)) from exc
+            log.warning("voice failed: %s", exc)
+            raise HTTPException(502, {"code": "voice_unreachable"}) from exc
         tmp = path.with_suffix(".tmp")
         tmp.write_bytes(wav)
         os.replace(tmp, path)
@@ -1535,7 +1546,8 @@ class ExplainChatBody(BaseModel):
 
 @app.post("/shadow/explain-chat")
 async def explain_chat(body: ExplainChatBody,
-                       authorization: str | None = Header(None)) -> dict:
+                       authorization: str | None = Header(None),
+                       x_shadow_device: str = Header("")) -> dict:
     """One turn about a sentence, structured as {"vocab", "grammar",
     "summary"} (any of the three may be absent). The thread itself lives in
     the client's own state, not persisted here. The opening turn of a thread
@@ -1557,6 +1569,7 @@ async def explain_chat(body: ExplainChatBody,
                 # A row sqlite cannot parse back is no better than no row:
                 # fall through to a fresh answer, which overwrites it below.
                 log.warning("explain cache row is not valid JSON, treating as a miss")
+    _take_use_slot(_require_device(x_shadow_device), "explain")
     raw = await asyncio.to_thread(
         explain.chat_answer, body.sentence_ja, body.sentence_en, body.marked,
         body.question, body.history, language=body.language, native=body.native,
@@ -1610,13 +1623,20 @@ def podcasts_catalog(language: str, ui: str = "en",
 
 @app.get("/shadow/podcasts/search")
 async def podcasts_search(q: str, language: str,
-                          authorization: str | None = Header(None)) -> dict:
+                          authorization: str | None = Header(None),
+                          x_shadow_device: str = Header("")) -> dict:
     """Resolve a pasted link or a plain query to a list of shows."""
     require_token(authorization)
+    _take_use_slot(_require_device(x_shadow_device), "podcast_search")
     try:
         results = await podcast_catalog.search(q, language)
     except (podcast.PodcastError, ValueError) as exc:
-        raise HTTPException(400, str(exc))
+        log.warning("podcast search failed: %s", exc)
+        if "open.spotify.com" in q:
+            raise HTTPException(
+                400, "Spotify shows can't be imported, only their public RSS feed."
+            )
+        raise HTTPException(400, "that feed could not be fetched")
     return {"results": results}
 
 
@@ -1710,6 +1730,28 @@ def _claim_owner() -> None:
         )
 
 
+DAILY_CAPS = {
+    name: int(os.getenv(f"SHADOW_DAILY_{name.upper()}", str(default)))
+    for name, default in (
+        ("explain", 100), ("word_audio", 400), ("podcast_search", 60), ("take", 200),
+    )
+}
+
+
+def _take_use_slot(device: str, kind: str) -> None:
+    """Per-owner daily cap for the cheap-but-not-free routes, counted in the
+    same builds table. Same rules as `_take_build_slot`: owner device exempt,
+    called after validation, and only on a cache miss where there is a cache."""
+    if device == OWNER_DEVICE and OWNER_DEVICE:
+        return
+    limit = DAILY_CAPS[kind]
+    if store.count_builds_today(device, kind) >= limit:
+        raise HTTPException(
+            429, {"code": "daily_limit", "limit": limit, "kind": kind}
+        )
+    store.log_build(device, kind)
+
+
 def _take_build_slot(device: str, kind: str) -> None:
     """Called immediately before the first write of a build, so a 400 on bad
     input never consumes a slot. The owner device is exempt. `kind` is
@@ -1741,6 +1783,16 @@ def home_page() -> Response:
 def privacy_page() -> Response:
     return Response(_PRIVACY_HTML, media_type="text/html; charset=utf-8")
 
+
+def _signin_required(raw: str | None) -> bool:
+    """On unless SHADOW_REQUIRE_SIGNIN is set to 0, false or off."""
+    return (raw or "1").strip().lower() not in ("0", "false", "off")
+
+
+# When on, every non-public /shadow/* request needs a verified x-shadow-user
+# JWT; the raw device id is no longer an owner. On by default. Set
+# SHADOW_REQUIRE_SIGNIN=0 to accept device-only requests again.
+REQUIRE_SIGNIN = _signin_required(os.getenv("SHADOW_REQUIRE_SIGNIN"))
 
 PUBLIC_PATHS = ("/health", "/shadow/health", "/shadow", "/shadow/", "/shadow/privacy")
 
@@ -1789,6 +1841,10 @@ class DeviceGuard:
             kept.append((b"x-shadow-device", accounts.principal(sub).encode()))
             scope["headers"] = kept
         # --- end sign-in ---
+        elif REQUIRE_SIGNIN:
+            response = JSONResponse({"detail": "sign-in required"}, status_code=401)
+            await response(scope, receive, send)
+            return
         elif not DEVICE_ID_RE.match(device):
             response = JSONResponse({"detail": "missing device id"}, status_code=401)
             await response(scope, receive, send)
@@ -1797,6 +1853,42 @@ class DeviceGuard:
 
 
 app.add_middleware(DeviceGuard)
+
+
+# --- security headers ---
+_HTML_CSP = (
+    b"default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; "
+    b"base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+)
+
+
+class SecurityHeaders:
+    """Pure ASGI, for the same reason as DeviceGuard. Added last so it is
+    outermost and also decorates the 401s DeviceGuard sends itself."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def wrapped(message) -> None:
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                headers.append((b"x-content-type-options", b"nosniff"))
+                headers.append((b"referrer-policy", b"no-referrer"))
+                ctype = next((v for k, v in headers if k.lower() == b"content-type"), b"")
+                if ctype.lower().startswith(b"text/html"):
+                    headers.append((b"content-security-policy", _HTML_CSP))
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, wrapped)
+
+
+app.add_middleware(SecurityHeaders)
 
 
 # --- phrase-islands ---
@@ -1853,9 +1945,9 @@ async def import_phrases(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    """Add a catalogue topic as an island. Not counted against the daily
-    create limit (no claude generation); a repeat pick returns the island
-    that already exists."""
+    """Add a catalogue topic as an island. A new island takes a slot from the
+    daily create limit (it writes an island and renders audio); a repeat pick
+    returns the island that already exists and is free."""
     require_token(authorization)
     device = _require_device(x_shadow_device)
     if language not in ("ja", "es", "en"):
@@ -1881,6 +1973,7 @@ async def import_phrases(
         ):
             return {"id": existing["id"], "status": existing["status"]}
 
+    _take_build_slot(device, "create")
     island_id = store.create_island(
         "simple", speaker, language=language, native=native, source="phrases",
         source_name=topic, device=device,

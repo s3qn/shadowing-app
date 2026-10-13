@@ -10,6 +10,7 @@ else in the app.
 from __future__ import annotations
 
 import asyncio
+import logging
 import ipaddress
 import re
 import socket
@@ -28,6 +29,8 @@ MAX_REDIRECTS = 5
 REDIRECT_STATUSES = (301, 302, 303, 307, 308)
 
 _ITUNES_DURATION = "{http://www.itunes.com/dtds/podcast-1.0.dtd}duration"
+
+log = logging.getLogger("shadow")
 
 
 class PodcastError(Exception):
@@ -117,9 +120,9 @@ async def check_url(url: str) -> str:
     try:
         infos = await asyncio.to_thread(socket.getaddrinfo, host, None)
     except (socket.gaierror, UnicodeError) as exc:
-        raise ValueError(f"could not resolve host: {host}") from exc
+        raise ValueError("that url could not be used") from exc
     if not infos:
-        raise ValueError(f"could not resolve host: {host}")
+        raise ValueError("that url could not be used")
     addrs = []
     for info in infos:
         # An IPv6 answer can carry a zone suffix ("fe80::1%eth0").
@@ -128,7 +131,8 @@ async def check_url(url: str) -> str:
         if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
             ip = ip.ipv4_mapped
         if not ip.is_global or ip.is_multicast:
-            raise ValueError(f"refusing to reach a non-public address: {addr}")
+            log.warning("refused non-public address %s for host %s", addr, host)
+            raise ValueError("that url could not be used")
         addrs.append(addr)
     return addrs[0]
 
@@ -175,7 +179,8 @@ async def _stream_to(url: str, dest: Path | None, max_bytes: int) -> bytes | Non
             try:
                 addr = await check_url(current)
             except ValueError as exc:
-                raise PodcastError(str(exc)) from exc
+                log.warning("feed url refused: %s", exc)
+                raise PodcastError("feed url refused") from exc
             host = urlsplit(current).hostname or ""
             transport = _pinned_transport(host, addr)
             async with httpx.AsyncClient(
@@ -200,7 +205,8 @@ async def _stream_to(url: str, dest: Path | None, max_bytes: int) -> bytes | Non
             return None if dest is not None else b"".join(chunks)
         raise PodcastError(f"more than {MAX_REDIRECTS} redirects")
     except httpx.HTTPError as exc:
-        raise PodcastError(str(exc)) from exc
+        log.warning("feed transport failed: %s", exc)
+        raise PodcastError("feed fetch failed") from exc
     finally:
         if fh is not None:
             fh.close()

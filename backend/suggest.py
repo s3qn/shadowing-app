@@ -33,6 +33,9 @@ CREATE TABLE IF NOT EXISTS suggestions (
 """
 
 
+MAX_SUGGESTION_CHARS = 2000
+
+
 class SuggestBody(BaseModel):
     text: str
 
@@ -46,7 +49,9 @@ def _require_token(authorization: str | None) -> None:
     prefix = "Bearer "
     if not authorization or not authorization.startswith(prefix):
         raise HTTPException(401, "missing bearer token")
-    if not secrets.compare_digest(authorization[len(prefix):], token):
+    if not secrets.compare_digest(
+        authorization[len(prefix):].encode("utf-8"), token.encode("utf-8")
+    ):
         raise HTTPException(401, "bad token")
 
 
@@ -57,7 +62,10 @@ def _relay_to_discord(text: str) -> None:
     try:
         req = urllib.request.Request(
             webhook,
-            data=json.dumps({"content": f"Feature suggestion: {text}"}).encode(),
+            data=json.dumps({
+                "content": f"Feature suggestion: {text}",
+                "allowed_mentions": {"parse": []},
+            }).encode(),
             headers={"Content-Type": "application/json"},
         )
         urllib.request.urlopen(req, timeout=5)
@@ -75,6 +83,10 @@ async def suggest_feature(
     text = body.text.strip()
     if not text:
         raise HTTPException(400, "empty suggestion")
+    if len(text) > MAX_SUGGESTION_CHARS:
+        raise HTTPException(400, {"code": "too_long", "limit": MAX_SUGGESTION_CHARS})
+    # Neutralise @everyone and mentions in the relayed message.
+    text = text.replace("@", "(at)")
 
     conn = sqlite3.connect(DB_PATH)
     try:

@@ -197,7 +197,7 @@ def test_podcasts_search_route_wraps_results(monkeypatch):
 
     monkeypatch.setattr(main.podcast_catalog, "search", fake_search)
 
-    result = asyncio.run(main.podcasts_search(q="test", language="ja", authorization=AUTH))
+    result = asyncio.run(main.podcasts_search(q="test", language="ja", authorization=AUTH, x_shadow_device="0123456789abcdef"))
 
     assert result == {"results": [
         {"collectionId": 1, "title": "T", "feedUrl": "u",
@@ -212,6 +212,6 @@ def test_podcasts_search_route_maps_podcast_error_to_400(monkeypatch):
     monkeypatch.setattr(main.podcast_catalog, "search", fake_search)
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(main.podcasts_search(q="test", language="ja", authorization=AUTH))
+        asyncio.run(main.podcasts_search(q="test", language="ja", authorization=AUTH, x_shadow_device="0123456789abcdef"))
 
     assert exc_info.value.status_code == 400
