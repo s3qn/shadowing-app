@@ -18,6 +18,8 @@ import os
 import time
 from pathlib import Path
 
+import pauses
+
 log = logging.getLogger(__name__)
 
 WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL", "medium")
@@ -98,6 +100,14 @@ def transcribe(
             })
             words.extend(seg_words)
         text = " ".join(s["text"] for s in seg_list if s["text"]).strip()
+        if word_timestamps and words:
+            try:
+                from faster_whisper.audio import decode_audio
+
+                samples = decode_audio(str(audio_path), sampling_rate=16000)
+                pauses.snap_words(words, pauses.find_pauses(samples, 16000))
+            except Exception:
+                log.exception("pause snapping skipped for %s", audio_path)
 
         log.info(
             "transcribed %s in %.1fs lang=%s chars=%d segments=%d",

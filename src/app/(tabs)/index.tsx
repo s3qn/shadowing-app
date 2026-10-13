@@ -38,6 +38,7 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols'; // icon-buttons: record FAB and rename sheet
 
+import { AddIslandSheet } from '@/components/add-island-sheet';
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
 import { CatConstellation } from '@/components/cat-constellation';
 import { LANTERN_FADE_MS, LANTERN_RISE_MS, LANTERN_STEP_MS, LanternRow } from '@/components/lantern-row';
@@ -55,6 +56,7 @@ import { useSkyStyle, isNight } from '@/lib/sky';
 import { useT, useDir } from '@/lib/i18n';
 import * as api from '@/lib/api';
 import { registerCard, startOpen, unregisterCard, useMorphHidesTitle, type CardRect } from '@/lib/card-morph';
+import { startAutoPractice } from '@/lib/auto-practice';
 import { hapticImpact, hapticSelection } from '@/lib/haptics';
 import { invalidateCachedIsland, prewarmIsland } from '@/lib/island-cache';
 import { LONG_ISLAND } from '@/components/tide/transcript-window';
@@ -63,6 +65,7 @@ import { invalidateLineAudio } from '@/lib/line-audio-cache';
 import { forgetLastLine, getLastLine, peekLastLine } from '@/lib/last-line';
 import { forgetRung, getRung, loadLadder, peekRung } from '@/lib/speed-ladder';
 import { speedLabel } from '@/components/tide/speed-popover';
+import { cancelDownload, humanBytes, isDownloaded, offlineSummaries, removeDownload, startDownload, useDownloadState, useDownloadStatus } from '@/lib/offline-islands'; // offline-islands
 import { forgetIsland, getPracticeLog, minutesOn, type PracticeLog } from '@/lib/practice';
 import { getSettingsSync, subscribeSettings, toIslandLanguage } from '@/lib/settings';
 import { getSettings, setHomeWaveDate } from '@/lib/settings';
@@ -193,6 +196,7 @@ const TIDE_TARGET_SECONDS = 20 * 60;
 export default function IslandsScreen() {
   const router = useRouter();
   const { t } = useT();
+  const [addOpen, setAddOpen] = useState(false);
   const dir = useDir();
   const SORT_LABEL: Record<Sort, string> = { newest: t('home.sortNewest'), least: t('home.sortLeastPracticed') };
   const sky = useSkyStyle();
@@ -387,6 +391,8 @@ export default function IslandsScreen() {
     closeSheetThen(() => void rename(item.id, title));
   }
 
+  // offline-islands: the last list load failed, so only downloaded islands can open.
+  const [listOffline, setListOffline] = useState(false);
   const load = useCallback(async () => {
     try {
       const rows = await api.listIslands();
@@ -399,8 +405,12 @@ export default function IslandsScreen() {
         setIslands(next);
       }
       setError('');
+      setListOffline(false);
       setLoading(false);
     } catch (e) {
+      // offline-islands: with no connection, show what is downloaded.
+      setListOffline(true);
+      setIslands((prev) => (prev.length ? prev : offlineSummaries()));
       setError(e instanceof Error ? e.message : t('home.serverUnreachable'));
       setLoading(false);
     }
@@ -483,6 +493,28 @@ export default function IslandsScreen() {
     }
     return ids;
   }, [visibleIslands, log, fetchedDueIds]);
+
+  // auto-practice: only ready islands can be practised (offline, only
+  // downloaded ones), so the card counts those and its pill never opens an
+  // empty queue.
+  const practicable = useCallback(
+    (i: api.IslandSummary) => dueIds.has(i.id) && i.status === 'ready' && (!listOffline || isDownloaded(i.id)),
+    [dueIds, listOffline],
+  );
+  const readyDueCount = useMemo(
+    () => visibleIslands.reduce((n, i) => (practicable(i) ? n + 1 : n), 0),
+    [visibleIslands, practicable],
+  );
+
+  // Practice today: the due list in the order Home shows it, run as one chain.
+  const startPractice = useCallback(() => {
+    const queue = sortedAll
+      .filter(practicable)
+      .map((i) => ({ id: i.id, title: i.title || t('home.untitledIsland') }));
+    if (queue.length === 0) return;
+    startAutoPractice(queue);
+    router.push({ pathname: '/island/[id]', params: { id: queue[0].id, auto: '1' } });
+  }, [sortedAll, practicable, router, t]);
 
   const requestShape = useCallback((next: Shape) => {
     wanted.current = next;
@@ -860,7 +892,7 @@ export default function IslandsScreen() {
         rowH={searchRowH}
       />
       <View style={styles.headerFixed}>
-        <PracticeCard log={log} dueCount={dueIds.size} />
+        <PracticeCard log={log} dueCount={readyDueCount} onPractice={startPractice} />
         {/* pill-tray-tab-bar: sort row start */}
         <PillTrayShell
           wrapStyle={[styles.sortRowWrap, dir.rtl && styles.sortRowWrapRtl]}
@@ -926,6 +958,9 @@ export default function IslandsScreen() {
                     ? t('home.noIslandMatches')
                     : t('home.noIslandsYet')}
               </Text>
+              {!error && !query.trim() && visibleIslands.length === 0 ? (
+                <Text style={[styles.empty, { color: tide.textDim }]}>{t('home.noIslandsHint')}</Text>
+              ) : null}
             </View>
           )
         }
@@ -937,11 +972,12 @@ export default function IslandsScreen() {
         size={prism.sizes.bigRound}
         verb="speak"
         containerStyle={styles.fab}
-        onPress={() => router.push('/record')}
-        accessibilityLabel={t('home.recordAccessibilityLabel')}>
-        <SymbolView name={{ ios: 'mic.fill', android: 'mic' }} size={24} weight="regular" tintColor={verb.speak.c1} />
+        onPress={() => setAddOpen(true)}
+        accessibilityLabel={t('home.addTitle')}>
+        <SymbolView name={{ ios: 'plus', android: 'add' }} size={24} weight="regular" tintColor={verb.speak.c1} />
       </PrismButton>
       {/* prism-home: end */}
+      <AddIslandSheet open={addOpen} onClose={() => setAddOpen(false)} />
       <BottomSheet
         open={menuItem !== null}
         onClose={() => setMenuItem(null)}
@@ -967,6 +1003,7 @@ export default function IslandsScreen() {
             </GlassPanel>
           </>
         ) : (
+          <>
           <GlassPanel style={styles.sheetMenuRow}>
             <PrismButton
               shape="pill"
@@ -997,10 +1034,67 @@ export default function IslandsScreen() {
               </PrismButton>
             </View>
           </GlassPanel>
+          {/* offline-islands: one control, three states */}
+          {menuItem?.status === 'ready' ? (
+            <GlassPanel style={styles.sheetMenuRow}>
+              <DownloadPill id={menuItem.id} />
+            </GlassPanel>
+          ) : null}
+          </>
         )}
         {/* prism-home: end */}
       </BottomSheet>
     </SafeAreaView>
+  );
+}
+
+/** offline-islands: the sheet's download control. Its own component, so the
+ * per-file progress re-renders this pill and not all of Home. */
+function DownloadPill({ id }: { id: string }) {
+  const { t } = useT();
+  const download = useDownloadStatus(id);
+  const onPress = () => {
+    if (download.state === 'none' || download.state === 'failed') {
+      void startDownload(id);
+    } else if (download.state === 'downloading') {
+      Alert.alert(t('home.downloadStopTitle'), undefined, [
+        { text: t('home.downloadKeepGoing'), style: 'cancel' },
+        { text: t('home.downloadStop'), style: 'destructive', onPress: () => cancelDownload(id) },
+      ]);
+    } else {
+      Alert.alert(t('home.downloadRemoveTitle'), t('home.downloadRemoveBody'), [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('home.downloadRemove'), style: 'destructive', onPress: () => removeDownload(id) },
+      ]);
+    }
+  };
+  const label =
+    download.state === 'done'
+      ? t('home.downloaded', { size: humanBytes(download.bytes) })
+      : download.state === 'downloading'
+        ? t('home.downloading', { done: download.done, total: download.total })
+        : download.state === 'failed'
+          ? t('home.downloadFailed')
+          : t('home.download');
+  return (
+    <PrismButton
+      shape="pill"
+      verb="tools"
+      flat
+      containerStyle={styles.sheetActionPill}
+      label={label}
+      onPress={onPress}>
+      <SymbolView
+        name={
+          download.state === 'done'
+            ? { ios: 'arrow.down.circle.fill', android: 'download' }
+            : { ios: 'arrow.down.circle', android: 'download' }
+        }
+        size={16}
+        weight="regular"
+        tintColor={verb.tools.c1}
+      />
+    </PrismButton>
   );
 }
 
@@ -1092,6 +1186,7 @@ const IslandRow = memo(function IslandRow({
 }: IslandRowProps) {
   const { t } = useT();
   const dir = useDir();
+  const dlState = useDownloadState(item.id); // offline-islands
   const pressed = useSharedValue(0);
   const reducedMotion = useReducedMotion();
   const cardRef = useRef<View>(null);
@@ -1366,6 +1461,15 @@ const IslandRow = memo(function IslandRow({
           <Text numberOfLines={2} style={[styles.cardTitle, dir.content, { color: tide.text, opacity: titleHidden ? 0 : 1 }]}>
             {item.title || t('home.untitledIsland')}
           </Text>
+          {/* offline-islands: the card mark */}
+          {dlState === 'done' || dlState === 'downloading' ? (
+            <SymbolView
+              name={{ ios: dlState === 'done' ? 'arrow.down.circle.fill' : 'arrow.down.circle', android: 'download' }}
+              size={14}
+              tintColor={tide.textDim}
+              style={{ opacity: dlState === 'done' ? 0.9 : 0.5 }}
+            />
+          ) : null}
         </View>
         <View style={[styles.metaRow, dir.row]}>
           {/* The dot is its own cell, not part of the label: kept inside it,

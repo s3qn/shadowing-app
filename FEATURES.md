@@ -204,6 +204,13 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   delete account
 - Home page and privacy policy at shadow.sean.build/shadow/ and
   /shadow/privacy
+- Spanish highlight timing fix (ET-1): exact stretch and pause-snapped word
+  timings
+- Practice today: run every due island in a row
+- Before and after: first take against the latest
+- Phrase islands: ready topics through the + sheet
+- Import an audio or srt file as an island
+- Offline islands: download an island for no network
 
 ## Next (approved, in order)
 

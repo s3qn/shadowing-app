@@ -340,3 +340,15 @@ def test_generate_lines_es_parses_text_and_translation_into_ja_and_en(monkeypatc
         {"ja": "Fui a la tienda ayer.", "kana": "", "romaji": "",
          "en": "I went to the store yesterday."},
     ]
+
+
+def test_latin_prompt_asks_for_speakable_text(monkeypatch):
+    prompt = _captured_prompt(monkeypatch, learning="es")
+    assert "as words" in prompt
+    assert "line breaks" in prompt
+
+
+def test_japanese_prompt_has_no_latin_speakable_rule(monkeypatch):
+    prompt = _captured_prompt(monkeypatch)
+    assert "as words" not in prompt
+    assert "line breaks" not in prompt

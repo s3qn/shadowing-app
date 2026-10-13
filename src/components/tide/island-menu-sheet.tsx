@@ -1,5 +1,5 @@
 import { memo, useEffect, useState } from 'react';
-import { StyleSheet, TextInput } from 'react-native';
+import { StyleSheet, Text, TextInput } from 'react-native';
 
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
 import { SheetAction, type SheetIcon } from '@/components/sheet/sheet-rows';
@@ -13,6 +13,7 @@ const ICONS = {
   save: { ios: 'checkmark', android: 'check' },
   rename: { ios: 'pencil', android: 'edit' },
   export: { ios: 'square.and.arrow.up', android: 'ios_share' },
+  beforeAfter: { ios: 'arrow.left.arrow.right', android: 'compare_arrows' },
   revoice: { ios: 'person.wave.2', android: 'record_voice_over' },
   regenerate: { ios: 'arrow.clockwise', android: 'refresh' },
   calibrate: { ios: 'speaker.wave.2', android: 'volume_up' },
@@ -27,12 +28,18 @@ type Props = {
   complexity: Complexity;
   /** Revoicing or regenerating: both replace the island's lines. */
   busy: boolean;
+  /** Playing from a download with no connection: every row needs the server. */ // offline-islands
+  offline: boolean;
   recording: boolean;
   exporting: boolean;
   /** Null hides the Re-voice row: the island is already in the chosen voice. */
   revoiceName: string | null;
+  /** False hides Re-voice and Regenerate: only a recorded island has the
+   * recording and VOICEVOX lines both need. */
+  recorded: boolean;
   onRename: (title: string) => void;
   onExport: () => void;
+  onBeforeAfter: () => void;
   onRevoice: () => void;
   onRegenerate: () => void;
   onCalibrate: () => void;
@@ -53,11 +60,14 @@ function IslandMenuSheetBase({
   title,
   complexity,
   busy,
+  offline,
   recording,
   exporting,
   revoiceName,
+  recorded,
   onRename,
   onExport,
+  onBeforeAfter,
   onRevoice,
   onRegenerate,
   onCalibrate,
@@ -98,35 +108,45 @@ function IslandMenuSheetBase({
         </>
       ) : (
         <>
-          <SheetAction label={t('player.rename')} icon={ICONS.rename} discColor={verb.tools.c1} onPress={() => setRenaming(true)} />
+          {offline ? <Text style={[styles.offlineLine, dir.text]}>{t('player.offlineMenu')}</Text> : null}
+          <SheetAction label={t('player.rename')} icon={ICONS.rename} discColor={verb.tools.c1} disabled={offline} onPress={() => setRenaming(true)} />
           <SheetAction
             label={exporting ? t('player.exporting') : t('player.exportAsAudio')}
             icon={ICONS.export}
             discColor={verb.tools.c1}
-            disabled={exporting || busy}
+            disabled={exporting || busy || offline}
             onPress={onExport}
           />
-          {revoiceName ? (
+          <SheetAction
+            label={t('beforeAfter.title')}
+            icon={ICONS.beforeAfter}
+            discColor={verb.tools.c1}
+            disabled={recording || busy}
+            onPress={onBeforeAfter}
+          />
+          {recorded && revoiceName ? (
             <SheetAction
               label={busy ? t('player.revoicing') : t('player.revoiceIn', { name: revoiceName })}
               icon={ICONS.revoice}
               discColor={verb.tools.c1}
-              disabled={busy}
+              disabled={busy || offline}
               onPress={onRevoice}
             />
           ) : null}
-          <SheetAction
-            label={complexity === 'simple' ? t('player.regenerateComplex') : t('player.regenerateSimple')}
-            icon={ICONS.regenerate}
-            discColor={verb.tools.c1}
-            disabled={busy}
-            onPress={onRegenerate}
-          />
+          {recorded ? (
+            <SheetAction
+              label={complexity === 'simple' ? t('player.regenerateComplex') : t('player.regenerateSimple')}
+              icon={ICONS.regenerate}
+              discColor={verb.tools.c1}
+              disabled={busy || offline}
+              onPress={onRegenerate}
+            />
+          ) : null}
           <SheetAction
             label={t('player.calibrateSpeaker')}
             icon={ICONS.calibrate}
             discColor={verb.tools.c1}
-            disabled={recording}
+            disabled={recording || offline}
             onPress={onCalibrate}
           />
           <SheetAction
@@ -134,7 +154,7 @@ function IslandMenuSheetBase({
             icon={ICONS.delete}
             destructive
             discColor={verb.speak.c1}
-            disabled={busy}
+            disabled={busy || offline}
             onPress={onDelete}
           />
         </>
@@ -148,6 +168,7 @@ function IslandMenuSheetBase({
 export const IslandMenuSheet = memo(IslandMenuSheetBase);
 
 const styles = StyleSheet.create({
+  offlineLine: { fontFamily: fonts.ui, fontSize: 12, color: tide.textDim, marginBottom: 4 },
   input: {
     fontFamily: fonts.ui,
     fontSize: 16,

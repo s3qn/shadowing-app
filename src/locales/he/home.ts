@@ -21,6 +21,8 @@ export const he = {
   // Island card
   'home.untitledIsland': 'אי ללא שם',
   'home.failed': 'נכשל',
+  'home.autoPractice': 'לתרגל היום',
+  'home.autoPracticeNone': 'אין מה לתרגל היום',
   'home.dueToday': 'ממתין להיום',
   'home.lines': '{count} שורות',
   'home.lines_one': '{count} שורה',
@@ -41,6 +43,16 @@ export const he = {
   'home.renameFailedTitle': 'לא ניתן לשנות שם',
   'home.save': 'שמירה',
   'home.rename': 'שינוי שם',
+  'home.download': 'הורדה',
+  'home.downloading': 'מוריד {done} מתוך {total}',
+  'home.downloaded': 'הורד · {size}',
+  'home.downloadFailed': 'ההורדה נכשלה, הקשה לניסיון חוזר',
+  'home.downloadStopTitle': 'לעצור את ההורדה?',
+  'home.downloadKeepGoing': 'להמשיך',
+  'home.downloadStop': 'עצירה',
+  'home.downloadRemoveTitle': 'להסיר את ההורדה?',
+  'home.downloadRemoveBody': 'האי נשאר בשרת. הטייקים שלך בטלפון הזה נשמרים.',
+  'home.downloadRemove': 'הסרה',
   'home.deleteIsland': 'מחיקת אי',
 
   // Practice card
@@ -77,4 +89,17 @@ export const he = {
   'home.episodesFeedError': 'לא ניתן לטעון את הפיד.',
   'home.episodeFallbackTitle': 'פרק פודקאסט',
   'home.untitledEpisode': 'פרק ללא שם',
+
+  // Add-island sheet and ready-made phrases
+  'home.addTitle': 'הוספת אי',
+  'home.add.record': 'הקלטה',
+  'home.add.phrases': 'ביטויים',
+  'home.noIslandsHint': 'לחצו על + כדי להקליט, לבחור ביטויים מוכנים או לייבא אודיו.',
+  'home.phrasesTitle': 'ביטויים',
+  'home.phrasesError': 'לא ניתן לטעון את הביטויים.',
+  'home.phrasesCount': '{count} ביטויים',
+  'home.phrasesCount_one': 'ביטוי {count}',
+  'home.phrasesCount_two': '{count} ביטויים',
+  'home.phrasesCount_other': '{count} ביטויים',
+  'home.phrasesBuildHint': 'זה לוקח פחות מדקה. אפשר לסגור את המסך הזה, האי ממשיך להיבנות ומופיע ברשימה כשהוא מוכן.',
 } satisfies Record<keyof typeof enHome, string>;

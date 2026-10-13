@@ -125,7 +125,10 @@ LEVEL: {rules}
 
 STYLE: natural spoken {learning_name}, no literary flourishes, no \
 translationese. If the transcript is short or unclear, write fewer sentences \
-rather than padding with generic filler.
+rather than padding with generic filler. Write numbers, dates and times as \
+words (dos mil trece, not 2013); no abbreviations, symbols, quotation marks, \
+parentheses or line breaks: a speech engine reads each sentence exactly as \
+written and the app highlights it word by word.
 
 OUTPUT: reply with RAW JSON only. No prose, no explanation, no markdown code \
 fences. Exactly this shape:

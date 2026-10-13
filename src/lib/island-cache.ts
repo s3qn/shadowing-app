@@ -11,6 +11,7 @@
 import { Directory, File, Paths } from 'expo-file-system';
 
 import type { Island } from '@/lib/api';
+import { readOfflineIsland, refreshOfflineIsland } from '@/lib/offline-islands'; // offline-islands
 
 let dir: Directory | null = null;
 
@@ -69,7 +70,7 @@ export function peekCachedIsland(id: string): CachedIsland | undefined {
 async function readFromDisk(id: string): Promise<CachedIsland | null> {
   try {
     const file = fileOf(id);
-    if (!file.exists) return null;
+    if (!file.exists) return readOfflineIsland(id); // offline-islands
     const text = await file.text();
     const island = JSON.parse(text) as Island;
     if (!island || island.id !== id || island.status !== 'ready' || !Array.isArray(island.lines)) {
@@ -86,6 +87,7 @@ async function readFromDisk(id: string): Promise<CachedIsland | null> {
 export function writeCachedIsland(island: Island, text: string) {
   if (island.status !== 'ready' || !text) return;
   prewarmed.delete(island.id);
+  refreshOfflineIsland(island, text); // offline-islands
   try {
     fileOf(island.id).write(text);
   } catch {

@@ -95,6 +95,7 @@ import { useLineStatus } from '@/hooks/use-line-status';
 import { usePracticeClock } from '@/hooks/use-practice-clock';
 import { TAIL_MS, useTake, WATCHDOG_FALLBACK_MS, type TakeMode } from '@/hooks/use-take';
 import * as api from '@/lib/api';
+import { isDownloaded, offlineGloss, offlineWordAudio, preloadOfflineGlosses, snapOffline } from '@/lib/offline-islands'; // offline-islands
 import {
   applyPlaybackMode,
   releaseAudioSession,
@@ -122,7 +123,14 @@ import {
   type Programme,
 } from '@/lib/pass-programme';
 import { wordPitches } from '@/lib/pitch';
-import { addLadder } from '@/lib/practice';
+import { addLadder, dayKey, getPracticeLog, minutesOn } from '@/lib/practice';
+import {
+  autoPlaceOf,
+  autoSummary,
+  endAutoPractice,
+  finishAutoIsland,
+  type AutoChain,
+} from '@/lib/auto-practice'; // auto-practice
 import { lineRomaji } from '@/lib/romaji';
 import { forgetRung, getRung, peekRung, recordTake, setRungSpeed } from '@/lib/speed-ladder';
 import {
@@ -139,7 +147,7 @@ import {
 import { deleteTakes, resultTier, wordsKeptUp } from '@/lib/takes';
 import { invalidateLineAudio, localLineAudio, prefetchLineAudio } from '@/lib/line-audio-cache';
 import { useSlideReveal } from '@/lib/slide-reveal';
-import { useT } from '@/lib/i18n';
+import { useDir, useT } from '@/lib/i18n'; // offline-islands: useDir
 
 // Expo Go on Android does not ship the AudioControlsService, and activating
 // the lock screen there logs a service binding error; a dev build has it
@@ -152,6 +160,8 @@ const lockScreen = Platform.OS === 'ios' || !isRunningInExpoGo();
 // How long Auto Echo holds on the sparkle result before moving on, so it has
 // time to be seen (SparkleResult itself fades out a little after this).
 const ECHO_RESULT_HOLD_MS = 1400;
+// auto-practice: how long the next island's title shows before the chain moves on.
+const AUTO_NEXT_HOLD_MS = 1400;
 
 // The exported file keeps its own breath between plays, whatever the player's
 // Pause is set to.
@@ -177,6 +187,8 @@ const TAKE_READ_AFTER_COVER_MS = 500;
 // After the open morph's cover is gone, how long the cached open's network
 // refresh waits, so its download and parse land after the reveal.
 const REFRESH_AFTER_COVER_MS = 600;
+// offline-islands: how often the player retries the server while offline.
+const OFFLINE_RETRY_MS = 15000;
 // How long a Play tap waits for the seek to the top before it plays anyway.
 const SEEK_WAIT_MS = 200;
 
@@ -239,10 +251,11 @@ const noop = () => {};
 const LANG_CODE: Record<string, string> = { ja: 'JP', es: 'ES', en: 'EN', he: 'HE' };
 
 export default function IslandScreen() {
-  const { id, morph } = useLocalSearchParams<{ id: string; morph?: string }>();
+  const { id, morph, auto } = useLocalSearchParams<{ id: string; morph?: string; auto?: string }>(); // auto-practice
   const navigation = useNavigation();
   const sky = useSkyStyle();
   const { t } = useT();
+  const dir = useDir(); // offline-islands
   // Whether the card morph that opened this island covered the screen at
   // mount. Never state: the morph's landing and cover-gone must not render
   // this whole screen. Live checks go through openCoverUp and afterCoverGone.
@@ -256,6 +269,9 @@ export default function IslandScreen() {
     [id],
   );
   const [cacheMissed, setCacheMissed] = useState(false);
+  const [offline, setOffline] = useState(false); // offline-islands
+  const refreshRef = useRef<(() => Promise<void>) | null>(null); // offline-islands: the load effect's refresh, for the offline retry
+  useEffect(() => void preloadOfflineGlosses(id), [id]); // offline-islands: read the stored meanings before the first word tap
 
   // Opened by the card morph, the local copy Home's press-in read is usually
   // parsed by the time this screen mounts. It goes into the first render, so
@@ -290,6 +306,13 @@ export default function IslandScreen() {
   const [times, setTimes] = useState(() => getSettingsSync().defaultTimes);
   const [pauseMs, setPauseMs] = useState(() => getSettingsSync().defaultPauseMs);
   const [padMs, setPadMs] = useState(() => getSettingsSync().defaultPauseMs);
+  // offline-islands: offline, a speed or pad that was not downloaded jumps to the nearest one that was.
+  useEffect(() => {
+    if (!offline) return;
+    const s = snapOffline(id, speed, padMs);
+    if (s.speed !== speed) setSpeed(s.speed);
+    if (s.padMs !== padMs) setPadMs(s.padMs);
+  }, [offline, id, speed, padMs]);
   // Set once the user changes speed, times or pause on this visit, so the
   // settings load (which can land after a cold start's empty cache) never
   // overrides it.
@@ -591,6 +614,25 @@ export default function IslandScreen() {
   // to show; cleared by stopEcho so closing the sheet or backgrounding never
   // leaves it running.
   const advanceHoldRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // auto-practice: the chain this player is part of, if any. Read once at
+  // mount; a stale `auto` param with no live session is ignored.
+  const [autoStartPlace] = useState(() => (auto === '1' ? autoPlaceOf(id) : null));
+  const autoRunRef = useRef(autoStartPlace !== null);
+  const autoHoldRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // auto-practice: the island the hold moves on to; set for the whole hold,
+  // also while backgrounding has paused its timer.
+  const pendingNextRef = useRef<string | null>(null);
+  const autoLeavingRef = useRef(false);
+  const autoStartedRef = useRef(false);
+  const [autoUi, setAutoUi] = useState<AutoChain | null>(
+    autoStartPlace ? { ...autoStartPlace, next: null, end: null } : null,
+  );
+  useEffect(
+    () => () => {
+      if (autoHoldRef.current) clearTimeout(autoHoldRef.current);
+    },
+    [],
+  );
   const [autoEcho, setAutoEchoState] = useState(true);
   // Read when the hold ends, so turning Auto Echo off during it is honoured.
   const autoEchoRef = useRef(autoEcho);
@@ -664,7 +706,7 @@ export default function IslandScreen() {
   const wordSource = useMemo(
     () =>
       island && line && selected !== null && line.words[selected]
-        ? { uri: api.wordAudioUrl(line.words[selected]!.text, island.speaker) }
+        ? { uri: offlineWordAudio(island.id, line.words[selected]!.text, island.speaker) ?? api.wordAudioUrl(line.words[selected]!.text, island.speaker) } // offline-islands
         : null,
     [island, line, selected],
   );
@@ -673,6 +715,16 @@ export default function IslandScreen() {
   // session down 100ms later, which would land on the prepared recorder.
   const wordPlayer = useAudioPlayer(wordSource, { keepAudioSessionActive: true });
   // Rendered only when the word loads or its playing flag flips, not per tick.
+  // auto-practice: the sheet opens by itself once this island is ready.
+  useEffect(() => {
+    if (!autoRunRef.current || autoStartedRef.current) return;
+    if (!island || !line || !status.isLoaded || sheet !== null || echoStep !== 'idle') return;
+    autoStartedRef.current = true;
+    autoEchoTouched.current = true;
+    setAutoEchoState(true);
+    openEcho();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [island, line, status.isLoaded, sheet, echoStep]);
   const { status: wordStatus } = useLineStatus(wordPlayer, noop, (s) => `${s.isLoaded}:${s.playing}`);
   useSessionPlayer(wordPlayer);
   const autoPlayed = useRef<string | null>(null);
@@ -694,6 +746,21 @@ export default function IslandScreen() {
   }, [id]);
 
   const [attempt, setAttempt] = useState(0);
+  // night-wave: auto-practice reached an island it cannot load offline (not
+  // downloaded). It counts as skipped and the chain moves on at once; no sheet
+  // is open, so this navigates directly. With no island left the chain is
+  // dropped and the load error shows. Returns whether it moved on.
+  const skipUnloadedIsland = useStableHandler((): boolean => {
+    if (!autoRunRef.current || autoLeavingRef.current || !autoPlaceOf(id)) return false;
+    const next = finishAutoIsland(id, 'skipped');
+    if (!next) {
+      dropChain();
+      return false;
+    }
+    autoLeavingRef.current = true;
+    router.replace({ pathname: '/island/[id]', params: { id: next.nextId, auto: '1' } });
+    return true;
+  });
   // A message set just before a deliberate reload survives that reload. Every
   // other error is cleared once the island loads.
   const carryError = useRef('');
@@ -762,6 +829,7 @@ export default function IslandScreen() {
       try {
         const text = await api.getIslandText(id);
         if (!alive) return;
+        setOffline(false); // offline-islands
         // The same bytes as what is on screen (and so in the local copy):
         // nothing to parse, set or write.
         if (shownText !== null && text === shownText) {
@@ -787,6 +855,13 @@ export default function IslandScreen() {
           invalidateCachedIsland(id);
         }
       } catch (e) {
+        // offline-islands: only a failed fetch (no response) means offline; an HTTP error surfaces as before.
+        if (e instanceof TypeError && isDownloaded(id)) {
+          if (alive) setOffline(true);
+          return;
+        }
+        // night-wave: offline in an auto-practice chain with nothing on screen: skip it.
+        if (e instanceof TypeError && shownText === null && alive && skipUnloadedIsland()) return;
         if (alive) setError(e instanceof Error ? e.message : t('player.couldNotLoadIsland'));
       }
     };
@@ -795,12 +870,29 @@ export default function IslandScreen() {
     // stay out of the landing.
     const stopRefresh = warm ? afterCoverGone(id, () => void refresh(), REFRESH_AFTER_COVER_MS) : null;
     if (!warm) void refresh();
+    refreshRef.current = refresh; // offline-islands
     return () => {
       alive = false;
+      refreshRef.current = null; // offline-islands
       stopRefresh?.();
       if (raf !== null) cancelAnimationFrame(raf);
     };
   }, [id, attempt]);
+
+  // offline-islands: while offline, try the server again on return to the app
+  // and every 15 s; a success clears offline inside refresh.
+  useEffect(() => {
+    if (!offline) return;
+    const retry = () => void refreshRef.current?.();
+    const timer = setInterval(retry, OFFLINE_RETRY_MS);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') retry();
+    });
+    return () => {
+      clearInterval(timer);
+      sub.remove();
+    };
+  }, [offline]);
 
   // Tells a covering card morph the player has its first content on screen:
   // the island, an error, or no local copy (the network's answer then fades
@@ -831,6 +923,7 @@ export default function IslandScreen() {
 
   // A back morph waits for this before it shrinks into the card.
   useEffect(() => () => playerGone(id), [id]);
+  useEffect(() => () => endAutoPractice(id), [id]); // auto-practice
 
   // Remembers the line a long island was left on, so reopening it resumes here.
   useEffect(() => {
@@ -1391,13 +1484,24 @@ export default function IslandScreen() {
   // listener is subscribed once, so everything it calls is read through the
   // ref: the first render's dropTake would close over a take whose cancel()
   // still sees `recording` as false and leaves the microphone running.
-  const backgroundRef = useRef({ take, player, dropTake, stopEcho, echoRef });
+  const backgroundRef = useRef({ take, player, dropTake, stopEcho, echoRef, startAutoHold });
   useLayoutEffect(() => {
-    backgroundRef.current = { take, player, dropTake, stopEcho, echoRef };
+    backgroundRef.current = { take, player, dropTake, stopEcho, echoRef, startAutoHold };
   });
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
+      // auto-practice: the hold between islands pauses in the background and
+      // starts over on return, so the chain never moves on unseen.
+      if (state === 'active') {
+        const nextId = pendingNextRef.current;
+        if (nextId && !autoHoldRef.current && autoRunRef.current) backgroundRef.current.startAutoHold(nextId);
+        return;
+      }
       if (state !== 'background') return;
+      if (autoHoldRef.current) {
+        clearTimeout(autoHoldRef.current);
+        autoHoldRef.current = null;
+      }
       const { take: t, player: p, dropTake: drop, stopEcho: stopE, echoRef } = backgroundRef.current;
       // Auto Echo stops the whole pass on backgrounding, not just a take in
       // progress: the sheet stays open showing Start.
@@ -1643,7 +1747,7 @@ export default function IslandScreen() {
     // the context line instead of a dictionary lookup.
     if (isJa) {
       try {
-        const g = await api.gloss(word);
+        const g = offlineGloss(island.id, word) ?? (await api.gloss(word)); // offline-islands
         setGlossData(g);
       } catch {
         setGlossData({ word, base: '', reading: '', entries: [], found: false });
@@ -1935,6 +2039,10 @@ export default function IslandScreen() {
   function repeatSelection() {
     const span = dragSpan;
     setDragSpan(null);
+    if (offline) { // offline-islands
+      setError(t('player.offlinePhrase'));
+      return;
+    }
     if (!span || phrase.set(span) !== 'set') return;
     dropTake();
     // A take belongs to the audio it was recorded over.
@@ -2363,6 +2471,7 @@ export default function IslandScreen() {
       // The ladder walks the island once and stops at its end: no wrap.
       if (idx >= island.lines.length - 1) {
         setEchoStep('done');
+        if (autoRunRef.current) autoIslandDone(); // auto-practice
         return;
       }
       // A pending rung decision lands at this line change, so the next line's
@@ -2381,6 +2490,12 @@ export default function IslandScreen() {
       setEchoStep('ladderListen');
       return;
     }
+    // auto-practice: Auto Echo ends the island after its last line.
+    if (autoRunRef.current && (island.lines.length === 1 || idx >= island.lines.length - 1)) {
+      setEchoStep('done');
+      autoIslandDone();
+      return;
+    }
     if (island.lines.length === 1) {
       await seekTop();
       // The sheet closed during the seek.
@@ -2395,6 +2510,64 @@ export default function IslandScreen() {
     // playing), so the line has to be told to play once the new one loads.
     setPlayWhenLoaded(true);
     setEchoStep('listen');
+  }
+
+  // auto-practice: the island's last line finished. Hold on the next title,
+  // then move on; the last island ends the chain.
+  function autoIslandDone() {
+    const place = autoPlaceOf(id);
+    if (!autoRunRef.current || !place) return;
+    void hapticSelection();
+    const next = finishAutoIsland(id, 'shadowed');
+    if (!next) {
+      endChain();
+      return;
+    }
+    setAutoUi({ ...place, next: next.nextTitle, end: null });
+    startAutoHold(next.nextId);
+  }
+
+  // auto-practice: (re)starts the hold on the next island's title.
+  function startAutoHold(nextId: string) {
+    pendingNextRef.current = nextId;
+    if (autoHoldRef.current) clearTimeout(autoHoldRef.current);
+    autoHoldRef.current = setTimeout(() => {
+      autoHoldRef.current = null;
+      pendingNextRef.current = null;
+      goToIsland(nextId);
+    }, AUTO_NEXT_HOLD_MS);
+  }
+
+  function goToIsland(nextId: string) {
+    if (autoLeavingRef.current) return;
+    autoLeavingRef.current = true;
+    stopEcho();
+    closeSheetThen(() => router.replace({ pathname: '/island/[id]', params: { id: nextId, auto: '1' } }));
+  }
+
+  function endChain() {
+    stopEcho();
+    void hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
+    const sum = autoSummary();
+    const place = autoUi ?? { at: Math.max(0, sum.total - 1), total: sum.total };
+    setAutoUi({ at: place.at, total: place.total, next: null, end: { shadowed: sum.shadowed, skipped: sum.skipped, minutes: 0 } });
+    void getPracticeLog().then((log) => {
+      const minutes = minutesOn(log, dayKey(new Date()));
+      setAutoUi((u) => (u?.end ? { ...u, end: { ...u.end, minutes } } : u));
+    });
+  }
+
+  // Drops the chain: the player carries on as a normal one.
+  function dropChain() {
+    if (!autoRunRef.current) return;
+    if (autoHoldRef.current) {
+      clearTimeout(autoHoldRef.current);
+      autoHoldRef.current = null;
+    }
+    pendingNextRef.current = null; // auto-practice
+    endAutoPractice();
+    setAutoUi(null);
+    autoRunRef.current = false;
   }
 
   // Starts (or restarts) the run on the current line: a whole-line phrase
@@ -2586,6 +2759,7 @@ export default function IslandScreen() {
 
   async function removeIsland() {
     if (!island) return;
+    dropChain(); // auto-practice
     dropTake();
     stopPlayback(player);
     try {
@@ -2721,8 +2895,33 @@ export default function IslandScreen() {
   // The three sheets and the header are memoised; these keep their handler
   // props at one identity so a screen render does not render a closed sheet.
   const onEchoClose = useStableHandler(() => {
+    dropChain(); // auto-practice
     stopEcho();
     setSheet(null);
+  });
+  // auto-practice: Skip moves on at once, Done leaves the finished chain.
+  const onAutoSkip = useStableHandler(() => {
+    if (!autoRunRef.current || autoUi?.end || autoLeavingRef.current) return;
+    // During the hold this island is already recorded: Skip just cuts the hold short.
+    const pending = pendingNextRef.current;
+    if (pending) {
+      if (autoHoldRef.current) {
+        clearTimeout(autoHoldRef.current);
+        autoHoldRef.current = null;
+      }
+      pendingNextRef.current = null;
+      goToIsland(pending);
+      return;
+    }
+    const place = autoPlaceOf(id);
+    if (!place) return;
+    const next = finishAutoIsland(id, 'skipped');
+    if (next) goToIsland(next.nextId);
+    else endChain();
+  });
+  const onAutoDone = useStableHandler(() => {
+    endAutoPractice();
+    closeSheetThen(plainBack);
   });
   const onEchoRecord = useStableHandler(countInThenSpeak);
   const onEchoStop = useStableHandler(() => {
@@ -2744,6 +2943,15 @@ export default function IslandScreen() {
   const onMenuRevoice = useStableHandler(() => closeSheetThen(() => void doRevoice()));
   const onMenuRegenerate = useStableHandler(() => closeSheetThen(confirmRegenerate));
   const onMenuCalibrate = useStableHandler(() => closeSheetThen(() => void calibrateSpeaker()));
+  // before-after
+  const onMenuBeforeAfter = useStableHandler(() =>
+    closeSheetThen(() => {
+      stopPlayback(player);
+      void player.seekTo(0);
+      take.stopTake();
+      if (island) router.push({ pathname: '/before-after', params: { id: island.id, idx: String(idx) } });
+    }),
+  );
   const onMenuDelete = useStableHandler(() => closeSheetThen(confirmDelete));
   const onExplainClose = useStableHandler(closeExplain);
   const onExplainPlay = useStableHandler(() => void playFromTop());
@@ -2753,8 +2961,10 @@ export default function IslandScreen() {
         <Pressable onPress={() => setError('')}>
           <Text style={[styles.inlineError, { color: tide.record }]}>{error}</Text>
         </Pressable>
+      ) : offline ? ( // offline-islands
+        <Text style={[{ fontFamily: fonts.ui, fontSize: 12, color: tide.textDim, textAlign: 'left' }, dir.text]}>{t('player.offlineBanner')}</Text>
       ) : undefined,
-    [error],
+    [error, offline, t, dir.text],
   );
   const below = useMemo(
     () => <PhraseBar label={phrase.label} hidden={hidden} onClear={onClearPhrase} />,
@@ -3165,6 +3375,15 @@ export default function IslandScreen() {
     plainBack();
   });
   const onHeaderBack = useStableHandler(() => {
+    if (autoRunRef.current || autoUi) {
+      // auto-practice: Back ends the chain and goes Home in one step.
+      if (leavingRef.current) return;
+      leavingRef.current = true;
+      dropChain();
+      stopEcho();
+      plainBack();
+      return;
+    }
     // A morph already running, or a back already fading out, owns the navigation.
     if (morphActive() || leavingRef.current) return;
     if (!canStartBack(id)) {
@@ -3449,6 +3668,9 @@ export default function IslandScreen() {
       <AutoEchoSheet
         open={sheet === 'echo'}
         onClose={onEchoClose}
+        auto={autoUi}
+        onSkip={onAutoSkip}
+        onDone={onAutoDone}
         onDismissed={onSheetDismissed}
         sentence={hidden ? null : (phrase.label ?? line.ja)}
         english={englishShown ? line.en : null}
@@ -3482,11 +3704,14 @@ export default function IslandScreen() {
         title={island.title}
         complexity={island.complexity}
         busy={revoicing || regenerating}
+        offline={offline} // offline-islands
         recording={take.phase === 'recording'}
         exporting={exporting}
         revoiceName={voice !== null && island.speaker !== voice ? voiceName || t('player.chosenVoice') : null}
+        recorded={(island.source ?? 'voice') === 'voice'} // night-wave
         onRename={onMenuRename}
         onExport={onMenuExport}
+        onBeforeAfter={onMenuBeforeAfter} // before-after
         onRevoice={onMenuRevoice}
         onRegenerate={onMenuRegenerate}
         onCalibrate={onMenuCalibrate}

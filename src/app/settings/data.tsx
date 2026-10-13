@@ -7,18 +7,12 @@ import { SettingsRow, SettingsSection } from '@/components/tide/settings-row';
 import { Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
 import { useT } from '@/lib/i18n';
+import { humanBytes, removeAllDownloads, totalDownloaded, subscribe } from '@/lib/offline-islands'; // offline-islands
 import { deleteAllTakes, takesStorageBytes } from '@/lib/takes';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_SHADOW_API_URL;
 const CONNECTED_COLOR = '#4ADE80';
 const HEALTH_POLL_MS = 10_000;
-
-function humanBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  const mb = bytes / (1024 * 1024);
-  if (mb < 1) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${mb.toFixed(1)} MB`;
-}
 
 export default function DataSettingsScreen() {
   const { t } = useT();
@@ -57,6 +51,16 @@ export default function DataSettingsScreen() {
     };
   }, []);
 
+  // offline-islands
+  const [downloads, setDownloads] = useState(totalDownloaded());
+  useEffect(() => subscribe(null, () => setDownloads(totalDownloaded())), []);
+  function confirmDeleteDownloads() {
+    Alert.alert(t('settings.data.deleteDownloadsTitle'), t('settings.data.deleteDownloadsBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('settings.data.deleteAllDownloads'), style: 'destructive', onPress: removeAllDownloads },
+    ]);
+  }
+
   function confirmDeleteAll() {
     Alert.alert(t('settings.data.deleteAllTitle'), t('settings.data.deleteAllBody'), [
       { text: t('common.cancel'), style: 'cancel' },
@@ -77,8 +81,14 @@ export default function DataSettingsScreen() {
           <SettingsRow
             label={t('settings.data.takesOnDevice')}
             value={humanBytes(storageBytes)}
-            last
             icon={{ ios: 'internaldrive', android: 'storage' }}
+          />
+          {/* offline-islands */}
+          <SettingsRow
+            label={t('settings.data.downloadedIslands')}
+            value={t('settings.data.downloadedValue', { count: downloads.count, size: humanBytes(downloads.bytes) })}
+            last
+            icon={{ ios: 'arrow.down.circle', android: 'download' }}
           />
         </SettingsSection>
 
@@ -86,9 +96,16 @@ export default function DataSettingsScreen() {
           <SettingsRow
             label={t('settings.data.deleteAllTakes')}
             destructive
-            last
             icon={{ ios: 'trash', android: 'delete' }}
             onPress={confirmDeleteAll}
+          />
+          {/* offline-islands */}
+          <SettingsRow
+            label={t('settings.data.deleteAllDownloads')}
+            destructive
+            last
+            icon={{ ios: 'trash', android: 'delete' }}
+            onPress={confirmDeleteDownloads}
           />
         </SettingsSection>
 

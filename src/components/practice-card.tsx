@@ -18,7 +18,9 @@ import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSeque
 import { fonts } from '@/constants/fonts';
 import { useDir, useT } from '@/lib/i18n';
 import { type Key } from '@/locales/en';
-import { Radius, Spacing, tide } from '@/constants/theme';
+import { Radius, Spacing, tide, verb } from '@/constants/theme';
+import { SymbolView } from 'expo-symbols';
+import { PrismButton } from '@/components/prism/prism-button';
 import { dayKey, lastSevenDays, minutesOn, streakDays, type PracticeLog } from '@/lib/practice';
 import { getSettingsSync, subscribeSettings } from '@/lib/settings';
 
@@ -192,7 +194,7 @@ function DayCell({ letter, minutes, isToday, reducedMotion }: {
   );
 }
 
-export function PracticeCard({ log, dueCount }: { log: PracticeLog; dueCount: number }) {
+export function PracticeCard({ log, dueCount, onPractice }: { log: PracticeLog; dueCount: number; onPractice: () => void }) {
   const { t } = useT();
   const dir = useDir();
   const reducedMotion = useReducedMotion();
@@ -246,6 +248,17 @@ export function PracticeCard({ log, dueCount }: { log: PracticeLog; dueCount: nu
           />
         ))}
       </View>
+      <PrismButton
+        shape="pill"
+        verb="speak"
+        height={44}
+        label={dueCount === 0 ? t('home.autoPracticeNone') : t('home.autoPractice')}
+        disabled={dueCount === 0}
+        onPress={onPractice}
+        containerStyle={{ alignSelf: 'stretch' }}
+        style={{ alignSelf: 'stretch', justifyContent: 'center' }}>
+        <SymbolView name={{ ios: 'play.fill', android: 'play_arrow' }} size={16} weight="regular" tintColor={verb.speak.c1} />
+      </PrismButton>
     </View>
   );
 }

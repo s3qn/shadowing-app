@@ -10,6 +10,7 @@ import { LoadingOverlay } from '@/components/loading-overlay';
 import { tide } from '@/constants/theme';
 import { loadSession, onSessionLost } from '@/lib/auth';
 import { loadDeviceId } from '@/lib/device';
+import { loadOfflineIndex } from '@/lib/offline-islands'; // offline-islands
 import { useT } from '@/lib/i18n';
 import { getSettings } from '@/lib/settings';
 
@@ -37,6 +38,7 @@ export default function RootLayout() {
       } catch (err: unknown) {
         console.warn('loadDeviceId failed', err);
       }
+      await loadOfflineIndex(); // offline-islands
       // getSettings falls back to defaults on its own; a throw here still
       // opens the app, without sending anyone into onboarding.
       let onboarded = true;
@@ -126,6 +128,10 @@ export default function RootLayout() {
           name="record"
           options={{ title: t('title.newIsland'), presentation: 'modal' }}
         />
+        <Stack.Screen
+          name="import"
+          options={{ title: t('title.newIsland'), presentation: 'modal' }}
+        />
         {/* The player draws its own header. Opened from a Home card (the
             `morph` param), the card morph overlay is the whole transition
             both ways, so the route itself does not animate; anywhere else,
@@ -150,6 +156,7 @@ export default function RootLayout() {
         <Stack.Screen name="settings/about" options={{ title: t('title.about') }} />
         <Stack.Screen name="settings/languages" options={{ title: t('title.language') }} />
         <Stack.Screen name="settings/app-language" options={{ title: t('settings.appLanguage') }} />
+        <Stack.Screen name="before-after" options={{ title: t('beforeAfter.title') }} />
         {/* Dev-only screen, excluded from the app-language inventory. */}
         <Stack.Screen name="prism-lab" options={{ title: 'Prism lab' }} />
       </Stack>

@@ -9,6 +9,7 @@ import { SESSION_STORAGE_KEY, supabase } from '@/lib/supabase';
 export type SignInResult = 'ok' | 'cancelled';
 
 let accessToken = '';
+let userId = '';
 let providerName: 'apple' | 'google' | '' = '';
 let devBypass = false;
 let subscribed = false;
@@ -21,10 +22,11 @@ let signingOut = false;
 let sessionLost = false;
 const lostListeners = new Set<() => void>();
 
-type StoredSession = { access_token?: string; user?: { app_metadata?: { provider?: string } } };
+type StoredSession = { access_token?: string; user?: { id?: string; app_metadata?: { provider?: string } } };
 
 function apply(session: StoredSession | null) {
   accessToken = session?.access_token ?? '';
+  userId = session?.user?.id ?? '';
   const p = session?.user?.app_metadata?.provider;
   providerName = p === 'apple' || p === 'google' ? p : '';
   sessionLost = false;
@@ -78,6 +80,11 @@ export function onSessionLost(cb: () => void): () => void {
 /** The current access token, or '' when signed out. */
 export function accessTokenSync(): string {
   return accessToken;
+}
+
+/** The signed-in user's id, or empty when signed out. */
+export function userIdSync(): string {
+  return userId;
 }
 
 export function hasSessionSync(): boolean {

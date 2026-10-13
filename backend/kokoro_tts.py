@@ -6,11 +6,19 @@ the GitHub release `thewh1teagle/kokoro-onnx` tag `model-files-v1.0`.
 
 Output is 24kHz mono, the same rate VOICEVOX renders at, so aec.SR,
 SLICE_RATE and the take cleaner work unchanged.
+
+Kokoro's own `speed` is not a linear time stretch (0.5x renders about 2.03x
+as long), which breaks the client's `start / speed` highlight maths. So the
+model always renders at 1.0 and a slower or faster line is stretched with
+ffmpeg rubberband, which is linear and keeps the pitch and the 24kHz rate.
 """
 
 import io
 import logging
 import os
+import shutil
+import subprocess
+import tempfile
 import threading
 import wave
 from pathlib import Path
@@ -77,19 +85,62 @@ def _to_wav(samples, sample_rate: int) -> bytes:
     return buf.getvalue()
 
 
+def _stretch_wav(wav: bytes, speed: float) -> bytes:
+    """Time-stretch a wav with rubberband, pitch preserved. Output is
+    1/speed of the input length. Uses temp files, not pipes, so the result
+    has a real RIFF header. Raises KokoroError on any ffmpeg failure."""
+    tmpdir = tempfile.mkdtemp(prefix="kokoro-stretch-")
+    try:
+        src = os.path.join(tmpdir, "in.wav")
+        dst = os.path.join(tmpdir, "out.wav")
+        with open(src, "wb") as f:
+            f.write(wav)
+        try:
+            subprocess.run(
+                [
+                    "ffmpeg", "-y", "-i", src,
+                    "-filter:a", f"rubberband=tempo={speed}",
+                    "-c:a", "pcm_s16le",
+                    "-f", "wav", dst,
+                ],
+                capture_output=True,
+                check=True,
+                timeout=120,
+            )
+            with open(dst, "rb") as f:
+                out = f.read()
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise KokoroError(f"could not change the playback speed: {exc}") from exc
+        if not out:
+            raise KokoroError("could not change the playback speed: empty output")
+        return out
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 def synthesize(text: str, voice: str, lang: str, speed: float = 1.0) -> tuple[bytes, float]:
     """Render one line. Returns (wav bytes, duration in seconds).
 
+    The model always renders at 1.0. For speed != 1.0 the wav is then
+    stretched with rubberband, so the duration is 1/speed of the normal
+    render and the client's `start / speed` stays exact.
+
     Blocking and CPU-bound; callers use asyncio.to_thread. Raises
-    KokoroError if the model is missing or synthesis fails, so the caller
-    can mark the island failed rather than storing a silent line.
+    KokoroError if the model is missing, synthesis fails or the stretch
+    fails, so the caller can mark the island failed rather than storing a
+    silent line (or the unstretched render under a slow speed).
     """
     with _LOCK:
         # Loaded under the lock, so two first requests load the model once.
         kokoro = _get_kokoro()
         try:
-            samples, sample_rate = kokoro.create(text, voice=voice, speed=speed, lang=lang)
+            samples, sample_rate = kokoro.create(text, voice=voice, speed=1.0, lang=lang)
         except Exception as exc:
             raise KokoroError(f"Kokoro synthesis failed for {text!r}: {exc}") from exc
+    wav = _to_wav(samples, sample_rate)
+    if speed != 1.0:
+        wav = _stretch_wav(wav, speed)
+        with wave.open(io.BytesIO(wav), "rb") as w:
+            return wav, w.getnframes() / w.getframerate()
     duration = (len(samples) / sample_rate) if sample_rate else 0.0
-    return _to_wav(samples, sample_rate), duration
+    return wav, duration

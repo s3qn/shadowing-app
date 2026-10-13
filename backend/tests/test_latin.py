@@ -115,3 +115,42 @@ def test_align_empty_text_returns_whole_fallback_shape():
 
 def test_align_non_positive_duration_is_empty():
     assert latin.align("hola", [], 0.0) == []
+
+
+# ---------------------------------------------------------------------------
+# aligner rescue
+# ---------------------------------------------------------------------------
+
+def test_collapsed_podcast_run_is_respread():
+    text = "Estudio en Ornot, que prepara rocas de bicicleta, en 2013."
+    spec = [
+        ("Estudio", 0.00, 0.64), ("en", 0.64, 1.16), ("Ornot,", 1.16, 2.48),
+        ("que", 2.48, 2.48), ("prepara", 2.48, 2.48), ("rocas", 2.48, 2.48),
+        ("de", 2.48, 2.48), ("bicicleta,", 2.48, 2.48), ("en", 2.60, 2.78),
+        ("2013.", 2.78, 4.40),
+    ]
+    pieces = [{"text": t, "start": s, "end": e} for t, s, e in spec]
+    out = latin.align(text, pieces, 4.40)
+
+    assert [w["text"] for w in out] == text.split()
+    assert len(out) == 10
+    assert out[0]["start"] == 0.0
+    assert out[-1]["end"] == 4.40
+    for a, b in zip(out, out[1:]):
+        assert a["end"] == b["start"]
+    # Plan said 0.1s; a two-letter word gets about 0.09s of a 1.6s run.
+    assert all(w["end"] - w["start"] >= 0.08 for w in out)
+    assert out[2]["end"] - out[2]["start"] <= 0.8
+    assert (out[0]["start"], out[0]["end"]) == (0.0, 0.64)
+    assert (out[1]["start"], out[1]["end"]) == (0.64, 1.16)
+
+
+def test_zero_length_piece_does_not_anchor():
+    text = "uno dos tres"
+    pieces = [
+        {"text": "uno", "start": 0.0, "end": 1.0},
+        {"text": "dos", "start": 1.5, "end": 1.5},
+        {"text": "tres", "start": 2.0, "end": 3.0},
+    ]
+    out = latin.align(text, pieces, 3.0)
+    assert (out[1]["start"], out[1]["end"]) == (1.0, 2.0)

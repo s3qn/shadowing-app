@@ -1,0 +1,212 @@
+{
+  "topics": [
+    {"id": "greetings", "title": "Greetings", "titleHe": "ברכות"},
+    {"id": "about-me", "title": "About me", "titleHe": "להציג את עצמי"},
+    {"id": "small-talk", "title": "Small talk", "titleHe": "שיחה קלה"},
+    {"id": "questions", "title": "Everyday questions", "titleHe": "שאלות יומיומיות"},
+    {"id": "eating-out", "title": "Eating out", "titleHe": "במסעדה ובבית קפה"},
+    {"id": "getting-around", "title": "Getting around", "titleHe": "להתמצא בדרך"},
+    {"id": "shopping", "title": "Shopping", "titleHe": "קניות"},
+    {"id": "help", "title": "Asking for help", "titleHe": "לבקש עזרה"}
+  ],
+  "phrases": {
+    "ja": {
+      "greetings": [
+        {"text": "おはようございます。", "en": "Good morning."},
+        {"text": "こんにちは。", "en": "Hello."},
+        {"text": "こんばんは。", "en": "Good evening."},
+        {"text": "お久しぶりです。", "en": "It's been a long time."},
+        {"text": "お元気ですか。", "en": "How are you?"},
+        {"text": "おかげさまで元気です。", "en": "I'm well, thank you."},
+        {"text": "また明日。", "en": "See you tomorrow."},
+        {"text": "おやすみなさい。", "en": "Good night."}
+      ],
+      "about-me": [
+        {"text": "はじめまして。", "en": "Nice to meet you."},
+        {"text": "ジョンといいます。", "en": "My name is John."},
+        {"text": "イスラエルから来ました。", "en": "I'm from Israel."},
+        {"text": "日本語を勉強しています。", "en": "I'm studying Japanese."},
+        {"text": "まだ少ししか話せません。", "en": "I can only speak a little so far."},
+        {"text": "東京に住んでいます。", "en": "I live in Tokyo."},
+        {"text": "どうぞよろしくお願いします。", "en": "Pleased to meet you."}
+      ],
+      "small-talk": [
+        {"text": "今日は暑いですね。", "en": "It's hot today, isn't it?"},
+        {"text": "週末は何をしましたか。", "en": "What did you do over the weekend?"},
+        {"text": "趣味は何ですか。", "en": "What are your hobbies?"},
+        {"text": "映画が好きです。", "en": "I like movies."},
+        {"text": "最近忙しいですか。", "en": "Have you been busy lately?"},
+        {"text": "それはいいですね。", "en": "That sounds nice."},
+        {"text": "ちょっと疲れました。", "en": "I'm a bit tired."}
+      ],
+      "questions": [
+        {"text": "これは何ですか。", "en": "What is this?"},
+        {"text": "トイレはどこですか。", "en": "Where is the restroom?"},
+        {"text": "今、何時ですか。", "en": "What time is it now?"},
+        {"text": "もう一度言ってください。", "en": "Please say that again."},
+        {"text": "ゆっくり話してください。", "en": "Please speak slowly."},
+        {"text": "英語が話せますか。", "en": "Can you speak English?"},
+        {"text": "これはどういう意味ですか。", "en": "What does this mean?"}
+      ],
+      "eating-out": [
+        {"text": "二人です。", "en": "Table for two."},
+        {"text": "メニューをお願いします。", "en": "The menu, please."},
+        {"text": "おすすめは何ですか。", "en": "What do you recommend?"},
+        {"text": "これをください。", "en": "I'll have this, please."},
+        {"text": "水をください。", "en": "Water, please."},
+        {"text": "とてもおいしいです。", "en": "It's very delicious."},
+        {"text": "お会計をお願いします。", "en": "The check, please."}
+      ],
+      "getting-around": [
+        {"text": "駅はどこですか。", "en": "Where is the station?"},
+        {"text": "この電車は新宿に行きますか。", "en": "Does this train go to Shinjuku?"},
+        {"text": "次の駅で降ります。", "en": "I'll get off at the next stop."},
+        {"text": "まっすぐ行って、右に曲がってください。", "en": "Go straight, then turn right."},
+        {"text": "ここから遠いですか。", "en": "Is it far from here?"},
+        {"text": "切符はどこで買えますか。", "en": "Where can I buy a ticket?"},
+        {"text": "道に迷いました。", "en": "I'm lost."}
+      ],
+      "shopping": [
+        {"text": "いくらですか。", "en": "How much is it?"},
+        {"text": "ちょっと高いですね。", "en": "That's a bit expensive."},
+        {"text": "試着してもいいですか。", "en": "May I try this on?"},
+        {"text": "もう少し安いのはありますか。", "en": "Do you have anything a bit cheaper?"},
+        {"text": "カードで払えますか。", "en": "Can I pay by card?"},
+        {"text": "袋は要りません。", "en": "I don't need a bag."},
+        {"text": "これにします。", "en": "I'll take this one."}
+      ],
+      "help": [
+        {"text": "すみません、助けてください。", "en": "Excuse me, please help me."},
+        {"text": "財布をなくしました。", "en": "I lost my wallet."},
+        {"text": "気分が悪いです。", "en": "I don't feel well."},
+        {"text": "病院はどこですか。", "en": "Where is the hospital?"},
+        {"text": "電話を貸してもらえますか。", "en": "Could I borrow a phone?"},
+        {"text": "英語がわかる人はいますか。", "en": "Is there anyone who understands English?"},
+        {"text": "ちょっと待ってください。", "en": "Please wait a moment."}
+      ]
+    },
+    "es": {
+      "greetings": [
+        {"text": "Buenos días.", "en": "Good morning."},
+        {"text": "Buenas tardes.", "en": "Good afternoon."},
+        {"text": "Buenas noches.", "en": "Good evening."},
+        {"text": "Hola, ¿cómo estás?", "en": "Hi, how are you?"},
+        {"text": "Muy bien, gracias. ¿Y tú?", "en": "Very well, thank you. And you?"},
+        {"text": "Hace mucho que no te veo.", "en": "I haven't seen you in a long time."},
+        {"text": "Hasta mañana.", "en": "See you tomorrow."},
+        {"text": "Que tengas un buen día.", "en": "Have a nice day."}
+      ],
+      "about-me": [
+        {"text": "Mucho gusto.", "en": "Nice to meet you."},
+        {"text": "Me llamo David.", "en": "My name is David."},
+        {"text": "Soy de Israel.", "en": "I'm from Israel."},
+        {"text": "Estoy aprendiendo español.", "en": "I'm learning Spanish."},
+        {"text": "Todavía hablo poco.", "en": "I still speak only a little."},
+        {"text": "Vivo en Madrid.", "en": "I live in Madrid."},
+        {"text": "Encantado de conocerte.", "en": "Delighted to meet you."}
+      ],
+      "small-talk": [
+        {"text": "Hoy hace mucho calor.", "en": "It's very hot today."},
+        {"text": "¿Qué hiciste el fin de semana?", "en": "What did you do over the weekend?"},
+        {"text": "¿Qué te gusta hacer en tu tiempo libre?", "en": "What do you like to do in your free time?"},
+        {"text": "Me encanta el cine.", "en": "I love the movies."},
+        {"text": "¿Has estado muy ocupado últimamente?", "en": "Have you been very busy lately?"},
+        {"text": "¡Qué buena idea!", "en": "What a good idea!"},
+        {"text": "Estoy un poco cansado.", "en": "I'm a little tired."}
+      ],
+      "questions": [
+        {"text": "¿Qué es esto?", "en": "What is this?"},
+        {"text": "¿Dónde está el baño?", "en": "Where is the restroom?"},
+        {"text": "¿Qué hora es?", "en": "What time is it?"},
+        {"text": "¿Puedes repetirlo, por favor?", "en": "Can you repeat that, please?"},
+        {"text": "Habla más despacio, por favor.", "en": "Please speak more slowly."},
+        {"text": "¿Hablas inglés?", "en": "Do you speak English?"},
+        {"text": "¿Qué significa esta palabra?", "en": "What does this word mean?"}
+      ],
+      "eating-out": [
+        {"text": "Una mesa para dos, por favor.", "en": "A table for two, please."},
+        {"text": "¿Me trae la carta, por favor?", "en": "Could you bring me the menu, please?"},
+        {"text": "¿Qué me recomienda?", "en": "What do you recommend?"},
+        {"text": "Quisiera esto, por favor.", "en": "I'd like this, please."},
+        {"text": "Un vaso de agua, por favor.", "en": "A glass of water, please."},
+        {"text": "Está muy rico.", "en": "It's very tasty."},
+        {"text": "La cuenta, por favor.", "en": "The check, please."}
+      ],
+      "getting-around": [
+        {"text": "¿Dónde está la estación?", "en": "Where is the station?"},
+        {"text": "¿Este tren va a Sevilla?", "en": "Does this train go to Seville?"},
+        {"text": "Me bajo en la próxima parada.", "en": "I'll get off at the next stop."},
+        {"text": "Siga recto y gire a la derecha.", "en": "Go straight, then turn right."},
+        {"text": "¿Está lejos de aquí?", "en": "Is it far from here?"},
+        {"text": "¿Dónde puedo comprar un billete?", "en": "Where can I buy a ticket?"},
+        {"text": "Estoy perdido.", "en": "I'm lost."}
+      ],
+      "shopping": [
+        {"text": "¿Cuánto cuesta?", "en": "How much does it cost?"},
+        {"text": "Es un poco caro.", "en": "It's a bit expensive."},
+        {"text": "¿Puedo probármelo?", "en": "May I try it on?"},
+        {"text": "¿Tiene algo más barato?", "en": "Do you have anything cheaper?"},
+        {"text": "¿Puedo pagar con tarjeta?", "en": "Can I pay by card?"},
+        {"text": "No necesito bolsa.", "en": "I don't need a bag."},
+        {"text": "Me lo llevo.", "en": "I'll take it."}
+      ],
+      "help": [
+        {"text": "Perdone, ¿me puede ayudar?", "en": "Excuse me, can you help me?"},
+        {"text": "He perdido mi cartera.", "en": "I've lost my wallet."},
+        {"text": "No me siento bien.", "en": "I don't feel well."},
+        {"text": "¿Dónde está el hospital?", "en": "Where is the hospital?"},
+        {"text": "¿Me puede prestar su teléfono?", "en": "Could you lend me your phone?"},
+        {"text": "¿Hay alguien que hable inglés?", "en": "Is there anyone who speaks English?"},
+        {"text": "Un momento, por favor.", "en": "One moment, please."}
+      ]
+    },
+    "en": {
+      "greetings": [
+        {"text": "Good morning."}, {"text": "Hi, how's it going?"}, {"text": "Good evening."},
+        {"text": "Long time no see."}, {"text": "How have you been?"},
+        {"text": "I'm doing well, thanks."}, {"text": "See you tomorrow."},
+        {"text": "Have a good night."}
+      ],
+      "about-me": [
+        {"text": "Nice to meet you."}, {"text": "My name is Dana."}, {"text": "I'm from Israel."},
+        {"text": "I'm learning English."}, {"text": "I only speak a little so far."},
+        {"text": "I live in Tel Aviv."}, {"text": "Pleased to meet you."}
+      ],
+      "small-talk": [
+        {"text": "It's really hot today, isn't it?"}, {"text": "What did you do over the weekend?"},
+        {"text": "What do you like to do in your free time?"}, {"text": "I love going to the movies."},
+        {"text": "Have you been busy lately?"}, {"text": "That sounds great."},
+        {"text": "I'm a little tired today."}
+      ],
+      "questions": [
+        {"text": "What is this?"}, {"text": "Where is the restroom?"}, {"text": "What time is it?"},
+        {"text": "Could you say that again?"}, {"text": "Could you speak a bit slower?"},
+        {"text": "Do you speak Hebrew?"}, {"text": "What does this word mean?"}
+      ],
+      "eating-out": [
+        {"text": "A table for two, please."}, {"text": "Could I see the menu?"},
+        {"text": "What do you recommend?"}, {"text": "I'll have this one, please."},
+        {"text": "Could I get a glass of water?"}, {"text": "This is delicious."},
+        {"text": "Could we have the check, please?"}
+      ],
+      "getting-around": [
+        {"text": "Where is the train station?"}, {"text": "Does this train go downtown?"},
+        {"text": "I'll get off at the next stop."}, {"text": "Go straight, then turn right."},
+        {"text": "Is it far from here?"}, {"text": "Where can I buy a ticket?"},
+        {"text": "I think I'm lost."}
+      ],
+      "shopping": [
+        {"text": "How much is this?"}, {"text": "That's a little expensive."},
+        {"text": "Can I try this on?"}, {"text": "Do you have anything cheaper?"},
+        {"text": "Can I pay by card?"}, {"text": "I don't need a bag, thanks."},
+        {"text": "I'll take it."}
+      ],
+      "help": [
+        {"text": "Excuse me, could you help me?"}, {"text": "I lost my wallet."},
+        {"text": "I don't feel well."}, {"text": "Where is the nearest hospital?"},
+        {"text": "Could I borrow your phone?"}, {"text": "Does anyone here speak Hebrew?"},
+        {"text": "Just a moment, please."}
+      ]
+    }
+  }
+}

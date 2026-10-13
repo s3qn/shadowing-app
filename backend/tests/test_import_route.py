@@ -279,3 +279,61 @@ def test_resolve_line_audio_stretches_an_imported_line_instead_of_synthesizing(m
     assert path.exists()
     assert len(calls) == 1
     assert not speak_called
+
+
+# --- import-file: the upload route's guards ---
+
+from fastapi import BackgroundTasks, UploadFile
+
+DEVICE = "a" * 32
+AUTH = "Bearer test-token"
+
+
+def _upload(data: bytes, name: str = "clip.mp3") -> UploadFile:
+    return UploadFile(file=io.BytesIO(data), filename=name)
+
+
+def _call(data: bytes = b"audio", **kwargs):
+    args = dict(
+        background=BackgroundTasks(), audio=_upload(data), subtitles=None, title="",
+        speaker=main.voicevox.DEFAULT_SPEAKER, language="ja", native="en", start_min=0.0,
+        authorization=AUTH, x_shadow_device=DEVICE,
+    )
+    args.update(kwargs)
+    return asyncio.run(main.create_import_island(**args))
+
+
+def test_import_route_rejects_a_negative_start():
+    with pytest.raises(HTTPException) as e:
+        _call(start_min=-1.0)
+    assert e.value.status_code == 400
+
+
+def test_import_route_rejects_language_equal_to_native():
+    with pytest.raises(HTTPException) as e:
+        _call(language="en", native="en")
+    assert e.value.status_code == 400
+
+
+def test_import_route_rejects_an_empty_upload():
+    with pytest.raises(HTTPException) as e:
+        _call(b"")
+    assert e.value.status_code == 400
+
+
+def test_import_route_rejects_an_upload_over_the_cap(monkeypatch):
+    monkeypatch.setattr(main, "IMPORT_MAX_BYTES", 4)
+    with pytest.raises(HTTPException) as e:
+        _call(b"12345")
+    assert e.value.status_code == 413
+    assert e.value.detail == {"code": "file_too_large"}
+
+
+def test_import_route_creates_an_import_island_for_the_device():
+    background = BackgroundTasks()
+    out = _call(b"audio", background=background, title="My clip")
+    island = store.get_island(out["id"])
+    assert island["source"] == "import"
+    assert island["device"] == DEVICE
+    assert island["source_name"] == "clip.mp3"
+    assert len(background.tasks) == 1

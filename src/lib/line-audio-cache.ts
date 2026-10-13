@@ -14,6 +14,8 @@
  */
 import { Directory, File, Paths } from 'expo-file-system';
 
+import { offlineLineAudio, removeDownload } from '@/lib/offline-islands'; // offline-islands
+
 /** Files kept for the session; the oldest used are deleted past this. */
 const MAX_FILES = 40;
 const MAX_CONCURRENT = 2;
@@ -54,7 +56,7 @@ function keyOf(url: string, tag: string): string {
 }
 
 // Two FNV-1a passes with different seeds: 16 hex characters for a file name.
-function hash(s: string): string {
+export function hash(s: string): string {
   let a = 0x811c9dc5;
   let b = 0x01000193 ^ 0x5bd1e995;
   for (let i = 0; i < s.length; i++) {
@@ -92,7 +94,7 @@ function evict() {
 export function localLineAudio(url: string, tag: string): string | null {
   const key = keyOf(url, tag);
   const e = ready.get(key);
-  if (!e) return null;
+  if (!e) return offlineLineAudio(url, tag); // offline-islands
   // The OS may clear the cache folder while the app runs.
   if (!e.file.exists) {
     ready.delete(key);
@@ -149,6 +151,7 @@ export function prefetchLineAudio(items: { url: string; tag: string }[]) {
   for (const { url, tag } of items) {
     const key = keyOf(url, tag);
     if (inflight.has(key) || jobs.some((j) => j.key === key)) continue;
+    if (offlineLineAudio(url, tag)) continue; // offline-islands
     const e = ready.get(key);
     if (e) {
       e.used = ++useCounter;
@@ -167,6 +170,7 @@ export function prefetchLineAudio(items: { url: string; tag: string }[]) {
  * delete. Downloads already running for it are discarded when they land.
  */
 export function invalidateLineAudio(islandId: string) {
+  removeDownload(islandId); // offline-islands: the stored audio is stale too
   epochs.set(islandId, (epochs.get(islandId) ?? 0) + 1);
   queue = queue.filter((j) => j.islandId !== islandId);
   for (const [key, e] of [...ready.entries()]) {

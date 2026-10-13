@@ -61,6 +61,21 @@ export const en = {
   'player.pauseAccessibility': 'Pause, {label}',
   'player.speedAccessibility': 'Speed, {label}',
 
+  'player.autoIslandOf': 'Island {n} of {total}',
+  'player.autoSkip': 'Skip',
+  'player.autoNext': 'Next: {title}',
+  'player.autoDoneTitle': 'Practice done',
+  // Base keys exist only so `t('player.autoShadowed', { count })` type-checks.
+  'player.autoShadowed': '{count} islands shadowed',
+  'player.autoShadowed_one': '{count} island shadowed',
+  'player.autoShadowed_two': '{count} islands shadowed',
+  'player.autoShadowed_other': '{count} islands shadowed',
+  'player.autoSkipped': '{count} skipped',
+  'player.autoSkipped_one': '{count} skipped',
+  'player.autoSkipped_two': '{count} skipped',
+  'player.autoSkipped_other': '{count} skipped',
+  'player.autoDone': 'Done',
+
   'player.autoScrollDisabled': 'Auto-scroll disabled. Tap to enable',
   'player.autoScrollEnabled': 'Auto-scroll enabled',
 };

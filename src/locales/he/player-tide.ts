@@ -62,6 +62,20 @@ export const he = {
   'player.pauseAccessibility': 'הפסקה, {label}',
   'player.speedAccessibility': 'מהירות, {label}',
 
+  'player.autoIslandOf': 'אי {n} מתוך {total}',
+  'player.autoSkip': 'דלג',
+  'player.autoNext': 'הבא: {title}',
+  'player.autoDoneTitle': 'התרגול הסתיים',
+  'player.autoShadowed': '{count} איים תורגלו',
+  'player.autoShadowed_one': 'אי אחד תורגל',
+  'player.autoShadowed_two': 'שני איים תורגלו',
+  'player.autoShadowed_other': '{count} איים תורגלו',
+  'player.autoSkipped': 'דילגת על {count}',
+  'player.autoSkipped_one': 'דילגת על אי אחד',
+  'player.autoSkipped_two': 'דילגת על שני איים',
+  'player.autoSkipped_other': 'דילגת על {count}',
+  'player.autoDone': 'סיום',
+
   'player.autoScrollDisabled': 'גלילה אוטומטית כבויה. הקשה כדי להפעיל',
   'player.autoScrollEnabled': 'גלילה אוטומטית פעילה',
 } satisfies Record<keyof typeof enPlayerTide, string>;

@@ -29,6 +29,7 @@ import { fonts } from '@/constants/fonts';
 import { prism, tide, withAlpha } from '@/constants/theme';
 import { useDir, useT } from '@/lib/i18n';
 import type { Mora, NativeLanguage, TakeAnalysis } from '@/lib/api';
+import type { AutoChain } from '@/lib/auto-practice';
 import {
   COUNT_IN_BEAT_MS,
   helpPassOf,
@@ -129,6 +130,10 @@ type AutoEchoSheetProps = {
   onRecord: () => void;
   onStop: () => void;
   onRetry: () => void;
+  /** The auto practice chain this sheet is part of, or null/absent for a normal run. */
+  auto?: AutoChain | null;
+  onSkip?: () => void;
+  onDone?: () => void;
 };
 
 /**
@@ -224,6 +229,9 @@ function AutoEchoSheetBase({
   onRecord,
   onStop,
   onRetry,
+  auto = null,
+  onSkip,
+  onDone,
 }: AutoEchoSheetProps) {
   const reducedMotion = useReducedMotion();
   const { t } = useT();
@@ -236,7 +244,7 @@ function AutoEchoSheetBase({
   // of the cut so the old rows fall with the old words on them. Only a change
   // of pass animates: Record to Stop inside one pass swaps straight away, so
   // the control is never missing at the moment it is wanted.
-  const [shown, setShown] = useState<{ step: PassStep; index: number }>({ step, index: passIndex });
+  const [shown, setShown] = useState<{ step: PassStep; index: number; end: boolean }>({ step, index: passIndex, end: !!auto?.end });
   const shownRef = useRef(shown);
 
   const rise = Math.round(width * RISE_FRACTION);
@@ -259,8 +267,8 @@ function AutoEchoSheetBase({
 
   useEffect(() => {
     const ys = [y0, y1, y2, y3, y4];
-    const next = { step, index: passIndex };
-    const samePass = passIndex === shownRef.current.index;
+    const next = { step, index: passIndex, end: !!auto?.end };
+    const samePass = passIndex === shownRef.current.index && next.end === shownRef.current.end;
     if (samePass || reducedMotion || !open) {
       if (swapTimer.current !== null) {
         clearTimeout(swapTimer.current);
@@ -281,7 +289,7 @@ function AutoEchoSheetBase({
       riseRows(ys, phase, rise);
     }, SWAP_MS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, passIndex, reducedMotion, open, rise, fall]);
+  }, [step, passIndex, auto?.end, reducedMotion, open, rise, fall]);
 
   useEffect(
     () => () => {
@@ -359,14 +367,35 @@ function AutoEchoSheetBase({
     if (!open) setHelpOpen(false);
   }, [open]);
 
+  // auto-practice: the chain's progress line and the end summary.
+  const autoHint = !auto
+    ? undefined
+    : auto.end
+      ? t('player.autoDoneTitle')
+      : auto.next !== null
+        ? t('player.autoNext', { title: auto.next })
+        : t('player.autoIslandOf', { n: auto.at + 1, total: auto.total });
+  const summary = auto?.end ?? null;
+
   return (
     <BottomSheet
       open={open}
       onClose={onClose}
       onDismissed={onDismissed}
-      title={t(programme === 'ladder' ? 'player.ladder' : 'player.autoEcho')}>
+      title={t(programme === 'ladder' ? 'player.ladder' : 'player.autoEcho')}
+      hint={autoHint}>
       <View style={helpOpen ? styles.hidden : undefined}>
-        {helpPass === null ? null : (
+        {auto && !auto.end && onSkip ? (
+          <PressScale
+            onPress={onSkip}
+            accessibilityRole="button"
+            accessibilityLabel={t('player.autoSkip')}
+            style={[styles.skip, dir.rtl ? styles.skipEnd : styles.skipStart, dir.row]}>
+            <Text style={styles.skipLabel}>{t('player.autoSkip')}</Text>
+            <SymbolView name={{ ios: 'forward.end', android: 'skip_next' }} size={14} weight="regular" tintColor={tide.textDim} />
+          </PressScale>
+        ) : null}
+        {helpPass === null || auto?.end ? null : (
           <PressScale
             onPress={() => setHelpOpen(true)}
             accessibilityRole="button"
@@ -397,6 +426,11 @@ function AutoEchoSheetBase({
               fringe, and withholds the lip, the shadow and any press state,
               because it says where you are rather than offering a tap. */}
           <Animated.View style={rowStyles[0]}>
+            {shown.end && summary ? (
+              <View style={styles.summaryTitleRow}>
+                <Text style={styles.summaryTitle}>{t('player.autoDoneTitle')}</Text>
+              </View>
+            ) : (
             <View style={styles.rail}>
               <BlurView style={StyleSheet.absoluteFill} intensity={prism.blur.intensity} tint={prism.blur.tint} />
               <View style={[StyleSheet.absoluteFill, styles.railFill]} />
@@ -456,10 +490,13 @@ function AutoEchoSheetBase({
                 ))}
               </View>
             </View>
+            )}
           </Animated.View>
 
           <Animated.View style={[styles.passLine, dir.row, rowStyles[1]]}>
-            {shownPass ? (
+            {shown.end && summary ? (
+              <Text style={styles.summaryLine}>{t('player.autoShadowed', { count: summary.shadowed })}</Text>
+            ) : shownPass ? (
               <>
                 <View style={[styles.passDot, { backgroundColor: passColour, shadowColor: passColour }]} />
                 <Text style={[styles.passName, { color: passColour }]}>{t(shownPass.labelKey)}</Text>
@@ -470,17 +507,35 @@ function AutoEchoSheetBase({
           </Animated.View>
 
           <Animated.View style={[styles.guideRow, dir.row, rowStyles[2]]}>
-            <Text style={[styles.guide, dir.text]}>{t(hintKeyOf(shown.step, programme))}</Text>
-            {shown.step === 'echo' && countdown !== null ? <Text style={styles.countdown}>{countdown}</Text> : null}
+            {shown.end && summary ? (
+              <Text style={[styles.guide, dir.text]}>
+                {[t('home.minutes', { count: summary.minutes }), summary.skipped > 0 ? t('player.autoSkipped', { count: summary.skipped }) : null]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+            ) : (
+              <Text style={[styles.guide, dir.text]}>{t(hintKeyOf(shown.step, programme))}</Text>
+            )}
+            {!shown.end && shown.step === 'echo' && countdown !== null ? <Text style={styles.countdown}>{countdown}</Text> : null}
           </Animated.View>
 
           <Animated.View style={[styles.resultRow, rowStyles[3]]}>
-            {speaking ? <VoiceRipples level={level} /> : null}
-            <SparkleResult result={result} />
+            {shown.end ? null : speaking ? <VoiceRipples level={level} /> : null}
+            {shown.end ? null : <SparkleResult result={result} />}
           </Animated.View>
 
           <Animated.View style={[styles.controlRow, dir.row, rowStyles[4]]}>
-            {shown.step === 'idle' || shown.step === 'done' ? (
+            {shown.end && onDone ? (
+              <PressScale
+                onPress={onDone}
+                accessibilityRole="button"
+                accessibilityLabel={t('player.autoDone')}
+                style={[styles.pill, { backgroundColor: tide.lang.ja }]}>
+                <Text style={styles.pillLabel}>{t('player.autoDone')}</Text>
+              </PressScale>
+            ) : null}
+            {/* auto-practice: no Start again while the hold moves on to the next island. */}
+            {shown.end || auto?.next ? null : shown.step === 'idle' || shown.step === 'done' ? (
               <PressScale
                 onPress={onStart}
                 accessibilityRole="button"
@@ -489,7 +544,7 @@ function AutoEchoSheetBase({
                 <Text style={styles.pillLabel}>{shown.step === 'idle' ? t('player.start') : t('player.startAgain')}</Text>
               </PressScale>
             ) : null}
-            {armed ? (
+            {!shown.end && armed ? (
               <PressScale
                 onPress={onRecord}
                 accessibilityRole="button"
@@ -505,7 +560,7 @@ function AutoEchoSheetBase({
                 )}
               </PressScale>
             ) : null}
-            {speaking && !stopping ? (
+            {!shown.end && speaking && !stopping ? (
               <>
                 <PressScale onPress={onStop} accessibilityRole="button" accessibilityLabel={t('player.stop')} style={[styles.round, styles.recordRound]}>
                   <View style={styles.stopSquare} />
@@ -515,16 +570,18 @@ function AutoEchoSheetBase({
                 </PressScale>
               </>
             ) : null}
-            {speaking ? <LevelBars level={level} live /> : null}
+            {!shown.end && speaking ? <LevelBars level={level} live /> : null}
           </Animated.View>
         </View>
 
-        <SheetToggle
-          label={t('player.autoEchoToggle')}
-          value={autoEcho}
-          onValueChange={onToggleAutoEcho}
-          icon={{ ios: 'forward.end', android: 'skip_next' }}
-        />
+        {auto ? null : (
+          <SheetToggle
+            label={t('player.autoEchoToggle')}
+            value={autoEcho}
+            onValueChange={onToggleAutoEcho}
+            icon={{ ios: 'forward.end', android: 'skip_next' }}
+          />
+        )}
         <SheetToggle
           label={t('player.autoRecordToggle')}
           value={autoRecord}
@@ -569,6 +626,14 @@ const styles = StyleSheet.create({
   help: { position: 'absolute', top: -6, width: 36, height: 36, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
   helpEnd: { right: -8 },
   helpStart: { left: -8 },
+  // auto-practice: Skip mirrors the help icon at the top-start corner.
+  skip: { position: 'absolute', top: -6, height: 36, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', gap: 4, zIndex: 2 },
+  skipStart: { left: -8 },
+  skipEnd: { right: -8 },
+  skipLabel: { fontFamily: fonts.uiMedium, fontSize: 13, color: tide.textDim },
+  summaryTitleRow: { height: RAIL_HEIGHT, justifyContent: 'center' },
+  summaryTitle: { fontFamily: fonts.uiMedium, fontSize: 16, color: tide.text },
+  summaryLine: { fontFamily: fonts.ui, fontSize: 14, color: tide.text },
   helpBody: { gap: 16, paddingTop: 4, paddingBottom: 8 },
   helpAction: { alignItems: 'center' },
   // The upper zone. minHeight keeps room for the sentence even when Blind

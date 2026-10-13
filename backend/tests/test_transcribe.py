@@ -127,3 +127,29 @@ def test_model_load_failure_is_not_ok_and_does_not_raise(monkeypatch, audio_path
 
     monkeypatch.setattr(transcribe, "_get_model", boom)
     assert transcribe.transcribe(audio_path)["ok"] is False
+
+
+def test_words_are_snapped_to_pauses(fake_model, audio_path, monkeypatch):
+    import faster_whisper.audio
+
+    monkeypatch.setattr(faster_whisper.audio, "decode_audio", lambda *a, **k: [0.0])
+    monkeypatch.setattr(transcribe.pauses, "find_pauses", lambda *a, **k: [(0.45, 0.55)])
+    result = transcribe.transcribe(audio_path, language="ja", word_timestamps=True)
+
+    assert result["words"][1]["start"] == 0.55
+    assert result["words"][0]["end"] == 0.45
+    assert result["segments"][0]["words"][1]["start"] == 0.55
+
+
+def test_decode_failure_leaves_words_unchanged(fake_model, audio_path, monkeypatch):
+    import faster_whisper.audio
+
+    def boom(*a, **k):
+        raise RuntimeError("bad audio")
+
+    monkeypatch.setattr(faster_whisper.audio, "decode_audio", boom)
+    result = transcribe.transcribe(audio_path, language="ja", word_timestamps=True)
+
+    assert result["ok"] is True
+    assert result["words"][1]["start"] == 0.5
+    assert result["words"][0]["end"] == 0.5

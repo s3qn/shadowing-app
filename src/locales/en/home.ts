@@ -19,6 +19,8 @@ export const en = {
   'home.untitledIsland': 'Untitled island',
   'home.failed': 'Failed',
   'home.dueToday': 'Due today',
+  'home.autoPractice': 'Practice today',
+  'home.autoPracticeNone': 'Nothing due today',
   // Base keys exist only so `t('home.lines', { count })` type-checks: the
   // plural suffix always wins at runtime once `count` is passed (see
   // `pluralSuffix` in `src/lib/i18n.ts`).
@@ -41,6 +43,16 @@ export const en = {
   'home.renameFailedTitle': 'Could not rename',
   'home.save': 'Save',
   'home.rename': 'Rename',
+  'home.download': 'Download',
+  'home.downloading': 'Downloading {done} of {total}',
+  'home.downloaded': 'Downloaded · {size}',
+  'home.downloadFailed': 'Download failed, tap to retry',
+  'home.downloadStopTitle': 'Stop download?',
+  'home.downloadKeepGoing': 'Keep going',
+  'home.downloadStop': 'Stop',
+  'home.downloadRemoveTitle': 'Remove download?',
+  'home.downloadRemoveBody': 'The island stays on the server. Your takes on this phone are kept.',
+  'home.downloadRemove': 'Remove',
   'home.deleteIsland': 'Delete island',
 
   // Practice card
@@ -79,4 +91,17 @@ export const en = {
   'home.episodesFeedError': 'The feed could not be loaded.',
   'home.episodeFallbackTitle': 'Podcast episode',
   'home.untitledEpisode': 'Untitled episode',
+
+  // Add-island sheet and ready-made phrases
+  'home.addTitle': 'Add an island',
+  'home.add.record': 'Record',
+  'home.add.phrases': 'Phrases',
+  'home.noIslandsHint': 'Tap + to record, pick ready-made phrases, or import audio.',
+  'home.phrasesTitle': 'Phrases',
+  'home.phrasesError': 'The phrases could not be loaded.',
+  'home.phrasesCount': '{count} phrases',
+  'home.phrasesCount_one': '{count} phrase',
+  'home.phrasesCount_two': '{count} phrases',
+  'home.phrasesCount_other': '{count} phrases',
+  'home.phrasesBuildHint': 'This takes under a minute. You can close this screen, the island keeps building and appears in your list when it is ready.',
 };

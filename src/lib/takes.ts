@@ -364,6 +364,31 @@ export function findFirstTake(islandId: string, idx: number): ThenTake | null {
   }
 }
 
+/**
+ * Indices of every line that has a kept first take, sorted. The one place
+ * that lists `first/` for a whole island. Never throws.
+ */
+export function firstTakeIndices(islandId: string, lineCount: number): number[] {
+  try {
+    const dir = firstTakeDir(islandId);
+    if (!dir.exists) return [];
+    const found = new Set<number>();
+    for (const entry of dir.list()) {
+      if (!(entry instanceof File)) continue;
+      const name = entry.name;
+      if (name.endsWith('.clean.wav')) continue;
+      if (!name.endsWith('.wav') && !name.endsWith('.m4a')) continue;
+      const dash = name.indexOf('-');
+      if (dash <= 0) continue;
+      const idx = Number(name.slice(0, dash));
+      if (Number.isInteger(idx) && idx >= 0 && idx < lineCount) found.add(idx);
+    }
+    return [...found].sort((a, b) => a - b);
+  } catch {
+    return [];
+  }
+}
+
 /** Write a take's timing score beside its own wav, wherever that wav now lives. */
 export function saveTakeScore(islandId: string, idx: number, recordedAt: number, score: TakeScore): void {
   const dir = takeHome(islandId, idx, recordedAt);

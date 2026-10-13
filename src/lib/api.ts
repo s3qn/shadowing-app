@@ -109,6 +109,10 @@ export type Island = IslandSummary & {
   speaker: number;
   transcript: string;
   lines: Line[];
+  /** How the island was made. Only a recorded ('voice') island can be
+   * re-voiced or regenerated. Absent in a local copy saved before the client
+   * read it. */
+  source?: 'voice' | 'phrases' | 'import' | 'podcast';
 };
 
 /** Why an island failed, in the reader's language. Falls back to the English
@@ -420,6 +424,19 @@ export async function gloss(word: string): Promise<Gloss> {
   return out;
 }
 
+/** Every word's meanings for one island in a single request, for the offline
+ * download. Returns {} on any failure (an older backend has no such route), so
+ * a download still completes without meanings. */
+export async function offlineGlosses(id: string): Promise<Record<string, Gloss>> {
+  try {
+    const res = await fetch(`${BASE}/islands/${id}/glosses`, { headers: headers() });
+    if (!res.ok) return {};
+    return (await res.json()) as Record<string, Gloss>;
+  } catch {
+    return {};
+  }
+}
+
 /** How a word functions in the particular sentence it was tapped in. Cached
  * server side, keyed on (word, sentence). Empty string means the backend
  * tried and had nothing to say, not a failure the caller needs to surface. */
@@ -668,4 +685,65 @@ export function cleanTakeUrl(islandId: string, idx: number, version: number): st
 /** Deletes the signed-in account and its server data. */
 export async function deleteAccount(): Promise<void> {
   await json<unknown>(await fetch(`${BASE}/account`, { method: 'DELETE', headers: headers() }));
+}
+
+// --- phrase-islands ---
+export type PhraseTopic = { id: string; title: string; count: number; sample: string };
+export type PhraseCatalog = { topics: PhraseTopic[] };
+
+/** The ready-made phrase topics for a learning language, titled in `ui`. */
+export async function phraseCatalog(language: Language, ui: string): Promise<PhraseCatalog> {
+  return json<PhraseCatalog>(
+    await fetch(`${BASE}/phrases/catalog?language=${encodeURIComponent(language)}&ui=${encodeURIComponent(ui)}`, {
+      headers: headers(),
+    }),
+  );
+}
+
+/** Add a phrase topic as an island. A repeat pick returns the existing island. Poll getIsland until ready. */
+export async function importPhrases(
+  topic: string,
+  speaker: number,
+  language: Language = 'ja',
+  native: NativeLanguage = 'en',
+): Promise<{ id: string }> {
+  const form = new FormData();
+  form.append('topic', topic);
+  form.append('speaker', String(speaker));
+  form.append('language', language);
+  form.append('native', native);
+
+  return json<{ id: string }>(
+    await expoFetch(`${BASE}/phrases/import`, { method: 'POST', headers: headers(), body: form }),
+  );
+}
+
+// --- import-file ---
+/**
+ * Import an audio file (and an optional .srt) as an island that plays the
+ * original audio, sliced per line. Returns as soon as the file is accepted;
+ * poll getIsland after this, same as createIsland. An empty title makes the
+ * backend use the file name.
+ */
+export async function importIsland(
+  audioUri: string,
+  srtUri: string | null,
+  title: string,
+  speaker: number,
+  language: Language = 'ja',
+  native: NativeLanguage = 'en',
+  startMin = 0,
+): Promise<{ id: string }> {
+  const form = new FormData();
+  form.append('audio', new File(audioUri), audioUri.split('/').pop() || 'audio');
+  if (srtUri) form.append('subtitles', new File(srtUri), srtUri.split('/').pop() || 'subtitles.srt');
+  form.append('title', title);
+  form.append('speaker', String(speaker));
+  form.append('language', language);
+  form.append('native', native);
+  form.append('start_min', String(startMin));
+
+  return json<{ id: string }>(
+    await expoFetch(`${BASE}/islands/import`, { method: 'POST', headers: headers(), body: form }),
+  );
 }

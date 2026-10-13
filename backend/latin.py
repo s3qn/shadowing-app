@@ -12,6 +12,13 @@ import unicodedata
 
 log = logging.getLogger(__name__)
 
+# Whisper sometimes returns zero-length pieces for words it could not time. A
+# piece shorter than this is an artefact, not a time, and does not anchor.
+MIN_PIECE_S = 0.04
+# A real word has far more than this per letter. A run of unanchored tokens
+# squeezed below it means the anchors around it swallowed its time.
+MIN_CHAR_S = 0.03
+
 
 def split_words(text: str) -> list[str]:
     """Split on whitespace; punctuation stays attached to its word, same as
@@ -66,7 +73,7 @@ def align(text: str, pieces: list[dict], duration: float) -> list[dict]:
                     piece = pieces[b + k]
                     s = max(0.0, min(duration, piece["start"]))
                     e = max(0.0, min(duration, piece["end"]))
-                    if e <= s:
+                    if e - s < MIN_PIECE_S:
                         continue
                     i = a + k
                     starts[i] = s if starts[i] is None else min(starts[i], s)
@@ -76,6 +83,33 @@ def align(text: str, pieces: list[dict], duration: float) -> list[dict]:
             None if starts[i] is None else [starts[i], ends[i]] for i in range(len(tokens))
         ]
         weights = [len(t) or 1 for t in tokens]
+
+        # A run squeezed into a sliver means its bounding anchors are wrong:
+        # drop them and look again, until no run is squeezed.
+        for _ in range(len(tokens)):
+            changed = False
+            i = 0
+            while i < len(tokens):
+                if spans[i] is not None:
+                    i += 1
+                    continue
+                j = i
+                while j < len(tokens) and spans[j] is None:
+                    j += 1
+                lo = spans[i - 1][1] if i > 0 else 0.0
+                hi = spans[j][0] if j < len(tokens) else duration
+                if hi - lo < MIN_CHAR_S * sum(weights[i:j]):
+                    if i > 0:
+                        spans[i - 1] = None
+                        changed = True
+                    if j < len(tokens):
+                        spans[j] = None
+                        changed = True
+                    if changed:
+                        break
+                i = j
+            if not changed:
+                break
 
         # Fill each run of unanchored tokens proportionally to character
         # count, between whichever anchors (or the line's edges) bound it.

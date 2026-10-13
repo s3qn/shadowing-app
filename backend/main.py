@@ -51,6 +51,7 @@ import gloss as glossary
 import kokoro_tts
 import latin
 import podcast
+import phrase_catalog
 import podcast_catalog
 import schedule
 import segment
@@ -1393,6 +1394,8 @@ async def regenerate(
     if complexity not in generate.COMPLEXITY_RULES:
         raise HTTPException(400, "complexity must be 'simple' or 'complex'")
     island = await asyncio.to_thread(_own_island, island_id, device)
+    if island["source"] == "phrases":
+        raise HTTPException(409, "a phrase island has no recording to rewrite from")
     if island["source"] != "voice":
         raise HTTPException(409, "regenerate is only for a recorded island")
 
@@ -1794,3 +1797,127 @@ class DeviceGuard:
 
 
 app.add_middleware(DeviceGuard)
+
+
+# --- phrase-islands ---
+@app.get("/shadow/phrases/catalog")
+def phrases_catalog(language: str, ui: str = "en",
+                    authorization: str | None = Header(None)) -> dict:
+    """The ready-made phrase topics for one learning language."""
+    require_token(authorization)
+    try:
+        return phrase_catalog.catalog(language, ui)
+    except KeyError:
+        raise HTTPException(404, f"no phrase catalog for language: {language}")
+
+
+async def _build_phrases(island_id: str, texts: list[str], glosses: list[str], title: str,
+                         speaker: int, language: str, native: str) -> None:
+    """Voice a catalogue topic. No recording and no transcription: the lines
+    are the catalogue's own phrases. A translator failure only costs the
+    native text, the island still becomes ready."""
+    try:
+        store.set_stage(island_id, "speaking")
+        translations = glosses
+        if native != "en":
+            try:
+                translations = await asyncio.to_thread(
+                    generate.translate_lines, texts, language, native
+                )
+            except Exception:
+                log.exception("island %s: phrase translation failed", island_id)
+                translations = []
+        lines = []
+        for i, text in enumerate(texts):
+            gloss = translations[i] if i < len(translations) else ""
+            kana = await asyncio.to_thread(segment.reading, text) if language == "ja" else ""
+            lines.append({"ja": text, "kana": kana, "romaji": "", "en": gloss or ""})
+        made = await _synthesize_lines(island_id, lines, speaker, language)
+        if made == 0:
+            store.set_failed(island_id, "The voice engine produced no audio.", "voice_no_audio")
+            return
+        store.set_ready(island_id, title)
+        log.info("island %s ready: %d phrase lines", island_id, made)
+    except Exception as exc:
+        log.exception("island %s failed", island_id)
+        store.set_failed(island_id, str(exc))
+
+
+@app.post("/shadow/phrases/import")
+async def import_phrases(
+    background: BackgroundTasks,
+    topic: str = Form(...),
+    speaker: int = Form(voicevox.DEFAULT_SPEAKER),
+    language: str = Form("ja"),
+    native: str = Form("en"),
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    """Add a catalogue topic as an island. Not counted against the daily
+    create limit (no claude generation); a repeat pick returns the island
+    that already exists."""
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    if language not in ("ja", "es", "en"):
+        raise HTTPException(400, "language must be 'ja', 'es' or 'en'")
+    if native not in ("he", "en"):
+        raise HTTPException(400, "native must be 'he' or 'en'")
+    if language == native:
+        raise HTTPException(400, "the learning language must differ from the native one")
+    if voices.language_for(speaker) != language:
+        raise HTTPException(400, "that voice does not speak the chosen language")
+    try:
+        entries = phrase_catalog.phrases(language, topic)
+        island_title = phrase_catalog.title(topic, native)
+    except KeyError:
+        raise HTTPException(404, f"no such phrase topic: {topic}")
+
+    for existing in store.list_islands(device):
+        if (
+            existing["source"] == "phrases"
+            and existing["language"] == language
+            and existing["status"] != "failed"
+            and store.get_island(existing["id"])["source_name"] == topic
+        ):
+            return {"id": existing["id"], "status": existing["status"]}
+
+    island_id = store.create_island(
+        "simple", speaker, language=language, native=native, source="phrases",
+        source_name=topic, device=device,
+    )
+    background.add_task(
+        _build_phrases, island_id, [e["text"] for e in entries],
+        [e.get("en", "") if native == "en" else "" for e in entries],
+        island_title, speaker, language, native,
+    )
+    return {"id": island_id, "status": "pending"}
+
+
+# --- offline-islands ---
+
+
+@app.get("/shadow/islands/{island_id}/glosses")
+async def island_glosses(island_id: str, authorization: str | None = Header(None),
+                         x_shadow_device: str = Header("")) -> dict:
+    """The meanings of every word in a Japanese island, keyed by the word as
+    the word-audio route cleans it. Lets the phone store them for offline
+    use in one request instead of one per word. Other languages have no
+    glosses and return {}."""
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    island = await asyncio.to_thread(_own_island, island_id, device)
+    if island.get("language", "ja") != "ja":
+        return {}
+    words: list[str] = []
+    seen: set[str] = set()
+    for line in island.get("lines", []):
+        for w in line.get("words") or []:
+            clean = (w.get("text") or "").strip(WORD_STRIP)
+            if clean and clean not in seen:
+                seen.add(clean)
+                words.append(clean)
+
+    def _all() -> dict:
+        return {w: glossary.gloss(w) for w in words}
+
+    return await asyncio.to_thread(_all)
