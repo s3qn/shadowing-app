@@ -60,10 +60,33 @@ import transcribe
 import voicevox
 import voices
 
+# --- sign-in ---
+import accounts
+
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s"
 )
 log = logging.getLogger("shadow")
+
+
+class RedactAccessLog(logging.Filter):
+    """Blanks the `user=` (a Supabase JWT) and `token=` query values in
+    uvicorn's access log lines, so the log never holds a usable credential."""
+
+    _SECRET = re.compile(r"([?&](?:user|token)=)[^&\s\"]*")
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(
+                self._SECRET.sub(r"\1REDACTED", a) if isinstance(a, str) else a
+                for a in record.args
+            )
+        if isinstance(record.msg, str):
+            record.msg = self._SECRET.sub(r"\1REDACTED", record.msg)
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(RedactAccessLog())
 
 SHADOW_TOKEN = os.getenv("SHADOW_TOKEN", "")
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
@@ -973,7 +996,8 @@ LEGACY_TAKE_PROFILE = "default"
 
 def _take_profile_name(device: str) -> str:
     """The profile file name for `device`. Safe as a file name only because
-    `_require_device` has already matched the id against DEVICE_ID_RE."""
+    `_require_device` has already matched the id against DEVICE_ID_RE or
+    USER_RE."""
     return f"dev-{device}"
 
 
@@ -1593,6 +1617,32 @@ async def podcasts_search(q: str, language: str,
     return {"results": results}
 
 
+# --- sign-in ---
+def _erase_owner(owner: str) -> None:
+    for island in store.list_islands(owner):
+        store.delete_island(island["id"])
+    store.delete_owner_rows(owner)
+    schedule.delete_owner(owner)
+    import aec
+
+    (aec.AEC_DIR / f"{_take_profile_name(owner)}.npz").unlink(missing_ok=True)
+
+
+@app.delete("/shadow/account")
+async def delete_account(
+    authorization: str = Header(default=""),
+    x_shadow_device: str = Header(default=""),
+):
+    require_token(authorization)
+    principal = _require_device(x_shadow_device)
+    if not accounts.is_user(principal):
+        raise HTTPException(401, "sign-in required")
+    accounts.require_delete_configured()
+    await asyncio.to_thread(_erase_owner, principal)
+    await asyncio.to_thread(accounts.delete_auth_user, accounts.sub_of(principal))
+    return {"ok": True}
+
+
 # device-scope: helpers
 #
 # Every phone gets an anonymous id (client-side, src/lib/device.ts) and sends
@@ -1614,7 +1664,7 @@ def _require_device(x_shadow_device: str, device_q: str = "") -> str:
     device = x_shadow_device or device_q
     if not device:
         raise HTTPException(401, "missing device id")
-    if not DEVICE_ID_RE.match(device):
+    if not (DEVICE_ID_RE.match(device) or accounts.USER_RE.match(device)):
         raise HTTPException(401, "bad device id")
     return device
 
@@ -1672,6 +1722,26 @@ def _take_build_slot(device: str, kind: str) -> None:
     store.log_build(device, kind)
 
 
+# --- privacy-pages ---
+_STATIC_DIR = Path(__file__).parent / "static"
+_HOME_HTML = (_STATIC_DIR / "index.html").read_bytes()
+_PRIVACY_HTML = (_STATIC_DIR / "privacy.html").read_bytes()
+
+
+@app.get("/shadow/")
+@app.get("/shadow")
+def home_page() -> Response:
+    return Response(_HOME_HTML, media_type="text/html; charset=utf-8")
+
+
+@app.get("/shadow/privacy")
+def privacy_page() -> Response:
+    return Response(_PRIVACY_HTML, media_type="text/html; charset=utf-8")
+
+
+PUBLIC_PATHS = ("/health", "/shadow/health", "/shadow", "/shadow/", "/shadow/privacy")
+
+
 # device-scope: middleware
 class DeviceGuard:
     """Pure ASGI middleware, not BaseHTTPMiddleware: background tasks and
@@ -1687,15 +1757,36 @@ class DeviceGuard:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
-        if scope["method"] == "OPTIONS" or scope["path"] in ("/health", "/shadow/health"):
+        if scope["method"] == "OPTIONS" or scope["path"] in PUBLIC_PATHS:
             await self.app(scope, receive, send)
             return
         headers = dict(scope["headers"])
+        query = parse_qs(scope["query_string"].decode("latin-1"))
         device = headers.get(b"x-shadow-device", b"").decode("latin-1")
         if not device:
-            query = parse_qs(scope["query_string"].decode("latin-1"))
             device = (query.get("device") or [""])[0]
-        if not DEVICE_ID_RE.match(device):
+        # --- sign-in: a user principal comes only from a verified JWT ---
+        sent = [v.decode("latin-1") for k, v in scope["headers"] if k == b"x-shadow-device"]
+        sent += query.get("device", [])
+        if any(d.lower().startswith(accounts.USER_PREFIX) for d in sent):
+            response = JSONResponse({"detail": "bad device id"}, status_code=401)
+            await response(scope, receive, send)
+            return
+        user_token = headers.get(b"x-shadow-user", b"").decode("latin-1")
+        if not user_token:
+            user_token = (query.get("user") or [""])[0]
+        if user_token:
+            try:
+                sub = await asyncio.to_thread(accounts.verify, user_token)
+            except accounts.BadToken:
+                response = JSONResponse({"detail": "bad user token"}, status_code=401)
+                await response(scope, receive, send)
+                return
+            kept = [(k, v) for k, v in scope["headers"] if k != b"x-shadow-device"]
+            kept.append((b"x-shadow-device", accounts.principal(sub).encode()))
+            scope["headers"] = kept
+        # --- end sign-in ---
+        elif not DEVICE_ID_RE.match(device):
             response = JSONResponse({"detail": "missing device id"}, status_code=401)
             await response(scope, receive, send)
             return

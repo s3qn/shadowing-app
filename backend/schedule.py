@@ -134,6 +134,12 @@ def claim_unowned(device: str) -> int:
         return n
 
 
+def delete_owner(device: str) -> None:
+    with connect() as conn:
+        conn.execute("DELETE FROM practice_events WHERE device=?", (device,))
+        conn.execute("DELETE FROM schedule_state WHERE device=?", (device,))
+
+
 router = APIRouter(prefix="/shadow/schedule")
 
 

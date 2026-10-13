@@ -10,3 +10,4 @@ janome==0.5.0
 jamdict
 jamdict-data
 kokoro-onnx==0.6.1
+PyJWT[crypto]==2.10.1

@@ -200,6 +200,10 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Schedule: an island moves up the schedule at most once a day.
 - Practice sheet rebuilt to its chosen design; a building island on Home
   lights its constellation stage by stage.
+- Sign-in with Apple and Google (Supabase), required, with sign out and
+  delete account
+- Home page and privacy policy at shadow.sean.build/shadow/ and
+  /shadow/privacy
 
 ## Next (approved, in order)
 

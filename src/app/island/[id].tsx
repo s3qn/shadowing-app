@@ -1247,10 +1247,11 @@ export default function IslandScreen() {
     if (!first) resetHighlight();
     // A downloaded file loads at once; a remote URL makes iOS build the item
     // on the main thread while it waits on the network. Everything else here
-    // (loadedUri, kickUri, finishUri) keeps the logical URL, not the file.
+    // (loadedUri, kickUri, finishUri) keeps the logical URL, not the file,
+    // and the logical URL has no access token, so a refresh is not a swap.
     const local = line ? localLineAudio(sourceUri, line.ja) : null;
     try {
-      player.replace({ uri: local ?? sourceUri });
+      player.replace({ uri: local ?? api.withUser(sourceUri) });
     } catch {
       // The screen is unmounting and the player is already released.
       return;
@@ -1288,13 +1289,13 @@ export default function IslandScreen() {
       const version = `${island.speaker}-${generation}`;
       const items = [...new Set(order)].map((i) => {
         const l = island.lines[i]!;
-        return { url: api.lineAudioUrl(island.id, l.idx, version, speed, breathMs), tag: l.ja };
+        return { url: api.withUser(api.lineAudioUrl(island.id, l.idx, version, speed, breathMs)), tag: l.ja };
       });
       const easy = passSpeed(speed, 'ladderListen');
       if (warmLadderListen && easy !== speed) {
         const l = island.lines[idx]!;
         items.unshift({
-          url: api.lineAudioUrl(island.id, l.idx, version, easy, breathMs),
+          url: api.withUser(api.lineAudioUrl(island.id, l.idx, version, easy, breathMs)),
           tag: l.ja,
         });
       }

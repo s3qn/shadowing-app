@@ -416,6 +416,11 @@ def log_build(device: str, kind: str) -> None:
         )
 
 
+def delete_owner_rows(device: str) -> None:
+    with connect() as conn:
+        conn.execute("DELETE FROM builds WHERE device=?", (device,))
+
+
 def line_audio_path(island_id: str, idx: int) -> Path:
     return AUDIO_DIR / island_id / f"{idx}.wav"
 

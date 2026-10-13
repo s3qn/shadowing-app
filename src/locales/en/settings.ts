@@ -220,4 +220,23 @@ export const en = {
   'settings.onboarding.voiceLane': 'voice',
   'settings.onboarding.youLane': 'you',
   'settings.onboarding.keptUp': '10 of 12 kept up',
+
+  // Account: sign-in step, Settings section.
+  'settings.section.account': 'Account',
+  'settings.account.kicker': 'Account',
+  'settings.account.title': 'Keep your islands safe',
+  'settings.account.body': 'Your recordings and progress follow you to a new phone.',
+  'settings.account.apple': 'Continue with Apple',
+  'settings.account.google': 'Continue with Google',
+  'settings.account.privacyLine': 'Your voice recordings stay private to your account.',
+  'settings.account.signingIn': 'Signing in',
+  'settings.account.failed': 'Sign-in did not finish. Try again.',
+  'settings.account.expoGo': 'Expo Go: continue without an account',
+  'settings.account.signedInWith': 'Signed in with {provider}',
+  'settings.account.deleteTitle': 'Delete your account?',
+  'settings.account.deleteBody':
+    'This deletes your account, every island you built and all recordings on the server. It cannot be undone.',
+  'settings.account.deleteConfirm': 'Delete',
+  'settings.row.signOut': 'Sign out',
+  'settings.row.deleteAccount': 'Delete account',
 };

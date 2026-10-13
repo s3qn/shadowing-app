@@ -71,4 +71,7 @@ export const he = {
   'islandError.no_subtitles_in_range': 'לא נמצאו כתוביות בטווח הזה.',
   'islandError.episode_download_failed': 'הורדת הפרק נכשלה.',
   'islandError.unknown': 'משהו השתבש.',
+
+  'api.account_delete_unavailable': 'מחיקת חשבון עדיין לא הוגדרה בשרת.',
+  'api.account_delete_failed': 'לא ניתן היה למחוק את החשבון. נסו שוב מאוחר יותר.',
 } satisfies Record<keyof typeof enCommon, string>;

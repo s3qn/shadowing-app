@@ -1,12 +1,13 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { Alert, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PILL_TAB_BAR_REACH } from '@/components/pill-tab-bar';
 import { SettingsRow, SettingsSection } from '@/components/tide/settings-row';
 import { Spacing, prism, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
+import { provider, signOut, signOutLocal, usingDevBypass } from '@/lib/auth';
 import { LOCALES, type Lang, useT } from '@/lib/i18n';
 import { type AppLanguage, getSettings, getVoice, setHaptics, setShowAllLanguages, setSkyAlwaysNight, toIslandLanguage } from '@/lib/settings';
 
@@ -19,6 +20,36 @@ export default function SettingsScreen() {
   // languages: Home's show-all toggle, default off.
   const [showAllLanguages, setShowAllLanguagesState] = useState(false);
   const [appLanguage, setAppLanguageState] = useState<AppLanguage>('auto');
+
+  async function confirmSignOut() {
+    try {
+      await signOut();
+      router.push('/sign-in');
+    } catch (err: unknown) {
+      Alert.alert(t('settings.account.failed'), err instanceof Error ? err.message : '');
+    }
+  }
+
+  function confirmDeleteAccount() {
+    Alert.alert(t('settings.account.deleteTitle'), t('settings.account.deleteBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('settings.account.deleteConfirm'),
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            try {
+              await api.deleteAccount();
+              await signOutLocal();
+              router.push('/sign-in');
+            } catch (err: unknown) {
+              Alert.alert(err instanceof Error ? err.message : t('settings.account.failed'));
+            }
+          })();
+        },
+      },
+    ]);
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -171,6 +202,29 @@ export default function SettingsScreen() {
             icon={{ ios: 'lightbulb', android: 'lightbulb' }}
             onPress={() => router.push('/settings/suggest')}
           />
+        </SettingsSection>
+
+        <SettingsSection
+          title={t('settings.section.account')}
+          footnote={
+            usingDevBypass() || !provider() ? undefined : t('settings.account.signedInWith', { provider: provider() === 'apple' ? 'Apple' : 'Google' })
+          }>
+          {usingDevBypass() ? null : (
+            <>
+              <SettingsRow
+                label={t('settings.row.signOut')}
+                icon={{ ios: 'rectangle.portrait.and.arrow.right', android: 'logout' }}
+                onPress={() => void confirmSignOut()}
+              />
+              <SettingsRow
+                label={t('settings.row.deleteAccount')}
+                destructive
+                last
+                icon={{ ios: 'trash', android: 'delete' }}
+                onPress={confirmDeleteAccount}
+              />
+            </>
+          )}
         </SettingsSection>
       </ScrollView>
     </SafeAreaView>

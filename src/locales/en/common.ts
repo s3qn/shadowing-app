@@ -63,4 +63,7 @@ export const en = {
   'islandError.no_subtitles_in_range': 'No subtitles were found in that range.',
   'islandError.episode_download_failed': 'The episode failed to download.',
   'islandError.unknown': 'Something went wrong.',
+
+  'api.account_delete_unavailable': 'Account deletion is not set up on the server yet.',
+  'api.account_delete_failed': 'The account could not be deleted. Try again later.',
 };

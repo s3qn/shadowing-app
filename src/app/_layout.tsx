@@ -8,6 +8,7 @@ import { useReducedMotion } from 'react-native-reanimated';
 import { CardMorphOverlay } from '@/components/card-morph-overlay';
 import { LoadingOverlay } from '@/components/loading-overlay';
 import { tide } from '@/constants/theme';
+import { loadSession, onSessionLost } from '@/lib/auth';
 import { loadDeviceId } from '@/lib/device';
 import { useT } from '@/lib/i18n';
 import { getSettings } from '@/lib/settings';
@@ -19,6 +20,7 @@ export default function RootLayout() {
   const reducedMotion = useReducedMotion();
   const [ready, setReady] = useState(false);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [hasSession, setHasSession] = useState(true);
   const launched = useRef(false);
   const router = useRouter();
   // No bundled fonts to load anymore (the app uses the platform's system
@@ -43,6 +45,14 @@ export default function RootLayout() {
       } catch (err: unknown) {
         console.warn('getSettings failed', err);
       }
+      // A throw counts as no session, so the sign-in screen opens.
+      let signedIn = false;
+      try {
+        signedIn = await loadSession();
+      } catch (err: unknown) {
+        console.warn('loadSession failed', err);
+      }
+      setHasSession(signedIn);
       setNeedsOnboarding(!onboarded);
       setReady(true);
     })();
@@ -55,10 +65,19 @@ export default function RootLayout() {
     if (!ready || launched.current) return;
     launched.current = true;
     if (needsOnboarding) router.push({ pathname: '/onboarding', params: { first: '1' } });
+    else if (!hasSession) router.push({ pathname: '/sign-in', params: { first: '1' } });
     requestAnimationFrame(() => {
       void SplashScreen.hideAsync();
     });
-  }, [ready, needsOnboarding, router]);
+  }, [ready, needsOnboarding, hasSession, router]);
+
+  // A session that ends on its own (a revoked or expired refresh token)
+  // sends the user back to sign-in rather than on to the device path.
+  // navigate, not push: if Settings already opened sign-in, it is reused.
+  useEffect(() => {
+    if (!ready) return;
+    return onSessionLost(() => router.navigate('/sign-in'));
+  }, [ready, router]);
 
   if (!ready) return null;
 
@@ -79,6 +98,18 @@ export default function RootLayout() {
         {/* Full screen, no header, and no swipe to dismiss: it closes only
             through its own buttons. On first launch (`first` param) it is
             already in place when the splash hides, so it does not animate. */}
+        <Stack.Screen
+          name="sign-in"
+          options={({ route }) => {
+            const params = route.params as { first?: string } | undefined;
+            return {
+              headerShown: false,
+              presentation: 'fullScreenModal',
+              gestureEnabled: false,
+              animation: params?.first === '1' ? 'none' : 'default',
+            };
+          }}
+        />
         <Stack.Screen
           name="onboarding/index"
           options={({ route }) => {

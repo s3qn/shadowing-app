@@ -12,10 +12,12 @@ import { OnboardingSky } from '@/components/onboarding/onboarding-sky';
 import { PassStep } from '@/components/onboarding/pass-step';
 import { Confetti, FirstIslandCard, RecordGlow } from '@/components/onboarding/ready-art';
 import { StepAction, StepCopy, StepFrame } from '@/components/onboarding/step-frame';
+import { SignInStep } from '@/components/onboarding/sign-in-step';
 import { WelcomeStep } from '@/components/onboarding/welcome-step';
 import { PrismButton } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
 import { Spacing, prism, tide, verb } from '@/constants/theme';
+import { hasSessionSync } from '@/lib/auth';
 import { previewAppLanguage, useDir, useT } from '@/lib/i18n';
 import { LANGUAGES } from '@/lib/languages';
 import {
@@ -31,14 +33,15 @@ import {
 import { type Key } from '@/locales/en';
 
 const STEP_WELCOME = 0;
-const STEP_LEARN = 1;
-const STEP_UNDERSTAND = 2;
-const STEP_MIC = 3;
-const STEP_GOAL = 4;
-const STEP_LADDER = 5;
-const STEP_PASS_FIRST = 6;
-const STEP_PASS_LAST = 10;
-const STEP_READY = 11;
+const STEP_ACCOUNT = 1;
+const STEP_LEARN = 2;
+const STEP_UNDERSTAND = 3;
+const STEP_MIC = 4;
+const STEP_GOAL = 5;
+const STEP_LADDER = 6;
+const STEP_PASS_FIRST = 7;
+const STEP_PASS_LAST = 11;
+const STEP_READY = 12;
 const LAST_STEP = STEP_READY;
 
 /**
@@ -110,7 +113,12 @@ export default function OnboardingScreen() {
     else if (to === 'podcast') router.navigate('/(tabs)/podcast');
   }
 
+  // Sign-in is required: with no session, Skip never jumps past the account step.
   function skip() {
+    if (!hasSessionSync()) {
+      setStep(STEP_ACCOUNT);
+      return;
+    }
     void finish('home');
   }
 
@@ -137,7 +145,7 @@ export default function OnboardingScreen() {
     <View style={styles.fill}>
       <OnboardingSky />
       <SafeAreaView edges={['bottom']} style={styles.flow}>
-        {step < LAST_STEP ? (
+        {step < LAST_STEP && step !== STEP_ACCOUNT && (step !== STEP_WELCOME || hasSessionSync()) ? (
           <PrismButton
             shape="pill"
             verb="tools"
@@ -149,7 +157,11 @@ export default function OnboardingScreen() {
           />
         ) : null}
 
-        {step === STEP_WELCOME ? <WelcomeStep onNext={() => setStep(STEP_LEARN)} /> : null}
+        {step === STEP_WELCOME ? (
+          <WelcomeStep onNext={() => setStep(hasSessionSync() ? STEP_LEARN : STEP_ACCOUNT)} />
+        ) : null}
+
+        {step === STEP_ACCOUNT ? <SignInStep onSignedIn={() => setStep(STEP_LEARN)} /> : null}
 
         {/* language-picker: start */}
         {step === STEP_LEARN ? (

@@ -16,7 +16,8 @@
           "audio"
         ],
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
@@ -59,6 +60,13 @@
         "expo-sensors",
         {
           "motionPermission": "Echo Tail moves the water when you tilt the phone."
+        }
+      ],
+      "expo-apple-authentication",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.788400158570-vqc9qvd0dc1hti80o9ch7k4qofk75a6l"
         }
       ]
     ],

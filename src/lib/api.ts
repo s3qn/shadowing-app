@@ -13,6 +13,7 @@
 import { fetch as expoFetch } from 'expo/fetch';
 import { Directory, File, Paths } from 'expo-file-system';
 
+import { accessTokenSync } from '@/lib/auth';
 import { deviceIdSync } from '@/lib/device';
 import { t } from '@/lib/i18n';
 import { en, type Key } from '@/locales/en';
@@ -118,8 +119,25 @@ export function islandErrorText(island: { error?: string; error_code?: string })
   return island.error || t('islandError.unknown');
 }
 
+/** The signed-in access token for URLs that cannot carry headers (the player,
+ * Image), the same split the device id uses. Empty when signed out. */
+function userParam(): string {
+  const user = accessTokenSync();
+  return user ? `&user=${encodeURIComponent(user)}` : '';
+}
+
+/** Adds the current access token to a URL built by lineAudioUrl, at the
+ * moment it is handed to the player or a download. The logical URL stays
+ * token-free, so a token refresh does not look like a new source. */
+export function withUser(url: string): string {
+  return `${url}${userParam()}`;
+}
+
 function headers(): Record<string, string> {
-  return { Authorization: `Bearer ${TOKEN}`, 'X-Shadow-Device': deviceIdSync() };
+  const h: Record<string, string> = { Authorization: `Bearer ${TOKEN}`, 'X-Shadow-Device': deviceIdSync() };
+  const user = accessTokenSync();
+  if (user) h['X-Shadow-User'] = user;
+  return h;
 }
 
 /** Turns any failed response into a short, readable message. Gateway errors
@@ -352,12 +370,12 @@ export async function importPodcastEpisode(
 
 /** Absolute URL for a style icon path returned by listSpeakers. */
 export function iconUrl(path: string): string {
-  return `${ORIGIN}${path}?token=${encodeURIComponent(TOKEN)}&device=${encodeURIComponent(deviceIdSync())}`;
+  return `${ORIGIN}${path}?token=${encodeURIComponent(TOKEN)}&device=${encodeURIComponent(deviceIdSync())}${userParam()}`;
 }
 
 /** The fixed preview sentence rendered in one voice. */
 export function voicePreviewUrl(styleId: number): string {
-  return `${BASE}/voices/${styleId}/preview?token=${encodeURIComponent(TOKEN)}&device=${encodeURIComponent(deviceIdSync())}`;
+  return `${BASE}/voices/${styleId}/preview?token=${encodeURIComponent(TOKEN)}&device=${encodeURIComponent(deviceIdSync())}${userParam()}`;
 }
 
 /** Re-render an island's lines in another voice. Poll getIsland until ready. */
@@ -481,12 +499,13 @@ export async function suggestFeature(text: string): Promise<void> {
 
 /** One word rendered on its own in the given voice. */
 export function wordAudioUrl(text: string, speaker: number): string {
-  return `${BASE}/word-audio?text=${encodeURIComponent(text)}&speaker=${speaker}&token=${encodeURIComponent(TOKEN)}&device=${encodeURIComponent(deviceIdSync())}`;
+  return `${BASE}/word-audio?text=${encodeURIComponent(text)}&speaker=${speaker}&token=${encodeURIComponent(TOKEN)}&device=${encodeURIComponent(deviceIdSync())}${userParam()}`;
 }
 
 /**
  * Audio URL for one line. The token rides as a query parameter because the
- * audio player fetches this itself and cannot attach the auth header.
+ * audio player fetches this itself and cannot attach the auth header. It
+ * carries no access token: pass it through withUser where it leaves the app.
  */
 export function lineAudioUrl(
   islandId: string,
@@ -643,5 +662,10 @@ export async function uploadTake(
  * take's recordedAt) keeps the player from ever loading a stale cached file.
  */
 export function cleanTakeUrl(islandId: string, idx: number, version: number): string {
-  return `${BASE}/islands/${islandId}/lines/${idx}/take/clean?token=${encodeURIComponent(TOKEN)}&device=${encodeURIComponent(deviceIdSync())}&v=${version}`;
+  return `${BASE}/islands/${islandId}/lines/${idx}/take/clean?token=${encodeURIComponent(TOKEN)}&device=${encodeURIComponent(deviceIdSync())}${userParam()}&v=${version}`;
+}
+
+/** Deletes the signed-in account and its server data. */
+export async function deleteAccount(): Promise<void> {
+  await json<unknown>(await fetch(`${BASE}/account`, { method: 'DELETE', headers: headers() }));
 }

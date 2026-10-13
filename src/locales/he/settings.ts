@@ -194,4 +194,22 @@ export const he = {
   'settings.onboarding.voiceLane': 'קול',
   'settings.onboarding.youLane': 'שלך',
   'settings.onboarding.keptUp': '10 מתוך 12 בקצב',
+
+  // Account: sign-in step, Settings section.
+  'settings.section.account': 'חשבון',
+  'settings.account.kicker': 'חשבון',
+  'settings.account.title': 'שומרים על האיים שלך',
+  'settings.account.body': 'ההקלטות וההתקדמות שלך עוברות איתך לטלפון חדש.',
+  'settings.account.apple': `המשך עם ${isolate('Apple')}`,
+  'settings.account.google': `המשך עם ${isolate('Google')}`,
+  'settings.account.privacyLine': 'הקלטות הקול שלך נשארות פרטיות בחשבון שלך.',
+  'settings.account.signingIn': 'מתחברים',
+  'settings.account.failed': 'ההתחברות לא הושלמה. נסו שוב.',
+  'settings.account.expoGo': `${isolate('Expo Go')}: המשך בלי חשבון`,
+  'settings.account.signedInWith': 'מחובר/ת דרך {provider}',
+  'settings.account.deleteTitle': 'למחוק את החשבון?',
+  'settings.account.deleteBody': 'הפעולה מוחקת את החשבון, את כל האיים שבנית ואת כל ההקלטות בשרת. אי אפשר לבטל אותה.',
+  'settings.account.deleteConfirm': 'מחיקה',
+  'settings.row.signOut': 'התנתקות',
+  'settings.row.deleteAccount': 'מחיקת חשבון',
 } satisfies Record<keyof typeof enSettings, string>;
