@@ -219,6 +219,9 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - New XP sources + a 120/day cap (milestones exempt)
 - Cat leaderboard by level with dressed-cat rows
 - Drive Mode: hands-free island radio for the car
+- Scene depth pass (backlight, vignette, reflection)
+- Home cat badge redesign
+- Leaderboard spotlight band fits its content
 
 ## Next (approved, in order)
 

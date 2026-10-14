@@ -1,4 +1,4 @@
-import { Canvas, Group, LinearGradient, Path, Rect, RoundedRect, Skia, vec } from '@shopify/react-native-skia';
+import { Canvas, Group, LinearGradient, Path, RadialGradient, Rect, RoundedRect, Skia, vec } from '@shopify/react-native-skia';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
@@ -103,6 +103,41 @@ function RockSurface() {
           <LinearGradient start={vec(0, 5 + 37.4)} end={vec(0, 5 + 55.9)} colors={['rgba(15,21,53,0)', 'rgba(15,21,53,0.8)']} />
         </Rect>
         <Rect x={5 + 8} y={5 + 37.4} width={244} height={1.2} color="rgba(124,200,255,0.22)" />
+        <Rect x={5} y={5 + 30} width={ROCK_W} height={10}>
+          <LinearGradient start={vec(0, 5 + 30)} end={vec(0, 5 + 40)} colors={['rgba(124,200,255,0)', 'rgba(124,200,255,0.1)', 'rgba(124,200,255,0)']} />
+        </Rect>
+      </Group>
+    </Canvas>
+  );
+}
+/** The rock flipped under the waterline, faded to nothing. Static, drawn once. Canvas is 260x48. */
+function RockReflection() {
+  const path = useMemo(() => {
+    const flipped = Skia.Path.Make();
+    ROCK_PTS.forEach(([x, y], i) => (i === 0 ? flipped.moveTo(x, ROCK_H - y) : flipped.lineTo(x, ROCK_H - y)));
+    flipped.close();
+    return flipped;
+  }, []);
+  return (
+    <Canvas style={{ width: ROCK_W, height: ROCK_H }} pointerEvents="none">
+      <Path path={path}>
+        <LinearGradient start={vec(0, 0)} end={vec(0, ROCK_H)} colors={['rgba(37,46,102,0.378)', 'rgba(14,19,53,0)']} />
+      </Path>
+    </Canvas>
+  );
+}
+
+/** Red glow on the left half and blue on the right half of the waterline, baked as soft radial gradients. Canvas is 340x14. */
+function PrismWaterline() {
+  return (
+    <Canvas style={{ width: 340, height: 14 }} pointerEvents="none">
+      <Group transform={[{ translateY: 7 }, { scaleY: 0.07 }]}>
+        <Rect x={0} y={-100} width={170} height={200}>
+          <RadialGradient c={vec(170, 0)} r={165} colors={['rgba(255,70,110,0.4)', 'rgba(255,70,110,0)']} />
+        </Rect>
+        <Rect x={170} y={-100} width={170} height={200}>
+          <RadialGradient c={vec(170, 0)} r={165} colors={['rgba(70,170,255,0.44)', 'rgba(70,170,255,0)']} />
+        </Rect>
       </Group>
     </Canvas>
   );
@@ -183,7 +218,9 @@ export function CatStage({ equipped, preview, dipKey = 0, gaze, onCatRect }: Cat
       {STARS.map(([x, y, a], i) => (
         <View key={i} style={[styles.star, { left: x * width, top: y, opacity: a }]} />
       ))}
-      <View style={[styles.glow, { left: (width - 380) / 2, top: CAT_TOP - 60, experimental_backgroundImage: 'radial-gradient(circle, rgba(244,242,248,0.22) 0%, rgba(124,200,255,0.12) 38%, transparent 70%)' }]} />
+      <View style={[styles.glow, { left: (width - 380) / 2, top: CAT_TOP - 60, experimental_backgroundImage: 'radial-gradient(circle, rgba(244,242,248,0.12) 0%, rgba(124,200,255,0.08) 38%, transparent 70%)' }]} />
+      <View style={[styles.backlight, { left: width / 2 + 46 - 130, top: 45, width: 260, height: 280, experimental_backgroundImage: 'radial-gradient(ellipse closest-side, rgba(90,170,255,0.42) 0%, transparent 100%)' }]} pointerEvents="none" />
+      <View style={[styles.backlight, { left: width / 2 - 50 - 120, top: 60, width: 240, height: 260, experimental_backgroundImage: 'radial-gradient(ellipse closest-side, rgba(255,84,110,0.2) 0%, transparent 100%)' }]} pointerEvents="none" />
       <View style={[styles.halo, { left: width * 0.56 - 36, top: STAGE_H - 232, experimental_backgroundImage: 'radial-gradient(circle, rgba(255,214,120,0.18) 0%, rgba(255,200,87,0.06) 50%, transparent 70%)' }]} />
       <View style={[styles.moon, { left: width * 0.56, top: STAGE_H - 196, experimental_backgroundImage: 'radial-gradient(circle at 38% 34%, #fffdf2, #f1e3b3 65%, #d9c488)' }]} />
       <View style={[styles.hills, { top: STAGE_H - 74 }]}>
@@ -204,9 +241,17 @@ export function CatStage({ equipped, preview, dipKey = 0, gaze, onCatRect }: Cat
           />
         ))}
       </View>
+      <View style={[styles.backlight, { left: width / 2 - 260, top: 272, width: 520, height: 60, experimental_backgroundImage: 'radial-gradient(ellipse closest-side, rgba(190,205,255,0.1) 0%, transparent 100%)' }]} pointerEvents="none" />
       <View style={[styles.water, { top: STAGE_H, experimental_backgroundImage: `linear-gradient(180deg, #1b2350, #0f1535 55%, ${PAGE})` }]} />
       <View style={[styles.line, { top: STAGE_H - 1, experimental_backgroundImage: 'linear-gradient(90deg, transparent, rgba(244,242,248,0.85), transparent)' }]} />
       <View style={[styles.reflection, { left: RL + 20, top: 318, experimental_backgroundImage: 'linear-gradient(180deg, rgba(15,21,53,0.5), rgba(15,21,53,0))' }]} />
+      <View style={{ position: 'absolute', left: RL, top: 311 }} pointerEvents="none">
+        <RockReflection />
+      </View>
+      <View style={{ position: 'absolute', left: width / 2 - 170, top: 297 }} pointerEvents="none">
+        <PrismWaterline />
+      </View>
+      <View style={[styles.backlight, { left: width / 2 - 85, top: 303, width: 170, height: 1.5, experimental_backgroundImage: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.88), transparent)' }]} pointerEvents="none" />
       <View style={[styles.flowClip, { top: STAGE_H }]} pointerEvents="none">
         <Animated.View style={[styles.flowGroup, { left: -AMP_F1, width: width + 2 * AMP_F1 }, f1Style]}>
           {F1.map(([x, y, w, a], i) => (
@@ -233,6 +278,7 @@ export function CatStage({ equipped, preview, dipKey = 0, gaze, onCatRect }: Cat
       <View style={[styles.foam, { left: RL - 13, top: 317, width: 286, backgroundColor: 'transparent', experimental_backgroundImage: 'linear-gradient(90deg, rgba(124,200,255,0), rgba(124,200,255,0.3), rgba(124,200,255,0))' }]} pointerEvents="none" />
       <Animated.View style={[styles.ring, { left: RL + 5, top: 304 }, ring1Style]} pointerEvents="none" />
       <Animated.View style={[styles.ring, { left: RL + 5, top: 304 }, ring2Style]} pointerEvents="none" />
+      <View style={[styles.backlight, { left: 0, top: 0, width, height: STAGE_H + WATER_H, experimental_backgroundImage: 'radial-gradient(ellipse 75% 70% at 50% 62%, transparent 45%, rgba(4,6,16,0.4) 100%)' }]} pointerEvents="none" />
       <Animated.View
         ref={catRef}
         onLayout={() => catRef.current?.measureInWindow((x, y, w, h) => onCatRect?.({ x, y, width: w, height: h }))}
@@ -257,6 +303,7 @@ const styles = StyleSheet.create({
   sky: { position: 'absolute', left: 0, right: 0, top: 0 },
   star: { position: 'absolute', width: 2, height: 2, borderRadius: 1, backgroundColor: '#F4F2F8' },
   glow: { position: 'absolute', width: 380, height: 380, borderRadius: 190 },
+  backlight: { position: 'absolute' },
   halo: { position: 'absolute', width: 136, height: 136, borderRadius: 68 },
   moon: { position: 'absolute', width: 64, height: 64, borderRadius: 32 },
   hills: { position: 'absolute', left: 0, right: 0, height: 74, overflow: 'hidden' },

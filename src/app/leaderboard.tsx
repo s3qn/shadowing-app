@@ -90,7 +90,7 @@ export default function LeaderboardScreen() {
       </View>
       <View style={styles.spotInfo}>
         <Text style={[styles.spotKicker, dir.text]}>{`1 · ${t('leaderboard.highest').toUpperCase()}`}</Text>
-        <Text numberOfLines={1} style={[styles.spotName, { writingDirection: 'ltr', textAlign: 'left' }]}>{`@${top.username}`}</Text>
+        <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.spotName, { writingDirection: 'ltr', textAlign: 'left' }]}>{`@${top.username}`}</Text>
         <View style={styles.spotBottom}>
           <View style={styles.chips}>
             {(['head', 'face', 'body', 'accessory'] as const).map((slot) => {
@@ -161,7 +161,7 @@ export default function LeaderboardScreen() {
 }
 
 // Spotlight band height plus its gap, so getItemLayout can place rows without measuring.
-const SPOT_H = 132;
+const SPOT_H = 172;
 const HEADER_H = SPOT_H + GAP * 2;
 
 const styles = StyleSheet.create({
@@ -170,6 +170,7 @@ const styles = StyleSheet.create({
   msg: { fontFamily: fonts.ui, fontSize: 15, color: tide.text, textAlign: 'center' },
   spot: {
     height: SPOT_H,
+    paddingVertical: Spacing.md,
     marginBottom: GAP * 2,
     alignItems: 'center',
     gap: Spacing.md,
@@ -181,9 +182,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.12)',
   },
   spotCat: { width: SPOT_CAT, height: SPOT_CAT },
-  spotInfo: { flex: 1, justifyContent: 'center', gap: 4 },
-  spotKicker: { fontFamily: fonts.uiMedium, fontSize: 12, letterSpacing: 1.2, color: GOLD },
-  spotName: { fontFamily: fonts.ui, fontSize: 22, color: tide.text },
+  spotInfo: { flex: 1, minWidth: 0, justifyContent: 'center', gap: 4 },
+  spotKicker: { fontFamily: fonts.uiMedium, fontSize: 12, lineHeight: 16, letterSpacing: 1.2, color: GOLD },
+  spotName: { fontFamily: fonts.ui, fontSize: 22, lineHeight: 30, color: tide.text },
   spotBottom: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   chips: { flexDirection: 'row', gap: 4, flexShrink: 1 },
   itemChip: { width: 28, height: 28, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(247,197,91,0.12)', borderWidth: 1, borderColor: 'rgba(247,197,91,0.45)' },
