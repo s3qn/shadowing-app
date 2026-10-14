@@ -226,6 +226,7 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Android internal-beta support (package, icon, Google-only sign-in)
 - Cinematic YouTube player + per-word karaoke
 - Security: closed coin/XP farming exploits
+- Prominent @username on the Home badge
 
 ## Next (approved, in order)
 
