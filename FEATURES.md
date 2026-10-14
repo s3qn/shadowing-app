@@ -215,6 +215,7 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Auto Echo Prism buttons (ring + glyph fixes)
 - Tide toggle replaces native Switch
 - Glass input + Prism CTAs, suggest cat loader
+- Default playback speed 1.0 (was 0.5)
 
 ## Next (approved, in order)
 
