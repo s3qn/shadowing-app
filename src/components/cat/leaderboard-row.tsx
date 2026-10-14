@@ -150,6 +150,7 @@ export const LeaderboardRow = memo(function LeaderboardRow({ rank, username, lev
 const styles = StyleSheet.create({
   medal: { overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' },
   row: {
+    flexDirection: 'row',
     height: ROW_H,
     alignItems: 'center',
     gap: Spacing.md,
