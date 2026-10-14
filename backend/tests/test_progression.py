@@ -113,7 +113,10 @@ def test_award_take_same_island_idx_day_pays_once(owner):
     assert again["xp"] == 0
 
 
-def test_the_61st_take_of_a_day_pays_nothing(owner):
+def test_the_61st_take_of_a_day_pays_nothing(owner, monkeypatch):
+    # Lift the XP cap out of the way: this test is about the 60-take-a-day
+    # limit, not the daily XP cap, which would otherwise zero the coins first.
+    monkeypatch.setattr(progression, "DAILY_XP_CAP", 100000)
     for i in range(60):
         assert progression.award_take(owner, "isl", i)["coins"] > 0
     got = progression.award_take(owner, "isl", 60)
@@ -248,7 +251,20 @@ def test_catalog_he_names_are_hebrew():
 # --- hooks ---
 
 
+def _own_island_for(device, island_id="isl"):
+    """Give `device` an island so a practice post for it passes the ownership
+    check that log_practice now enforces."""
+    with store.connect() as conn:
+        conn.execute(
+            "INSERT INTO islands (id, status, created_at, device)"
+            " VALUES (?, 'ready', '2026-01-01T00:00:00+00:00', ?)"
+            " ON CONFLICT(id) DO UPDATE SET device = excluded.device",
+            (island_id, device),
+        )
+
+
 def test_log_practice_response_carries_an_award(owner):
+    _own_island_for(owner)
     out = asyncio.run(schedule.log_practice(
         island_id="isl", seconds=60.0, authorization=AUTH, x_shadow_device=owner,
     ))
@@ -256,6 +272,8 @@ def test_log_practice_response_carries_an_award(owner):
 
 
 def test_a_failing_award_does_not_fail_log_practice(owner, monkeypatch):
+    _own_island_for(owner)
+
     def boom(*a, **k):
         raise RuntimeError("db down")
 
@@ -298,9 +316,9 @@ def test_upload_take_scored_pays_quality(owner, monkeypatch, tmp_path):
     _wire_take(monkeypatch, tmp_path)
     monkeypatch.setattr(main, "_run_clean", lambda *a, **k: {"score": {"words": ["ok"] * 4}})
     out = _upload(owner)
-    # take 10 + quality 5 + 5 + day 20 = 40 toward the cap; mastery 60 is exempt from it
+    # take 10 + quality 5 + 5 + day 20 + mastery 60 = 100, all counting toward the cap
     assert out["award"]["milestones"] == ["first_take", "perfect_take", "full_speed", "first_mastery"]
-    assert progression.snapshot(owner)["xp_today"] == 40
+    assert progression.snapshot(owner)["xp_today"] == 100
 
 
 def test_a_failing_award_does_not_fail_the_take(owner, monkeypatch, tmp_path):
@@ -367,14 +385,16 @@ def test_partial_clamp_and_replay(owner, day, monkeypatch):
     assert progression.snapshot(owner)["xp_today"] == 35
 
 
-def test_coins_flow_at_the_cap_and_milestones_ignore_it(owner, day, monkeypatch):
+def test_coins_stop_at_the_cap_and_milestones_ignore_it(owner, day, monkeypatch):
     monkeypatch.setattr(progression, "DAILY_XP_CAP", 20)
     got = progression.award_take(owner, "isl", 0)
     # take 10 and the day bonus clamped to 10, both inside the cap of 20
     assert progression.snapshot(owner)["xp_today"] == 20
     assert got["xp"] == 20 + 40 and got["capped"] is True
+    # A further take at the cap pays no XP, so it pays no coins either: coins
+    # track real XP and stop at the cap.
     more = progression.award_take(owner, "isl", 1)
-    assert more["xp"] == 0 and more["coins"] == 2
+    assert more["xp"] == 0 and more["coins"] == 0
 
 
 def test_rollover_pays_again(owner, monkeypatch):
@@ -506,15 +526,41 @@ def test_mastery_pays_once_after_every_line_is_great(owner, day, monkeypatch):
     assert again["xp"] == 0 and again["milestones"] == []
 
 
-def test_mastery_pays_in_full_at_the_cap(owner, day):
+def test_mastery_counts_toward_the_cap_and_waits_for_a_day_with_room(owner, monkeypatch):
     great = {"words": ["ok"] * 4}
     kw = dict(score=great, line_idxs=[0])
-    progression.award(owner, "seed", 0, 0)
+    monkeypatch.setattr(progression, "_today", lambda: "2026-01-02")
+    # Fill the day to the cap with ordinary takes.
     for i in range(30):
-        progression.award_take(owner, "other", i, **dict(score=None))
+        progression.award_take(owner, "other", i, score=None)
     assert progression.snapshot(owner)["xp_today"] == 120
-    progression.award_take(owner, "isl", 0, **kw)
+    # Mastering the island at the cap pays no mastery XP and does not consume
+    # the once-per-island key, so it is not lost.
+    got = progression.award_take(owner, "isl", 0, **kw)
+    assert progression.connect().execute(
+        "SELECT 1 FROM awards WHERE owner=? AND key='mastery:isl'", (owner,)
+    ).fetchone() is None
+    assert "first_mastery" not in got["milestones"]
+    assert progression.snapshot(owner)["xp_today"] == 120  # still exactly the cap
+    # A later day with room pays it in full, and first_mastery fires then.
+    monkeypatch.setattr(progression, "_today", lambda: "2026-01-03")
+    got2 = progression.award_take(owner, "isl", 0, **kw)
     assert _row_xp(owner, "mastery:isl") == 60
+    assert "first_mastery" in got2["milestones"]
+
+
+def test_mastering_many_one_line_islands_cannot_beat_the_cap(owner, day):
+    # The exploit: five one-line islands, each mastered with a perfect take,
+    # would pay 5 x 60 = 300 mastery XP a day while mastery was cap-exempt.
+    # Mastery now counts toward the cap, so the day's repeatable XP stops at
+    # 120 no matter how many one-line islands are mastered.
+    great = {"words": ["ok"] * 4}
+    for n in range(5):
+        progression.award_take(owner, f"isl{n}", 0, score=great, line_idxs=[0])
+    assert progression.snapshot(owner)["xp_today"] == 120
+    # The ledger never over-counts: day XP equals the sum of capped grants.
+    total, xp = _ledger(owner)
+    assert total == xp
 
 
 def test_milestones_pay_once_and_speed_matters(owner, day, monkeypatch):

@@ -189,6 +189,15 @@ def test_claim_owner_moves_unowned_island_and_practice_row(monkeypatch):
 
 
 def test_practice_logged_by_a_is_due_for_a_not_b():
+    # A practice post is accepted only for an island the caller owns, so give
+    # the island to A first.
+    with store.connect() as conn:
+        conn.execute(
+            "INSERT INTO islands (id, status, created_at, device)"
+            " VALUES ('sched-island', 'ready', '2026-01-01T00:00:00+00:00', ?)"
+            " ON CONFLICT(id) DO UPDATE SET device = excluded.device",
+            (DEV_A,),
+        )
     asyncio.run(schedule.log_practice(
         island_id="sched-island", seconds=10.0, authorization=AUTH, x_shadow_device=DEV_A,
     ))

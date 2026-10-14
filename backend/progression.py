@@ -251,35 +251,44 @@ def snapshot(owner: str) -> dict:
 
 
 def _apply(
-    conn: sqlite3.Connection, owner: str, key: str, xp: int, coins: int, day: str, capped: bool
+    conn: sqlite3.Connection, owner: str, key: str, xp: int, coins: int, day: str, capped: bool,
+    defer_if_capped: bool = False,
 ) -> tuple[bool, int, int]:
     """Pays one ledger key inside the caller's open transaction. Returns
     (paid, xp granted, coins granted), level-up coins included. `paid` is False
     for a replayed key, which changes nothing. When `capped` the XP is clamped
     to what is left of DAILY_XP_CAP for `day`; the row keeps the XP actually
-    granted, so progress.xp always equals the sum of the owner's ledger."""
-    cur = conn.execute(
-        "INSERT OR IGNORE INTO awards (owner, key, xp, coins, created_at) VALUES (?, ?, ?, ?, ?)",
-        (owner, key, xp, coins, _now()),
-    )
-    if cur.rowcount != 1:
-        return False, 0, 0
+    granted, so progress.xp always equals the sum of the owner's ledger.
+
+    Coins track the XP actually granted: when the cap clamps the grant to 0 the
+    key pays 0 coins too, so coins stop at the cap. With `defer_if_capped`, a
+    grant the cap clamps to 0 is not recorded at all (returns False), so a
+    non-repeatable source such as island mastery pays on a later day with room
+    instead of being consumed at the cap and lost."""
     granted = xp
+    coins_granted = coins
     if capped and xp > 0:
         row = conn.execute(
             "SELECT xp FROM day_xp WHERE owner=? AND day=?", (owner, day)
         ).fetchone()
         used = row["xp"] if row else 0
         granted = max(0, min(xp, DAILY_XP_CAP - used))
+        if granted == 0:
+            coins_granted = 0
+            if defer_if_capped:
+                return False, 0, 0
+    cur = conn.execute(
+        "INSERT OR IGNORE INTO awards (owner, key, xp, coins, created_at) VALUES (?, ?, ?, ?, ?)",
+        (owner, key, granted, coins_granted, _now()),
+    )
+    if cur.rowcount != 1:
+        return False, 0, 0
+    if capped and xp > 0:
         conn.execute(
             "INSERT INTO day_xp (owner, day, xp) VALUES (?, ?, ?)"
             " ON CONFLICT(owner, day) DO UPDATE SET xp = xp + excluded.xp",
             (owner, day, granted),
         )
-        if granted != xp:
-            conn.execute(
-                "UPDATE awards SET xp = ? WHERE owner=? AND key=?", (granted, owner, key)
-            )
     conn.execute(
         "INSERT OR IGNORE INTO progress (owner, xp, coins, updated_at) VALUES (?, 0, 0, ?)",
         (owner, _now()),
@@ -289,9 +298,9 @@ def _apply(
     bonus = gained * LEVEL_UP_COINS
     conn.execute(
         "UPDATE progress SET xp = xp + ?, coins = coins + ?, updated_at = ? WHERE owner=?",
-        (granted, coins + bonus, _now(), owner),
+        (granted, coins_granted + bonus, _now(), owner),
     )
-    return True, granted, coins + bonus
+    return True, granted, coins_granted + bonus
 
 
 def _day_keys(conn: sqlite3.Connection, owner: str) -> set[str]:
@@ -367,7 +376,7 @@ def _run_awards(
     ctx: dict | None = None,
 ) -> dict:
     """Pays the given (key, xp, coins) entries in one transaction, every one
-    clamped to the daily cap (island mastery is exempt). When any of them pays and the day bonus is still
+    clamped to the daily cap. When any of them pays and the day bonus is still
     unpaid, the day bonus is added, then the streak bonus and the milestones.
     `prepare(conn)` runs first inside the transaction and returns more entries."""
     ctx = dict(ctx or {})
@@ -393,8 +402,12 @@ def _run_awards(
                     continue
             if take_blocked and key.startswith("quality:"):
                 continue
-            # Mastery is once per island, so it ignores the daily cap like the milestones.
-            paid, gx, gc = _apply(conn, owner, key, xp, coins, day, not key.startswith("mastery:"))
+            # Mastery counts toward the daily cap like every other repeatable
+            # source, but it is once per island (not day-scoped), so defer it
+            # when the cap leaves no room: it stays unrecorded and pays on a
+            # later day instead of being lost at the cap.
+            is_mastery = key.startswith("mastery:")
+            paid, gx, gc = _apply(conn, owner, key, xp, coins, day, True, defer_if_capped=is_mastery)
             if paid:
                 any_paid = True
                 got_xp += gx

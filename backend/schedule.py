@@ -2,12 +2,14 @@
 client which islands are due.
 
 Modeled directly on store.py's connection handling, but kept in its own
-sqlite file (schedule.db) and its own module. It never queries store.islands,
-so it stays decoupled from store.py: an island only appears in due-today once
-it has posted at least one practice event here.
+sqlite file (schedule.db) and its own module. The only thing it reads from
+store is ownership: a practice post is accepted and awarded only for an island
+the caller owns (see _own_island). An island still appears in due-today only
+once it has posted at least one practice event here.
 """
 
 import logging
+import math
 import os
 import secrets
 import sqlite3
@@ -19,8 +21,14 @@ from fastapi import APIRouter, Form, Header, HTTPException
 
 import progression
 import spacing
+import store
 
 log = logging.getLogger("shadow.schedule")
+
+# The most playback one post may claim. A real client flushes a few seconds at
+# a time; anything past an hour in a single post is a forged award, not a
+# sitting, so it is refused rather than paid.
+MAX_PRACTICE_SECONDS = 3600.0
 
 DATA_DIR = Path(os.getenv("SHADOW_DATA_DIR", Path(__file__).parent / "data"))
 DB_PATH = DATA_DIR / "schedule.db"
@@ -128,6 +136,16 @@ def _require_device(x_shadow_device: str) -> str:
     return x_shadow_device
 
 
+def _own_island(island_id: str, device: str) -> None:
+    """Refuse a practice post for an island `device` does not own. Mirrors
+    main._own_island (which this module cannot import without a cycle): an
+    empty device never matches, so an unclaimed island (device='') is not
+    owned by a blank caller, and an unknown island id pays nothing."""
+    island = store.get_island(island_id)
+    if island is None or not device or island["device"] != device:
+        raise HTTPException(404, "no such island")
+
+
 def claim_unowned(device: str) -> int:
     """Gives every unowned practice row to `device`, the schedule half of
     store.claim_unowned. Idempotent: rows already claimed have device != ''
@@ -158,8 +176,14 @@ async def log_practice(
 ) -> dict:
     require_token(authorization)
     device = _require_device(x_shadow_device)
-    if seconds <= 0:
-        raise HTTPException(400, "seconds must be positive")
+    if not math.isfinite(seconds) or seconds <= 0:
+        raise HTTPException(400, "seconds must be a positive finite number")
+    if seconds > MAX_PRACTICE_SECONDS:
+        raise HTTPException(400, "seconds too large")
+    # Ownership first: a post for an island the caller does not own (or a made
+    # up id) is refused before anything is written or awarded, so a forged
+    # island_id cannot earn coins or XP.
+    _own_island(island_id, device)
 
     today = _today()
     today_date = date.fromisoformat(today)
