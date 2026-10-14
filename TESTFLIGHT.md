@@ -96,3 +96,47 @@ further is out of scope for this build setup.
 
 The app icon stays the cat art (`assets/images/cat_icon_app.png`) until Sean
 draws the tail mark.
+
+## Android beta (internal APK)
+
+An internal APK for Android friends, Google sign-in only (no Apple pill on
+Android). It talks to the prod backend through the `preview` EAS environment.
+
+### Build steps
+
+Run from the repo root. `eas-cli` is not installed, so use `npx -y eas-cli@latest`.
+
+1. `npx -y eas-cli@latest credentials -p android`, profile `preview`, then
+   "Keystore: Manage everything needed to build your project", "Set up a new
+   keystore", generate. EAS prints the SHA-1 and SHA-256. Send the SHA-1 to
+   Sean at once. To read it later: expo.dev, waiter, echo-tail, Credentials,
+   Android, build.sean.echotail, Keystore.
+2. `npx -y eas-cli@latest build -p android --profile preview`. It reuses the
+   keystore from step 1 and takes 10 to 20 minutes. The build page URL it
+   prints is the install link (QR code, Install button, direct `.apk`).
+3. On a first device, open the link in Chrome on an Android phone, download,
+   allow "install unknown apps" for Chrome, install. Without a phone, use an
+   Android Studio AVD with a Google Play system image and `adb install`.
+4. Check the install on that device (cat icon on navy, onboarding shows only
+   "Continue with Google", sign-in works, an island records), then send the
+   link to the friends.
+
+### Sean's checklist
+
+1. Create an Android OAuth client: console.cloud.google.com, project
+   `shadowing-app-511420`, APIs & Services, Credentials, Create credentials,
+   OAuth client ID, type Android, name "Echo Tail Android (EAS keystore)",
+   package `build.sean.echotail`, the SHA-1 from build step 1. Nothing from
+   this client goes into the app or Supabase. Propagation can take minutes to
+   a few hours.
+2. Leave Supabase as is. Authentication, Providers, Google keeps the Web
+   client id. Only if sign-in fails with a nonce message, turn on "Skip nonce
+   checks".
+3. Add every Android tester's Google email (and your own) under OAuth consent
+   screen, Audience, Test users. Anyone not listed sees "Access blocked: Echo
+   Tail has not completed the Google verification process".
+4. Send the link with three lines: Android 7+, allow Chrome to install unknown
+   apps, sign in with the Google account you gave me. Phones without Google
+   Play Services cannot sign in.
+5. If Play App Signing or a second keystore ever appears, add its SHA-1 as
+   another Android client. The old one keeps working.

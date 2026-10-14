@@ -223,6 +223,7 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Home cat badge redesign
 - Leaderboard spotlight band fits its content
 - Leaderboard shows every named user, even at 0 XP
+- Android internal-beta support (package, icon, Google-only sign-in)
 
 ## Next (approved, in order)
 

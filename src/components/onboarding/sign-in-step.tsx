@@ -1,7 +1,7 @@
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, useWindowDimensions } from 'react-native';
+import { Platform, StyleSheet, Text, useWindowDimensions } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { CatConstellation } from '@/components/cat-constellation';
@@ -33,7 +33,7 @@ function GoogleG() {
 }
 
 /**
- * The account step: Apple and Google, one tap each, no typing. Shown in
+ * The account step: Apple (iOS only) and Google, one tap each, no typing. Shown in
  * onboarding and on its own at /sign-in. In Expo Go (development only) a
  * third pill continues on the device path, since native sign-in cannot run
  * there.
@@ -46,6 +46,7 @@ export function SignInStep({ onSignedIn }: { onSignedIn: () => void }) {
   const [appleOk, setAppleOk] = useState(false);
 
   useEffect(() => {
+    if (Platform.OS !== 'ios') return;
     let alive = true;
     AppleAuthentication.isAvailableAsync()
       .then((ok) => {
