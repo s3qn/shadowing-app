@@ -194,7 +194,7 @@ function DayCell({ letter, minutes, isToday, reducedMotion }: {
   );
 }
 
-export function PracticeCard({ log, dueCount, onPractice }: { log: PracticeLog; dueCount: number; onPractice: () => void }) {
+export function PracticeCard({ log, dueCount, onPractice, onDrive }: { log: PracticeLog; dueCount: number; onPractice: () => void; onDrive: () => void }) {
   const { t } = useT();
   const dir = useDir();
   const reducedMotion = useReducedMotion();
@@ -248,17 +248,22 @@ export function PracticeCard({ log, dueCount, onPractice }: { log: PracticeLog; 
           />
         ))}
       </View>
-      <PrismButton
-        shape="pill"
-        verb="speak"
-        height={44}
-        label={dueCount === 0 ? t('home.autoPracticeNone') : t('home.autoPractice')}
-        disabled={dueCount === 0}
-        onPress={onPractice}
-        containerStyle={{ alignSelf: 'stretch' }}
-        style={{ alignSelf: 'stretch', justifyContent: 'center' }}>
-        <SymbolView name={{ ios: 'play.fill', android: 'play_arrow' }} size={16} weight="regular" tintColor={verb.speak.c1} />
-      </PrismButton>
+      <View style={[styles.actions, dir.row]}>
+        <PrismButton
+          shape="pill"
+          verb="speak"
+          height={44}
+          label={dueCount === 0 ? t('home.autoPracticeNone') : t('home.autoPractice')}
+          disabled={dueCount === 0}
+          onPress={onPractice}
+          containerStyle={{ flex: 1 }}
+          style={{ alignSelf: 'stretch', justifyContent: 'center' }}>
+          <SymbolView name={{ ios: 'play.fill', android: 'play_arrow' }} size={16} weight="regular" tintColor={verb.speak.c1} />
+        </PrismButton>
+        <PrismButton shape="pill" verb="listen" height={44} label={t('home.drive')} onPress={onDrive} containerStyle={{ marginStart: Spacing.sm }}>
+          <SymbolView name={{ ios: 'car.fill', android: 'directions_car' }} size={16} weight="regular" tintColor={verb.listen.c1} />
+        </PrismButton>
+      </View>
     </View>
   );
 }
@@ -266,6 +271,7 @@ export function PracticeCard({ log, dueCount, onPractice }: { log: PracticeLog; 
 const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: Radius.md, padding: Spacing.lg, gap: Spacing.md },
   numbers: { flexDirection: 'row' },
+  actions: { flexDirection: 'row', alignItems: 'center' },
   stat: { alignItems: 'center', flex: 1 },
   value: { fontSize: 28, fontWeight: '700', fontFamily: fonts.ui },
   label: { fontSize: 13, fontWeight: '600', fontFamily: fonts.ui },

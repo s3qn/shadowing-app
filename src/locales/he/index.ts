@@ -1,8 +1,10 @@
 import type { Key } from '../en';
 import { he as beforeAfter } from './before-after';
 import { he as common } from './common';
+import { he as drive } from './drive';
 import { he as home } from './home';
 import { he as importFile } from './import';
+import { he as leaderboard } from './leaderboard';
 import { he as player } from './player';
 import { he as playerIsland } from './player-island';
 import { he as playerTide } from './player-tide';
@@ -13,4 +15,4 @@ import { he as podcast } from './podcast';
 import { he as video } from './video';
 import { he as wardrobe } from './wardrobe';
 
-export const he = { ...beforeAfter, ...common, ...home, ...importFile, ...player, ...playerIsland, ...playerTide, ...playerSheets, ...podcast, ...record, ...settings, ...video, ...wardrobe } satisfies Record<Key, string>;
+export const he = { ...beforeAfter, ...common, ...drive, ...home, ...importFile, ...leaderboard, ...player, ...playerIsland, ...playerTide, ...playerSheets, ...podcast, ...record, ...settings, ...video, ...wardrobe } satisfies Record<Key, string>;

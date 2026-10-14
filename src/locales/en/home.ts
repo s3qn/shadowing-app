@@ -56,6 +56,7 @@ export const en = {
   'home.deleteIsland': 'Delete island',
 
   // Practice card
+  'home.drive': 'Drive',
   'home.practiceToday': 'Today',
   'home.practiceStreak': 'Streak',
   // A slash pair, not "1 of 10": the two figures read as one number, the way

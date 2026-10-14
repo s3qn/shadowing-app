@@ -44,6 +44,8 @@ export const en = {
   'api.daily_limit': "You've reached today's limit of {limit}.",
   'api.voice_unreachable': 'The voice engine is unreachable.',
   'api.file_too_large': 'That file is too large to import.',
+  'api.username_taken': 'That username is taken.',
+  'api.username_invalid': 'Use 3-20 letters, numbers or underscores.',
   'api.recording_too_large': 'That recording is too large.',
   'api.audio_undecodable': 'That audio could not be decoded.',
   'api.empty_upload': 'That upload was empty.',

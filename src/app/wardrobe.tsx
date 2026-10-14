@@ -1,6 +1,8 @@
 import * as Haptics from 'expo-haptics';
+import { Stack, useRouter } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ACTION_H, ActionBar } from '@/components/cat/action-bar';
@@ -25,6 +27,7 @@ const BAR_GAP = 24;
 
 export default function WardrobeScreen() {
   const { t } = useT();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { progress, catalog, error, reload, apply } = useProgress();
   const [slot, setSlot] = useState<Slot>('head');
@@ -157,11 +160,28 @@ export default function WardrobeScreen() {
 
   return (
     <View style={styles.fill} {...gaze.handlers}>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('leaderboard.open')}
+              hitSlop={10}
+              onPress={() => {
+                void hapticSelection();
+                router.push('/leaderboard');
+              }}
+            >
+              <SymbolView name={{ ios: 'trophy.fill', android: 'emoji_events' }} size={22} tintColor={tide.pos.verb} />
+            </Pressable>
+          ),
+        }}
+      />
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
         <CatStage equipped={equipped} preview={preview} dipKey={dipKey} gaze onCatRect={gaze.setCatRect} />
       </View>
       <View style={[styles.header, { top: Spacing.md }]}>
-        <LevelHeader level={progress.level} xpIntoLevel={progress.xp_into_level} xpToNext={progress.xp_to_next} coins={progress.coins} />
+        <LevelHeader level={progress.level} xpIntoLevel={progress.xp_into_level} xpToNext={progress.xp_to_next} coins={progress.coins} xpToday={progress.xp_today} xpTodayCap={progress.xp_today_cap} />
       </View>
       <View style={[styles.body, { paddingTop: STAGE_H + WATER_H }]}>
         <View style={styles.gutter}>

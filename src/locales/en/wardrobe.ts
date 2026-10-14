@@ -5,6 +5,8 @@ export const en = {
   'wardrobe.level': 'Level {n}',
   'wardrobe.maxLevel': 'Max level',
   'wardrobe.xp': '{into} / {total} XP',
+  'wardrobe.today': '{used} / {cap} XP today',
+  'wardrobe.todayFull': 'Daily XP reached. Coins still count.',
   'wardrobe.coins': '{n} coins',
   'wardrobe.slot.head': 'Head',
   'wardrobe.slot.face': 'Face',

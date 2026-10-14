@@ -6,6 +6,8 @@ export const he = {
   'wardrobe.level': 'רמה {n}',
   'wardrobe.maxLevel': 'רמה מקסימלית',
   'wardrobe.xp': '{into} / {total} XP',
+  'wardrobe.today': '{used} / {cap} XP היום',
+  'wardrobe.todayFull': 'הגעתם לתקרת ה-XP היומית. מטבעות עדיין נספרים.',
   'wardrobe.coins': '{n} מטבעות',
   'wardrobe.slot.head': 'ראש',
   'wardrobe.slot.face': 'פנים',

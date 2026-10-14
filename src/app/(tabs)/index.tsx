@@ -525,6 +525,13 @@ export default function IslandsScreen() {
     router.push({ pathname: '/island/[id]', params: { id: queue[0].id, auto: '1' } });
   }, [sortedAll, practicable, router, t]);
 
+  // Drive: starts on the first due island with audio, else the newest ready one with audio.
+  const startDrive = useCallback(() => {
+    const withAudio = (i: api.IslandSummary) => i.status === 'ready' && i.has_audio !== false;
+    const pick = sortedAll.find((i) => practicable(i) && withAudio(i)) ?? sortedAll.find(withAudio);
+    router.push({ pathname: '/drive', params: pick ? { id: pick.id } : {} });
+  }, [sortedAll, practicable, router]);
+
   const requestShape = useCallback((next: Shape) => {
     wanted.current = next;
     setAnimLayout(false);
@@ -902,7 +909,7 @@ export default function IslandsScreen() {
       />
       <View style={styles.headerFixed}>
         <CatBadge />
-        <PracticeCard log={log} dueCount={readyDueCount} onPractice={startPractice} />
+        <PracticeCard log={log} dueCount={readyDueCount} onPractice={startPractice} onDrive={startDrive} />
         {/* pill-tray-tab-bar: sort row start */}
         <PillTrayShell
           wrapStyle={[styles.sortRowWrap, dir.rtl && styles.sortRowWrapRtl]}

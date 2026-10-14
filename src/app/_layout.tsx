@@ -8,6 +8,7 @@ import { useReducedMotion } from 'react-native-reanimated';
 import { CardMorphOverlay } from '@/components/card-morph-overlay';
 import { LoadingOverlay } from '@/components/loading-overlay';
 import { tide } from '@/constants/theme';
+import { getUsername } from '@/lib/api';
 import { loadSession, onSessionLost } from '@/lib/auth';
 import { loadDeviceId } from '@/lib/device';
 import { loadOfflineIndex } from '@/lib/offline-islands'; // offline-islands
@@ -68,6 +69,15 @@ export default function RootLayout() {
     launched.current = true;
     if (needsOnboarding) router.push({ pathname: '/onboarding', params: { first: '1' } });
     else if (!hasSession) router.push({ pathname: '/sign-in', params: { first: '1' } });
+    else {
+      // Hard gate: a signed-in account with no handle must pick one. A failed
+      // request opens the app anyway and the check runs again next launch.
+      void getUsername()
+        .then((name) => {
+          if (name === null) router.push({ pathname: '/username', params: { first: '1' } });
+        })
+        .catch(() => undefined);
+    }
     requestAnimationFrame(() => {
       void SplashScreen.hideAsync();
     });
@@ -109,6 +119,18 @@ export default function RootLayout() {
               presentation: 'fullScreenModal',
               gestureEnabled: false,
               animation: params?.first === '1' ? 'none' : 'default',
+            };
+          }}
+        />
+        <Stack.Screen
+          name="username"
+          options={({ route }) => {
+            const params = route.params as { first?: string } | undefined;
+            const required = params?.first === '1';
+            return {
+              headerShown: false,
+              presentation: 'fullScreenModal',
+              gestureEnabled: !required,
             };
           }}
         />
@@ -178,6 +200,8 @@ export default function RootLayout() {
         <Stack.Screen name="settings/languages" options={{ title: t('title.language') }} />
         <Stack.Screen name="settings/app-language" options={{ title: t('settings.appLanguage') }} />
         <Stack.Screen name="before-after" options={{ title: t('beforeAfter.title') }} />
+        <Stack.Screen name="leaderboard" options={{ title: t('leaderboard.title'), headerStyle: { backgroundColor: '#080b1c' } }} />
+        <Stack.Screen name="drive" options={{ headerShown: false, animation: 'fade' }} />
         <Stack.Screen name="wardrobe" options={{ title: t('wardrobe.title'), headerStyle: { backgroundColor: '#080b1c' } }} />
         {/* Dev-only screen, excluded from the app-language inventory. */}
         <Stack.Screen name="prism-lab" options={{ title: 'Prism lab' }} />

@@ -2945,6 +2945,12 @@ export default function IslandScreen() {
   const onMenuRevoice = useStableHandler(() => closeSheetThen(() => void doRevoice()));
   const onMenuRegenerate = useStableHandler(() => closeSheetThen(confirmRegenerate));
   const onMenuCalibrate = useStableHandler(() => closeSheetThen(() => void calibrateSpeaker()));
+  const onMenuDrive = useStableHandler(() =>
+    closeSheetThen(() => {
+      stopPlayback(player);
+      if (island) router.replace({ pathname: '/drive', params: { id: island.id, line: String(idx) } });
+    }),
+  );
   // before-after
   const onMenuBeforeAfter = useStableHandler(() =>
     closeSheetThen(() => {
@@ -3728,6 +3734,7 @@ export default function IslandScreen() {
         onRename={onMenuRename}
         onExport={onMenuExport}
         onBeforeAfter={onMenuBeforeAfter} // before-after
+        onDrive={(island as { has_audio?: boolean }).has_audio === false ? undefined : onMenuDrive}
         onWatch={island.source === 'youtube' ? onMenuWatch : undefined} // youtube-shadowing
         onListen={island.source === 'podcast' ? onMenuListen : undefined} // podcast-listen
         onRevoice={onMenuRevoice}

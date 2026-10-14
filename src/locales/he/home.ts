@@ -98,6 +98,7 @@ export const he = {
   'home.phrasesTitle': 'ביטויים',
   'home.phrasesError': 'לא ניתן לטעון את הביטויים.',
   'home.phrasesCount': '{count} ביטויים',
+  'home.drive': 'נהיגה',
   'home.phrasesCount_one': 'ביטוי {count}',
   'home.phrasesCount_two': '{count} ביטויים',
   'home.phrasesCount_other': '{count} ביטויים',

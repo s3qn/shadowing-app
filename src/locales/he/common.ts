@@ -53,6 +53,8 @@ export const he = {
   'api.daily_limit': 'מכסה יומית: {limit}.',
   'api.voice_unreachable': 'מנוע הקול לא זמין.',
   'api.file_too_large': 'הקובץ גדול מדי לייבוא.',
+  'api.username_taken': 'שם המשתמש הזה תפוס.',
+  'api.username_invalid': 'יש להשתמש ב-3-20 אותיות באנגלית, ספרות או קו תחתון.',
   'api.recording_too_large': 'ההקלטה גדולה מדי.',
   'api.audio_undecodable': 'לא ניתן לפענח את הקול.',
   'api.empty_upload': 'העלאה ריקה.',

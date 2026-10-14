@@ -93,6 +93,8 @@ export type IslandSummary = {
   created_at: string;
   line_count: number;
   source?: IslandSource; // youtube-shadowing
+  /** False when line 0 has no audio file (a captions-only island). Absent from an older backend: treat as true. */
+  has_audio?: boolean;
 };
 
 /** A code the backend sends (`daily_limit`, `no_lines`, `transcribing`) is only
@@ -817,6 +819,11 @@ export async function listVideos(): Promise<VideoListItem[]> {
 export type { ArtSpec, Slot };
 export type Progress = {
   xp: number;
+  /** Capped XP earned today (UTC day), 0..xp_today_cap. */
+  xp_today: number;
+  xp_today_cap: number;
+  /** Consecutive practice days; not shown yet. */
+  streak_days: number;
   level: number;
   coins: number;
   xp_into_level: number;
@@ -858,4 +865,33 @@ export async function equipCosmetic(slot: Slot, itemId: string | null): Promise<
   form.append('slot', slot);
   form.append('item_id', itemId ?? '');
   return json<Progress>(await expoFetch(`${BASE}/cosmetics/equip`, { method: 'POST', headers: headers(), body: form }));
+}
+
+// --- username ---
+
+export type UsernameCheck = { valid: boolean; available: boolean; reason: null | 'invalid' | 'taken' };
+
+/** The signed-in account's handle, or null when none is set. Throws when the
+ * request fails: a failed fetch is not "no username". */
+export async function getUsername(): Promise<string | null> {
+  const r = await json<{ username: string | null }>(await expoFetch(`${BASE}/username`, { headers: headers() }));
+  return r.username;
+}
+
+export async function checkUsername(name: string): Promise<UsernameCheck> {
+  return json<UsernameCheck>(await expoFetch(`${BASE}/username/check?name=${encodeURIComponent(name)}`, { headers: headers() }));
+}
+
+export async function setUsername(name: string): Promise<string> {
+  const form = new FormData();
+  form.append('username', name);
+  const r = await json<{ username: string }>(await expoFetch(`${BASE}/username`, { method: 'POST', headers: headers(), body: form }));
+  return r.username;
+}
+
+export type LeaderboardEntry = { username: string; level: number; equipped: Record<Slot, string | null> };
+export type Leaderboard = { entries: LeaderboardEntry[]; me: { rank: number | null; level: number; username: string | null } };
+
+export async function getLeaderboard(): Promise<Leaderboard> {
+  return json<Leaderboard>(await expoFetch(`${BASE}/leaderboard`, { headers: headers() }));
 }

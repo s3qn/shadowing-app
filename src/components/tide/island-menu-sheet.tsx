@@ -14,6 +14,7 @@ const ICONS = {
   save: { ios: 'checkmark', android: 'check' },
   rename: { ios: 'pencil', android: 'edit' },
   export: { ios: 'square.and.arrow.up', android: 'ios_share' },
+  drive: { ios: 'car.fill', android: 'directions_car' },
   beforeAfter: { ios: 'arrow.left.arrow.right', android: 'compare_arrows' },
   revoice: { ios: 'person.wave.2', android: 'record_voice_over' },
   regenerate: { ios: 'arrow.clockwise', android: 'refresh' },
@@ -43,6 +44,8 @@ type Props = {
   onRename: (title: string) => void;
   onExport: () => void;
   onBeforeAfter: () => void;
+  /** Absent hides the Drive row (an island with no per-line audio). */
+  onDrive?: () => void;
   /** Set only on a YouTube island: adds the Watch the video row. */ // youtube-shadowing
   onWatch?: () => void;
   onListen?: () => void; // podcast-listen
@@ -74,6 +77,7 @@ function IslandMenuSheetBase({
   onRename,
   onExport,
   onBeforeAfter,
+  onDrive,
   onWatch, // youtube-shadowing
   onListen, // podcast-listen
   onRevoice,
@@ -132,6 +136,7 @@ function IslandMenuSheetBase({
             disabled={recording || busy}
             onPress={onBeforeAfter}
           />
+          {onDrive ? <SheetAction label={t('drive.title')} icon={ICONS.drive} discColor={verb.tools.c1} disabled={recording || busy} onPress={onDrive} /> : null}
           {onWatch ? ( // youtube-shadowing
             <SheetAction
               label={t('video.watch')}

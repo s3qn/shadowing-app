@@ -5,8 +5,8 @@ import { AppState, Platform } from 'react-native';
 // Native `AudioMode` records default every missing key (Swift
 // `AudioRecords.swift`: `shouldPlayInBackground = false`), so a partial call
 // to setAudioModeAsync anywhere would silently turn background playback off
-// again. The two helpers below are the only callers of setAudioModeAsync in
-// the app; every screen goes through one of them instead of calling it
+// again. The helpers below are the only callers of setAudioModeAsync in
+// the app (playback, recording and drive); every screen goes through one of them instead of calling it
 // directly.
 
 const BASE = {
@@ -28,6 +28,13 @@ export function applyRecordingMode(): Promise<void> {
   cancelAudioSessionRelease();
   recordingOpen = true;
   return setAudioModeAsync({ ...BASE, allowsRecording: true });
+}
+
+/** Drive Mode: playback only, and other apps' audio is stopped rather than ducked, so iOS keeps
+ * our lock screen card instead of another app's. Leaving Drive goes back through applyPlaybackMode. */
+export function applyDriveMode(): Promise<void> {
+  recordingOpen = false;
+  return setAudioModeAsync({ ...BASE, interruptionMode: 'doNotMix', allowsRecording: false });
 }
 
 // Deactivating the session pauses every player natively, and a release is

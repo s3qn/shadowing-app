@@ -54,6 +54,7 @@ import podcast
 import phrase_catalog
 import podcast_catalog
 import progression
+import user_profile
 import schedule
 import segment
 import store
@@ -132,6 +133,7 @@ def _startup() -> None:
     store.init()
     schedule.init()
     progression.init()
+    user_profile.init()
     _claim_owner()
     log.info("store ready at %s", store.DB_PATH)
     # Background work dies with the process. Anything still marked as working
@@ -905,7 +907,10 @@ def list_islands(authorization: str | None = Header(None), device: str = "",
                   x_shadow_device: str = Header("")) -> list[dict]:
     require_token(authorization)
     dev = _require_device(x_shadow_device, device)
-    return store.list_islands(dev)
+    rows = store.list_islands(dev)
+    for row in rows:
+        row["has_audio"] = store.line_audio_path(row["id"], 0).exists()
+    return rows
 
 
 # Old islands get their word timings, furigana and pitch marks on first read
@@ -1093,8 +1098,9 @@ async def _resolve_line_audio(island: dict, idx: int, speed: float,
     return path
 
 
-# The longest silence the line audio route appends: the player's longest Pause.
-PAD_MAX_MS = 10000
+# The longest silence the line audio route appends. The player's Pause stops at
+# 10 s, but Drive's shadow gap (1.2 x a slow line) needs up to 20 s.
+PAD_MAX_MS = 20000
 
 
 def _clamp_pad(pad: int) -> int:
@@ -1403,7 +1409,10 @@ async def upload_take(
             )
             try:
                 response["award"] = await asyncio.to_thread(
-                    progression.award_take, device, island_id, idx
+                    # cat-xp awards
+                    progression.award_take, device, island_id, idx,
+                    response.get("score"), render_speed, span is None,
+                    [l["idx"] for l in island["lines"]],
                 )
             except Exception:
                 log.exception("take award failed")
@@ -1698,6 +1707,7 @@ def _erase_owner(owner: str) -> None:
     store.delete_owner_rows(owner)
     schedule.delete_owner(owner)
     progression.delete_owner(owner)
+    user_profile.delete_owner(owner)
     import aec
 
     (aec.AEC_DIR / f"{_take_profile_name(owner)}.npz").unlink(missing_ok=True)
@@ -2230,6 +2240,25 @@ async def get_progress(
     return await asyncio.to_thread(progression.snapshot, device)
 
 
+# cat-leaderboard routes
+
+
+def _usernames(owners: list[str]) -> dict[str, str]:
+    fn = getattr(user_profile, "usernames", None)
+    return fn(owners) if fn else {}
+
+
+@app.get("/shadow/leaderboard")
+async def leaderboard(
+    limit: int = Query(progression.LEADERBOARD_MAX),
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    return await asyncio.to_thread(progression.leaderboard, device, limit, _usernames)
+
+
 @app.get("/shadow/cosmetics/catalog")
 async def cosmetics_catalog(
     ui: str = Query("en"),
@@ -2262,3 +2291,50 @@ async def cosmetics_equip(
     require_token(authorization)
     device = _require_device(x_shadow_device)
     return await asyncio.to_thread(progression.equip, device, slot, item_id)
+
+
+# cat-username routes
+def _require_user(x_shadow_device: str) -> str:
+    """The signed-in owner id. A bare device id cannot own a handle."""
+    owner = _require_device(x_shadow_device)
+    if not accounts.USER_RE.match(owner):
+        raise HTTPException(401, "sign in to set a username")
+    return owner
+
+
+@app.get("/shadow/username")
+async def username_get(
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    require_token(authorization)
+    owner = _require_user(x_shadow_device)
+    return {"username": await asyncio.to_thread(user_profile.get_username, owner)}
+
+
+@app.get("/shadow/username/check")
+async def username_check(
+    name: str = Query(""),
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    require_token(authorization)
+    owner = _require_user(x_shadow_device)
+    return await asyncio.to_thread(user_profile.check, owner, name)
+
+
+@app.post("/shadow/username")
+async def username_set(
+    username: str = Form(...),
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    require_token(authorization)
+    owner = _require_user(x_shadow_device)
+    try:
+        name = await asyncio.to_thread(user_profile.set_username, owner, username)
+    except user_profile.UsernameInvalid:
+        raise HTTPException(400, {"code": "username_invalid"})
+    except user_profile.UsernameTaken:
+        raise HTTPException(409, {"code": "username_taken"})
+    return {"username": name}

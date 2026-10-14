@@ -20,6 +20,7 @@ export default function SettingsScreen() {
   // languages: Home's show-all toggle, default off.
   const [showAllLanguages, setShowAllLanguagesState] = useState(false);
   const [appLanguage, setAppLanguageState] = useState<AppLanguage>('auto');
+  const [username, setUsernameState] = useState<string | null | undefined>(undefined);
 
   async function confirmSignOut() {
     try {
@@ -65,6 +66,13 @@ export default function SettingsScreen() {
         setSkyAlwaysNightState(settings.skyAlwaysNight);
         setShowAllLanguagesState(settings.showAllLanguages);
         setAppLanguageState(settings.appLanguage);
+
+        try {
+          const name = await api.getUsername();
+          if (alive) setUsernameState(name);
+        } catch {
+          // Offline or a device-only session: the row stays without a value.
+        }
 
         try {
           const [speakers, voiceId] = await Promise.all([
@@ -218,6 +226,12 @@ export default function SettingsScreen() {
           }>
           {usingDevBypass() ? null : (
             <>
+              <SettingsRow
+                label={t('username.settingsRow')}
+                value={username === undefined ? undefined : username === null ? t('username.notSet') : `@${username}`}
+                icon={{ ios: 'at', android: 'alternate_email' }}
+                onPress={() => router.push('/username')}
+              />
               <SettingsRow
                 label={t('settings.row.signOut')}
                 icon={{ ios: 'rectangle.portrait.and.arrow.right', android: 'logout' }}

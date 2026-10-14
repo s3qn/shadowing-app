@@ -79,10 +79,17 @@ export function CoinCount({ value, style }: { value: number; style?: object }) {
   return <AnimatedInput editable={false} pointerEvents="none" underlineColorAndroid="transparent" style={[styles.coinText, style]} animatedProps={props} defaultValue={String(value)} />;
 }
 
-export type LevelHeaderProps = { level: number; xpIntoLevel: number; xpToNext: number; coins: number };
+export type LevelHeaderProps = {
+  level: number;
+  xpIntoLevel: number;
+  xpToNext: number;
+  coins: number;
+  xpToday?: number;
+  xpTodayCap?: number;
+};
 
 /** Level in gold, XP bar and the coin pill. xpToNext 0 means the top level. */
-export function LevelHeader({ level, xpIntoLevel, xpToNext, coins }: LevelHeaderProps) {
+export function LevelHeader({ level, xpIntoLevel, xpToNext, coins, xpToday, xpTodayCap }: LevelHeaderProps) {
   const { t } = useT();
   const dir = useDir();
   const reduced = useReducedMotion();
@@ -134,6 +141,13 @@ export function LevelHeader({ level, xpIntoLevel, xpToNext, coins }: LevelHeader
           <Text style={styles.xp}>{maxed ? t('wardrobe.maxLevel') : t('wardrobe.xp', { into: xpIntoLevel, total: xpToNext })}</Text>
         </View>
         <XpBar height={6} fraction={maxed ? 1 : xpIntoLevel / xpToNext} levelUps={levelUps} />
+        {xpToday != null && xpTodayCap != null ? (
+          <Text style={[styles.label, dir.text]}>
+            {xpToday >= xpTodayCap
+              ? t('wardrobe.todayFull')
+              : t('wardrobe.today', { used: xpToday, cap: xpTodayCap })}
+          </Text>
+        ) : null}
       </View>
       <View style={[styles.coinPill, dir.row]} accessibilityLabel={t('wardrobe.coins', { n: coins })}>
         <Animated.View pointerEvents="none" style={[styles.ring, ringStyle]} />

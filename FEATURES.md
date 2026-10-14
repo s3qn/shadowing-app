@@ -215,7 +215,10 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Auto Echo Prism buttons (ring + glyph fixes)
 - Tide toggle replaces native Switch
 - Glass input + Prism CTAs, suggest cat loader
-- Default playback speed 1.0 (was 0.5)
+- Unique @username with a required launch gate
+- New XP sources + a 120/day cap (milestones exempt)
+- Cat leaderboard by level with dressed-cat rows
+- Drive Mode: hands-free island radio for the car
 
 ## Next (approved, in order)
 

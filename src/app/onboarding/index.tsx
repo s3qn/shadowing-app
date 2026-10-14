@@ -17,6 +17,7 @@ import { WelcomeStep } from '@/components/onboarding/welcome-step';
 import { PrismButton } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
 import { Spacing, prism, tide, verb } from '@/constants/theme';
+import { getUsername } from '@/lib/api';
 import { hasSessionSync } from '@/lib/auth';
 import { previewAppLanguage, useDir, useT } from '@/lib/i18n';
 import { LANGUAGES } from '@/lib/languages';
@@ -62,6 +63,17 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [step, setStep] = useState(0);
+
+  // After the account step: a new account has no handle, so the required
+  // username screen opens over onboarding. A failed lookup does not block.
+  async function afterSignIn() {
+    setStep(STEP_LEARN);
+    try {
+      if ((await getUsername()) === null) router.push({ pathname: '/username', params: { first: '1' } });
+    } catch {
+      // Offline or signed out: the launch check asks again.
+    }
+  }
   // Start from the saved pair (the root layout loads settings before any
   // screen renders), so Replay onboarding plus Skip keeps the learner's choice.
   const [learning, setLearning] = useState<LearningLanguage>(() => getSettingsSync().learningLanguage);
@@ -161,7 +173,7 @@ export default function OnboardingScreen() {
           <WelcomeStep onNext={() => setStep(hasSessionSync() ? STEP_LEARN : STEP_ACCOUNT)} />
         ) : null}
 
-        {step === STEP_ACCOUNT ? <SignInStep onSignedIn={() => setStep(STEP_LEARN)} /> : null}
+        {step === STEP_ACCOUNT ? <SignInStep onSignedIn={() => void afterSignIn()} /> : null}
 
         {/* language-picker: start */}
         {step === STEP_LEARN ? (

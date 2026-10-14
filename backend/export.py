@@ -29,7 +29,7 @@ import store
 
 SPEED_MIN, SPEED_MAX = 0.5, 1.5  # same as main.py
 REPEATS_MAX = 4
-GAP_MAX_MS = 5000  # same cap as the `pad` query parameter
+GAP_MAX_MS = 5000  # the export gap has its own cap, separate from the `pad` query parameter
 LEAD_MS = 500
 BITRATE = "96k"
 SAMPLE_RATE = 44100

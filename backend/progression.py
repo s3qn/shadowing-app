@@ -14,7 +14,7 @@ import logging
 import os
 import sqlite3
 import threading
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -37,6 +37,30 @@ MINUTE_XP, MINUTE_COINS = 5, 1
 MINUTE_CAP = 20
 TAKE_XP, TAKE_COINS = 10, 2
 TAKES_PER_DAY = 60
+
+# Every repeatable source (take, minute, practiced, day, streak, quality,
+# mastery) is clamped to this much XP per UTC day. Milestones are exempt.
+DAILY_XP_CAP = 120
+QUALITY_GOOD = 0.5
+QUALITY_GREAT = 0.8
+QUALITY_MIN_WORDS = 3
+QUALITY_XP, QUALITY_COINS = 5, 1
+MASTERY_XP, MASTERY_COINS = 60, 20
+# (minimum streak days, xp, coins), longest first.
+STREAK_TIERS = ((30, 30, 8), (7, 20, 5), (3, 10, 3))
+MILESTONES = {
+    "first_take": (40, 10),
+    "first_island": (40, 10),
+    "perfect_take": (60, 15),
+    "full_speed": (60, 15),
+    "first_mastery": (80, 20),
+    "streak_7": (60, 15),
+    "streak_30": (150, 40),
+    # Level milestones pay coins only: XP for a level would feed itself.
+    "level_5": (0, 30),
+    "level_10": (0, 60),
+    "level_20": (0, 100),
+}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS progress (
@@ -65,6 +89,20 @@ CREATE TABLE IF NOT EXISTS equipped (
   slot TEXT NOT NULL,
   item_id TEXT NOT NULL,
   PRIMARY KEY(owner, slot)
+);
+CREATE TABLE IF NOT EXISTS day_xp (
+  owner TEXT NOT NULL,
+  day TEXT NOT NULL,
+  xp INTEGER NOT NULL,
+  PRIMARY KEY(owner, day)
+);
+CREATE TABLE IF NOT EXISTS line_best (
+  owner TEXT NOT NULL,
+  island_id TEXT NOT NULL,
+  idx INTEGER NOT NULL,
+  best REAL NOT NULL,
+  updated_at TEXT,
+  PRIMARY KEY(owner, island_id, idx)
 );
 """
 
@@ -180,8 +218,21 @@ def _read(conn: sqlite3.Connection, owner: str) -> dict:
     for r in conn.execute("SELECT slot, item_id FROM equipped WHERE owner=?", (owner,)):
         if r["slot"] in equipped:
             equipped[r["slot"]] = r["item_id"]
+    today = _today()
+    used = conn.execute("SELECT xp FROM day_xp WHERE owner=? AND day=?", (owner, today)).fetchone()
+    days = _day_keys(conn, owner)
+    end = date.fromisoformat(today)
+    if today not in days:
+        end -= timedelta(days=1)
+    streak = 0
+    while end.isoformat() in days:
+        streak += 1
+        end -= timedelta(days=1)
     return {
         "xp": xp,
+        "xp_today": used["xp"] if used else 0,
+        "xp_today_cap": DAILY_XP_CAP,
+        "streak_days": streak,
         "level": level,
         "coins": coins,
         "xp_into_level": into,
@@ -199,40 +250,138 @@ def snapshot(owner: str) -> dict:
 # --- awards ---
 
 
-def _apply(conn: sqlite3.Connection, owner: str, key: str, xp: int, coins: int) -> tuple[int, int]:
-    """Pays one ledger key inside the caller's open transaction. Returns the
-    (xp, coins) actually granted, level-up coins included; (0, 0) when the key
-    was already paid."""
+def _apply(
+    conn: sqlite3.Connection, owner: str, key: str, xp: int, coins: int, day: str, capped: bool
+) -> tuple[bool, int, int]:
+    """Pays one ledger key inside the caller's open transaction. Returns
+    (paid, xp granted, coins granted), level-up coins included. `paid` is False
+    for a replayed key, which changes nothing. When `capped` the XP is clamped
+    to what is left of DAILY_XP_CAP for `day`; the row keeps the XP actually
+    granted, so progress.xp always equals the sum of the owner's ledger."""
     cur = conn.execute(
         "INSERT OR IGNORE INTO awards (owner, key, xp, coins, created_at) VALUES (?, ?, ?, ?, ?)",
         (owner, key, xp, coins, _now()),
     )
     if cur.rowcount != 1:
-        return 0, 0
+        return False, 0, 0
+    granted = xp
+    if capped and xp > 0:
+        row = conn.execute(
+            "SELECT xp FROM day_xp WHERE owner=? AND day=?", (owner, day)
+        ).fetchone()
+        used = row["xp"] if row else 0
+        granted = max(0, min(xp, DAILY_XP_CAP - used))
+        conn.execute(
+            "INSERT INTO day_xp (owner, day, xp) VALUES (?, ?, ?)"
+            " ON CONFLICT(owner, day) DO UPDATE SET xp = xp + excluded.xp",
+            (owner, day, granted),
+        )
+        if granted != xp:
+            conn.execute(
+                "UPDATE awards SET xp = ? WHERE owner=? AND key=?", (granted, owner, key)
+            )
     conn.execute(
         "INSERT OR IGNORE INTO progress (owner, xp, coins, updated_at) VALUES (?, 0, 0, ?)",
         (owner, _now()),
     )
     old_xp = conn.execute("SELECT xp FROM progress WHERE owner=?", (owner,)).fetchone()["xp"]
-    gained = max(0, level_for(old_xp + xp) - level_for(old_xp))
+    gained = max(0, level_for(old_xp + granted) - level_for(old_xp))
     bonus = gained * LEVEL_UP_COINS
     conn.execute(
         "UPDATE progress SET xp = xp + ?, coins = coins + ?, updated_at = ? WHERE owner=?",
-        (xp, coins + bonus, _now(), owner),
+        (granted, coins + bonus, _now(), owner),
     )
-    return xp, coins + bonus
+    return True, granted, coins + bonus
 
 
-def _run_awards(owner: str, entries: list[tuple[str, int, int]], day: str, take_cap: bool = False) -> dict:
-    """Pays the given (key, xp, coins) entries in one transaction. When any of
-    them pays and the day bonus is still unpaid, the day bonus is added."""
+def _day_keys(conn: sqlite3.Connection, owner: str) -> set[str]:
+    return {
+        r["key"][4:]
+        for r in conn.execute("SELECT key FROM awards WHERE owner=? AND key LIKE 'day:%'", (owner,))
+    }
+
+
+def _streak_days(conn: sqlite3.Connection, owner: str, end_day: str) -> int:
+    """Consecutive paid `day:` keys ending at `end_day`."""
+    days = _day_keys(conn, owner)
+    cur = date.fromisoformat(end_day)
+    n = 0
+    while cur.isoformat() in days:
+        n += 1
+        cur -= timedelta(days=1)
+    return n
+
+
+def _ok_ratio(score) -> tuple[float, int] | None:
+    """(ok ratio, scoreable word count) of a take score, or None when the
+    score carries no scoreable words. Same rule as scoredTier on the client:
+    `none` words are excluded."""
+    if not isinstance(score, dict) or not isinstance(score.get("words"), list):
+        return None
+    scored = [w for w in score["words"] if w != "none"]
+    if not scored:
+        return None
+    return sum(1 for w in scored if w == "ok") / len(scored), len(scored)
+
+
+def _milestones(conn: sqlite3.Connection, owner: str, day: str, ctx: dict) -> tuple[int, int, list[str]]:
+    """Pays the one-time milestones whose condition holds. Uncapped: they
+    neither use up daily room nor count in xp_today."""
+    got_xp = got_coins = 0
+    names: list[str] = []
+
+    def pay(name: str) -> None:
+        nonlocal got_xp, got_coins
+        xp, coins = MILESTONES[name]
+        paid, gx, gc = _apply(conn, owner, f"ms:{name}", xp, coins, day, False)
+        if paid:
+            got_xp += gx
+            got_coins += gc
+            names.append(name)
+
+    streak = ctx.get("streak") or 0
+    for name, hit in (
+        ("first_take", ctx.get("take")),
+        ("first_island", ctx.get("practiced")),
+        ("perfect_take", ctx.get("perfect")),
+        ("full_speed", ctx.get("full_speed")),
+        ("first_mastery", ctx.get("mastered")),
+        ("streak_7", streak >= 7),
+        ("streak_30", streak >= 30),
+    ):
+        if hit:
+            pay(name)
+    for level, name in ((5, "level_5"), (10, "level_10"), (20, "level_20")):
+        row = conn.execute("SELECT xp FROM progress WHERE owner=?", (owner,)).fetchone()
+        if level_for(row["xp"] if row else 0) >= level:
+            pay(name)
+    return got_xp, got_coins, names
+
+
+def _run_awards(
+    owner: str,
+    entries: list[tuple[str, int, int]],
+    day: str,
+    take_cap: bool = False,
+    prepare=None,
+    ctx: dict | None = None,
+) -> dict:
+    """Pays the given (key, xp, coins) entries in one transaction, every one
+    clamped to the daily cap (island mastery is exempt). When any of them pays and the day bonus is still
+    unpaid, the day bonus is added, then the streak bonus and the milestones.
+    `prepare(conn)` runs first inside the transaction and returns more entries."""
+    ctx = dict(ctx or {})
     conn = connect()
     conn.execute("BEGIN IMMEDIATE")
     try:
         before = conn.execute("SELECT xp FROM progress WHERE owner=?", (owner,)).fetchone()
         old_level = level_for(before["xp"] if before else 0)
         got_xp = got_coins = 0
-        paid = False
+        any_paid = False
+        take_blocked = False
+        entries = list(entries)
+        if prepare is not None:
+            entries += prepare(conn)
         for key, xp, coins in entries:
             if take_cap and key.startswith("take:"):
                 n = conn.execute(
@@ -240,27 +389,63 @@ def _run_awards(owner: str, entries: list[tuple[str, int, int]], day: str, take_
                     (owner, f"take:%:{day}"),
                 ).fetchone()["n"]
                 if n >= TAKES_PER_DAY:
+                    take_blocked = True
                     continue
-            gx, gc = _apply(conn, owner, key, xp, coins)
-            if gx or gc:
-                paid = True
+            if take_blocked and key.startswith("quality:"):
+                continue
+            # Mastery is once per island, so it ignores the daily cap like the milestones.
+            paid, gx, gc = _apply(conn, owner, key, xp, coins, day, not key.startswith("mastery:"))
+            if paid:
+                any_paid = True
+                got_xp += gx
+                got_coins += gc
+                if key.startswith("take:"):
+                    ctx["take_paid"] = True
+                elif key.startswith("practiced:"):
+                    ctx["practiced"] = True
+                elif key.startswith("mastery:"):
+                    ctx["mastered"] = True
+        if take_blocked:
+            ctx["perfect"] = ctx["full_speed"] = False
+        ctx["take"] = ctx.pop("take_paid", False)
+        if any_paid:
+            paid, gx, gc = _apply(conn, owner, f"day:{day}", DAY_XP, DAY_COINS, day, True)
             got_xp += gx
             got_coins += gc
-        if paid:
-            gx, gc = _apply(conn, owner, f"day:{day}", DAY_XP, DAY_COINS)
-            got_xp += gx
-            got_coins += gc
+            if paid:
+                streak = _streak_days(conn, owner, day)
+                ctx["streak"] = streak
+                for min_days, sxp, scoins in STREAK_TIERS:
+                    if streak >= min_days:
+                        _, gx, gc = _apply(conn, owner, f"streak:{day}", sxp, scoins, day, True)
+                        got_xp += gx
+                        got_coins += gc
+                        break
+        mx, mc, names = _milestones(conn, owner, day, ctx)
+        got_xp += mx
+        got_coins += mc
         after = conn.execute("SELECT xp FROM progress WHERE owner=?", (owner,)).fetchone()
         level = level_for(after["xp"] if after else 0)
+        used = conn.execute(
+            "SELECT xp FROM day_xp WHERE owner=? AND day=?", (owner, day)
+        ).fetchone()
         conn.commit()
     except BaseException:
         conn.rollback()
         raise
-    return {"xp": got_xp, "coins": got_coins, "level": level, "leveled_up": level > old_level}
+    return {
+        "xp": got_xp,
+        "coins": got_coins,
+        "level": level,
+        "leveled_up": level > old_level,
+        "milestones": names,
+        "capped": bool(used and used["xp"] >= DAILY_XP_CAP),
+    }
 
 
 def award(owner: str, key: str, xp: int, coins: int) -> dict:
-    """The primitive: pays `key` once. Replays return zeros."""
+    """The primitive: pays `key` once. Replays return zeros. It is uncapped and
+    skips the day, streak and milestone rules: for tests and seeds only."""
     return _run_awards_plain(owner, key, xp, coins)
 
 
@@ -270,7 +455,7 @@ def _run_awards_plain(owner: str, key: str, xp: int, coins: int) -> dict:
     try:
         before = conn.execute("SELECT xp FROM progress WHERE owner=?", (owner,)).fetchone()
         old_level = level_for(before["xp"] if before else 0)
-        gx, gc = _apply(conn, owner, key, xp, coins)
+        _, gx, gc = _apply(conn, owner, key, xp, coins, _today(), False)
         after = conn.execute("SELECT xp FROM progress WHERE owner=?", (owner,)).fetchone()
         level = level_for(after["xp"] if after else 0)
         conn.commit()
@@ -295,11 +480,54 @@ def award_practice(owner: str, island_id: str, seconds_today: float) -> dict:
     return _run_awards(owner, entries, day)
 
 
-def award_take(owner: str, island_id: str, idx: int) -> dict:
+def award_take(
+    owner: str,
+    island_id: str,
+    idx: int,
+    score=None,
+    speed: float = 1.0,
+    whole_line: bool = True,
+    line_idxs=(),
+) -> dict:
+    """The base take award plus the quality tiers (whole-line takes with at
+    least QUALITY_MIN_WORDS scoreable words), the line_best record and the
+    island mastery bonus, all in one transaction."""
     day = _today()
-    return _run_awards(
-        owner, [(f"take:{island_id}:{idx}:{day}", TAKE_XP, TAKE_COINS)], day, take_cap=True
-    )
+    entries = [(f"take:{island_id}:{idx}:{day}", TAKE_XP, TAKE_COINS)]
+    ctx: dict = {}
+    ratio = _ok_ratio(score) if whole_line else None
+    if ratio is not None and ratio[1] >= QUALITY_MIN_WORDS:
+        r = ratio[0]
+        if r >= QUALITY_GOOD:
+            entries.append((f"quality:{island_id}:{idx}:{day}:good", QUALITY_XP, QUALITY_COINS))
+            ctx["full_speed"] = speed >= 1.0
+        if r >= QUALITY_GREAT:
+            entries.append((f"quality:{island_id}:{idx}:{day}:great", QUALITY_XP, QUALITY_COINS))
+        ctx["perfect"] = r >= 1.0
+
+    def prepare(conn: sqlite3.Connection) -> list[tuple[str, int, int]]:
+        if ratio is None:
+            return []
+        conn.execute(
+            "INSERT INTO line_best (owner, island_id, idx, best, updated_at) VALUES (?, ?, ?, ?, ?)"
+            " ON CONFLICT(owner, island_id, idx) DO UPDATE SET"
+            " best = MAX(best, excluded.best), updated_at = excluded.updated_at",
+            (owner, island_id, idx, ratio[0], _now()),
+        )
+        idxs = list(line_idxs)
+        if not idxs:
+            return []
+        best = {
+            r["idx"]: r["best"]
+            for r in conn.execute(
+                "SELECT idx, best FROM line_best WHERE owner=? AND island_id=?", (owner, island_id)
+            )
+        }
+        if all(best.get(i, 0.0) >= QUALITY_GREAT for i in idxs):
+            return [(f"mastery:{island_id}", MASTERY_XP, MASTERY_COINS)]
+        return []
+
+    return _run_awards(owner, entries, day, take_cap=True, prepare=prepare if whole_line else None, ctx=ctx)
 
 
 # --- shop ---
@@ -382,5 +610,48 @@ def equip(owner: str, slot: str, item_id: str) -> dict:
 
 def delete_owner(owner: str) -> None:
     with connect() as conn:
-        for table in ("progress", "awards", "owned", "equipped"):
+        for table in ("progress", "awards", "owned", "equipped", "day_xp", "line_best"):
             conn.execute(f"DELETE FROM {table} WHERE owner=?", (owner,))
+
+
+# --- leaderboard ---
+
+LEADERBOARD_MAX = 50
+
+
+def leaderboard(owner: str, limit: int, usernames) -> dict:
+    """Top cats by level then xp. `usernames` maps list[str] to {owner: handle}.
+
+    Owners without a handle are hidden and take no rank. An entry carries only
+    username, level and equipped; nothing that identifies the owner."""
+    limit = max(1, min(int(limit), LEADERBOARD_MAX))
+    conn = connect()
+    rows = conn.execute(
+        "SELECT owner, xp FROM progress ORDER BY xp DESC, updated_at ASC, owner ASC"
+    ).fetchall()
+    names = usernames([r["owner"] for r in rows] + [owner])
+    ranked = [(r["owner"], r["xp"]) for r in rows if names.get(r["owner"])]
+    top = ranked[:limit]
+    slots: dict[str, dict] = {o: {slot: None for slot in SLOTS} for o, _ in top}
+    if top:
+        marks = ",".join("?" * len(top))
+        for r in conn.execute(
+            f"SELECT owner, slot, item_id FROM equipped WHERE owner IN ({marks})",
+            [o for o, _ in top],
+        ):
+            if r["slot"] in slots[r["owner"]]:
+                slots[r["owner"]][r["slot"]] = r["item_id"]
+    entries = [
+        {"username": names[o], "level": level_for(xp), "equipped": slots[o]}
+        for o, xp in top
+    ]
+    own = conn.execute("SELECT xp FROM progress WHERE owner=?", (owner,)).fetchone()
+    rank = next((i + 1 for i, (o, _) in enumerate(ranked) if o == owner), None)
+    return {
+        "entries": entries,
+        "me": {
+            "rank": rank,
+            "level": level_for(own["xp"] if own else 0),
+            "username": names.get(owner),
+        },
+    }
