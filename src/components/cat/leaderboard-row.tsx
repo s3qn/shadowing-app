@@ -39,6 +39,7 @@ export type EquippedIds = Partial<Record<Slot, string | null>>;
  * accessory, face, head. Plain Images only: no Rive, no blur, nothing animated.
  */
 
+// TODO(perf): swap the live Rive medallion for a pre-baked thumbnail (D47).
 export const Medallion = memo(function Medallion({ size, equipped }: { size: number; equipped: EquippedIds }) {
   const k = size / WINDOW;
   const ox = size / 2 - WIN_CX * k;

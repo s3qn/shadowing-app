@@ -369,6 +369,14 @@ def get_island(island_id: str) -> dict | None:
     return island
 
 
+def island_device(island_id: str) -> str | None:
+    """The owning device of an island, or None for an unknown id. One row, no
+    lines, for ownership checks on hot routes."""
+    with connect() as conn:
+        row = conn.execute("SELECT device FROM islands WHERE id=?", (island_id,)).fetchone()
+    return None if row is None else row["device"]
+
+
 def list_islands(device: str | None = None) -> list[dict]:
     """`device=None` lists every island regardless of owner, which startup
     healing relies on. A string filters to that device's own islands."""

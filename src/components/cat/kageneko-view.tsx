@@ -9,6 +9,7 @@ import {
   useViewModelInstance,
   type RiveFile,
 } from '@rive-app/react-native';
+import { useIsFocused } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { useGazeValue } from '@/hooks/use-gaze';
 import { Image, View } from 'react-native';
@@ -65,6 +66,7 @@ function useKagenekoFile(onFail?: () => void): RiveFile | undefined {
 
 export function KagenekoView({ size, equipped, mode, petKey, frameRate, gaze = false, instanceName, onFail }: KagenekoViewProps) {
   const file = useKagenekoFile(onFail);
+  const focused = useIsFocused();
   const { instance } = useViewModelInstance(file, {
     async: true,
     viewModelName: 'Kageneko',
@@ -131,7 +133,7 @@ export function KagenekoView({ size, equipped, mode, petKey, frameRate, gaze = f
             dataBind={instance}
             fit={Fit.Contain}
             autoPlay
-            frameRate={frameRate}
+            frameRate={focused ? Math.min(frameRate ?? 30, 30) : 1}
             onError={() => onFail?.()}
             style={{ width: '100%', height: '100%' }}
           />

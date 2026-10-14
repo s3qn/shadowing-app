@@ -135,7 +135,7 @@ export default function LeaderboardScreen() {
         renderItem={({ item, index }) => (
           <LeaderboardRow rank={item.rank} username={item.username} level={item.level} equipped={item.equipped} index={index} />
         )}
-        getItemLayout={(_, index) => ({ length: ROW_H + GAP, offset: HEADER_H + index * (ROW_H + GAP), index })}
+        getItemLayout={(_, index) => ({ length: ROW_H + GAP, offset: Spacing.lg + HEADER_H + index * (ROW_H + GAP), index })}
         initialNumToRender={8}
         windowSize={7}
         maxToRenderPerBatch={8}

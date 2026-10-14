@@ -8,6 +8,7 @@ the caller owns (see _own_island). An island still appears in due-today only
 once it has posted at least one practice event here.
 """
 
+import asyncio
 import logging
 import math
 import os
@@ -141,8 +142,8 @@ def _own_island(island_id: str, device: str) -> None:
     main._own_island (which this module cannot import without a cycle): an
     empty device never matches, so an unclaimed island (device='') is not
     owned by a blank caller, and an unknown island id pays nothing."""
-    island = store.get_island(island_id)
-    if island is None or not device or island["device"] != device:
+    owner = store.island_device(island_id)
+    if owner is None or not device or owner != device:
         raise HTTPException(404, "no such island")
 
 
@@ -173,6 +174,16 @@ async def log_practice(
     seconds: float = Form(...),
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
+) -> dict:
+    # The sqlite work and the award are blocking, so the body runs on a worker
+    # thread and never stalls the event loop.
+    return await asyncio.to_thread(
+        _log_practice_sync, island_id, seconds, authorization, x_shadow_device
+    )
+
+
+def _log_practice_sync(
+    island_id: str, seconds: float, authorization: str | None, x_shadow_device: str
 ) -> dict:
     require_token(authorization)
     device = _require_device(x_shadow_device)

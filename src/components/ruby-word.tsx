@@ -90,6 +90,9 @@ function KaraokeText({
   const [w, setW] = useState(0);
   const base = useAnimatedStyle(() => {
     const { a, b } = karaokeParts(highlight.value, index, step);
+    // Not the lit word: b is exactly 0 or 1, so the colour is a constant.
+    if (b === 1) return { color: K_SUNG };
+    if (b === 0 && a === 0) return { color: K_NEXT };
     if (ruby) return { color: interpolateColor(b, [0, 1], [a >= 0.5 ? K_LIT : K_NEXT, K_SUNG]) };
     return { color: interpolateColor(b, [0, 1], [K_NEXT, K_SUNG]) };
   });
@@ -99,11 +102,14 @@ function KaraokeText({
   // amount right, so the text stays put and only its left `local` shows.
   const reveal = useAnimatedStyle(() => {
     const { a, b } = karaokeParts(highlight.value, index, step);
+    // Sung (b = 1) or not yet reached (a = 0): a fixed hidden state.
+    if (b === 1 || a === 0) return { transform: [{ translateX: -w }], opacity: 0 };
     const local = Math.min(1, Math.max(0, a * n - k));
     return { transform: [{ translateX: -w * (1 - local) }], opacity: 1 - b };
   });
   const inner = useAnimatedStyle(() => {
-    const { a } = karaokeParts(highlight.value, index, step);
+    const { a, b } = karaokeParts(highlight.value, index, step);
+    if (b === 1 || a === 0) return { transform: [{ translateX: w }] };
     const local = Math.min(1, Math.max(0, a * n - k));
     return { transform: [{ translateX: w * (1 - local) }] };
   });
