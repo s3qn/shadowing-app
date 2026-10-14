@@ -222,6 +222,7 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Scene depth pass (backlight, vignette, reflection)
 - Home cat badge redesign
 - Leaderboard spotlight band fits its content
+- Leaderboard shows every named user, even at 0 XP
 
 ## Next (approved, in order)
 

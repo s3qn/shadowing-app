@@ -619,18 +619,26 @@ def delete_owner(owner: str) -> None:
 LEADERBOARD_MAX = 50
 
 
-def leaderboard(owner: str, limit: int, usernames) -> dict:
-    """Top cats by level then xp. `usernames` maps list[str] to {owner: handle}.
+def leaderboard(owner: str, limit: int, handles) -> dict:
+    """Top cats by xp then level. `handles` returns {owner: handle} for every
+    named owner, so a user with a handle but no XP yet still appears (level 1,
+    nothing equipped).
 
     Owners without a handle are hidden and take no rank. An entry carries only
     username, level and equipped; nothing that identifies the owner."""
     limit = max(1, min(int(limit), LEADERBOARD_MAX))
     conn = connect()
-    rows = conn.execute(
-        "SELECT owner, xp FROM progress ORDER BY xp DESC, updated_at ASC, owner ASC"
-    ).fetchall()
-    names = usernames([r["owner"] for r in rows] + [owner])
-    ranked = [(r["owner"], r["xp"]) for r in rows if names.get(r["owner"])]
+    names = handles()
+    rows = conn.execute("SELECT owner, xp, updated_at FROM progress").fetchall()
+    xp_by = {r["owner"]: r["xp"] for r in rows}
+    upd_by = {r["owner"]: r["updated_at"] for r in rows}
+    # Every named owner, left-joined to progress: no progress row means 0 XP
+    # (level 1). xp desc, then the progress tiebreak (updated_at asc, owner asc).
+    # A 0-XP user has no updated_at, so these level-1 users sort to the bottom.
+    ranked = sorted(
+        ((o, xp_by.get(o, 0)) for o in names),
+        key=lambda t: (-t[1], upd_by.get(t[0], ""), t[0]),
+    )
     top = ranked[:limit]
     slots: dict[str, dict] = {o: {slot: None for slot in SLOTS} for o, _ in top}
     if top:

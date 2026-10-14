@@ -69,6 +69,15 @@ def test_usernames_batch_and_delete():
     up.set_username(B, "cat_one")
 
 
+def test_all_usernames():
+    assert up.all_usernames() == {}
+    up.set_username(A, "cat_one")
+    up.set_username(B, "cat_two")
+    assert up.all_usernames() == {A: "cat_one", B: "cat_two"}
+    up.delete_owner(A)
+    assert up.all_usernames() == {B: "cat_two"}
+
+
 def test_check_own_handle_available():
     up.set_username(A, "cat_one")
     assert up.check(A, "cat_one")["available"] is True

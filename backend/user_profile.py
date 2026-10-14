@@ -101,6 +101,16 @@ def usernames(owners: list[str]) -> dict[str, str]:
     return out
 
 
+def all_usernames() -> dict[str, str]:
+    """Every (owner, username) pair. The leaderboard uses it so every named
+    user shows up, even one who has not earned any XP yet."""
+    conn = connect()
+    return {
+        row["owner"]: row["username"]
+        for row in conn.execute("SELECT owner, username FROM profiles")
+    }
+
+
 def check(owner: str, name: str) -> dict:
     n = normalize(name)
     if n is None:

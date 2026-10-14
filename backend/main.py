@@ -2243,9 +2243,11 @@ async def get_progress(
 # cat-leaderboard routes
 
 
-def _usernames(owners: list[str]) -> dict[str, str]:
-    fn = getattr(user_profile, "usernames", None)
-    return fn(owners) if fn else {}
+def _all_handles() -> dict[str, str]:
+    """Every (owner, username) pair, so the board lists every named user, even
+    one who has not earned any XP yet."""
+    fn = getattr(user_profile, "all_usernames", None)
+    return fn() if fn else {}
 
 
 @app.get("/shadow/leaderboard")
@@ -2256,7 +2258,7 @@ async def leaderboard(
 ) -> dict:
     require_token(authorization)
     device = _require_device(x_shadow_device)
-    return await asyncio.to_thread(progression.leaderboard, device, limit, _usernames)
+    return await asyncio.to_thread(progression.leaderboard, device, limit, _all_handles)
 
 
 @app.get("/shadow/cosmetics/catalog")

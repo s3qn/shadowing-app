@@ -32,7 +32,7 @@ def _seed(xp):
 
 
 def _call(monkeypatch, names, owner, limit=50):
-    monkeypatch.setattr(main, "_usernames", lambda owners: {o: names[o] for o in owners if o in names})
+    monkeypatch.setattr(main, "_all_handles", lambda: dict(names))
     return asyncio.run(main.leaderboard(limit=limit, authorization=AUTH, x_shadow_device=owner))
 
 
@@ -107,6 +107,31 @@ def test_empty_when_no_handles(monkeypatch):
     res = _call(monkeypatch, {}, o)
     assert res["entries"] == []
     assert res["me"]["rank"] is None
+
+
+def test_named_without_progress(monkeypatch):
+    # A user who set a @handle but never earned XP has no progress row.
+    owners, names = _named([1000, 500])
+    fresh = _owner()
+    names[fresh] = f"newbie_{uuid.uuid4().hex[:6]}"
+    res = _call(monkeypatch, names, fresh)
+    assert [e["username"] for e in res["entries"]] == [
+        names[owners[0]],
+        names[owners[1]],
+        names[fresh],
+    ]
+    last = res["entries"][-1]
+    assert last["username"] == names[fresh]
+    assert last["level"] == 1
+    assert last["equipped"] == {slot: None for slot in progression.SLOTS}
+    # The 0-XP user still gets a real rank, below everyone with XP.
+    assert res["me"] == {"rank": 3, "level": 1, "username": names[fresh]}
+    # The privacy whitelist still holds: no owner id or xp leaks.
+    for e in res["entries"]:
+        assert set(e) == {"username", "level", "equipped"}
+    blob = json.dumps(res)
+    for bad in (*owners, fresh, "xp", "coins", "email"):
+        assert bad not in blob
 
 
 def test_requires_device(monkeypatch):
