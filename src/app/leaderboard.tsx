@@ -169,6 +169,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.lg, padding: Spacing.xl },
   msg: { fontFamily: fonts.ui, fontSize: 15, color: tide.text, textAlign: 'center' },
   spot: {
+    flexDirection: 'row',
     height: SPOT_H,
     paddingVertical: Spacing.md,
     marginBottom: GAP * 2,
