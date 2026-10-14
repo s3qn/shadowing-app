@@ -3,4 +3,7 @@
 # IP with no NAT, and the cloudflared tunnel is the intended way in.
 set -euo pipefail
 cd "$(dirname "$0")"
+# Dev serve only (throwaway wave worktree): accept device-only requests so the
+# feature can be tested in Expo Go, where native Apple/Google sign-in cannot run.
+export SHADOW_REQUIRE_SIGNIN="${SHADOW_REQUIRE_SIGNIN:-0}"
 exec .venv/bin/uvicorn main:app --host 127.0.0.1 --port "${SHADOW_PORT:-8020}" "$@"

@@ -17,6 +17,8 @@ const ICONS = {
   revoice: { ios: 'person.wave.2', android: 'record_voice_over' },
   regenerate: { ios: 'arrow.clockwise', android: 'refresh' },
   calibrate: { ios: 'speaker.wave.2', android: 'volume_up' },
+  watch: { ios: 'play.rectangle', android: 'smart_display' }, // youtube-shadowing
+  listen: { ios: 'headphones', android: 'headphones' }, // podcast-listen
   delete: { ios: 'trash', android: 'delete' },
 } satisfies Record<string, SheetIcon>;
 
@@ -40,6 +42,9 @@ type Props = {
   onRename: (title: string) => void;
   onExport: () => void;
   onBeforeAfter: () => void;
+  /** Set only on a YouTube island: adds the Watch the video row. */ // youtube-shadowing
+  onWatch?: () => void;
+  onListen?: () => void; // podcast-listen
   onRevoice: () => void;
   onRegenerate: () => void;
   onCalibrate: () => void;
@@ -68,6 +73,8 @@ function IslandMenuSheetBase({
   onRename,
   onExport,
   onBeforeAfter,
+  onWatch, // youtube-shadowing
+  onListen, // podcast-listen
   onRevoice,
   onRegenerate,
   onCalibrate,
@@ -124,6 +131,24 @@ function IslandMenuSheetBase({
             disabled={recording || busy}
             onPress={onBeforeAfter}
           />
+          {onWatch ? ( // youtube-shadowing
+            <SheetAction
+              label={t('video.watch')}
+              icon={ICONS.watch}
+              discColor={verb.tools.c1}
+              disabled={recording || busy}
+              onPress={onWatch}
+            />
+          ) : null}
+          {onListen ? ( // podcast-listen
+            <SheetAction
+              label={t('podcast.listen')}
+              icon={ICONS.listen}
+              discColor={verb.tools.c1}
+              disabled={recording || busy}
+              onPress={onListen}
+            />
+          ) : null}
           {recorded && revoiceName ? (
             <SheetAction
               label={busy ? t('player.revoicing') : t('player.revoiceIn', { name: revoiceName })}

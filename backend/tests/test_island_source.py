@@ -20,7 +20,7 @@ AUTH = f"Bearer {main.SHADOW_TOKEN}"
 DEV = "cccccccc-0000-4000-8000-000000000003"
 
 
-@pytest.mark.parametrize("source", ["voice", "phrases", "import", "podcast"])
+@pytest.mark.parametrize("source", ["voice", "phrases", "import", "podcast", "youtube"])
 def test_get_island_and_list_return_source(source):
     iid = store.create_island("simple", 3, source=source, device=DEV)
 

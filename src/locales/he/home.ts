@@ -94,7 +94,7 @@ export const he = {
   'home.addTitle': 'הוספת אי',
   'home.add.record': 'הקלטה',
   'home.add.phrases': 'ביטויים',
-  'home.noIslandsHint': 'לחצו על + כדי להקליט, לבחור ביטויים מוכנים או לייבא אודיו.',
+  'home.noIslandsHint': 'לחצו על + כדי להקליט, לבחור ביטויים מוכנים, לייבא אודיו או להדביק קישור ל-YouTube.',
   'home.phrasesTitle': 'ביטויים',
   'home.phrasesError': 'לא ניתן לטעון את הביטויים.',
   'home.phrasesCount': '{count} ביטויים',

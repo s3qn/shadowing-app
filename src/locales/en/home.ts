@@ -96,7 +96,7 @@ export const en = {
   'home.addTitle': 'Add an island',
   'home.add.record': 'Record',
   'home.add.phrases': 'Phrases',
-  'home.noIslandsHint': 'Tap + to record, pick ready-made phrases, or import audio.',
+  'home.noIslandsHint': 'Tap + to record, pick ready-made phrases, import audio, or paste a YouTube link.',
   'home.phrasesTitle': 'Phrases',
   'home.phrasesError': 'The phrases could not be loaded.',
   'home.phrasesCount': '{count} phrases',

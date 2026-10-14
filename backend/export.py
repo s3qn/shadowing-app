@@ -147,21 +147,23 @@ def _tmp_paths(dst: Path) -> tuple[Path, Path]:
     )
 
 
-def encode_m4a(wav: bytes, dst: Path, title: str) -> None:
-    """Encode a wav to AAC at `dst`, tagged with `title`. Writes through
-    per-call tmp files so a reader never sees a partial `dst`."""
-    tmp_wav, tmp_m4a = _tmp_paths(dst)
+def encode_file_m4a(
+    src: Path, dst: Path, title: str, *, bitrate: str = BITRATE,
+    sample_rate: int = SAMPLE_RATE, timeout_s: int = 120,
+) -> None:
+    """Encode the audio file at `src` to AAC at `dst`, tagged with `title`.
+    Writes through a per-call tmp file so a reader never sees a partial `dst`."""
+    _, tmp_m4a = _tmp_paths(dst)
     try:
-        tmp_wav.write_bytes(wav)
         try:
             subprocess.run(
                 [
                     FFMPEG,
                     "-y",
-                    "-i", str(tmp_wav),
+                    "-i", str(src),
                     "-c:a", "aac",
-                    "-b:a", BITRATE,
-                    "-ar", str(SAMPLE_RATE),
+                    "-b:a", bitrate,
+                    "-ar", str(sample_rate),
                     "-ac", "1",
                     "-movflags", "+faststart",
                     "-metadata", f"title={title}",
@@ -170,7 +172,7 @@ def encode_m4a(wav: bytes, dst: Path, title: str) -> None:
                 ],
                 capture_output=True,
                 check=True,
-                timeout=120,
+                timeout=timeout_s,
             )
         except subprocess.CalledProcessError as exc:
             # stderr names server paths, so it goes to the log, not the error.
@@ -187,14 +189,27 @@ def encode_m4a(wav: bytes, dst: Path, title: str) -> None:
     except OSError as exc:
         # ExportError is a RuntimeError, not an OSError, so the ffmpeg
         # branches above are already out of reach here; this only catches a
-        # failed write_bytes or os.replace (e.g. an unwritable directory).
+        # failed os.replace (e.g. an unwritable directory).
         log.error("export write failed for %s: %s", dst, exc)
         raise ExportError("could not write the export") from exc
     finally:
-        tmp_wav.unlink(missing_ok=True)
         # Gone already after a successful replace; after a failed or killed
         # encode it may hold a partial file.
         tmp_m4a.unlink(missing_ok=True)
+
+
+def encode_m4a(wav: bytes, dst: Path, title: str) -> None:
+    """Encode wav bytes to AAC at `dst`, tagged with `title`."""
+    tmp_wav, _ = _tmp_paths(dst)
+    try:
+        try:
+            tmp_wav.write_bytes(wav)
+        except OSError as exc:
+            log.error("export write failed for %s: %s", dst, exc)
+            raise ExportError("could not write the export") from exc
+        encode_file_m4a(tmp_wav, dst, title)
+    finally:
+        tmp_wav.unlink(missing_ok=True)
 
 
 def build(wavs: list[bytes], spec: Spec, dst: Path, title: str) -> None:

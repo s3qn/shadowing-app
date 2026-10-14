@@ -17,7 +17,8 @@ type Props = {
   /** Absolute position inside the sentence block, computed by the screen. */
   left: number;
   top: number;
-  onRepeat: () => void;
+  /** Omit to hide the repeat button (a screen with no phrase audio). */
+  onRepeat?: () => void;
   onExplain: () => void;
   onCopy: () => void;
 };
@@ -59,13 +60,15 @@ export function SelectionPopup({ left, top, onRepeat, onExplain, onCopy }: Props
         styles.pop,
         { left, top, backgroundColor: tide.water, borderColor: tide.waterline, shadowColor: '#000' },
       ]}>
-      <PressScale
-        onPress={onRepeat}
-        style={[styles.button, { backgroundColor: tide.lang.ja }]}
-        accessibilityRole="button"
-        accessibilityLabel={t('player.repeatSelection')}>
-        <RepeatIcon color={tide.sky[0]} size={22} />
-      </PressScale>
+      {onRepeat ? (
+        <PressScale
+          onPress={onRepeat}
+          style={[styles.button, { backgroundColor: tide.lang.ja }]}
+          accessibilityRole="button"
+          accessibilityLabel={t('player.repeatSelection')}>
+          <RepeatIcon color={tide.sky[0]} size={22} />
+        </PressScale>
+      ) : null}
       <PressScale
         onPress={onExplain}
         style={[styles.button, styles.outline, { borderColor: tide.lang.ja }]}

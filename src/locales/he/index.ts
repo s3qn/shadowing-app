@@ -9,5 +9,8 @@ import { he as playerTide } from './player-tide';
 import { he as playerSheets } from './player-sheets';
 import { he as record } from './record';
 import { he as settings } from './settings';
+import { he as podcast } from './podcast';
+import { he as video } from './video';
+import { he as wardrobe } from './wardrobe';
 
-export const he = { ...beforeAfter, ...common, ...home, ...importFile, ...player, ...playerIsland, ...playerTide, ...playerSheets, ...record, ...settings } satisfies Record<Key, string>;
+export const he = { ...beforeAfter, ...common, ...home, ...importFile, ...player, ...playerIsland, ...playerTide, ...playerSheets, ...podcast, ...record, ...settings, ...video, ...wardrobe } satisfies Record<Key, string>;

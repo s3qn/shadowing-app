@@ -27,3 +27,9 @@ export async function hapticSelection(): Promise<void> {
   if (!getSettingsSync().hapticsEnabled) return;
   await Haptics.selectionAsync();
 }
+
+/** The success or error notification buzz, unless the Haptics setting is off. */
+export async function hapticNotify(type: Haptics.NotificationFeedbackType): Promise<void> {
+  if (!getSettingsSync().hapticsEnabled) return;
+  await Haptics.notificationAsync(type);
+}

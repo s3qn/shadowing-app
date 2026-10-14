@@ -58,7 +58,7 @@ export default function PodcastBuildScreen() {
                 if (pollRef.current) clearInterval(pollRef.current);
                 setStage('ready');
                 readyTimerRef.current = setTimeout(() => {
-                  router.replace({ pathname: '/island/[id]', params: { id } });
+                  router.replace({ pathname: '/podcast/[id]', params: { id } });
                 }, READY_HOLD_MS);
               } else if (island.status === 'failed') {
                 if (pollRef.current) clearInterval(pollRef.current);

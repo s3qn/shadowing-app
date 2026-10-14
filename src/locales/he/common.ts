@@ -56,6 +56,10 @@ export const he = {
   'api.recording_too_large': 'ההקלטה גדולה מדי.',
   'api.audio_undecodable': 'לא ניתן לפענח את הקול.',
   'api.empty_upload': 'העלאה ריקה.',
+  'api.level_locked': 'הגיעו לרמה {level_req} כדי לקבל את זה.',
+  'api.not_enough_coins': 'אין מספיק מטבעות.',
+  'api.not_owned': 'עדיין אין לכם את זה.',
+  'api.unknown_item': 'הפריט הזה כבר לא קיים.',
 
   'islandError.import_interrupted': 'הייבוא הופסק.',
   'islandError.build_interrupted': 'הבנייה הופסקה.',

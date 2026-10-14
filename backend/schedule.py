@@ -7,6 +7,7 @@ so it stays decoupled from store.py: an island only appears in due-today once
 it has posted at least one practice event here.
 """
 
+import logging
 import os
 import secrets
 import sqlite3
@@ -16,7 +17,10 @@ from pathlib import Path
 
 from fastapi import APIRouter, Form, Header, HTTPException
 
+import progression
 import spacing
+
+log = logging.getLogger("shadow.schedule")
 
 DATA_DIR = Path(os.getenv("SHADOW_DATA_DIR", Path(__file__).parent / "data"))
 DB_PATH = DATA_DIR / "schedule.db"
@@ -204,12 +208,17 @@ async def log_practice(
             (island_id, level, due_on, today, _now(), device, moved_on),
         )
 
-    return {
+    result = {
         "island_id": island_id,
         "level": level,
         "due_on": due_on,
         "seconds_today": seconds_today,
     }
+    try:
+        result["award"] = progression.award_practice(device, island_id, seconds_today)
+    except Exception:
+        log.exception("practice award failed")
+    return result
 
 
 @router.get("/due-today")

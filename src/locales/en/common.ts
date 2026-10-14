@@ -47,6 +47,10 @@ export const en = {
   'api.recording_too_large': 'That recording is too large.',
   'api.audio_undecodable': 'That audio could not be decoded.',
   'api.empty_upload': 'That upload was empty.',
+  'api.level_locked': 'Reach level {level_req} to get that.',
+  'api.not_enough_coins': 'Not enough coins for that.',
+  'api.not_owned': 'You do not own that yet.',
+  'api.unknown_item': 'That item no longer exists.',
 
   // Error codes an island can be marked failed with (`store.set_failed`'s `code`).
   'islandError.import_interrupted': 'Import was interrupted.',

@@ -13,6 +13,7 @@
 import { fetch as expoFetch } from 'expo/fetch';
 import { Directory, File, Paths } from 'expo-file-system';
 
+import type { ArtSpec, Slot } from '@/constants/cosmetics';
 import { accessTokenSync } from '@/lib/auth';
 import { deviceIdSync } from '@/lib/device';
 import { t } from '@/lib/i18n';
@@ -68,6 +69,8 @@ export type Line = {
   duration: number;
   timeline: Mora[];
   words: Word[];
+  /** Where this line starts in the source audio, in seconds. */ // youtube-shadowing
+  offset?: number;
 };
 
 export type SpeakerStyle = { id: number; name: string; icon: string };
@@ -75,6 +78,9 @@ export type Speaker = { uuid: string; name: string; policy: string; styles: Spea
 
 /** The language the learner already understands, `native` on the island. */
 export type NativeLanguage = 'he' | 'en';
+
+/** How an island was made. */ // youtube-shadowing
+export type IslandSource = 'voice' | 'phrases' | 'import' | 'podcast' | 'youtube';
 
 export type IslandSummary = {
   id: string;
@@ -86,6 +92,7 @@ export type IslandSummary = {
   native: NativeLanguage;
   created_at: string;
   line_count: number;
+  source?: IslandSource; // youtube-shadowing
 };
 
 /** A code the backend sends (`daily_limit`, `no_lines`, `transcribing`) is only
@@ -112,7 +119,7 @@ export type Island = IslandSummary & {
   /** How the island was made. Only a recorded ('voice') island can be
    * re-voiced or regenerated. Absent in a local copy saved before the client
    * read it. */
-  source?: 'voice' | 'phrases' | 'import' | 'podcast';
+  source?: IslandSource;
 };
 
 /** Why an island failed, in the reader's language. Falls back to the English
@@ -674,6 +681,15 @@ export async function uploadTake(
 }
 
 /**
+ * URL of the whole podcast episode as one m4a, built like lineAudioUrl: the
+ * token and device ride as query parameters, no access token (pass it
+ * through withUser where it leaves the app).
+ */
+export function episodeAudioUrl(islandId: string): string {
+  return `${BASE}/islands/${islandId}/episode?token=${encodeURIComponent(TOKEN)}&device=${encodeURIComponent(deviceIdSync())}`;
+}
+
+/**
  * URL for the cleaned version of a take. The token rides as a query
  * parameter for the same reason it does on lineAudioUrl, and `version` (the
  * take's recordedAt) keeps the player from ever loading a stale cached file.
@@ -746,4 +762,100 @@ export async function importIsland(
   return json<{ id: string }>(
     await expoFetch(`${BASE}/islands/import`, { method: 'POST', headers: headers(), body: form }),
   );
+}
+
+// --- youtube-shadowing ---
+
+export type YouTubeInfo = { video_id: string; url: string; title: string; author: string; thumbnail: string };
+export type IslandVideo = { island_id: string; video_id: string; start_s: number; duration: number; title: string; author: string; /** True when the island has no audio, only captions. */ captions_only?: boolean };
+export type VideoListItem = {
+  island_id: string;
+  video_id: string;
+  title: string;
+  status: IslandSummary['status'];
+  stage: string;
+  error_code: string;
+  line_count: number;
+  created_at: string;
+};
+
+/** Title, channel and thumbnail for a pasted YouTube link. */
+export async function youtubeInfo(url: string): Promise<YouTubeInfo> {
+  return json<YouTubeInfo>(await fetch(`${BASE}/youtube/info?url=${encodeURIComponent(url)}`, { headers: headers() }));
+}
+
+/** Send the caption events the phone fetched and build an island from them. Poll getIsland until ready. */
+export async function importYouTubeCaptions(
+  url: string,
+  title: string,
+  speaker: number,
+  language: Language,
+  native: NativeLanguage,
+  events: unknown[],
+): Promise<{ id: string }> {
+  return json<{ id: string }>(
+    await fetch(`${BASE}/youtube/captions`, {
+      method: 'POST',
+      headers: { ...headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, title, speaker, language, native, events }),
+    }),
+  );
+}
+
+/** The YouTube link behind a video island. */
+export async function getIslandVideo(id: string): Promise<IslandVideo> {
+  return json<IslandVideo>(await fetch(`${BASE}/islands/${id}/video`, { headers: headers() }));
+}
+
+/** Every video island on this device, newest first. */
+export async function listVideos(): Promise<VideoListItem[]> {
+  return json<VideoListItem[]>(await fetch(`${BASE}/videos`, { headers: headers() }));
+}
+
+// ---- Progression and cosmetics ----
+
+export type { ArtSpec, Slot };
+export type Progress = {
+  xp: number;
+  level: number;
+  coins: number;
+  xp_into_level: number;
+  /** 0 at the top level. */
+  xp_to_next: number;
+  owned: string[];
+  equipped: Record<Slot, string | null>;
+  catalog_version: number;
+};
+
+export type CosmeticItem = {
+  id: string;
+  slot: Slot;
+  name: string;
+  level_req: number;
+  price: number;
+  art: ArtSpec;
+};
+
+export type CosmeticsCatalog = { version: number; slots: Slot[]; shapes: Record<string, string[]>; items: CosmeticItem[] };
+
+export async function getProgress(): Promise<Progress> {
+  return json<Progress>(await fetch(`${BASE}/progress`, { headers: headers() }));
+}
+
+export async function getCosmeticsCatalog(ui: 'en' | 'he'): Promise<CosmeticsCatalog> {
+  return json<CosmeticsCatalog>(await fetch(`${BASE}/cosmetics/catalog?ui=${ui}`, { headers: headers() }));
+}
+
+export async function buyCosmetic(itemId: string): Promise<Progress> {
+  const form = new FormData();
+  form.append('item_id', itemId);
+  return json<Progress>(await expoFetch(`${BASE}/cosmetics/buy`, { method: 'POST', headers: headers(), body: form }));
+}
+
+/** An empty `itemId` (null) unequips the slot. */
+export async function equipCosmetic(slot: Slot, itemId: string | null): Promise<Progress> {
+  const form = new FormData();
+  form.append('slot', slot);
+  form.append('item_id', itemId ?? '');
+  return json<Progress>(await expoFetch(`${BASE}/cosmetics/equip`, { method: 'POST', headers: headers(), body: form }));
 }

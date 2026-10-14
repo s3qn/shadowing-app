@@ -3,15 +3,18 @@ import { en as common } from './common';
 import { en as home } from './home';
 import { en as importFile } from './import';
 import { en as player } from './player';
+import { en as podcast } from './podcast';
 import { en as playerIsland } from './player-island';
 import { en as playerTide } from './player-tide';
 import { en as playerSheets } from './player-sheets';
 import { en as record } from './record';
 import { en as settings } from './settings';
+import { en as video } from './video';
+import { en as wardrobe } from './wardrobe';
 
-const NAMESPACES = { beforeAfter, common, home, importFile, player, playerIsland, playerTide, playerSheets, record, settings };
+const NAMESPACES = { beforeAfter, common, home, importFile, player, playerIsland, playerTide, playerSheets, podcast, record, settings, video, wardrobe };
 
-export const en = { ...beforeAfter, ...common, ...home, ...importFile, ...player, ...playerIsland, ...playerTide, ...playerSheets, ...record, ...settings };
+export const en = { ...beforeAfter, ...common, ...home, ...importFile, ...player, ...playerIsland, ...playerTide, ...playerSheets, ...podcast, ...record, ...settings, ...video, ...wardrobe };
 
 // Spreading hides a collision: two namespaces claiming the same key leaves the
 // later one's wording everywhere, silently and only in the app, since both

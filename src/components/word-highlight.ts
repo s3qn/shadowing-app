@@ -68,9 +68,9 @@ type Clock = {
   native: number;
   waiting: boolean;
 };
-type Table = { from: number; to: number; c: number[]; w: number[] };
+export type Table = { from: number; to: number; c: number[]; w: number[] };
 
-const IDLE: HighlightState = { level: -1, on: 0, from: 0, to: -1 };
+export const IDLE: HighlightState = { level: -1, on: 0, from: 0, to: -1 };
 
 /** How strongly word `i` is lit, 0..1. */
 export function wordIntensity(h: HighlightState, i: number): number {
@@ -83,7 +83,7 @@ export function wordIntensity(h: HighlightState, i: number): number {
 
 /** The boundaries (entry, each handoff, exit) of words from..to, as times in
  * the player's own audio, and each boundary's ramp width. */
-function buildTable(words: Word[], speed: number, offsetSec: number, from: number, to: number): Table | null {
+export function buildTable(words: Word[], speed: number, offsetSec: number, from: number, to: number): Table | null {
   if (words.length === 0 || from > to || from < 0 || to >= words.length) return null;
   const c: number[] = [];
   for (let i = from; i <= to; i += 1) c.push(words[i]!.start / speed - offsetSec);
@@ -263,9 +263,9 @@ export function useWordHighlight(
 
 /** The animated text colour for word `index`: `base` at rest, the Japanese
  * accent while lit. Without a highlight it stays `base`. */
-export function useWordInk(highlight: Highlight | undefined, index: number, base: string) {
+export function useWordInk(highlight: Highlight | undefined, index: number, base: string, lit: string = tide.lang.ja) {
   return useAnimatedStyle(() => {
     const v = highlight ? wordIntensity(highlight.value, index) : 0;
-    return { color: v <= 0 ? base : v >= 1 ? tide.lang.ja : interpolateColor(v, [0, 1], [base, tide.lang.ja]) };
-  }, [highlight, index, base]);
+    return { color: v <= 0 ? base : v >= 1 ? lit : interpolateColor(v, [0, 1], [base, lit]) };
+  }, [highlight, index, base, lit]);
 }

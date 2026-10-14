@@ -66,6 +66,7 @@ import { forgetLastLine, getLastLine, peekLastLine } from '@/lib/last-line';
 import { forgetRung, getRung, loadLadder, peekRung } from '@/lib/speed-ladder';
 import { speedLabel } from '@/components/tide/speed-popover';
 import { cancelDownload, humanBytes, isDownloaded, offlineSummaries, removeDownload, startDownload, useDownloadState, useDownloadStatus } from '@/lib/offline-islands'; // offline-islands
+import { CatBadge } from '@/components/cat/cat-badge';
 import { forgetIsland, getPracticeLog, minutesOn, type PracticeLog } from '@/lib/practice';
 import { getSettingsSync, subscribeSettings, toIslandLanguage } from '@/lib/settings';
 import { getSettings, setHomeWaveDate } from '@/lib/settings';
@@ -368,6 +369,14 @@ export default function IslandsScreen() {
   // Stable, like openRowMenu below, so a render of Home leaves IslandRow's memo
   // alone. Each row passes its own item back.
   const openIsland = useCallback((item: api.IslandSummary, rect: CardRect) => {
+    if (item.source === 'youtube') { // youtube-shadowing
+      router.push({ pathname: '/video/[id]', params: { id: item.id } }); // youtube-shadowing
+      return; // youtube-shadowing
+    } // youtube-shadowing
+    if (item.source === 'podcast') { // podcast-listen
+      router.push({ pathname: '/podcast/[id]', params: { id: item.id } });
+      return;
+    }
     // The overlay pushes once it covers Home. The flying header shows the
     // line the player opens on: a long island resumes where it was left,
     // like the player itself.
@@ -892,6 +901,7 @@ export default function IslandsScreen() {
         rowH={searchRowH}
       />
       <View style={styles.headerFixed}>
+        <CatBadge />
         <PracticeCard log={log} dueCount={readyDueCount} onPractice={startPractice} />
         {/* pill-tray-tab-bar: sort row start */}
         <PillTrayShell

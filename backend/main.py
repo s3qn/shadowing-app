@@ -32,7 +32,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import parse_qs
 
-from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 
@@ -53,6 +53,7 @@ import latin
 import podcast
 import phrase_catalog
 import podcast_catalog
+import progression
 import schedule
 import segment
 import store
@@ -130,6 +131,7 @@ def require_token(authorization: str | None) -> None:
 def _startup() -> None:
     store.init()
     schedule.init()
+    progression.init()
     _claim_owner()
     log.info("store ready at %s", store.DB_PATH)
     # Background work dies with the process. Anything still marked as working
@@ -737,6 +739,12 @@ async def _build_import(island_id: str, media: Path, srt_text: str | None,
                 return
 
         await _build_from_cues(island_id, wav, cue_list, title, total, language, native)
+        built = store.get_island(island_id)
+        if built and built["status"] == "ready":
+            try:
+                await _ensure_episode(island_id, title)
+            except Exception:
+                log.exception("episode encode for %s failed; it will build on first open", island_id)
     except Exception as exc:
         log.exception("import %s failed", island_id)
         store.set_failed(island_id, str(exc))
@@ -1126,6 +1134,43 @@ async def line_audio(island_id: str, idx: int, token: str = "", speed: float = 1
     return FileResponse(path, media_type="audio/wav")
 
 
+_episode_locks: dict[str, asyncio.Lock] = {}
+
+
+async def _ensure_episode(island_id: str, title: str) -> Path:
+    """The whole episode as m4a at AUDIO_DIR/<id>/episode.m4a, built once from
+    source.wav under a per-island lock. Raises HTTPException 409 no_episode
+    when there is no source.wav."""
+    folder = store.AUDIO_DIR / island_id
+    wav = folder / "source.wav"
+    dst = folder / "episode.m4a"
+    async with _episode_locks.setdefault(island_id, asyncio.Lock()):
+        if await asyncio.to_thread(dst.exists):
+            return dst
+        if not await asyncio.to_thread(wav.exists):
+            raise HTTPException(409, detail={"code": "no_episode"})
+        await asyncio.to_thread(
+            export.encode_file_m4a, wav, dst, title,
+            bitrate="64k", sample_rate=24000, timeout_s=600,
+        )
+    return dst
+
+
+@app.get("/shadow/islands/{island_id}/episode")
+async def episode_audio(island_id: str, token: str = "", device: str = "",
+                        authorization: str | None = Header(None),
+                        x_shadow_device: str = Header("")) -> FileResponse:
+    """The whole podcast or imported episode as one m4a, for continuous
+    listening. FileResponse answers Range requests, which players need to seek."""
+    _token_or_header(token, authorization)
+    dev = _require_device(x_shadow_device, device)
+    island = await asyncio.to_thread(_own_island, island_id, dev)
+    if island.get("source") not in ("podcast", "import"):
+        raise HTTPException(409, detail={"code": "no_episode"})
+    path = await _ensure_episode(island_id, island.get("title") or "Episode")
+    return FileResponse(path, media_type="audio/mp4")
+
+
 # Per island and cache key. Entries are tiny and keys are bounded by what one
 # user exports, so they are never evicted.
 _export_locks: dict[str, asyncio.Lock] = {}
@@ -1356,6 +1401,12 @@ async def upload_take(
                 _run_clean, src, ref_path, profile, island_id, idx,
                 line, render_speed, span, lag_ms, line_start,
             )
+            try:
+                response["award"] = await asyncio.to_thread(
+                    progression.award_take, device, island_id, idx
+                )
+            except Exception:
+                log.exception("take award failed")
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         log.info(
@@ -1646,6 +1697,7 @@ def _erase_owner(owner: str) -> None:
         store.delete_island(island["id"])
     store.delete_owner_rows(owner)
     schedule.delete_owner(owner)
+    progression.delete_owner(owner)
     import aec
 
     (aec.AEC_DIR / f"{_take_profile_name(owner)}.npz").unlink(missing_ok=True)
@@ -2014,3 +2066,199 @@ async def island_glosses(island_id: str, authorization: str | None = Header(None
         return {w: glossary.gloss(w) for w in words}
 
     return await asyncio.to_thread(_all)
+
+
+# --- youtube-shadowing ---
+import youtube  # noqa: E402
+
+
+@app.get("/shadow/youtube/info")
+async def youtube_info(url: str, authorization: str | None = Header(None),
+                       x_shadow_device: str = Header("")) -> dict:
+    """Title, author and thumbnail for a pasted YouTube link."""
+    require_token(authorization)
+    _require_device(x_shadow_device)
+    video_id = youtube.parse_video_id(url)
+    if video_id is None:
+        raise HTTPException(400, {"code": "youtube_bad_link"})
+    info = await asyncio.to_thread(youtube.oembed_info, video_id)
+    return {
+        "video_id": video_id,
+        "url": youtube.watch_url(video_id),
+        "title": info.get("title", ""),
+        "author": info.get("author", ""),
+        "thumbnail": info.get("thumbnail") or f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg",
+    }
+
+
+async def _build_from_captions(island_id: str, cue_list: list[dict], title: str,
+                               language: str = "ja", native: str = "en") -> None:
+    """Build a video island from caption lines. No audio exists, so lines get
+    their reading and an even word pace, with `offset` = the caption start."""
+    try:
+        store.set_stage(island_id, "aligning")
+        ja_texts: list[str] = []
+        last_end = 0.0
+        for i, cue in enumerate(cue_list):
+            duration = max(cue["end"] - cue["start"], 0.05)
+            if language == "ja":
+                words = await asyncio.to_thread(segment.align_pieces, cue["text"], [], duration)
+                kana = segment.reading(cue["text"])
+            else:
+                words = await asyncio.to_thread(latin.align, cue["text"], [], duration)
+                kana = ""
+            line = {"ja": cue["text"], "kana": kana, "romaji": "", "en": ""}
+            store.add_line(island_id, i, line, round(duration, 3), [], words, offset=cue["start"])
+            ja_texts.append(cue["text"])
+            last_end = max(last_end, cue["end"])
+        store.set_video_duration(island_id, last_end)
+        store.set_ready(island_id, title)
+        log.info("island %s ready from captions: %d lines", island_id, len(ja_texts))
+    except Exception as exc:
+        log.exception("captions build %s failed", island_id)
+        store.set_failed(island_id, str(exc))
+        return
+
+    # Ready already: a translation error only costs the English.
+    try:
+        for batch_start in range(0, len(ja_texts), generate.TRANSLATE_BATCH):
+            batch = ja_texts[batch_start:batch_start + generate.TRANSLATE_BATCH]
+            translations = await asyncio.to_thread(generate.translate_lines, batch, language, native)
+            for offset, en in enumerate(translations):
+                if en:
+                    store.set_en(island_id, batch_start + offset, en)
+    except Exception:
+        log.exception("island %s: translation stopped early, the island stays ready", island_id)
+
+
+@app.post("/shadow/youtube/captions")
+async def import_youtube_captions(
+    request: Request,
+    background: BackgroundTasks,
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    """Build a video island from caption events the phone fetched. The body is
+    untrusted: size, shape and timestamps are checked before a build slot is
+    taken, so a bad request never burns a daily create."""
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > youtube.CAPTIONS_MAX_BODY:
+        raise HTTPException(413, {"code": "captions_invalid"})
+    raw = bytearray()
+    async for chunk in request.stream():
+        raw += chunk
+        if len(raw) > youtube.CAPTIONS_MAX_BODY:
+            raise HTTPException(413, {"code": "captions_invalid"})
+    try:
+        body = json.loads(bytes(raw))
+    except ValueError:
+        raise HTTPException(400, {"code": "captions_invalid"})
+    if not isinstance(body, dict):
+        raise HTTPException(400, {"code": "captions_invalid"})
+    url, title = body.get("url"), body.get("title", "")
+    speaker = body.get("speaker", voicevox.DEFAULT_SPEAKER)
+    language, native = body.get("language", "ja"), body.get("native", "en")
+    if (not isinstance(url, str) or not isinstance(title, str) or isinstance(speaker, bool)
+            or not isinstance(speaker, int) or not isinstance(language, str)
+            or not isinstance(native, str)):
+        raise HTTPException(400, {"code": "captions_invalid"})
+    if language not in ("ja", "es", "en"):
+        raise HTTPException(400, "language must be 'ja', 'es' or 'en'")
+    if native not in ("he", "en"):
+        raise HTTPException(400, "native must be 'he' or 'en'")
+    if language == native:
+        raise HTTPException(400, "the learning language must differ from the native one")
+    if voices.language_for(speaker) != language:
+        raise HTTPException(400, "that voice does not speak the chosen language")
+    video_id = youtube.parse_video_id(url)
+    if video_id is None:
+        raise HTTPException(400, {"code": "youtube_bad_link"})
+    try:
+        lines = youtube.json3_to_lines(body.get("events"))
+    except youtube.CaptionsInvalid:
+        raise HTTPException(400, {"code": "captions_invalid"})
+    if not lines:
+        raise HTTPException(400, {"code": "no_captions"})
+
+    island_title = title.strip()[:200] or "YouTube video"
+    _take_build_slot(device, "create")
+    island_id = store.create_island(
+        "simple", speaker, language=language, native=native, source="youtube",
+        source_name=video_id, device=device,
+    )
+    store.add_video(island_id, video_id, 0.0, island_title, "")
+    background.add_task(
+        _build_from_captions, island_id, youtube.cues_from_lines(lines), island_title,
+        language, native,
+    )
+    return {"id": island_id, "status": "pending"}
+
+
+@app.get("/shadow/islands/{island_id}/video")
+async def island_video(island_id: str, authorization: str | None = Header(None),
+                       x_shadow_device: str = Header("")) -> dict:
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    await asyncio.to_thread(_own_island, island_id, device)
+    video = await asyncio.to_thread(store.get_video, island_id)
+    if video is None:
+        raise HTTPException(404, "no video for this island")
+    video["captions_only"] = not store.line_audio_path(island_id, 0).exists()
+    return video
+
+
+@app.get("/shadow/videos")
+async def list_videos(authorization: str | None = Header(None),
+                      x_shadow_device: str = Header("")) -> list[dict]:
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    return await asyncio.to_thread(store.list_videos, device)
+
+
+# --- progression ---
+
+
+@app.get("/shadow/progress")
+async def get_progress(
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    return await asyncio.to_thread(progression.snapshot, device)
+
+
+@app.get("/shadow/cosmetics/catalog")
+async def cosmetics_catalog(
+    ui: str = Query("en"),
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    require_token(authorization)
+    _require_device(x_shadow_device)
+    return progression.catalog(ui)
+
+
+@app.post("/shadow/cosmetics/buy")
+async def cosmetics_buy(
+    item_id: str = Form(...),
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    return await asyncio.to_thread(progression.buy, device, item_id)
+
+
+@app.post("/shadow/cosmetics/equip")
+async def cosmetics_equip(
+    slot: str = Form(...),
+    item_id: str = Form(""),
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    return await asyncio.to_thread(progression.equip, device, slot, item_id)

@@ -136,7 +136,11 @@ export function useTake(
    * while a take plays) without a render; the screen aims the Auto Echo
    * Play fill from it. */
   onStatus?: (s: AudioStatus) => void,
+  /** `localOnly` saves and plays takes without the cleaner or a score, for a
+   * line with no reference audio on the server (a captions-only video). */
+  options?: { localOnly?: boolean },
 ) {
+  const localOnly = options?.localOnly ?? false;
   const recorder = useAudioRecorder(WAV_RECORDING_OPTIONS);
 
   const [recording, setRecording] = useState(false);
@@ -443,7 +447,7 @@ export function useTake(
             // Stored for the line it was recorded on, which shows it only
             // while that line is on screen.
             putTake(savedFor.key, saved);
-            if (savedFor.silent) {
+            if (savedFor.silent || localOnly) {
               // A silent take never plays the line (island/[id].tsx only
               // startPlayback(player)s the line when the take is not
               // silent), so usePracticeClock's didJustFinish listener on

@@ -251,7 +251,7 @@ const noop = () => {};
 const LANG_CODE: Record<string, string> = { ja: 'JP', es: 'ES', en: 'EN', he: 'HE' };
 
 export default function IslandScreen() {
-  const { id, morph, auto } = useLocalSearchParams<{ id: string; morph?: string; auto?: string }>(); // auto-practice
+  const { id, morph, auto, line: ytLine } = useLocalSearchParams<{ id: string; morph?: string; auto?: string; line?: string }>(); // auto-practice, youtube-shadowing
   const navigation = useNavigation();
   const sky = useSkyStyle();
   const { t } = useT();
@@ -789,7 +789,9 @@ export default function IslandScreen() {
     // Puts an island on screen for the first time on this open.
     async function show(data: api.Island, text: string) {
       // A long island reopens where it was left; short ones still start at line 1.
-      if (data.status === 'ready' && data.lines.length >= LONG_ISLAND) {
+      if (ytLine !== undefined && Number.isFinite(Number(ytLine))) { // youtube-shadowing
+        setIdx(Math.max(0, Math.min(Math.floor(Number(ytLine)), data.lines.length - 1))); // youtube-shadowing
+      } else if (data.status === 'ready' && data.lines.length >= LONG_ISLAND) {
         const saved = await getLastLine(id);
         if (!alive || shownText !== null) return false;
         setIdx(Math.max(0, Math.min(saved, data.lines.length - 1)));
@@ -2952,6 +2954,20 @@ export default function IslandScreen() {
       if (island) router.push({ pathname: '/before-after', params: { id: island.id, idx: String(idx) } });
     }),
   );
+  const onMenuWatch = useStableHandler(() => // youtube-shadowing
+    closeSheetThen(() => {
+      stopPlayback(player);
+      take.stopTake();
+      if (island) router.push({ pathname: '/video/[id]', params: { id: island.id, line: String(idx) } });
+    }),
+  );
+  const onMenuListen = useStableHandler(() => // podcast-listen
+    closeSheetThen(() => {
+      stopPlayback(player);
+      take.stopTake();
+      if (island) router.push({ pathname: '/podcast/[id]', params: { id: island.id, line: String(idx) } });
+    }),
+  );
   const onMenuDelete = useStableHandler(() => closeSheetThen(confirmDelete));
   const onExplainClose = useStableHandler(closeExplain);
   const onExplainPlay = useStableHandler(() => void playFromTop());
@@ -3712,6 +3728,8 @@ export default function IslandScreen() {
         onRename={onMenuRename}
         onExport={onMenuExport}
         onBeforeAfter={onMenuBeforeAfter} // before-after
+        onWatch={island.source === 'youtube' ? onMenuWatch : undefined} // youtube-shadowing
+        onListen={island.source === 'podcast' ? onMenuListen : undefined} // podcast-listen
         onRevoice={onMenuRevoice}
         onRegenerate={onMenuRegenerate}
         onCalibrate={onMenuCalibrate}

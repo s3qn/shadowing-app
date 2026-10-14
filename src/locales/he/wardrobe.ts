@@ -1,0 +1,26 @@
+import type { en as enWardrobe } from '../en/wardrobe';
+
+export const he = {
+  'wardrobe.title': 'ארון בגדים',
+  'wardrobe.pet': 'ללטף את החתול',
+  'wardrobe.level': 'רמה {n}',
+  'wardrobe.maxLevel': 'רמה מקסימלית',
+  'wardrobe.xp': '{into} / {total} XP',
+  'wardrobe.coins': '{n} מטבעות',
+  'wardrobe.slot.head': 'ראש',
+  'wardrobe.slot.face': 'פנים',
+  'wardrobe.slot.body': 'גוף',
+  'wardrobe.slot.accessory': 'תוספות',
+  'wardrobe.buy': 'קנו ב-{n}',
+  'wardrobe.claim': 'קבלו',
+  'wardrobe.reachLevel': 'הגיעו לרמה {n}',
+  'wardrobe.needCoins': 'חסרים מטבעות: {n}',
+  'wardrobe.lockedLevel': 'רמה {n}',
+  'wardrobe.equipped': 'לבוש',
+  'wardrobe.earnHint': 'תרגלו משפט כדי להרוויח XP ומטבעות.',
+  'wardrobe.failed': 'לא הצלחנו לטעון את הארון.',
+  'wardrobe.lv': 'רמה {n}',
+  'wardrobe.owned': 'ברשותכם',
+  'wardrobe.worn': 'לבוש',
+  'wardrobe.retry': 'נסו שוב',
+} satisfies Record<keyof typeof enWardrobe, string>;

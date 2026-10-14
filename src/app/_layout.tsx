@@ -132,6 +132,27 @@ export default function RootLayout() {
           name="import"
           options={{ title: t('title.newIsland'), presentation: 'modal' }}
         />
+        {/* youtube-shadowing */}
+        <Stack.Screen name="video/add" options={{ title: t('video.title'), presentation: 'modal' }} />
+        <Stack.Screen name="video/build" options={{ title: t('video.title'), presentation: 'modal' }} />
+        <Stack.Screen
+          name="video/[id]"
+          options={{
+            title: '',
+            headerStyle: { backgroundColor: tide.sky[0] },
+            headerTintColor: tide.text,
+            headerShadowVisible: false,
+          }}
+        />
+        <Stack.Screen
+          name="podcast/[id]"
+          options={{
+            title: '',
+            headerStyle: { backgroundColor: tide.sky[0] },
+            headerTintColor: tide.text,
+            headerShadowVisible: false,
+          }}
+        />
         {/* The player draws its own header. Opened from a Home card (the
             `morph` param), the card morph overlay is the whole transition
             both ways, so the route itself does not animate; anywhere else,
@@ -157,8 +178,10 @@ export default function RootLayout() {
         <Stack.Screen name="settings/languages" options={{ title: t('title.language') }} />
         <Stack.Screen name="settings/app-language" options={{ title: t('settings.appLanguage') }} />
         <Stack.Screen name="before-after" options={{ title: t('beforeAfter.title') }} />
+        <Stack.Screen name="wardrobe" options={{ title: t('wardrobe.title'), headerStyle: { backgroundColor: '#080b1c' } }} />
         {/* Dev-only screen, excluded from the app-language inventory. */}
         <Stack.Screen name="prism-lab" options={{ title: 'Prism lab' }} />
+        <Stack.Screen name="cat-lab" options={{ title: 'Cat lab' }} />
       </Stack>
       <CardMorphOverlay />
       <LoadingOverlay />

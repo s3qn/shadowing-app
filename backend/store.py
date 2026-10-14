@@ -76,6 +76,15 @@ CREATE TABLE IF NOT EXISTS builds (
 );
 CREATE INDEX IF NOT EXISTS idx_builds_device_kind_created
   ON builds (device, kind, created_at);
+CREATE TABLE IF NOT EXISTS videos (
+  island_id   TEXT PRIMARY KEY REFERENCES islands(id) ON DELETE CASCADE,
+  video_id    TEXT NOT NULL,
+  start_s     REAL NOT NULL DEFAULT 0,
+  duration    REAL NOT NULL DEFAULT 0,
+  title       TEXT NOT NULL DEFAULT '',
+  author      TEXT NOT NULL DEFAULT '',
+  created_at  TEXT NOT NULL
+);
 """
 
 
@@ -432,3 +441,38 @@ def take_paths(island_id: str, idx: int) -> tuple[Path, Path]:
     folder = TAKES_DIR / island_id
     folder.mkdir(parents=True, exist_ok=True)
     return folder / f"{idx}.raw.wav", folder / f"{idx}.clean.wav"
+
+
+# --- youtube-shadowing ---
+def add_video(island_id: str, video_id: str, start_s: float, title: str, author: str) -> None:
+    with connect() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO videos (island_id, video_id, start_s, title, author,"
+            " created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (island_id, video_id, start_s, title, author, _now()),
+        )
+
+
+def set_video_duration(island_id: str, duration: float) -> None:
+    with connect() as conn:
+        conn.execute("UPDATE videos SET duration=? WHERE island_id=?", (duration, island_id))
+
+
+def get_video(island_id: str) -> dict | None:
+    with connect() as conn:
+        row = conn.execute("SELECT * FROM videos WHERE island_id=?", (island_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def list_videos(device: str) -> list[dict]:
+    """A device's video islands, newest first."""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT v.island_id, v.video_id, v.title, i.status, i.stage, i.error_code,"
+            " v.created_at,"
+            " (SELECT COUNT(*) FROM lines l WHERE l.island_id=i.id) AS line_count"
+            " FROM videos v JOIN islands i ON i.id=v.island_id"
+            " WHERE i.device=? ORDER BY v.created_at DESC, v.rowid DESC",
+            (device,),
+        ).fetchall()
+    return [dict(r) for r in rows]

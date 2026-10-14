@@ -24,7 +24,8 @@ type Props = {
   /** Whether the word has a JMdict entry to show. False (es and en, which
    * JMdict does not cover) shows the context line as the body instead. */
   dictionary?: boolean;
-  onHear: () => void;
+  /** Omit to hide the hear button (a screen with no per-word audio). */
+  onHear?: () => void;
   onClose: () => void;
 };
 
@@ -96,9 +97,11 @@ export function WordPanel({ word, gloss, context, left, top, romaji = false, dic
         <Text style={styles.contextLoading}>…</Text>
       ) : null}
 
-      <PressScale onPress={onHear} style={styles.hear}>
-        <Text style={styles.hearText}>{t('player.hearAgain')}</Text>
-      </PressScale>
+      {onHear ? (
+        <PressScale onPress={onHear} style={styles.hear}>
+          <Text style={styles.hearText}>{t('player.hearAgain')}</Text>
+        </PressScale>
+      ) : null}
     </View>
   );
 }

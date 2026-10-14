@@ -9,7 +9,7 @@ type Row = {
   label: string;
   icon: SheetIcon;
   /** Route the row opens. */
-  href: '/record' | '/phrases' | '/import';
+  href: '/record' | '/phrases' | '/import' | '/video/add';
 };
 
 /**
@@ -24,6 +24,7 @@ export function AddIslandSheet({ open, onClose }: { open: boolean; onClose: () =
     { key: 'record', label: t('home.add.record'), icon: { ios: 'mic.fill', android: 'mic' }, href: '/record' },
     { key: 'phrases', label: t('home.add.phrases'), icon: { ios: 'text.bubble', android: 'chat' }, href: '/phrases' },
     { key: 'import', label: t('home.add.import'), icon: { ios: 'square.and.arrow.down', android: 'upload' }, href: '/import' },
+    { key: 'video', label: t('home.add.video'), icon: { ios: 'play.rectangle', android: 'smart_display' }, href: '/video/add' }, // youtube-shadowing
   ];
 
   return (
