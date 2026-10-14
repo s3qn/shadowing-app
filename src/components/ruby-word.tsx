@@ -1,6 +1,6 @@
 import { memo, type ReactNode, useMemo, useState } from 'react';
 import { type LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { interpolateColor, useAnimatedStyle } from 'react-native-reanimated';
 
 import { type Highlight, useWordInk } from '@/components/word-highlight';
 
@@ -38,7 +38,92 @@ type Props = {
    * speech bar, the romaji and the take marks all go, since each gives the
    * text away. Their space stays, so the frost never moves anything. */
   concealed?: boolean;
+  /** Video player karaoke: bigger left-aligned type, sung / lit / next colours
+   * and a clipped colour sweep inside the lit word, all read from `highlight`
+   * on the UI thread. 'step' swaps the sweep for a word-by-word colour step
+   * (reduced motion). Left out, the word renders exactly as before. */
+  karaoke?: 'sweep' | 'step';
 };
+
+const K_SUNG = '#F2F3FA';
+const K_LIT = '#7CC8FF';
+const K_NEXT = '#9AA2C8';
+
+/** Karaoke state of one word from the shared level: `a` is how far the lit
+ * colour has entered it (0..1), `b` how far it has handed off to sung (0..1).
+ * Idle (nothing on), every word reads as sung so a paused line stays legible. */
+function karaokeParts(h: { level: number; on: number; from: number; to: number }, i: number, step: boolean) {
+  'worklet';
+  if (h.on === 0 || h.level < 0) return { a: 0, b: 1 };
+  let a = Math.min(1, Math.max(0, h.level - i));
+  let b = Math.min(1, Math.max(0, h.level - i - 1));
+  if (step) {
+    a = a >= 0.5 ? 1 : 0;
+    b = b >= 0.5 ? 1 : 0;
+  }
+  return { a, b };
+}
+
+/** One run of text with the karaoke colour. The base text blends next to sung
+ * as the word hands off; a clipped copy in the lit colour grows from the left
+ * with the entry fraction, covering this run's share [k/n, (k+1)/n] of the word.
+ * `ruby` runs (furigana) only change colour, they do not sweep. */
+function KaraokeText({
+  text,
+  style,
+  highlight,
+  index,
+  k,
+  n,
+  step,
+  ruby,
+}: {
+  text: string;
+  style: object;
+  highlight: Highlight;
+  index: number;
+  k: number;
+  n: number;
+  step: boolean;
+  ruby?: boolean;
+}) {
+  const [w, setW] = useState(0);
+  const base = useAnimatedStyle(() => {
+    const { a, b } = karaokeParts(highlight.value, index, step);
+    if (ruby) return { color: interpolateColor(b, [0, 1], [a >= 0.5 ? K_LIT : K_NEXT, K_SUNG]) };
+    return { color: interpolateColor(b, [0, 1], [K_NEXT, K_SUNG]) };
+  });
+  // The lit copy is a fixed-width overlay revealed from the left by translateX,
+  // not a per-frame width (which would force a Yoga relayout every frame). The
+  // clip window slides left by the hidden slice and the text slides the same
+  // amount right, so the text stays put and only its left `local` shows.
+  const reveal = useAnimatedStyle(() => {
+    const { a, b } = karaokeParts(highlight.value, index, step);
+    const local = Math.min(1, Math.max(0, a * n - k));
+    return { transform: [{ translateX: -w * (1 - local) }], opacity: 1 - b };
+  });
+  const inner = useAnimatedStyle(() => {
+    const { a } = karaokeParts(highlight.value, index, step);
+    const local = Math.min(1, Math.max(0, a * n - k));
+    return { transform: [{ translateX: w * (1 - local) }] };
+  });
+  return (
+    <View
+      onLayout={(e) => {
+        const next = e.nativeEvent.layout.width;
+        setW((prev) => (prev === next ? prev : next));
+      }}>
+      <Animated.Text style={[style, base]}>{text}</Animated.Text>
+      {ruby ? null : (
+        <Animated.View pointerEvents="none" style={[styles.clip, { width: w }, reveal]}>
+          <Animated.Text numberOfLines={1} style={[style, { color: K_LIT, width: w }, inner]}>
+            {text}
+          </Animated.Text>
+        </Animated.View>
+      )}
+    </View>
+  );
+}
 
 /**
  * One word of the line. React Native has no ruby text, so a word with
@@ -71,7 +156,12 @@ export const RubyWord = memo(function RubyWord({
   showPosAndRomaji = true,
   pitch,
   concealed = false,
+  karaoke,
 }: Props) {
+  const kStep = karaoke === 'step';
+  const baseSize = karaoke ? styles.baseK : null;
+  const rtSize = karaoke ? styles.rtK : null;
+  const useK = !!karaoke && !concealed && !!highlight;
   const segments = showRuby && word.ruby?.some((s) => s.rt) ? word.ruby : null;
   // Lit and selected are both a colour change, never a filled chip: a solid
   // box behind one word reads as a UI control, not running text. The lit
@@ -82,7 +172,6 @@ export const RubyWord = memo(function RubyWord({
   // A plain word that wraps onto a second row: the moras cannot be placed by
   // character any more, so its strip stays empty.
   const [wrapped, setWrapped] = useState(false);
-  const baseStyle = [styles.base, baseInk];
   const markColor = concealed
     ? 'transparent'
     : mark === 'early' ? tide.listen : mark === 'late' ? tide.turn : mark === 'dropped' ? tide.record : 'transparent';
@@ -141,16 +230,28 @@ export const RubyWord = memo(function RubyWord({
                 {cells ? (
                   <PitchStrip cells={cells} pitch={pitch!.slice(from, from + moraCells(cells))} concealed={concealed} />
                 ) : null}
-                <Animated.Text style={[styles.rt, rubyInk]}>{seg.rt}</Animated.Text>
-                <Animated.Text style={baseStyle}>{seg.text}</Animated.Text>
+                {useK ? (
+                  <>
+                    <KaraokeText text={seg.rt} style={[styles.rt, rtSize!]} highlight={highlight!} index={index} k={i} n={segments.length} step={kStep} ruby />
+                    <KaraokeText text={seg.text} style={[styles.base, baseSize!]} highlight={highlight!} index={index} k={i} n={segments.length} step={kStep} />
+                  </>
+                ) : (
+                  <>
+                    <Animated.Text style={[styles.rt, rtSize, rubyInk]}>{seg.rt}</Animated.Text>
+                    <Animated.Text style={[styles.base, baseSize, baseInk]}>{seg.text}</Animated.Text>
+                  </>
+                )}
               </View>
             );
           })
         ) : (
           <>
-            {showRuby ? <Text style={styles.rt}>{''}</Text> : null}
+            {showRuby ? <Text style={[styles.rt, rtSize]}>{''}</Text> : null}
+            {useK ? (
+              <KaraokeText text={word.text} style={[styles.base, baseSize!]} highlight={highlight!} index={index} k={0} n={1} step={kStep} />
+            ) : (
             <Animated.Text
-              style={baseStyle}
+              style={[styles.base, baseSize, baseInk]}
               onLayout={
                 pitch
                   ? (e) => {
@@ -161,6 +262,7 @@ export const RubyWord = memo(function RubyWord({
               }>
               {word.text}
             </Animated.Text>
+            )}
           </>
         )}
       </View>
@@ -239,6 +341,9 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   clear: { color: 'transparent' },
+  baseK: { fontSize: 26, lineHeight: 34 },
+  rtK: { fontSize: 13, lineHeight: 16 },
+  clip: { position: 'absolute', left: 0, top: 0, bottom: 0, overflow: 'hidden' },
   strip: { height: STRIP, alignSelf: 'stretch', flexDirection: 'row' },
   bar: { position: 'absolute', left: 0, right: 0, height: STROKE, backgroundColor: PITCH_INK },
   high: { top: 0 },

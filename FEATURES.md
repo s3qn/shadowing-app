@@ -224,6 +224,7 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Leaderboard spotlight band fits its content
 - Leaderboard shows every named user, even at 0 XP
 - Android internal-beta support (package, icon, Google-only sign-in)
+- Cinematic YouTube player + per-word karaoke
 
 ## Next (approved, in order)
 

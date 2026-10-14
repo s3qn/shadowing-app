@@ -5,6 +5,13 @@ import { Linking, StyleSheet, Text, useWindowDimensions, View } from 'react-nati
 import type { LayoutChangeEvent } from 'react-native';
 import type { ScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+} from 'react-native-reanimated';
 import YoutubePlayer, { type YoutubeIframeRef } from 'react-native-youtube-iframe';
 
 import { CatConstellation } from '@/components/cat-constellation';
@@ -34,6 +41,59 @@ import {
   type ReadingMode,
 } from '@/lib/settings';
 import { watchUrl } from '@/lib/youtube';
+import type { Highlight } from '@/components/word-highlight';
+
+const SWAP_SPRING = { damping: 18, stiffness: 180 };
+const PIP_DONE = '#F2F3FA';
+const PIP_LIT = '#7CC8FF';
+const PIP_TODO = 'rgba(154,162,200,0.28)';
+
+/** Groups a line's words into at most 6 pips, each sized by its share of the characters. */
+function pipGroups(words: { text: string }[]): { start: number; count: number; weight: number }[] {
+  const n = words.length;
+  if (n === 0) return [];
+  const groups: { start: number; count: number; weight: number }[] = [];
+  const per = Math.ceil(n / Math.min(6, n));
+  for (let i = 0; i < n; i += per) {
+    const slice = words.slice(i, i + per);
+    groups.push({ start: i, count: slice.length, weight: Math.max(1, slice.reduce((a, w) => a + w.text.length, 0)) });
+  }
+  return groups;
+}
+
+function Pip({ highlight, start, count, weight }: { highlight: Highlight; start: number; count: number; weight: number }) {
+  const w = useSharedValue(0);
+  const fill = useAnimatedStyle(() => {
+    const h = highlight.value;
+    // Idle (paused, or the gap between lines) reads the whole strip as done,
+    // matching the words, which show sung when nothing is playing.
+    const idle = h.on === 0 || h.level < 0;
+    const f = idle ? 1 : Math.min(1, Math.max(0, (h.level - start) / count)) * h.on;
+    const active = !idle && f > 0 && f < 1;
+    return {
+      backgroundColor: active ? PIP_LIT : PIP_DONE,
+      transform: [{ translateX: (-w.value * (1 - f)) / 2 }, { scaleX: f }],
+    };
+  });
+  return (
+    <View style={[styles.pip, { flex: weight }]} onLayout={(e) => (w.value = e.nativeEvent.layout.width)}>
+      <Animated.View style={[styles.pipFill, fill]} />
+    </View>
+  );
+}
+
+/** Word timeline above the line: one pip per word group, filling from highlight.level on the UI thread. */
+function PipRow({ highlight, words }: { highlight: Highlight; words: { text: string }[] }) {
+  const groups = useMemo(() => pipGroups(words), [words]);
+  if (groups.length === 0) return null;
+  return (
+    <View style={styles.pips}>
+      {groups.map((g) => (
+        <Pip key={g.start} highlight={highlight} start={g.start} count={g.count} weight={g.weight} />
+      ))}
+    </View>
+  );
+}
 
 const LANG_CODE: Record<string, string> = {
   ja: 'JP',
@@ -64,6 +124,7 @@ export default function VideoScreen() {
 
   const playerRef = useRef<YoutubeIframeRef>(null);
   const scrollRef = useRef<ScrollView>(null);
+  const reduceMotion = useReducedMotion();
   const lines = island?.lines ?? [];
   const sceneLines = useMemo(() => lines.map((l) => l.ja), [lines]);
   const [explainOpen, setExplainOpen] = useState(false);
@@ -476,6 +537,16 @@ export default function VideoScreen() {
                 countdown={null}
                 sentence={
                   lines[activeLine] ? (
+                    <Animated.View
+                      key={lines[activeLine]!.idx}
+                      entering={
+                        reduceMotion
+                          ? FadeIn.duration(160)
+                          : FadeInDown.springify().damping(SWAP_SPRING.damping).stiffness(SWAP_SPRING.stiffness)
+                      }
+                      style={styles.slot}
+                    >
+                      {video.captions_only ? null : <PipRow highlight={highlight} words={lines[activeLine]!.words} />}
                     <TappableSentence
                       key={lines[activeLine]!.idx}
                       line={lines[activeLine]!}
@@ -489,7 +560,9 @@ export default function VideoScreen() {
                       readingMode={readingMode}
                       blind={blind}
                       englishShown={englishShown}
+                      variant="video"
                     />
+                    </Animated.View>
                   ) : null
                 }
                 scrollRef={scrollRef}
@@ -634,6 +707,16 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     paddingVertical: Spacing.sm,
   },
+  slot: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    padding: 24,
+    gap: 14,
+  },
+  pips: { flexDirection: 'row', gap: 6 },
+  pip: { height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: PIP_TODO },
+  pipFill: { ...StyleSheet.absoluteFill, borderRadius: 2 },
   dock: {
     backgroundColor: 'rgba(0,0,0,0.18)',
     borderTopLeftRadius: Radius.lg,

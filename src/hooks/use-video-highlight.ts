@@ -101,17 +101,23 @@ export function useVideoHighlight(
       const t = tables.value[line] ?? null;
       let next: HighlightState = IDLE;
       if (t) {
+        // A true per-word sweep: level advances linearly inside each word, from
+        // its own start boundary to the next, so level ramps from..to+1 across
+        // the line at the speaking rate and the blue fill tracks the voice. The
+        // island player keeps its 100ms crossfade; this hook is the video only.
+        const cols = t.c;
         let level = t.from;
-        for (let j = 0; j < t.c.length; j += 1) {
-          const cj = t.c[j]!;
-          const wj = t.w[j]!;
-          if (pos < cj - wj / 2) break;
-          if (wj <= 0) {
+        for (let j = 0; j < cols.length - 1; j += 1) {
+          const a0 = cols[j]!;
+          const a1 = cols[j + 1]!;
+          if (pos <= a0) break;
+          if (pos >= a1) {
             level += 1;
             continue;
           }
-          const x = Math.min(1, Math.max(0, (pos - cj) / wj + 0.5));
-          level += x * x * (3 - 2 * x);
+          const dur = a1 - a0;
+          level += dur > 0 ? (pos - a0) / dur : 1;
+          break;
         }
         next = { level, on: g, from: t.from, to: t.to };
       }

@@ -2,7 +2,7 @@ import * as Clipboard from 'expo-clipboard';
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { type LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector, type ScrollView } from 'react-native-gesture-handler';
-import { useSharedValue } from 'react-native-reanimated';
+import { useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import type { RefObject } from 'react';
 
 import { RubyWord } from '@/components/ruby-word';
@@ -43,6 +43,9 @@ type Props = {
   blind?: boolean;
   /** Show the translation strip. Default true. */
   englishShown?: boolean;
+  /** 'video' is the cinematic YouTube player: 26pt left-aligned type, karaoke
+   * colour sweep, no card chrome (the screen draws the glass). Default off. */
+  variant?: 'default' | 'video';
 };
 
 type Box = { x: number; y: number; width: number; height: number };
@@ -69,7 +72,10 @@ export const TappableSentence = memo(function TappableSentence({
   readingMode = 'furigana',
   blind = false,
   englishShown = true,
+  variant = 'default',
 }: Props) {
+  const video = variant === 'video';
+  const reduceMotion = useReducedMotion();
   const isJa = language === 'ja';
   const modeLine = !isJa
     ? null
@@ -355,12 +361,12 @@ export const TappableSentence = memo(function TappableSentence({
   const dragPopTop = dragUnion ? dragUnion.bottom + SELECTION_HANDLE_CLEARANCE : 0;
 
   return (
-    <View style={styles.activeCard}>
+    <View style={video ? styles.videoCard : styles.activeCard}>
       {line.words.length > 0 ? (
         <View style={styles.block} onLayout={onBlockLayout}>
           <GestureDetector gesture={sentenceGesture}>
             <View collapsable={false}>
-              <View style={styles.words}>
+              <View style={[styles.words, video && styles.wordsLeft]}>
                 {line.words.map((w, i) => (
                   <RubyWord
                     key={i}
@@ -370,6 +376,7 @@ export const TappableSentence = memo(function TappableSentence({
                     index={i}
                     highlight={highlight}
                     concealed={blind}
+                    karaoke={video ? (reduceMotion ? 'step' : 'sweep') : undefined}
                     selected={i === selected || (!!dragSpan && i >= dragSpan.from && i <= dragSpan.to)}
                     onLayout={onWordLayout}
                   />
@@ -405,12 +412,12 @@ export const TappableSentence = memo(function TappableSentence({
           ) : null}
         </View>
       ) : (
-        <Text style={[styles.ja, isJa && { fontFamily: fonts.serifJp }]}>{line.ja}</Text>
+        <Text style={[styles.ja, isJa && { fontFamily: fonts.serifJp }, video && styles.jaVideo]}>{line.ja}</Text>
       )}
-      {modeLine && !blind ? <Text style={styles.reading}>{modeLine}</Text> : null}
+      {modeLine && !blind ? <Text style={[styles.reading, video && styles.leftText]}>{modeLine}</Text> : null}
       {line.en && englishShown ? (
-        <View style={styles.enStrip}>
-          <Text style={styles.en}>{line.en}</Text>
+        <View style={video ? styles.enVideo : styles.enStrip}>
+          <Text style={[styles.en, video && styles.enTextVideo]}>{line.en}</Text>
         </View>
       ) : null}
     </View>
@@ -426,6 +433,12 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
   },
+  videoCard: {},
+  wordsLeft: { justifyContent: 'flex-start' },
+  jaVideo: { fontSize: 26, lineHeight: 34, textAlign: 'left' },
+  leftText: { textAlign: 'left' },
+  enVideo: { marginTop: 8 },
+  enTextVideo: { fontSize: 15, lineHeight: 21, textAlign: 'left' },
   block: { position: 'relative', zIndex: 5 },
   words: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
   ja: {
