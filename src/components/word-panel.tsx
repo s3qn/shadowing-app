@@ -1,8 +1,10 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { PressScale } from '@/components/press-scale';
+import { PrismButton } from '@/components/prism';
+import { GlassFill } from '@/components/tide/popover-bubble';
 import { fonts } from '@/constants/fonts';
-import { Radius, Spacing, tide } from '@/constants/theme';
+import { prism, Radius, Spacing, tide } from '@/constants/theme';
 import type { Gloss } from '@/lib/api';
 import { useDir, useT } from '@/lib/i18n';
 import { kanaToRomaji } from '@/lib/romaji';
@@ -48,7 +50,8 @@ export function WordPanel({ word, gloss, context, left, top, romaji = false, dic
   const dir = useDir();
   const shownReading = gloss ? (romaji ? toRomajiReading(gloss) : gloss.reading) : '';
   return (
-    <View style={[styles.pop, { left, top, backgroundColor: tide.water, borderColor: tide.waterline, shadowColor: '#000' }]}>
+    <View style={[styles.pop, { left, top }]}>
+      <GlassFill radius={Radius.md} />
       <View style={[styles.head, dir.row]}>
         <View style={styles.headText}>
           <Text style={styles.word} numberOfLines={1}>
@@ -98,9 +101,7 @@ export function WordPanel({ word, gloss, context, left, top, romaji = false, dic
       ) : null}
 
       {onHear ? (
-        <PressScale onPress={onHear} style={styles.hear}>
-          <Text style={styles.hearText}>{t('player.hearAgain')}</Text>
-        </PressScale>
+        <PrismButton shape="pill" verb="listen" label={t('player.hearAgain')} onPress={onHear} containerStyle={styles.hear} />
       ) : null}
     </View>
   );
@@ -111,11 +112,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: POPOVER_WIDTH,
     zIndex: 10,
-    elevation: 8,
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    borderWidth: 1,
+    boxShadow: prism.shadow,
     borderRadius: Radius.md,
     padding: Spacing.md,
     gap: Spacing.sm,
@@ -129,6 +126,5 @@ const styles = StyleSheet.create({
   meaning: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui, color: tide.text },
   context: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui, color: tide.textDim },
   contextLoading: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui, color: tide.textDim },
-  hear: { paddingVertical: Spacing.sm, borderRadius: Radius.pill, alignItems: 'center', backgroundColor: tide.lang.ja },
-  hearText: { fontSize: 14, fontFamily: fonts.uiMedium, fontWeight: '500', color: tide.sky[0] },
+  hear: { alignSelf: 'stretch' },
 });

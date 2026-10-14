@@ -13,7 +13,7 @@ import Animated, {
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { fonts } from '@/constants/fonts';
-import { tide } from '@/constants/theme';
+import { tide, verb, withAlpha } from '@/constants/theme';
 import { hapticImpact } from '@/lib/haptics';
 
 /** Distance between two ticks, one step apart. */
@@ -191,7 +191,12 @@ const styles = StyleSheet.create({
   cell: { width: STEP, alignItems: 'center' },
   tickArea: { height: TICK_AREA_H, justifyContent: 'flex-end', paddingBottom: 2 },
   tick: { width: 1.5, height: 7, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.3)' },
-  tickMajor: { height: 12, backgroundColor: 'rgba(255,255,255,0.6)' },
+  tickMajor: {
+    width: 2,
+    height: 14,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    boxShadow: `0 0 4 ${withAlpha(verb.listen.c1, 0.7)}`,
+  },
   // Wider than the cell and centred on it, so "10" is not clipped.
   tickLabel: {
     width: 2 * STEP,
@@ -209,6 +214,7 @@ const styles = StyleSheet.create({
     width: 2,
     height: TICK_AREA_H,
     borderRadius: 1,
-    backgroundColor: tide.lang.ja,
+    backgroundColor: verb.listen.c1,
+    boxShadow: `0 0 8 ${verb.listen.glow}`,
   },
 });

@@ -10,7 +10,6 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -49,6 +48,7 @@ import { PressScale } from '@/components/press-scale';
 import { GlassPanel } from '@/components/prism/glass-panel';
 import { PrismButton } from '@/components/prism/prism-button';
 import { SearchIcon } from '@/components/tide/toolbar-icons';
+import { GlassInput } from '@/components/tide/glass-input';
 import { fonts } from '@/constants/fonts';
 import { prism, Radius, Spacing, tide, verb, withAlpha } from '@/constants/theme';
 import { LitPillCover, LitPillRim, PILL_H, PILL_ICON_OFF, PILL_LABEL_SIZE, PILL_PAD_X, PillTrayShell } from '@/components/prism/pill-tray';
@@ -998,7 +998,7 @@ export default function IslandsScreen() {
         {/* prism-home: edited region */}
         {renaming ? (
           <>
-            <TextInput
+            <GlassInput
               autoFocus
               value={draftTitle}
               onChangeText={setDraftTitle}
@@ -1561,16 +1561,7 @@ const styles = StyleSheet.create({
   // Matches LanternRow's own height: a busy or failed card has no lanterns
   // but still needs the row's height so every card lines up.
   lanternSpacer: { height: 24 },
-  sheetInput: {
-    fontFamily: fonts.ui,
-    fontSize: 16,
-    color: tide.text,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 8,
-  },
+  sheetInput: { marginBottom: Spacing.sm },
   // prism-home: one row of pill actions sharing a single GlassPanel blur.
   sheetActionsRow: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.sm, alignSelf: 'flex-start' },
   sheetActionsRowRtl: { alignSelf: 'flex-end' },

@@ -6,6 +6,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
+import { PrismButton } from '@/components/prism';
 import { PressScale } from '@/components/press-scale';
 
 import { fonts } from '@/constants/fonts';
@@ -160,13 +161,16 @@ export default function ImportScreen() {
           </ScrollView>
 
           <View style={styles.actions}>
-            <PressScale
-              onPress={build}
+            <PrismButton
+              shape="pill"
+              verb="listen"
+              on
+              label={t('import.build')}
               disabled={!audio}
+              onPress={build}
               accessibilityRole="button"
-              style={[styles.primary, !audio && styles.dimmed]}>
-              <Text style={styles.primaryText}>{t('import.build')}</Text>
-            </PressScale>
+              containerStyle={styles.primary}
+            />
           </View>
         </>
       )}
@@ -207,12 +211,5 @@ const styles = StyleSheet.create({
   pickValue: { flex: 1, textAlign: 'right', fontSize: 14, color: tide.textDim, fontFamily: fonts.ui },
   error: { fontSize: 14, lineHeight: 20, color: tide.record, fontFamily: fonts.ui },
   actions: { paddingHorizontal: SIDE, paddingTop: Spacing.md, paddingBottom: Spacing.sm, gap: Spacing.xs },
-  primary: {
-    paddingVertical: Spacing.lg,
-    borderRadius: Radius.pill,
-    alignItems: 'center',
-    backgroundColor: tide.lang.ja,
-  },
-  dimmed: { opacity: 0.4 },
-  primaryText: { fontSize: 17, color: tide.sky[0], fontFamily: fonts.uiMedium, fontWeight: '500' },
+  primary: { alignSelf: 'center' },
 });

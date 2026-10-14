@@ -211,6 +211,10 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Phrase islands: ready topics through the + sheet
 - Import an audio or srt file as an island
 - Offline islands: download an island for no network
+- Glass popovers + speed ruler verb colour
+- Auto Echo Prism buttons (ring + glyph fixes)
+- Tide toggle replaces native Switch
+- Glass input + Prism CTAs, suggest cat loader
 
 ## Next (approved, in order)
 

@@ -90,6 +90,7 @@ export function PrismButton({
   verb,
   flat,
   label,
+  labelStyle,
   value,
   style,
   containerStyle,
@@ -229,6 +230,7 @@ export function PrismButton({
           dimT={dimT}
           flat={flat}
           label={label}
+          labelStyle={labelStyle}
           value={value}
           style={style}>
           {children}

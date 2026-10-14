@@ -1,7 +1,8 @@
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { type ReactNode } from 'react';
-import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { TideToggle } from '@/components/tide/tide-toggle';
 import { fonts } from '@/constants/fonts';
 import { tide, withAlpha } from '@/constants/theme';
 import { useDir } from '@/lib/i18n';
@@ -65,11 +66,7 @@ export function SheetToggle({ label, hint, value, onValueChange, icon }: SheetTo
           {hint ? <Text style={[styles.hint, dir.text]}>{hint}</Text> : null}
         </View>
       </View>
-      <Switch
-        value={value}
-        onValueChange={onValueChange}
-        trackColor={{ true: tide.lang.ja, false: 'rgba(255,255,255,0.2)' }}
-      />
+      <TideToggle value={value} onValueChange={onValueChange} />
     </View>
   );
 }

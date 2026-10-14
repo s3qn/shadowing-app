@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, Switch, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 
+import { TideToggle } from '@/components/tide/tide-toggle';
 import { PressScale } from '@/components/press-scale';
 import type { SheetIcon } from '@/components/sheet/sheet-rows';
 import { fonts } from '@/constants/fonts';
@@ -79,11 +80,7 @@ export function SettingsRow({
         <Text style={[styles.label, { color: destructive ? tide.record : tide.text }, dir.text]}>{label}</Text>
       </View>
       {hasSwitch ? (
-        <Switch
-          value={switchValue}
-          onValueChange={onSwitchChange}
-          trackColor={{ false: 'rgba(255,255,255,0.14)', true: tide.lang.ja }}
-        />
+        <TideToggle value={!!switchValue} onValueChange={onSwitchChange} />
       ) : (
         <View style={[styles.rightGroup, dir.row, singleLineValue && styles.shrink]}>
           {dotColor ? <View style={[styles.dot, { backgroundColor: dotColor }]} /> : null}

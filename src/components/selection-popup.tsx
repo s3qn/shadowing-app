@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { PressScale } from '@/components/press-scale';
+import { PrismButton } from '@/components/prism';
+import { GlassFill } from '@/components/tide/popover-bubble';
 import { CheckIcon, CopyIcon, ExplainIcon, RepeatIcon } from '@/components/tide/toolbar-icons';
-import { Radius, tide } from '@/constants/theme';
+import { prism, Radius, tide, verb as verbTokens } from '@/constants/theme';
 import { useT } from '@/lib/i18n';
 
 const BUTTON_SIZE = 44;
@@ -55,38 +56,34 @@ export function SelectionPopup({ left, top, onRepeat, onExplain, onCopy }: Props
   }
 
   return (
-    <View
-      style={[
-        styles.pop,
-        { left, top, backgroundColor: tide.water, borderColor: tide.waterline, shadowColor: '#000' },
-      ]}>
+    <View style={[styles.pop, { left, top }]}>
+      <GlassFill radius={Radius.md} />
       {onRepeat ? (
-        <PressScale
+        <PrismButton
+          shape="round"
+          size={BUTTON_SIZE}
+          verb="speak"
+          on
           onPress={onRepeat}
-          style={[styles.button, { backgroundColor: tide.lang.ja }]}
-          accessibilityRole="button"
           accessibilityLabel={t('player.repeatSelection')}>
-          <RepeatIcon color={tide.sky[0]} size={22} />
-        </PressScale>
+          <RepeatIcon color={verbTokens.speak.c1} size={22} />
+        </PrismButton>
       ) : null}
-      <PressScale
-        onPress={onExplain}
-        style={[styles.button, styles.outline, { borderColor: tide.lang.ja }]}
-        accessibilityRole="button"
-        accessibilityLabel={t('player.explainSelection')}>
-        <ExplainIcon color={tide.lang.ja} background={tide.water} size={22} />
-      </PressScale>
-      <PressScale
+      <PrismButton shape="round" size={BUTTON_SIZE} verb="listen" onPress={onExplain} accessibilityLabel={t('player.explainSelection')}>
+        <ExplainIcon color={verbTokens.listen.c1} background={tide.water} size={22} />
+      </PrismButton>
+      <PrismButton
+        shape="round"
+        size={BUTTON_SIZE}
+        verb="tools"
         onPress={handleCopy}
-        style={[styles.button, styles.outline, { borderColor: tide.lang.ja }]}
-        accessibilityRole="button"
         accessibilityLabel={copied ? t('player.copied') : t('player.copySelection')}>
         {copied ? (
-          <CheckIcon color={tide.lang.ja} size={22} />
+          <CheckIcon color={verbTokens.tools.c1} size={22} />
         ) : (
-          <CopyIcon color={tide.lang.ja} background={tide.water} size={15} />
+          <CopyIcon color={verbTokens.tools.c1} background={tide.water} size={15} />
         )}
-      </PressScale>
+      </PrismButton>
     </View>
   );
 }
@@ -96,23 +93,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: SELECTION_POPUP_WIDTH,
     zIndex: 10,
-    elevation: 8,
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    borderWidth: 1,
+    boxShadow: prism.shadow,
     borderRadius: Radius.md,
     paddingVertical: POPUP_PADDING_V,
     paddingHorizontal: POPUP_PADDING_H,
     flexDirection: 'row',
     gap: BUTTON_GAP,
   },
-  button: {
-    width: BUTTON_SIZE,
-    height: BUTTON_SIZE,
-    borderRadius: BUTTON_SIZE / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  outline: { backgroundColor: 'transparent', borderWidth: 1.5 },
 });

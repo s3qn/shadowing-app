@@ -1,9 +1,8 @@
-import { StyleSheet, Text, View } from 'react-native';
-import { SymbolView } from 'expo-symbols'; // icon-buttons: Whole line
+import { SymbolView } from 'expo-symbols';
+import { StyleSheet, View } from 'react-native';
 
 import { PrismButton } from '@/components/prism'; // icon-buttons: Whole line
-import { fonts } from '@/constants/fonts'; // icon-buttons: Whole line
-import { Radius, Spacing, tide, verb as verbTokens, prism } from '@/constants/theme'; // icon-buttons: Whole line
+import { Spacing, tide } from '@/constants/theme';
 import { useDir, useT } from '@/lib/i18n';
 
 type Props = {
@@ -24,25 +23,14 @@ export function PhraseBar({ label, hidden, onClear }: Props) {
   return (
     <View style={styles.container}>
       <View style={[styles.row, dir.row]}>
-        <View style={[styles.pill, { backgroundColor: tide.lang.ja }]}>
-          <Text style={[styles.pillText, dir.text, { color: tide.sky[0] }]}>
-            {hidden ? t('player.phrase') : t('player.phraseWith', { label })}
-          </Text>
-        </View>
-        {/* icon-buttons: Whole line */}
-        <View style={{ alignItems: 'center' }}>
-          <PrismButton
-            shape="round"
-            size={prism.sizes.roundSm}
-            verb="listen"
-            onPress={onClear}
-            accessibilityLabel={t('player.wholeLine')}>
-            <SymbolView name={{ ios: 'arrow.left.and.right', android: 'swap_horiz' }} size={16} weight="regular" tintColor={verbTokens.listen.c1} />
-          </PrismButton>
-          <Text style={{ fontFamily: fonts.ui, fontSize: 11, color: tide.textDim, marginTop: 4, textAlign: 'center' }}>
-            {t('player.wholeLine')}
-          </Text>
-        </View>
+        <PrismButton
+          shape="pill"
+          verb="speak"
+          label={hidden ? t('player.phrase') : t('player.phraseWith', { label })}
+          onPress={onClear}
+          accessibilityLabel={t('player.wholeLine')}>
+          <SymbolView name={{ ios: 'xmark', android: 'close' }} size={12} weight="semibold" tintColor={tide.textDim} />
+        </PrismButton>
       </View>
     </View>
   );
@@ -57,11 +45,4 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     marginTop: Spacing.xs,
   },
-  pill: {
-    borderRadius: Radius.pill,
-    paddingVertical: Spacing.xs + 2,
-    paddingHorizontal: Spacing.md,
-  },
-  pillText: { fontSize: 13, fontWeight: '700' },
-  link: { fontSize: 13, fontWeight: '700' },
 });

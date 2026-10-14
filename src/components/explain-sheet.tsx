@@ -14,6 +14,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { PressScale } from '@/components/press-scale';
+import { PrismButton } from '@/components/prism';
 import { Frost } from '@/components/frost';
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
 import { type Highlight, useWordInk, type WordBox } from '@/components/word-highlight';
@@ -412,8 +413,16 @@ function GrammarChip({
   );
   return (
     <Animated.View style={[styles.grammarItem, style]}>
-      <View style={[styles.grammarChip, dir.rtl && styles.grammarChipRtl]}>
-        <Text style={styles.grammarChipText}>{item.pattern}</Text>
+      <View pointerEvents="none" style={[styles.grammarChip, dir.rtl && styles.grammarChipRtl]}>
+        <PrismButton
+          shape="pill"
+          verb="read"
+          flat
+          haptic={false}
+          label={item.pattern}
+          labelStyle={{ fontFamily: fonts.serifJp }}
+          accessibilityRole="text"
+        />
       </View>
       <Text style={[styles.grammarExplanation, dir.content]}>{item.explanation}</Text>
       {span ? (
@@ -549,14 +558,7 @@ const styles = StyleSheet.create({
   grammarList: { gap: Spacing.md },
   grammarItem: { gap: Spacing.xs },
   grammarChipRtl: { alignSelf: 'flex-end' },
-  grammarChip: {
-    alignSelf: 'flex-start',
-    backgroundColor: tide.lang.ja,
-    borderRadius: Radius.pill,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-  },
-  grammarChipText: { fontFamily: fonts.serifJp, fontSize: 14, fontWeight: '700', color: tide.sky[0] },
+  grammarChip: { alignSelf: 'flex-start' },
   grammarExplanation: { fontFamily: fonts.ui, fontSize: 14, lineHeight: 20, color: tide.text },
   grammarSentenceRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', marginTop: 2 },
   grammarSentenceText: { fontFamily: fonts.serifJp, fontSize: 13, lineHeight: 20, color: tide.textDim },

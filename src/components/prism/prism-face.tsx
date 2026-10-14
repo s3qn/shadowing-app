@@ -1,5 +1,5 @@
 import { type ReactNode, useMemo, useState } from 'react';
-import { type LayoutChangeEvent, type StyleProp, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { type LayoutChangeEvent, type StyleProp, StyleSheet, Text, type TextStyle, View, type ViewStyle } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Canvas, Circle, RoundedRect, SweepGradient, vec } from '@shopify/react-native-skia';
 import Animated, { interpolateColor, useAnimatedStyle, useSharedValue, type SharedValue } from 'react-native-reanimated';
@@ -60,6 +60,8 @@ export type PrismFaceProps = {
   flat?: boolean;
   /** Tile: under the icon. Pill: after the icon. Round ignores it. Turns the verb colour (white on a pill) when on. */
   label?: string;
+  /** Extra text style for the label, e.g. a Japanese font. */
+  labelStyle?: StyleProp<TextStyle>;
   /** Tile only, under the label. A string or number gets the value style; any other node renders as given. */
   value?: ReactNode;
   style?: StyleProp<ViewStyle>;
@@ -80,7 +82,7 @@ function safeT(v: number): number {
  * rim that strengthens when `onT` reaches 1. Carries no press behaviour;
  * `PrismButton` adds the drop and the ripples on top of this.
  */
-export function PrismFace({ shape, size, width, height, verb, onT, dimT, flat, label, value, style, children }: PrismFaceProps) {
+export function PrismFace({ shape, size, width, height, verb, onT, dimT, flat, label, labelStyle, value, style, children }: PrismFaceProps) {
   const colours = verbTokens[verb];
   const dir = useDir();
   // A face used outside PrismButton (the lab's static discs) never passes
@@ -167,7 +169,7 @@ export function PrismFace({ shape, size, width, height, verb, onT, dimT, flat, l
 
   const labelNode =
     label !== undefined && shape !== 'round' ? (
-      <Animated.Text numberOfLines={1} style={[shape === 'pill' ? styles.pillLabel : styles.tileLabel, labelColourStyle]}>
+      <Animated.Text numberOfLines={1} style={[shape === 'pill' ? styles.pillLabel : styles.tileLabel, labelColourStyle, labelStyle]}>
         {label}
       </Animated.Text>
     ) : null;

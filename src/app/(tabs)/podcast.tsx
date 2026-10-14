@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, SectionList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
@@ -9,6 +9,7 @@ import { PILL_TAB_BAR_REACH } from '@/components/pill-tab-bar';
 import { PressScale } from '@/components/press-scale';
 import { GlassPanel, PrismButton } from '@/components/prism';
 
+import { GlassInput } from '@/components/tide/glass-input';
 import { fonts } from '@/constants/fonts';
 import { useDir, useT } from '@/lib/i18n';
 import { Radius, Spacing, prism, tide } from '@/constants/theme';
@@ -157,7 +158,7 @@ export default function PodcastScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       <View style={styles.searchRow}>
-        <TextInput
+        <GlassInput
           style={[styles.searchInput, dir.text]}
           value={query}
           onChangeText={setQuery}
@@ -271,13 +272,7 @@ const styles = StyleSheet.create({
   hint: { fontSize: 14, lineHeight: 20, color: tide.textDim, fontFamily: fonts.ui },
   searchRow: { paddingHorizontal: SIDE, paddingTop: Spacing.sm, paddingBottom: Spacing.sm },
   searchInput: {
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: Radius.md,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    color: tide.text,
     fontSize: 15,
-    fontFamily: fonts.ui,
   },
   chipRow: { flexGrow: 0, marginHorizontal: SIDE, marginBottom: Spacing.sm },
   chipRowContent: { paddingHorizontal: SIDE, paddingVertical: Spacing.xs, gap: Spacing.xs },

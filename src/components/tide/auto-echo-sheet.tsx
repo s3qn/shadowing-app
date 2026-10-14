@@ -20,13 +20,14 @@ import { LevelBars } from '@/components/level-bars';
 import { PASSES, PassExplainer } from '@/components/onboarding/pass-step';
 import { StepAction } from '@/components/onboarding/step-frame';
 import { PressScale } from '@/components/press-scale';
+import { PrismButton } from '@/components/prism';
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
 import { SheetToggle, type SheetIcon } from '@/components/sheet/sheet-rows';
 import { ROW_HEIGHT, TakeFeedback } from '@/components/take-feedback';
 import { SparkleResult, type SparkleResultData } from '@/components/tide/sparkle-result';
 import { STRIP_HEIGHT, VoiceRipples } from '@/components/tide/voice-ripples';
 import { fonts } from '@/constants/fonts';
-import { prism, tide, withAlpha } from '@/constants/theme';
+import { prism, tide, verb, withAlpha } from '@/constants/theme';
 import { useDir, useT } from '@/lib/i18n';
 import type { Mora, NativeLanguage, TakeAnalysis } from '@/lib/api';
 import type { AutoChain } from '@/lib/auto-practice';
@@ -526,48 +527,54 @@ function AutoEchoSheetBase({
 
           <Animated.View style={[styles.controlRow, dir.row, rowStyles[4]]}>
             {shown.end && onDone ? (
-              <PressScale
+              <PrismButton
+                shape="pill"
+                verb="tools"
+                label={t('player.autoDone')}
                 onPress={onDone}
                 accessibilityRole="button"
                 accessibilityLabel={t('player.autoDone')}
-                style={[styles.pill, { backgroundColor: tide.lang.ja }]}>
-                <Text style={styles.pillLabel}>{t('player.autoDone')}</Text>
-              </PressScale>
+              />
             ) : null}
             {/* auto-practice: no Start again while the hold moves on to the next island. */}
             {shown.end || auto?.next ? null : shown.step === 'idle' || shown.step === 'done' ? (
-              <PressScale
+              <PrismButton
+                shape="pill"
+                verb="listen"
+                label={shown.step === 'idle' ? t('player.start') : t('player.startAgain')}
                 onPress={onStart}
                 accessibilityRole="button"
                 accessibilityLabel={shown.step === 'idle' ? t('player.start') : t('player.startAgain')}
-                style={[styles.pill, { backgroundColor: passColour }]}>
-                <Text style={styles.pillLabel}>{shown.step === 'idle' ? t('player.start') : t('player.startAgain')}</Text>
-              </PressScale>
+              />
             ) : null}
             {!shown.end && armed ? (
-              <PressScale
+              <View style={styles.recordWrap}>
+              <PrismButton
+                shape="round"
+                verb="speak"
+                size={52}
                 onPress={onRecord}
                 accessibilityRole="button"
-                accessibilityLabel={countIn === null ? t('player.record') : t('player.cancelCountIn')}
-                style={[styles.round, styles.recordRound]}>
+                accessibilityLabel={countIn === null ? t('player.record') : t('player.cancelCountIn')}>
                 {countIn === null ? (
                   <View style={styles.recordDot} />
                 ) : (
                   <>
-                    <Animated.View pointerEvents="none" style={[styles.beatRing, beatStyle]} />
                     <Text style={styles.countIn}>{countIn}</Text>
                   </>
                 )}
-              </PressScale>
+              </PrismButton>
+              {countIn !== null ? <Animated.View pointerEvents="none" style={[styles.beatRing, beatStyle]} /> : null}
+              </View>
             ) : null}
             {!shown.end && speaking && !stopping ? (
               <>
-                <PressScale onPress={onStop} accessibilityRole="button" accessibilityLabel={t('player.stop')} style={[styles.round, styles.recordRound]}>
+                <PrismButton shape="round" verb="speak" size={52} onPress={onStop} accessibilityRole="button" accessibilityLabel={t('player.stop')}>
                   <View style={styles.stopSquare} />
-                </PressScale>
-                <PressScale onPress={onRetry} accessibilityRole="button" accessibilityLabel={t('common.retry')} style={[styles.round, styles.retryRound]}>
+                </PrismButton>
+                <PrismButton shape="round" verb="tools" size={52} onPress={onRetry} accessibilityRole="button" accessibilityLabel={t('common.retry')}>
                   <Text style={styles.retryGlyph}>↻</Text>
-                </PressScale>
+                </PrismButton>
               </>
             ) : null}
             {!shown.end && speaking ? <LevelBars level={level} live /> : null}
@@ -691,13 +698,8 @@ const styles = StyleSheet.create({
   // ripples both have a place and neither resizes the zone.
   resultRow: { height: STRIP_HEIGHT, alignItems: 'center', justifyContent: 'center' },
   controlRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20, minHeight: 52, marginTop: 4 },
-  pill: { paddingVertical: 14, paddingHorizontal: 36, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
-  pillLabel: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 16, color: tide.water },
-  round: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
-  // overflow: the count's ring grows past the button and must not be clipped.
-  recordRound: { backgroundColor: tide.record, overflow: 'visible' },
-  retryRound: { backgroundColor: tide.lang.ja },
-  recordDot: { width: 16, height: 16, borderRadius: 8, backgroundColor: tide.sky[0] },
+  recordWrap: { position: 'relative', width: 52, height: 52 },
+  recordDot: { width: 16, height: 16, borderRadius: 8, backgroundColor: verb.speak.c1 },
   // Sits around the 52pt record button and grows past it on each count beat.
   beatRing: {
     position: 'absolute',
@@ -709,9 +711,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: tide.record,
   },
-  countIn: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 24, color: tide.sky[0], fontVariant: ['tabular-nums'] },
-  stopSquare: { width: 16, height: 16, borderRadius: 3, backgroundColor: tide.sky[0] },
-  retryGlyph: { fontFamily: fonts.ui, fontSize: 24, color: tide.sky[0] },
+  countIn: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 24, color: verb.speak.c1, fontVariant: ['tabular-nums'] },
+  stopSquare: { width: 16, height: 16, borderRadius: 3, backgroundColor: verb.speak.c1 },
+  retryGlyph: { fontFamily: fonts.ui, fontSize: 24, color: verb.tools.c1 },
   note: { fontFamily: fonts.ui, fontSize: 12, lineHeight: 17, color: tide.textDim, marginTop: 12 },
   error: { fontFamily: fonts.ui, fontSize: 13, lineHeight: 19, textAlign: 'center', color: tide.record, marginTop: 12 },
 });

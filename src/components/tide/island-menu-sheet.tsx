@@ -1,10 +1,11 @@
 import { memo, useEffect, useState } from 'react';
-import { StyleSheet, Text, TextInput } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
 import { SheetAction, type SheetIcon } from '@/components/sheet/sheet-rows';
+import { GlassInput } from '@/components/tide/glass-input';
 import { fonts } from '@/constants/fonts';
-import { tide, verb } from '@/constants/theme';
+import { Spacing, tide, verb } from '@/constants/theme';
 import { useDir, useT } from '@/lib/i18n';
 import type { Complexity } from '@/lib/api';
 
@@ -102,7 +103,7 @@ function IslandMenuSheetBase({
     <BottomSheet open={open} onClose={onClose} onDismissed={onDismissed} title={t('player.islandMenu')} avoidKeyboard>
       {renaming ? (
         <>
-          <TextInput
+          <GlassInput
             autoFocus
             value={draft}
             onChangeText={setDraft}
@@ -194,14 +195,5 @@ export const IslandMenuSheet = memo(IslandMenuSheetBase);
 
 const styles = StyleSheet.create({
   offlineLine: { fontFamily: fonts.ui, fontSize: 12, color: tide.textDim, marginBottom: 4 },
-  input: {
-    fontFamily: fonts.ui,
-    fontSize: 16,
-    color: tide.text,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 8,
-  },
+  input: { marginBottom: Spacing.sm },
 });
