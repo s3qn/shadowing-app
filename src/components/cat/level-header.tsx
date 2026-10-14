@@ -14,7 +14,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { fonts } from '@/constants/fonts';
-import { Spacing, tide } from '@/constants/theme';
+import { tide } from '@/constants/theme';
 import { hapticImpact } from '@/lib/haptics';
 import { useDir, useT } from '@/lib/i18n';
 
@@ -124,12 +124,13 @@ export function LevelHeader({ level, xpIntoLevel, xpToNext, coins }: LevelHeader
 
   return (
     <View style={[styles.wrap, dir.row]}>
+      <Animated.View style={[styles.levelDisc, pulseStyle]}>
+        <Animated.Text style={[styles.levelNum, newStyle]}>{level}</Animated.Text>
+        {oldLevel !== null ? <Animated.Text style={[styles.levelNum, styles.oldLevel, oldStyle]}>{oldLevel}</Animated.Text> : null}
+      </Animated.View>
       <View style={styles.left}>
         <View style={[styles.row, dir.row]}>
-          <Animated.View style={[{ transformOrigin: dir.rtl ? 'right' : 'left' }, pulseStyle]}>
-            <Animated.Text style={[styles.level, dir.text, newStyle]}>{t('wardrobe.lv', { n: level })}</Animated.Text>
-            {oldLevel !== null ? <Animated.Text style={[styles.level, styles.oldLevel, oldStyle]}>{t('wardrobe.lv', { n: oldLevel })}</Animated.Text> : null}
-          </Animated.View>
+          <Text style={[styles.label, dir.text]}>{t('wardrobe.lv', { n: level })}</Text>
           <Text style={styles.xp}>{maxed ? t('wardrobe.maxLevel') : t('wardrobe.xp', { into: xpIntoLevel, total: xpToNext })}</Text>
         </View>
         <XpBar height={6} fraction={maxed ? 1 : xpIntoLevel / xpToNext} levelUps={levelUps} />
@@ -144,24 +145,40 @@ export function LevelHeader({ level, xpIntoLevel, xpToNext, coins }: LevelHeader
 }
 
 const styles = StyleSheet.create({
-  wrap: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  wrap: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   left: { flex: 1, gap: 7 },
   row: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
-  level: { fontFamily: fonts.ui, fontSize: 26, lineHeight: 30, fontWeight: '700', color: GOLD, letterSpacing: 0.2 },
-  oldLevel: { position: 'absolute', left: 0, top: 0 },
+  levelDisc: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 3,
+    borderColor: GOLD,
+    backgroundColor: 'rgba(20,26,51,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: GOLD,
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 6,
+  },
+  levelNum: { fontFamily: fonts.ui, fontSize: 34, lineHeight: 40, fontWeight: '700', color: GOLD, textAlign: 'center' },
+  oldLevel: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, textAlign: 'center' },
+  label: { fontFamily: fonts.ui, fontSize: 13, color: tide.textDim },
   xp: { fontFamily: fonts.ui, fontSize: 13, color: tide.textDim },
   coinPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    height: 34,
+    height: 44,
     paddingHorizontal: 13,
-    borderRadius: 17,
+    borderRadius: 22,
     backgroundColor: 'rgba(20,26,51,0.55)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.10)',
   },
-  ring: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, borderRadius: 17, borderWidth: 2, borderColor: GOLD },
+  ring: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, borderRadius: 22, borderWidth: 2, borderColor: GOLD },
   disc: { width: 14, height: 14, borderRadius: 7, backgroundColor: GOLD, borderWidth: 1.5, borderColor: 'rgba(150,95,0,0.35)' },
   coinText: { fontFamily: fonts.ui, fontSize: 15, fontWeight: '600', color: tide.text, padding: 0, minWidth: 24 },
   track: { backgroundColor: XP_TRACK, overflow: 'hidden' },

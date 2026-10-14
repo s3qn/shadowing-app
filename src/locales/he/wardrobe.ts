@@ -12,6 +12,7 @@ export const he = {
   'wardrobe.slot.body': 'גוף',
   'wardrobe.slot.accessory': 'תוספות',
   'wardrobe.buy': 'קנו ב-{n}',
+  'wardrobe.buyPlain': 'קנו',
   'wardrobe.claim': 'קבלו',
   'wardrobe.reachLevel': 'הגיעו לרמה {n}',
   'wardrobe.needCoins': 'חסרים מטבעות: {n}',

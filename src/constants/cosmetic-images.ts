@@ -1,9 +1,60 @@
 /**
- * Item PNGs for the Rive cat, keyed by catalog item id. An item with no entry
- * shows the slot placeholder in the Rive cat.
- *
- * TODO: add the 52 item PNGs. Each is transparent with a centre registration
- * point, sized to its slot canvas on the 1254x1254 artboard:
- *   head 560x320, face 640x280, accessory 440x180, body 560x400.
+ * Item PNGs for the Rive cat, keyed by catalog item id. Files live in
+ * assets/cosmetics/, drawn by the Rive session and fitted to Kageneko.
+ * All 52 items. Tail bows (accessory.tailbow_*) inject into the v3 tail slot;
+ * see kageneko-view.tsx for the accessory->tail routing.
  */
-export const ITEM_IMAGES: Readonly<Partial<Record<string, number>>> = {};
+export const ITEM_IMAGES: Readonly<Partial<Record<string, number>>> = {
+  'head.cap_paper': require('../../assets/cosmetics/head.cap_paper.png'),
+  'head.beanie_blue': require('../../assets/cosmetics/head.beanie_blue.png'),
+  'head.bow_pink': require('../../assets/cosmetics/head.bow_pink.png'),
+  'head.cap_red': require('../../assets/cosmetics/head.cap_red.png'),
+  'head.beanie_green': require('../../assets/cosmetics/head.beanie_green.png'),
+  'head.crown_gold': require('../../assets/cosmetics/head.crown_gold.png'),
+  'head.tophat_black': require('../../assets/cosmetics/head.tophat_black.png'),
+  'head.bow_purple': require('../../assets/cosmetics/head.bow_purple.png'),
+  'head.beanie_orange': require('../../assets/cosmetics/head.beanie_orange.png'),
+  'head.cap_teal': require('../../assets/cosmetics/head.cap_teal.png'),
+  'head.crown_orange': require('../../assets/cosmetics/head.crown_orange.png'),
+  'head.tophat_white': require('../../assets/cosmetics/head.tophat_white.png'),
+  'head.crown_silver': require('../../assets/cosmetics/head.crown_silver.png'),
+  'head.crown_purple': require('../../assets/cosmetics/head.crown_purple.png'),
+  'face.blush_pink': require('../../assets/cosmetics/face.blush_pink.png'),
+  'face.glasses_black': require('../../assets/cosmetics/face.glasses_black.png'),
+  'face.mask_white': require('../../assets/cosmetics/face.mask_white.png'),
+  'face.shades_black': require('../../assets/cosmetics/face.shades_black.png'),
+  'face.monocle_gold': require('../../assets/cosmetics/face.monocle_gold.png'),
+  'face.glasses_red': require('../../assets/cosmetics/face.glasses_red.png'),
+  'face.blush_red': require('../../assets/cosmetics/face.blush_red.png'),
+  'face.mask_black': require('../../assets/cosmetics/face.mask_black.png'),
+  'face.shades_blue': require('../../assets/cosmetics/face.shades_blue.png'),
+  'face.monocle_silver': require('../../assets/cosmetics/face.monocle_silver.png'),
+  'face.mask_gold': require('../../assets/cosmetics/face.mask_gold.png'),
+  'face.shades_pink': require('../../assets/cosmetics/face.shades_pink.png'),
+  'body.scarf_blue': require('../../assets/cosmetics/body.scarf_blue.png'),
+  'body.scarf_red': require('../../assets/cosmetics/body.scarf_red.png'),
+  'body.shirt_white': require('../../assets/cosmetics/body.shirt_white.png'),
+  'body.hoodie_green': require('../../assets/cosmetics/body.hoodie_green.png'),
+  'body.shirt_orange': require('../../assets/cosmetics/body.shirt_orange.png'),
+  'body.scarf_gold': require('../../assets/cosmetics/body.scarf_gold.png'),
+  'body.hoodie_purple': require('../../assets/cosmetics/body.hoodie_purple.png'),
+  'body.cape_red': require('../../assets/cosmetics/body.cape_red.png'),
+  'body.kimono_pink': require('../../assets/cosmetics/body.kimono_pink.png'),
+  'body.hoodie_black': require('../../assets/cosmetics/body.hoodie_black.png'),
+  'body.cape_blue': require('../../assets/cosmetics/body.cape_blue.png'),
+  'body.kimono_blue': require('../../assets/cosmetics/body.kimono_blue.png'),
+  'body.cape_black': require('../../assets/cosmetics/body.cape_black.png'),
+  'body.kimono_gold': require('../../assets/cosmetics/body.kimono_gold.png'),
+  'accessory.collar_red': require('../../assets/cosmetics/accessory.collar_red.png'),
+  'accessory.bell_gold': require('../../assets/cosmetics/accessory.bell_gold.png'),
+  'accessory.tailbow_pink': require('../../assets/cosmetics/accessory.tailbow_pink.png'),
+  'accessory.bowtie_black': require('../../assets/cosmetics/accessory.bowtie_black.png'),
+  'accessory.badge_gold': require('../../assets/cosmetics/accessory.badge_gold.png'),
+  'accessory.collar_blue': require('../../assets/cosmetics/accessory.collar_blue.png'),
+  'accessory.bowtie_red': require('../../assets/cosmetics/accessory.bowtie_red.png'),
+  'accessory.bell_silver': require('../../assets/cosmetics/accessory.bell_silver.png'),
+  'accessory.tailbow_purple': require('../../assets/cosmetics/accessory.tailbow_purple.png'),
+  'accessory.collar_gold': require('../../assets/cosmetics/accessory.collar_gold.png'),
+  'accessory.badge_teal': require('../../assets/cosmetics/accessory.badge_teal.png'),
+  'accessory.bowtie_gold': require('../../assets/cosmetics/accessory.bowtie_gold.png'),
+};

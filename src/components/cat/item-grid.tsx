@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { cancelAnimation, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
 
 import { CosmeticArt, SHAPE_BOX } from '@/components/cat/cosmetic-layer';
@@ -14,6 +14,8 @@ const DISC = 48;
 const ART_SCALE = 0.36;
 const CYAN = '#7CC8FF';
 const GOLD = '#FFC857';
+const INK = '#0B1030';
+const TILE_H = 128;
 const ENTER = { damping: 18, stiffness: 180 } as const;
 const STAGGER_MS = 40;
 const STAGGER_CELLS = 12;
@@ -62,7 +64,6 @@ function Cell({ item, state, selected, index, size, animate, onPress }: CellProp
   const dir = useDir();
   const reduced = useReducedMotion();
   const worn = state === 'equipped';
-  const dim = state === 'locked' || state === 'unaffordable';
   const enter = useSharedValue(animate && !reduced && !entered.has(item.id) ? 0 : 1);
   const press = useSharedValue(1);
   const sel = useFade(selected && !worn, 140, reduced);
@@ -89,28 +90,35 @@ function Cell({ item, state, selected, index, size, animate, onPress }: CellProp
   const wornStyle = useAnimatedStyle(() => ({ opacity: wornFade.t.value }));
   const checkStyle = useAnimatedStyle(() => ({ opacity: Math.min(1, check.value * 2), transform: [{ scale: Number.isFinite(check.value) ? check.value : 1 }] }));
 
-  const pill =
+  const unaffordable = state === 'unaffordable';
+  const locked = state === 'locked';
+  const band =
     state === 'equipped' ? (
-      <View style={[styles.pill, styles.pillWorn]}>
-        <Text style={[styles.pillText, { color: '#0B1020' }]}>{t('wardrobe.worn')}</Text>
+      <View style={[styles.band, { backgroundColor: CYAN }]}>
+        <Text style={[styles.bandText, { color: INK }]}>{t('wardrobe.worn')}</Text>
       </View>
     ) : state === 'owned' ? (
-      <View style={[styles.pill, styles.pillOwned]}>
-        <Text style={[styles.pillText, { color: tide.textDim }]}>{t('wardrobe.owned')}</Text>
+      <View style={[styles.band, { backgroundColor: 'rgba(255,255,255,0.04)' }]}>
+        <Text style={[styles.bandText, { color: '#98A0CC' }]}>{t('wardrobe.owned')}</Text>
       </View>
-    ) : state === 'locked' ? (
-      <View style={[styles.pill, styles.pillLock]}>
-        <Text style={[styles.pillText, { color: '#D4D9F2' }]}>{t('wardrobe.lv', { n: item.level_req })}</Text>
+    ) : locked ? (
+      <View style={[styles.band, dir.row, { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
+        <LockGlyph color="#8A90B8" style={dir.rtl ? { marginLeft: 5 } : { marginRight: 5 }} />
+        <Text style={[styles.bandText, { color: '#8A90B8' }]}>{t('wardrobe.lv', { n: item.level_req })}</Text>
+      </View>
+    ) : item.price === 0 ? (
+      <View style={[styles.band, { backgroundColor: GOLD }]}>
+        <Text style={[styles.bandText, { color: INK }]}>{t('wardrobe.claim')}</Text>
       </View>
     ) : (
-      <View style={[styles.pill, styles.pillBuy, dir.row, state === 'unaffordable' && styles.pillNo]}>
-        <View style={[styles.coin, state === 'unaffordable' && { opacity: 0.5 }]} />
-        <Text style={[styles.pillText, { color: state === 'unaffordable' ? '#E0D5B2' : GOLD }]}>{item.price === 0 ? t('wardrobe.claim') : item.price}</Text>
+      <View style={[styles.band, dir.row, unaffordable ? styles.bandNo : styles.bandBuy]}>
+        <View style={[styles.coin, dir.rtl ? { marginLeft: 5 } : { marginRight: 5 }]} />
+        <Text style={[styles.bandText, { color: unaffordable ? GOLD : '#FFD27A' }]}>{item.price}</Text>
       </View>
     );
 
   return (
-    <Animated.View style={[{ width: size, height: size }, cellStyle]}>
+    <Animated.View style={[{ width: size, height: TILE_H }, cellStyle]}>
       <Pressable
         onPress={onPress}
         onPressIn={() => {
@@ -130,25 +138,44 @@ function Cell({ item, state, selected, index, size, animate, onPress }: CellProp
             </Animated.View>
           ) : null}
           {wornFade.mounted ? <Animated.View pointerEvents="none" style={[styles.wornRim, wornStyle]} /> : null}
+          <View style={[styles.discRing, worn && styles.discRingWorn, unaffordable && { opacity: 0.75 }]}>
+            <View style={[styles.disc, locked && { backgroundColor: '#27306A' }]}>
+              <View style={{ width: SHAPE_BOX.w * ART_SCALE, height: SHAPE_BOX.h * ART_SCALE, opacity: locked ? 0.45 : 1 }}>
+                <View style={{ width: SHAPE_BOX.w, height: SHAPE_BOX.h, transform: [{ translateX: -(SHAPE_BOX.w * (1 - ART_SCALE)) / 2 }, { translateY: -(SHAPE_BOX.h * (1 - ART_SCALE)) / 2 }, { scale: ART_SCALE }] }}>
+                  <CosmeticArt art={item.art} />
+                </View>
+              </View>
+              {locked ? (
+                <View pointerEvents="none" style={styles.veil}>
+                  <LockGlyph color="#E8EAF6" style={{ transform: [{ scale: 1.15 }] }} />
+                </View>
+              ) : null}
+            </View>
+          </View>
+          <Text numberOfLines={1} style={[styles.name, locked && { opacity: 0.55 }, unaffordable && { opacity: 0.7 }]}>
+            {item.name}
+          </Text>
+          <View style={styles.bandClip} pointerEvents="none">
+            {band}
+          </View>
           {worn ? (
-            <Animated.View style={[styles.check, dir.rtl ? { left: 7 } : { right: 7 }, checkStyle]}>
+            <Animated.View style={[styles.check, dir.rtl ? { left: -6 } : { right: -6 }, checkStyle]}>
               <Text style={styles.checkGlyph}>✓</Text>
             </Animated.View>
           ) : null}
-          <View style={styles.disc}>
-            <View style={{ width: SHAPE_BOX.w * ART_SCALE, height: SHAPE_BOX.h * ART_SCALE, opacity: dim ? 0.7 : 1 }}>
-              <View style={{ width: SHAPE_BOX.w, height: SHAPE_BOX.h, transform: [{ translateX: -(SHAPE_BOX.w * (1 - ART_SCALE)) / 2 }, { translateY: -(SHAPE_BOX.h * (1 - ART_SCALE)) / 2 }, { scale: ART_SCALE }] }}>
-                <CosmeticArt art={item.art} />
-              </View>
-            </View>
-          </View>
-          <Text numberOfLines={1} style={[styles.name, dim && { color: '#C4CAEA' }]}>
-            {item.name}
-          </Text>
-          {pill}
         </View>
       </Pressable>
     </Animated.View>
+  );
+}
+
+/** A padlock from Views: shackle above a body, drawn in the given colour. */
+function LockGlyph({ color, style }: { color: string; style?: StyleProp<ViewStyle> }) {
+  return (
+    <View style={[{ alignItems: 'center' }, style]}>
+      <View style={{ width: 7, height: 6, borderWidth: 1.7, borderBottomWidth: 0, borderTopLeftRadius: 4, borderTopRightRadius: 4, borderColor: color }} />
+      <View style={{ width: 10, height: 8, borderRadius: 2, backgroundColor: color }} />
+    </View>
   );
 }
 
@@ -228,34 +255,46 @@ const styles = StyleSheet.create({
   columns: { gap: GAP },
   cell: {
     alignItems: 'center',
-    paddingTop: 9,
-    paddingHorizontal: 4,
-    gap: 5,
+    paddingTop: 12,
+    paddingHorizontal: 8,
+    paddingBottom: 34,
+    gap: 6,
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    experimental_backgroundImage: 'linear-gradient(180deg, #1E2658, #141A40)',
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10)',
   },
   selRim: {
     position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,
-    margin: -1,
     borderRadius: 20,
     padding: 2,
-    experimental_backgroundImage: 'linear-gradient(135deg, #FF5468, #f4f2f8 50%, #7CC8FF)',
-    boxShadow: '0 0 22px rgba(124,200,255,0.38)',
+    experimental_backgroundImage: 'linear-gradient(90deg, #FF5468, rgba(255,255,255,0.9) 30%, rgba(255,255,255,0.9) 70%, #7CC8FF)',
+    boxShadow: '-8px 0 18px -6px rgba(255,70,110,0.40), 8px 0 18px -6px rgba(70,170,255,0.45)',
   },
-  selInner: { flex: 1, borderRadius: 18, backgroundColor: '#1d2450' },
-  wornRim: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, margin: -1, borderRadius: 20, borderWidth: 2, borderColor: CYAN, backgroundColor: 'rgba(124,200,255,0.12)' },
-  check: { position: 'absolute', top: 7, width: 17, height: 17, borderRadius: 9, backgroundColor: CYAN, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
-  checkGlyph: { fontSize: 11, lineHeight: 13, fontWeight: '700', color: '#0B1020' },
+  selInner: { flex: 1, borderRadius: 18, backgroundColor: '#171E48' },
+  wornRim: {
+    position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,
+    borderRadius: 20,
+    boxShadow: 'inset 0 0 0 1px rgba(124,200,255,0.55), inset 0 -26px 28px -14px rgba(124,200,255,0.30)',
+  },
+  check: { position: 'absolute', top: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: CYAN, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
+  checkGlyph: { fontSize: 13, lineHeight: 16, fontWeight: '700', color: INK },
+  discRing: { width: DISC, height: DISC, borderRadius: DISC / 2 },
+  discRingWorn: { boxShadow: '0 0 0 2px #7CC8FF, 0 0 18px rgba(124,200,255,0.55)' },
   disc: { width: DISC, height: DISC, borderRadius: DISC / 2, backgroundColor: '#232b5e', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  name: { fontFamily: fonts.ui, fontSize: 13, lineHeight: 16, fontWeight: '600', color: tide.text },
-  pill: { height: 22, paddingHorizontal: 9, borderRadius: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
-  pillText: { fontFamily: fonts.ui, fontSize: 13, fontWeight: '600', lineHeight: 16 },
-  pillWorn: { backgroundColor: CYAN },
-  pillOwned: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)' },
-  pillBuy: { backgroundColor: 'rgba(255,200,87,0.12)', borderWidth: 1, borderColor: 'rgba(255,200,87,0.38)' },
-  pillNo: { backgroundColor: 'transparent', borderColor: 'rgba(255,200,87,0.4)' },
-  pillLock: { backgroundColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.26)' },
-  coin: { width: 10, height: 10, borderRadius: 5, backgroundColor: GOLD },
+  veil: {
+    position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,
+    alignItems: 'center', justifyContent: 'center',
+    experimental_backgroundImage: 'linear-gradient(160deg, rgba(190,200,255,0.22), rgba(120,130,200,0.08))',
+    boxShadow: 'inset 0 0 0 1px rgba(200,210,255,0.30)',
+  },
+  name: { fontFamily: fonts.ui, fontSize: 12.5, lineHeight: 16, fontWeight: '500', color: tide.text, maxWidth: '100%' },
+  bandClip: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 28, borderBottomLeftRadius: 20, borderBottomRightRadius: 20, overflow: 'hidden' },
+  band: { height: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  bandText: { fontFamily: fonts.ui, fontSize: 11.5, fontWeight: '600', letterSpacing: 0.1, lineHeight: 14 },
+  bandBuy: {
+    experimental_backgroundImage: 'linear-gradient(180deg, rgba(255,200,87,0.40), rgba(255,200,87,0.04))',
+    boxShadow: 'inset 0 2px 0 #FFD98F',
+  },
+  bandNo: { opacity: 0.55, borderTopWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(255,200,87,0.55)' },
+  coin: { width: 9, height: 9, borderRadius: 5, backgroundColor: GOLD, borderWidth: 2, borderColor: '#E8A92E' },
 });

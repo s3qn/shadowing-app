@@ -30,6 +30,8 @@ export type CatAvatarProps = {
   petKey?: number;
   /** Rive cat only: cap the frame rate. */
   frameRate?: number;
+  /** Rive cat only: follow the live gaze from useGaze. */
+  gaze?: boolean;
 };
 
 const PREVIEW_OPACITY = 0.55;
@@ -122,7 +124,7 @@ function SlotLayer({ slot, art, tryOn }: { slot: Slot; art: ArtSpec | null; tryO
  * The only prop surface of the cat. A later Rive cat takes the same props.
  * Layers draw in Z_ORDER inside a CAT_BOX that is scaled to `size`.
  */
-export function CatAvatar({ size, equipped, preview, mode, petKey, frameRate }: CatAvatarProps) {
+export function CatAvatar({ size, equipped, preview, mode, petKey, frameRate, gaze }: CatAvatarProps) {
   const [riveFailed, setRiveFailed] = useState(false);
   const scale = size / CAT_BOX.w;
   const h = CAT_BOX.h * scale;
@@ -135,6 +137,7 @@ export function CatAvatar({ size, equipped, preview, mode, petKey, frameRate }: 
           mode={mode ?? 'idle'}
           petKey={petKey}
           frameRate={frameRate}
+          gaze={gaze}
           onFail={() => setRiveFailed(true)}
         />
       </View>

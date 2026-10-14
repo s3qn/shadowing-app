@@ -11,6 +11,7 @@ export const en = {
   'wardrobe.slot.body': 'Body',
   'wardrobe.slot.accessory': 'Extras',
   'wardrobe.buy': 'Buy for {n}',
+  'wardrobe.buyPlain': 'Buy',
   'wardrobe.claim': 'Claim',
   'wardrobe.reachLevel': 'Reach level {n}',
   'wardrobe.needCoins': 'Need {n} coins',

@@ -12,6 +12,7 @@ import { PrismButton } from '@/components/prism';
 import type { Slot } from '@/constants/cosmetics';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
+import { useGaze } from '@/hooks/use-gaze';
 import { buyCosmetic, equipCosmetic } from '@/lib/api';
 import { resetBlink } from '@/lib/cat-blink';
 import { hapticNotify, hapticSelection } from '@/lib/haptics';
@@ -119,6 +120,8 @@ export default function WardrobeScreen() {
     else setSelectedId(item.id === selectedId ? null : item.id);
   };
 
+  const gaze = useGaze();
+
   if (error && loading) {
     return (
       <View style={[styles.fill, styles.center]}>
@@ -143,7 +146,7 @@ export default function WardrobeScreen() {
     : selectedState === 'buyable'
       ? selected.price === 0
         ? t('wardrobe.claim')
-        : t('wardrobe.buy', { n: selected.price })
+        : t('wardrobe.buyPlain')
       : selectedState === 'locked'
         ? t('wardrobe.reachLevel', { n: selected.level_req })
         : selectedState === 'unaffordable'
@@ -153,9 +156,9 @@ export default function WardrobeScreen() {
   const hint = notice ?? (progress.coins === 0 && progress.owned.length === 0 && !label ? t('wardrobe.earnHint') : null);
 
   return (
-    <View style={styles.fill}>
+    <View style={styles.fill} {...gaze.handlers}>
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-        <CatStage equipped={equipped} preview={preview} dipKey={dipKey} />
+        <CatStage equipped={equipped} preview={preview} dipKey={dipKey} gaze onCatRect={gaze.setCatRect} />
       </View>
       <View style={[styles.header, { top: Spacing.md }]}>
         <LevelHeader level={progress.level} xpIntoLevel={progress.xp_into_level} xpToNext={progress.xp_to_next} coins={progress.coins} />
@@ -183,6 +186,7 @@ export default function WardrobeScreen() {
       <View style={[styles.action, { bottom: barBottom }]}>
         <ActionBar
           label={label}
+          price={selectedState === 'buyable' && selected && selected.price > 0 ? selected.price : undefined}
           busy={busy}
           disabled={selectedState === 'locked' || selectedState === 'unaffordable'}
           onPress={() => void buy()}
