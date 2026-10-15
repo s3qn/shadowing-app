@@ -1,35 +1,95 @@
 import type { YoutubeIframeRef } from 'react-native-youtube-iframe';
+import { AppState } from 'react-native';
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type FrameInfo, useFrameCallback, useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { buildTable, type Highlight, type HighlightState, IDLE, type Table } from '@/components/word-highlight';
+import { type Highlight, type HighlightState, IDLE } from '@/components/word-highlight';
 import type { Line } from '@/lib/api';
 
 /**
- * Follows the YouTube IFrame player and drives the same word highlight the
- * island player uses. The player gives no continuous clock, only an async
- * `getCurrentTime`, so it is polled and the position between polls is
- * extrapolated on every frame at the playback rate.
+ * Follows the YouTube IFrame player and drives the video's word highlight. The
+ * player gives no continuous clock, only an async `getCurrentTime`, so it is
+ * polled single-flight and the position between polls is predicted on every
+ * frame at the playback rate. A new sample corrects the prediction softly (a
+ * late clock slews, an early one runs slower, never backwards) and a seek
+ * re-anchors it hard. Replies sent before the latest seek are dropped by epoch.
  */
 
-/** How often the player is asked for its time while playing. */
+/** How often the player is asked for its time while playing or buffering. */
 const POLL_MS = 250;
-/** A poll within this of the estimate is postMessage jitter, not a seek. */
-const JITTER_S = 0.08;
 /** Frames keep running this long after a stop so the highlight can fade. */
 const TAIL_MS = 300;
 /** How long the highlight takes to fade in or out. */
 const GATE_MS = 100;
-/** Run the highlight this far ahead of the player's reported time. YouTube's
- * caption timings and the IFrame clock both trail the audio slightly, so a
- * small lead keeps the glow on the word as it is spoken, not after. */
-const HIGHLIGHT_LEAD_S = 0.45;
+/** Visual lead over the reported clock; calibrated on device, see plan. */
+const LEAD_S = 0.06;
+/** A sample off the estimate by more than this is a seek, not drift. */
+const SNAP_S = 0.5;
+/** A sample within this of the estimate is postMessage jitter. */
+const JITTER_S = 0.08;
+/** Share of a positive error absorbed per sample. */
+const SLEW = 0.3;
+/** The estimate never runs further than this past the last sampled time. */
+const MAX_AHEAD_S = 0.5;
+/** Words closer than this are contiguous (the fill does not stop between them). */
+const JOIN_GAP_S = 0.25;
+/** The shortest a word's fill may take. */
+const MIN_WORD_S = 0.08;
+/** A getCurrentTime that has not answered in this long is given up on. */
+const INFLIGHT_MAX_MS = 1000;
 
-type Anchor = { seq: number; time: number; rate: number; playing: boolean; hard: boolean };
-type Clock = { seq: number; time: number; at: number; rate: number; playing: boolean };
+/** Anchor: JS to UI thread. `hard` jumps to `time` and gates to 0, `hold` freezes at the current estimate. */
+type Anchor = {
+  seq: number;
+  time: number;
+  rate: number;
+  advancing: boolean;
+  lit: boolean;
+  hard: boolean;
+  hold: boolean;
+};
+/** Clock: UI thread. `native` is the last sampled player time. */
+type Clock = {
+  seq: number;
+  time: number;
+  at: number;
+  rate: number;
+  advancing: boolean;
+  lit: boolean;
+  native: number;
+};
+/** Absolute player seconds per word. */
+type SweepTable = { from: number; to: number; s: number[]; e: number[] };
 
 export type VideoStateName = 'unstarted' | 'ended' | 'playing' | 'paused' | 'buffering' | 'video cued';
+
+/** The play intent after a player state: only playing and paused/ended change it. */
+export function playIntent(prev: boolean, state: string): boolean {
+  if (state === 'playing') return true;
+  if (state === 'paused' || state === 'ended') return false;
+  return prev;
+}
+
+function buildSweep(line: Line, lineStart: number): SweepTable | null {
+  const words = line.words;
+  const n = words.length;
+  if (n === 0) return null;
+  const s: number[] = [];
+  const e: number[] = [];
+  for (let j = 0; j < n; j += 1) {
+    const w = words[j]!;
+    const rawS = lineStart + w.start;
+    const rawE = lineStart + w.end;
+    const nextS = j < n - 1 ? lineStart + words[j + 1]!.start : Infinity;
+    const start = j > 0 ? Math.max(rawS, e[j - 1]!) : rawS;
+    let end = j < n - 1 && nextS - rawE < JOIN_GAP_S ? nextS : Math.max(rawE, start + MIN_WORD_S);
+    end = Math.max(Math.min(end, nextS), start);
+    s.push(start);
+    e.push(end);
+  }
+  return { from: 0, to: n - 1, s, e };
+}
 
 export function useVideoHighlight(
   playerRef: RefObject<YoutubeIframeRef | null>,
@@ -42,11 +102,27 @@ export function useVideoHighlight(
   onPlaybackRateChange: (rate: string | number) => void;
   seekToLine: (index: number) => void;
 } {
-  const anchor = useSharedValue<Anchor>({ seq: 0, time: 0, rate: 1, playing: false, hard: true });
-  const clock = useSharedValue<Clock>({ seq: -1, time: 0, at: 0, rate: 1, playing: false });
+  const anchor = useSharedValue<Anchor>({
+    seq: 0,
+    time: 0,
+    rate: 1,
+    advancing: false,
+    lit: false,
+    hard: true,
+    hold: false,
+  });
+  const clock = useSharedValue<Clock>({
+    seq: -1,
+    time: 0,
+    at: 0,
+    rate: 1,
+    advancing: false,
+    lit: false,
+    native: 0,
+  });
   const gate = useSharedValue(0);
   const highlight = useSharedValue<HighlightState>(IDLE);
-  const tables = useSharedValue<(Table | null)[]>([]);
+  const tables = useSharedValue<(SweepTable | null)[]>([]);
   const starts = useSharedValue<number[]>([]);
   const lastLine = useSharedValue(-1);
   const [activeLine, setActiveLine] = useState(0);
@@ -54,15 +130,19 @@ export function useVideoHighlight(
   const starting = useMemo(() => lines.map((l) => startS + (l.offset ?? 0)), [lines, startS]);
   useEffect(() => {
     starts.value = starting;
-    tables.value = lines.map((l, i) => buildTable(l.words, 1, -starting[i]!, 0, l.words.length - 1));
+    tables.value = lines.map((l, i) => buildSweep(l, starting[i]!));
     lastLine.value = -1;
   }, [lines, starting, starts, tables, lastLine]);
 
   const seq = useRef(0);
+  const epoch = useRef(0);
   const rate = useRef(1);
-  const playing = useRef(false);
+  const state = useRef<string>('unstarted');
+  const inflight = useRef(false);
+  const inflightAt = useRef(0);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seekTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onFrame = useCallback(
     (info: FrameInfo) => {
@@ -71,26 +151,46 @@ export function useVideoHighlight(
       const a = anchor.value;
       let c = clock.value;
       if (a.seq !== c.seq) {
-        const est = c.playing ? c.time + ((now - c.at) / 1000) * c.rate : c.time;
-        const keep = !a.hard && Math.abs(est - a.time) < JITTER_S;
-        c = { seq: a.seq, time: keep ? est : a.time, at: now, rate: a.rate, playing: a.playing };
+        const est = c.advancing ? Math.min(c.time + ((now - c.at) / 1000) * c.rate, c.native + MAX_AHEAD_S) : c.time;
+        let time = a.time;
+        let r = a.rate;
+        let native = a.time;
+        if (a.hard) {
+          gate.value = 0;
+        } else if (a.hold) {
+          time = est;
+          native = c.native;
+        } else if (a.advancing && c.advancing) {
+          const err = a.time - est;
+          if (Math.abs(err) > SNAP_S) {
+            time = a.time;
+          } else if (err > JITTER_S) {
+            time = est + SLEW * err;
+          } else if (err < -JITTER_S) {
+            time = est;
+            r = a.rate * Math.max(0.7, 1 + err / SNAP_S);
+          } else {
+            time = est;
+          }
+        }
+        c = { seq: a.seq, time, at: now, rate: r, advancing: a.advancing, lit: a.lit, native };
         clock.value = c;
-        if (a.hard) gate.value = 0;
       }
-      const pos = c.playing ? c.time + ((now - c.at) / 1000) * c.rate + HIGHLIGHT_LEAD_S : c.time;
+      const est = c.advancing ? Math.min(c.time + ((now - c.at) / 1000) * c.rate, c.native + MAX_AHEAD_S) : c.time;
+      const pos = est + LEAD_S;
 
       const dt = Math.min(34, info.timeSincePreviousFrame ?? 16);
-      const target = c.playing ? 1 : 0;
+      const target = c.lit ? 1 : 0;
       let g = gate.value;
       if (g !== target) {
         g = target > g ? Math.min(1, g + dt / GATE_MS) : Math.max(0, g - dt / GATE_MS);
         gate.value = g;
       }
 
-      const s = starts.value;
+      const st = starts.value;
       let line = 0;
-      for (let i = 0; i < s.length; i += 1) {
-        if (s[i]! <= pos) line = i;
+      for (let i = 0; i < st.length; i += 1) {
+        if (st[i]! <= pos) line = i;
         else break;
       }
       if (line !== lastLine.value) {
@@ -101,22 +201,18 @@ export function useVideoHighlight(
       const t = tables.value[line] ?? null;
       let next: HighlightState = IDLE;
       if (t) {
-        // A true per-word sweep: level advances linearly inside each word, from
-        // its own start boundary to the next, so level ramps from..to+1 across
-        // the line at the speaking rate and the blue fill tracks the voice. The
-        // island player keeps its 100ms crossfade; this hook is the video only.
-        const cols = t.c;
+        // Level runs linearly through each word at the speaking rate and holds
+        // at exactly j + 1 in a gap between words.
         let level = t.from;
-        for (let j = 0; j < cols.length - 1; j += 1) {
-          const a0 = cols[j]!;
-          const a1 = cols[j + 1]!;
-          if (pos <= a0) break;
-          if (pos >= a1) {
+        for (let j = 0; j < t.s.length; j += 1) {
+          const s0 = t.s[j]!;
+          const e0 = t.e[j]!;
+          if (pos < s0) break;
+          if (pos >= e0) {
             level += 1;
             continue;
           }
-          const dur = a1 - a0;
-          level += dur > 0 ? (pos - a0) / dur : 1;
+          level += (pos - s0) / (e0 - s0);
           break;
         }
         next = { level, on: g, from: t.from, to: t.to };
@@ -149,32 +245,52 @@ export function useVideoHighlight(
   );
 
   const write = useCallback(
-    (time: number, lag: number, isPlaying: boolean, hard: boolean) => {
+    (a: { time: number; advancing: boolean; lit: boolean; hard?: boolean; hold?: boolean }) => {
       seq.current += 1;
       anchor.value = {
         seq: seq.current,
-        time: time + (isPlaying ? (lag / 1000) * rate.current : 0),
+        time: a.time,
         rate: rate.current,
-        playing: isPlaying,
-        hard,
+        advancing: a.advancing,
+        lit: a.lit,
+        hard: a.hard ?? false,
+        hold: a.hold ?? false,
       };
-      wake(isPlaying);
+      wake(a.lit);
     },
     [anchor, wake],
   );
 
+  /** Freeze the clock where it is and set the new run/gate flags. */
+  const hold = useCallback(
+    (advancing: boolean, lit: boolean) => write({ time: 0, advancing, lit, hold: true }),
+    [write],
+  );
+
+  /** Ask the player for its time. Returns false when a request is already out. */
   const read = useCallback(
-    (isPlaying: boolean) => {
+    (hard: boolean): boolean => {
       const p = playerRef.current;
-      if (!p) return;
+      if (!p) return false;
       const sent = performance.now();
+      if (inflight.current && sent - inflightAt.current < INFLIGHT_MAX_MS) return false;
+      inflight.current = true;
+      inflightAt.current = sent;
+      const sentEpoch = epoch.current;
       p.getCurrentTime()
         .then((time) => {
+          inflight.current = false;
+          if (sentEpoch !== epoch.current) return;
           if (typeof time !== 'number' || !Number.isFinite(time)) return;
-          // The answer is the player's time somewhere in the middle of the round trip.
-          write(time, (performance.now() - sent) / 2, isPlaying && playing.current, false);
+          const advancing = state.current === 'playing';
+          const lit = advancing || state.current === 'buffering';
+          const rtt = performance.now() - sent;
+          write({ time: time + (advancing ? (rtt / 2 / 1000) * rate.current : 0), advancing, lit, hard });
         })
-        .catch(() => {});
+        .catch(() => {
+          inflight.current = false;
+        });
+      return true;
     },
     [playerRef, write],
   );
@@ -185,28 +301,39 @@ export function useVideoHighlight(
       timer.current = null;
     }
   }, []);
+  const startPolling = useCallback(() => {
+    if (timer.current) return;
+    timer.current = setInterval(() => read(false), POLL_MS);
+  }, [read]);
 
   const onChangeState = useCallback(
-    (state: string) => {
-      if (state === 'playing') {
-        playing.current = true;
+    (next: string) => {
+      state.current = next;
+      if (next === 'playing') {
+        hold(true, true);
+        startPolling();
+        read(false);
+      } else if (next === 'buffering') {
+        hold(false, true);
+        startPolling();
+      } else if (next === 'paused' || next === 'ended') {
         stopPolling();
-        read(true);
-        timer.current = setInterval(() => read(true), POLL_MS);
-        return;
+        hold(false, false);
+        read(false);
+      } else {
+        stopPolling();
+        hold(false, false);
       }
-      playing.current = false;
-      stopPolling();
-      if (state === 'paused' || state === 'ended' || state === 'buffering') read(false);
     },
-    [read, stopPolling],
+    [hold, read, startPolling, stopPolling],
   );
 
   const onPlaybackRateChange = useCallback(
     (value: string | number) => {
       const r = Number(value);
       if (Number.isFinite(r) && r > 0) rate.current = r;
-      read(playing.current);
+      epoch.current += 1;
+      read(true);
     },
     [read],
   );
@@ -215,17 +342,42 @@ export function useVideoHighlight(
     (index: number) => {
       const at = starting[index];
       if (at === undefined) return;
+      epoch.current += 1;
       playerRef.current?.seekTo(at, true);
       setActiveLine(index);
-      write(at, 0, playing.current, true);
+      lastLine.value = index;
+      const playing = state.current === 'playing';
+      write({ time: at, advancing: playing, lit: playing || state.current === 'buffering', hard: true });
+      // The player snaps to a keyframe, so ask again once it has landed.
+      if (seekTimer.current) clearTimeout(seekTimer.current);
+      let tries = 0;
+      const again = () => {
+        seekTimer.current = null;
+        if (!read(false) && tries < 5) {
+          tries += 1;
+          seekTimer.current = setTimeout(again, 100);
+        }
+      };
+      seekTimer.current = setTimeout(again, 300);
     },
-    [starting, playerRef, write],
+    [starting, playerRef, write, read, lastLine],
   );
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active' && state.current === 'playing') {
+        epoch.current += 1;
+        read(true);
+      }
+    });
+    return () => sub.remove();
+  }, [read]);
 
   useEffect(
     () => () => {
       stopPolling();
       if (idleTimer.current) clearTimeout(idleTimer.current);
+      if (seekTimer.current) clearTimeout(seekTimer.current);
     },
     [stopPolling],
   );

@@ -5,13 +5,6 @@ import { Linking, StyleSheet, Text, useWindowDimensions, View } from 'react-nati
 import type { LayoutChangeEvent } from 'react-native';
 import type { ScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, {
-  FadeIn,
-  FadeInDown,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-} from 'react-native-reanimated';
 import YoutubePlayer, { type YoutubeIframeRef } from 'react-native-youtube-iframe';
 
 import { CatConstellation } from '@/components/cat-constellation';
@@ -30,7 +23,7 @@ import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide, verb } from '@/constants/theme';
 import type { RingMode } from '@/components/ring-button';
 import { useTake } from '@/hooks/use-take';
-import { useVideoHighlight } from '@/hooks/use-video-highlight';
+import { playIntent, useVideoHighlight } from '@/hooks/use-video-highlight';
 import * as api from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import {
@@ -40,60 +33,7 @@ import {
   TIMES_MAX,
   type ReadingMode,
 } from '@/lib/settings';
-import { watchUrl } from '@/lib/youtube';
-import type { Highlight } from '@/components/word-highlight';
-
-const SWAP_SPRING = { damping: 18, stiffness: 180 };
-const PIP_DONE = '#F2F3FA';
-const PIP_LIT = '#7CC8FF';
-const PIP_TODO = 'rgba(154,162,200,0.28)';
-
-/** Groups a line's words into at most 6 pips, each sized by its share of the characters. */
-function pipGroups(words: { text: string }[]): { start: number; count: number; weight: number }[] {
-  const n = words.length;
-  if (n === 0) return [];
-  const groups: { start: number; count: number; weight: number }[] = [];
-  const per = Math.ceil(n / Math.min(6, n));
-  for (let i = 0; i < n; i += per) {
-    const slice = words.slice(i, i + per);
-    groups.push({ start: i, count: slice.length, weight: Math.max(1, slice.reduce((a, w) => a + w.text.length, 0)) });
-  }
-  return groups;
-}
-
-function Pip({ highlight, start, count, weight }: { highlight: Highlight; start: number; count: number; weight: number }) {
-  const w = useSharedValue(0);
-  const fill = useAnimatedStyle(() => {
-    const h = highlight.value;
-    // Idle (paused, or the gap between lines) reads the whole strip as done,
-    // matching the words, which show sung when nothing is playing.
-    const idle = h.on === 0 || h.level < 0;
-    const f = idle ? 1 : Math.min(1, Math.max(0, (h.level - start) / count)) * h.on;
-    const active = !idle && f > 0 && f < 1;
-    return {
-      backgroundColor: active ? PIP_LIT : PIP_DONE,
-      transform: [{ translateX: (-w.value * (1 - f)) / 2 }, { scaleX: f }],
-    };
-  });
-  return (
-    <View style={[styles.pip, { flex: weight }]} onLayout={(e) => (w.value = e.nativeEvent.layout.width)}>
-      <Animated.View style={[styles.pipFill, fill]} />
-    </View>
-  );
-}
-
-/** Word timeline above the line: one pip per word group, filling from highlight.level on the UI thread. */
-function PipRow({ highlight, words }: { highlight: Highlight; words: { text: string }[] }) {
-  const groups = useMemo(() => pipGroups(words), [words]);
-  if (groups.length === 0) return null;
-  return (
-    <View style={styles.pips}>
-      {groups.map((g) => (
-        <Pip key={g.start} highlight={highlight} start={g.start} count={g.count} weight={g.weight} />
-      ))}
-    </View>
-  );
-}
+import { CC_OFF_SCRIPT, watchUrl } from '@/lib/youtube';
 
 const LANG_CODE: Record<string, string> = {
   ja: 'JP',
@@ -120,11 +60,11 @@ export default function VideoScreen() {
   const [video, setVideo] = useState<api.IslandVideo | null>(null);
   const [error, setError] = useState('');
   const [playing, setPlaying] = useState(false);
+  const stateRef = useRef('unstarted');
   const [cannotPlay, setCannotPlay] = useState(false);
 
   const playerRef = useRef<YoutubeIframeRef>(null);
   const scrollRef = useRef<ScrollView>(null);
-  const reduceMotion = useReducedMotion();
   const lines = island?.lines ?? [];
   const sceneLines = useMemo(() => lines.map((l) => l.ja), [lines]);
   const [explainOpen, setExplainOpen] = useState(false);
@@ -288,6 +228,10 @@ export default function VideoScreen() {
     if (loopTimer.current) {
       clearTimeout(loopTimer.current);
       loopTimer.current = null;
+    }
+    if (stateRef.current === 'ended') {
+      jump(0);
+      return;
     }
     setPlaying((v) => !v);
   };
@@ -466,7 +410,10 @@ export default function VideoScreen() {
               rel: false,
               modestbranding: true,
             }}
-            onChangeState={(s: string) => setPlaying(s === 'playing')}
+            onChangeState={(s: string) => {
+              stateRef.current = s;
+              setPlaying((p) => playIntent(p, s));
+            }}
             onError={() => setCannotPlay(true)}
           />
         )}
@@ -504,27 +451,32 @@ export default function VideoScreen() {
               />
             </View>
           ) : (
-            <YoutubePlayer
-              ref={playerRef}
-              height={(width * 9) / 16}
-              width={width}
-              videoId={video.video_id}
-              play={playing}
-              playbackRate={rate}
-              initialPlayerParams={{
-                start: Math.floor(video.start_s),
-                controls: true,
-                rel: false,
-                modestbranding: true,
-              }}
-              onReady={onReady}
-              onChangeState={(s: string) => {
-                setPlaying(s === 'playing');
-                onChangeState(s);
-              }}
-              onPlaybackRateChange={onPlaybackRateChange}
-              onError={() => setCannotPlay(true)}
-            />
+            <View pointerEvents={lines.length === 0 ? 'auto' : 'none'}>
+              <YoutubePlayer
+                ref={playerRef}
+                height={(width * 9) / 16}
+                width={width}
+                videoId={video.video_id}
+                play={playing}
+                playbackRate={rate}
+                initialPlayerParams={{
+                  start: Math.floor(video.start_s),
+                  controls: lines.length === 0,
+                  rel: false,
+                  modestbranding: true,
+                  showClosedCaptions: false,
+                }}
+                webViewProps={{ injectedJavaScript: CC_OFF_SCRIPT }}
+                onReady={onReady}
+                onChangeState={(s: string) => {
+                  stateRef.current = s;
+                  setPlaying((p) => playIntent(p, s));
+                  onChangeState(s);
+                }}
+                onPlaybackRateChange={onPlaybackRateChange}
+                onError={() => setCannotPlay(true)}
+              />
+            </View>
           )}
           <View style={styles.fill}>
             <View style={styles.fill}>
@@ -537,16 +489,7 @@ export default function VideoScreen() {
                 countdown={null}
                 sentence={
                   lines[activeLine] ? (
-                    <Animated.View
-                      key={lines[activeLine]!.idx}
-                      entering={
-                        reduceMotion
-                          ? FadeIn.duration(160)
-                          : FadeInDown.springify().damping(SWAP_SPRING.damping).stiffness(SWAP_SPRING.stiffness)
-                      }
-                      style={styles.slot}
-                    >
-                      {video.captions_only ? null : <PipRow highlight={highlight} words={lines[activeLine]!.words} />}
+                    <View style={styles.slot}>
                     <TappableSentence
                       key={lines[activeLine]!.idx}
                       line={lines[activeLine]!}
@@ -562,7 +505,7 @@ export default function VideoScreen() {
                       englishShown={englishShown}
                       variant="video"
                     />
-                    </Animated.View>
+                    </View>
                   ) : null
                 }
                 scrollRef={scrollRef}
@@ -714,9 +657,6 @@ const styles = StyleSheet.create({
     padding: 24,
     gap: 14,
   },
-  pips: { flexDirection: 'row', gap: 6 },
-  pip: { height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: PIP_TODO },
-  pipFill: { ...StyleSheet.absoluteFill, borderRadius: 2 },
   dock: {
     backgroundColor: 'rgba(0,0,0,0.18)',
     borderTopLeftRadius: Radius.lg,

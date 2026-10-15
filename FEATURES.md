@@ -229,6 +229,9 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Prominent @username on the Home badge
 - Perf: practice route, Rive focus-gate, karaoke early-out
 - Deferred level-up celebration pop-up
+- Cinematic YouTube player: voice-synced per-word karaoke (predicted clock +
+  soft slew), dock controls the video directly, calmer line swaps, captions
+  off
 
 ## Next (approved, in order)
 

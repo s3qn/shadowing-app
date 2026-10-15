@@ -64,10 +64,50 @@ function karaokeParts(h: { level: number; on: number; from: number; to: number }
   return { a, b };
 }
 
-/** One run of text with the karaoke colour. The base text blends next to sung
- * as the word hands off; a clipped copy in the lit colour grows from the left
- * with the entry fraction, covering this run's share [k/n, (k+1)/n] of the word.
- * `ruby` runs (furigana) only change colour, they do not sweep. */
+/** One glyph of a karaoke run. `lit` is how far the lit colour has entered it
+ * (0..1); the colour crossfades unsung -> lit as the level sweeps across, so
+ * the edge of the fill is one glyph wide and soft. Then it hands off to sung
+ * with the word. Colour only: no clip layer, no transform, no setState. */
+function KaraokeGlyph({
+  ch,
+  style,
+  highlight,
+  index,
+  g,
+  m,
+  k,
+  n,
+  step,
+}: {
+  ch: string;
+  style: object;
+  highlight: Highlight;
+  index: number;
+  g: number;
+  m: number;
+  k: number;
+  n: number;
+  step: boolean;
+}) {
+  const anim = useAnimatedStyle(() => {
+    const { a, b } = karaokeParts(highlight.value, index, step);
+    // Not the lit word: b is exactly 0 or 1, so the colour is a constant.
+    if (b === 1) return { color: K_SUNG };
+    if (a === 0) return { color: K_NEXT };
+    const local = Math.min(1, Math.max(0, a * n - k));
+    let lit = Math.min(1, Math.max(0, local * m - g));
+    if (step) lit = lit >= 0.5 ? 1 : 0;
+    const from = interpolateColor(lit, [0, 1], [K_NEXT, K_LIT]);
+    if (b === 0) return { color: from };
+    return { color: interpolateColor(b, [0, 1], [from, K_SUNG]) };
+  });
+  return <Animated.Text style={[style, anim]}>{ch}</Animated.Text>;
+}
+
+/** One run of text with the karaoke colour. A kanji or kana run is a row of
+ * glyphs that each crossfade to the lit colour as the entry fraction reaches
+ * them, covering this run's share [k/n, (k+1)/n] of the word. `ruby` runs
+ * (furigana) stay one text that only changes colour, they do not sweep. */
 function KaraokeText({
   text,
   style,
@@ -87,46 +127,30 @@ function KaraokeText({
   step: boolean;
   ruby?: boolean;
 }) {
-  const [w, setW] = useState(0);
   const base = useAnimatedStyle(() => {
     const { a, b } = karaokeParts(highlight.value, index, step);
-    // Not the lit word: b is exactly 0 or 1, so the colour is a constant.
     if (b === 1) return { color: K_SUNG };
     if (b === 0 && a === 0) return { color: K_NEXT };
-    if (ruby) return { color: interpolateColor(b, [0, 1], [a >= 0.5 ? K_LIT : K_NEXT, K_SUNG]) };
-    return { color: interpolateColor(b, [0, 1], [K_NEXT, K_SUNG]) };
+    return { color: interpolateColor(b, [0, 1], [a >= 0.5 ? K_LIT : K_NEXT, K_SUNG]) };
   });
-  // The lit copy is a fixed-width overlay revealed from the left by translateX,
-  // not a per-frame width (which would force a Yoga relayout every frame). The
-  // clip window slides left by the hidden slice and the text slides the same
-  // amount right, so the text stays put and only its left `local` shows.
-  const reveal = useAnimatedStyle(() => {
-    const { a, b } = karaokeParts(highlight.value, index, step);
-    // Sung (b = 1) or not yet reached (a = 0): a fixed hidden state.
-    if (b === 1 || a === 0) return { transform: [{ translateX: -w }], opacity: 0 };
-    const local = Math.min(1, Math.max(0, a * n - k));
-    return { transform: [{ translateX: -w * (1 - local) }], opacity: 1 - b };
-  });
-  const inner = useAnimatedStyle(() => {
-    const { a, b } = karaokeParts(highlight.value, index, step);
-    if (b === 1 || a === 0) return { transform: [{ translateX: w }] };
-    const local = Math.min(1, Math.max(0, a * n - k));
-    return { transform: [{ translateX: w * (1 - local) }] };
-  });
+  const glyphs = useMemo(() => (ruby ? [] : Array.from(text)), [text, ruby]);
+  if (ruby) return <Animated.Text style={[style, base]}>{text}</Animated.Text>;
   return (
-    <View
-      onLayout={(e) => {
-        const next = e.nativeEvent.layout.width;
-        setW((prev) => (prev === next ? prev : next));
-      }}>
-      <Animated.Text style={[style, base]}>{text}</Animated.Text>
-      {ruby ? null : (
-        <Animated.View pointerEvents="none" style={[styles.clip, { width: w }, reveal]}>
-          <Animated.Text numberOfLines={1} style={[style, { color: K_LIT, width: w }, inner]}>
-            {text}
-          </Animated.Text>
-        </Animated.View>
-      )}
+    <View style={styles.glyphRow}>
+      {glyphs.map((ch, g) => (
+        <KaraokeGlyph
+          key={g}
+          ch={ch}
+          style={style}
+          highlight={highlight}
+          index={index}
+          g={g}
+          m={glyphs.length}
+          k={k}
+          n={n}
+          step={step}
+        />
+      ))}
     </View>
   );
 }
@@ -349,7 +373,7 @@ const styles = StyleSheet.create({
   clear: { color: 'transparent' },
   baseK: { fontSize: 26, lineHeight: 34 },
   rtK: { fontSize: 13, lineHeight: 16 },
-  clip: { position: 'absolute', left: 0, top: 0, bottom: 0, overflow: 'hidden' },
+  glyphRow: { flexDirection: 'row', flexWrap: 'wrap' },
   strip: { height: STRIP, alignSelf: 'stretch', flexDirection: 'row' },
   bar: { position: 'absolute', left: 0, right: 0, height: STROKE, backgroundColor: PITCH_INK },
   high: { top: 0 },
