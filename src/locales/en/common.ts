@@ -72,4 +72,8 @@ export const en = {
 
   'api.account_delete_unavailable': 'Account deletion is not set up on the server yet.',
   'api.account_delete_failed': 'The account could not be deleted. Try again later.',
+  'levelUp.kicker': 'Level up',
+  'levelUp.level': 'Level {n}',
+  'levelUp.coins': '+{n} coins',
+  'levelUp.continue': 'Continue',
 };

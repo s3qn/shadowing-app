@@ -80,4 +80,8 @@ export const he = {
 
   'api.account_delete_unavailable': 'מחיקת חשבון עדיין לא הוגדרה בשרת.',
   'api.account_delete_failed': 'לא ניתן היה למחוק את החשבון. נסו שוב מאוחר יותר.',
+  'levelUp.kicker': 'עלית רמה',
+  'levelUp.level': 'רמה {n}',
+  'levelUp.coins': '+{n} מטבעות',
+  'levelUp.continue': 'המשך',
 } satisfies Record<keyof typeof enCommon, string>;

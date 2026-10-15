@@ -1,4 +1,4 @@
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useReducedMotion } from 'react-native-reanimated';
 
 import { CardMorphOverlay } from '@/components/card-morph-overlay';
+import { LevelUpModal } from '@/components/level-up-modal';
 import { LoadingOverlay } from '@/components/loading-overlay';
 import { tide } from '@/constants/theme';
 import { getUsername } from '@/lib/api';
@@ -13,9 +14,25 @@ import { loadSession, onSessionLost } from '@/lib/auth';
 import { loadDeviceId } from '@/lib/device';
 import { loadOfflineIndex } from '@/lib/offline-islands'; // offline-islands
 import { useT } from '@/lib/i18n';
+import { usePendingLevelUp } from '@/lib/level-up-store';
 import { getSettings } from '@/lib/settings';
 
 SplashScreen.preventAutoHideAsync();
+
+// Routes that are a practice session: a level-up waits until none is focused.
+const PRACTICE_ROUTES = new Set(['island/[id]', 'record', 'drive', 'video', 'podcast']);
+
+/** Shows the queued level-up once the user has left every practice screen. */
+function LevelUpHost() {
+  const pending = usePendingLevelUp();
+  const segments = useSegments() as string[];
+  if (!pending) return null;
+  const first = segments[0] ?? '';
+  // island/[id] is one route name across two segments.
+  const route = first === 'island' ? 'island/[id]' : first;
+  if (PRACTICE_ROUTES.has(route)) return null;
+  return <LevelUpModal levelUp={pending} />;
+}
 
 export default function RootLayout() {
   const { t } = useT();
@@ -208,6 +225,7 @@ export default function RootLayout() {
         <Stack.Screen name="cat-lab" options={{ title: 'Cat lab' }} />
       </Stack>
       <CardMorphOverlay />
+      <LevelUpHost />
       <LoadingOverlay />
     </GestureHandlerRootView>
   );

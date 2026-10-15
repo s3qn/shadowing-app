@@ -228,6 +228,7 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Security: closed coin/XP farming exploits
 - Prominent @username on the Home badge
 - Perf: practice route, Rive focus-gate, karaoke early-out
+- Deferred level-up celebration pop-up
 
 ## Next (approved, in order)
 
