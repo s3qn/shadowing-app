@@ -45,7 +45,9 @@ the body/tail outside the artboard bounds (or a layer separates), so Rive clips
 it. Fix belongs in the `.riv` (the Rive MCP session): keep every idle pose
 inside the artboard, or widen the artboard/bounds. Low priority, cosmetic.
 
-### ET-5 · feature · P3 · open
+## Closed
+
+### ET-5 · feature · P3 · closed
 **A surface for the cat to stand on.**
 The cat currently floats over the faint mountains. Give it something to sit/stand
 on (a ledge, platform, cushion, rug, moonlit rock). Reported by Sean, 2026-10-14.
@@ -53,15 +55,14 @@ Routed to the Pre-Selector: 10 design variants in the Tide night-sky look,
 converge over rounds to the best one, then hand the winner to the Animation
 Maniac. Must sit under the cat without competing with it for focus (same taste
 rules as the wardrobe scene).
+Closed 2026-10-15: sea-rock stage in fd9b05b (cat-stage.tsx ROCK_*), depth pass 43dad2a.
 
-### ET-6 · feature · P2 · open
+### ET-6 · feature · P2 · closed
 **Cat gaze: the cat looks where you touch.**
 The cat's eyes (and a slight head tilt) follow the user's touch point anywhere on
 the screen, easing back to centre on release. Reported by Sean, 2026-10-14.
 Needs a look-at input in the .riv (requested from the Rive session: `lookX`/`lookY`
 numbers, -1..1) that the app drives from the global touch position. App side:
 capture touch, map to the cat's local -1..1 space, write to the inputs.
+Closed 2026-10-15: fd9b05b (src/hooks/use-gaze.ts with dwell, kageneko-view.tsx drives lookX/lookY, updated kageneko.riv).
 
-## Closed
-
-(none yet)
