@@ -232,14 +232,26 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Cinematic YouTube player: voice-synced per-word karaoke (predicted clock +
   soft slew), dock controls the video directly, calmer line swaps, captions
   off
+- Auto practice: one button goes through every island due today, one after
+  another, and has you shadow each one (8d0c1d8)
+- Accounts with Supabase: sign in with Google and Apple, required (ba0301b)
+- Phrase catalog with preset situation chips and categories (BL-19, BL-2)
+- Saved-sentence review deck with SRS, original audio for podcasts (BL-28)
+- Profile and stats from the leaderboard, OG serial, watch and listen time
+  (BL-25)
+- Leaderboard rows rise with a spring (BL-13)
+- Resume where you left off in islands, podcasts and videos (BL-5)
+- YouTube fullscreen in landscape (BL-4)
+- YouTube play, pause and speed reach the player (BL-32)
 
 ## Next (approved, in order)
 
 - TestFlight: deploy the production backend, route shadow.sean.build, EAS
   build and submit, friends and family testing group.
-- Auto practice: one button that goes through every island due today, one
-  after another, and has you shadow each one.
-- Accounts with Supabase: sign in with Google and Apple.
+  Not verified: deploy-prod.sh (7838e2b), the systemd unit (3376f8a) and the
+  eas.json submit profile (ba5a0a5) exist. Missing: no prod deploy, EAS build,
+  TestFlight submission or testing group is recorded in git or the repo, so
+  they need a check on the live host and in App Store Connect.
 
 ## Ideas (not approved)
 

@@ -56,3 +56,41 @@ export const CC_OFF_SCRIPT = `
 })();
 true;
 `;
+
+/**
+ * Injected into the embed page so the `play`, `mute` and `playbackRate` props
+ * reach the player. react-native-youtube-iframe 2.4.1 posts
+ * `{"eventName":"playVideo","meta":{}}` as JSON, but the hosted page it loads
+ * (lonelycpp.github.io/.../iframe_v2.html) switches on the raw string
+ * ("playVideo"), so none of those messages ever matched and `play={true}`
+ * did nothing. Raw strings fail to parse here and stay with the page's own
+ * handler, so nothing runs twice.
+ */
+export const PLAYER_BRIDGE_SCRIPT = `
+(function () {
+  window.addEventListener('message', function (event) {
+    var msg;
+    try { msg = JSON.parse(event.data); } catch (e) { return; }
+    var p = window.player;
+    if (!msg || typeof msg.eventName !== 'string' || !p) return;
+    var meta = msg.meta || {};
+    try {
+      switch (msg.eventName) {
+        case 'playVideo': p.playVideo(); break;
+        case 'pauseVideo': p.pauseVideo(); break;
+        case 'muteVideo': p.mute(); break;
+        case 'unMuteVideo': p.unMute(); break;
+        case 'setVolume': if (typeof meta.volume === 'number') p.setVolume(meta.volume); break;
+        case 'setPlaybackRate': if (typeof meta.playbackRate === 'number') p.setPlaybackRate(meta.playbackRate); break;
+      }
+    } catch (e) {}
+  });
+})();
+true;
+`;
+
+/** Landscape player size: full window height, width capped at 62% of the
+ * window so the scene and dock keep a column on the right. */
+export function fullscreenPlayerSize(win: { width: number; height: number }): { width: number; height: number } {
+  return { width: Math.min((win.height * 16) / 9, win.width * 0.62), height: win.height };
+}

@@ -12,13 +12,15 @@ import { PrismButton } from '@/components/prism';
 import { RingButton } from '@/components/ring-button';
 import { TappableSentence, type ExplainSelection } from '@/components/tide/tappable-sentence';
 import { TideScene } from '@/components/tide/tide-scene';
+import { SaveStar } from '@/components/save-star';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
+import { usePracticeClock } from '@/hooks/use-practice-clock';
 import { useTrackHighlight } from '@/hooks/use-track-highlight';
 import * as api from '@/lib/api';
 import { scheduleAudioSessionRelease, startPlayback, stopPlayback, useSessionPlayer } from '@/lib/audio-mode';
 import { useT } from '@/lib/i18n';
-import { peekLastLine, setLastLine } from '@/lib/last-line';
+import { getLastLine, resumeLine, setLastLine } from '@/lib/last-line';
 import { getSettingsSync } from '@/lib/settings';
 
 /** Speed chip steps: a quick nudge, not a ruler. */
@@ -32,6 +34,9 @@ export default function PodcastScreen() {
 
   const [island, setIsland] = useState<api.Island | null>(null);
   const [error, setError] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  // review-deck: saved sentences of this island, line idx to card id.
+  const [savedCards, setSavedCards] = useState<Map<number, string>>(new Map());
   const [loaded, setLoaded] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -39,11 +44,64 @@ export default function PodcastScreen() {
 
   const player = useAudioPlayer(null, { updateInterval: 50, keepAudioSessionActive: true });
   useSessionPlayer(player);
+  usePracticeClock(island?.id, player);
 
   const scrollRef = useRef<ScrollView>(null);
   const lines = useMemo(() => island?.lines ?? [], [island]);
   const sceneLines = useMemo(() => lines.map((l) => l.ja), [lines]);
   const { highlight, activeLine, seekToLine } = useTrackHighlight(player, lines);
+
+  useEffect(() => {
+    if (!island) return;
+    let alive = true;
+    api
+      .listReviewCards(island.id)
+      .then((cards) => alive && setSavedCards(new Map(cards.map((c) => [c.idx, c.id]))))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [island?.id]);
+
+  const toggleSaved = useCallback(
+    (idx: number) => {
+      const existing = savedCards.get(idx);
+      if (existing === 'pending') return;
+      const setCard = (card: string | null) =>
+        setSavedCards((m) => {
+          const next = new Map(m);
+          if (card) next.set(idx, card);
+          else next.delete(idx);
+          return next;
+        });
+      if (existing) {
+        setCard('pending');
+        api
+          .removeReviewCard(existing)
+          .then(() => {
+            setCard(null);
+            setSaveError('');
+          })
+          .catch((e) => {
+            setCard(existing);
+            setSaveError(e instanceof Error ? e.message : '');
+          });
+      } else {
+        setCard('pending');
+        api
+          .saveReviewCard(id, idx)
+          .then((c) => {
+            setCard(c.id);
+            setSaveError('');
+          })
+          .catch((e) => {
+            setCard(null);
+            setSaveError(e instanceof Error ? e.message : '');
+          });
+      }
+    },
+    [savedCards, id],
+  );
 
   const [explainOpen, setExplainOpen] = useState(false);
   const [explainSpan, setExplainSpan] = useState<ExplainSelection['span'] | null>(null);
@@ -86,12 +144,22 @@ export default function PodcastScreen() {
 
   // Opens where the person left off, shared with the shadowing player.
   const started = useRef(false);
+  const resuming = useRef(false);
   useEffect(() => {
-    if (started.current || !loaded || lines.length === 0) return;
-    started.current = true;
+    if (started.current || resuming.current || !loaded || lines.length === 0) return;
     const n = Number(line);
-    const at = line !== undefined && Number.isFinite(n) ? Math.floor(n) : (peekLastLine(id) ?? 0);
-    seekToLine(Math.max(0, Math.min(at, lines.length - 1)));
+    if (line !== undefined && Number.isFinite(n)) {
+      started.current = true;
+      seekToLine(Math.max(0, Math.min(Math.floor(n), lines.length - 1)));
+      return;
+    }
+    // The flag flips only after the read, so the save effect below never
+    // writes line 0 over the saved line.
+    resuming.current = true;
+    void getLastLine(id).then((saved) => {
+      seekToLine(resumeLine(saved, lines.length));
+      started.current = true;
+    });
   }, [loaded, lines.length, line, id, seekToLine]);
 
   useEffect(() => {
@@ -189,20 +257,23 @@ export default function PodcastScreen() {
               countdown={null}
               sentence={
                 lines[activeLine] ? (
-                  <TappableSentence
-                    key={lines[activeLine]!.idx}
-                    line={lines[activeLine]!}
-                    language={language}
-                    native={island.native}
-                    islandId={island.id}
-                    highlight={highlight}
-                    scrollRef={scrollRef}
-                    onExplain={onExplain}
-                    onInteract={pause}
-                    readingMode={readingMode}
-                    blind={false}
-                    englishShown={englishShown}
-                  />
+                  <View style={styles.slot}>
+                    <TappableSentence
+                      key={lines[activeLine]!.idx}
+                      line={lines[activeLine]!}
+                      language={language}
+                      native={island.native}
+                      islandId={island.id}
+                      highlight={highlight}
+                      scrollRef={scrollRef}
+                      onExplain={onExplain}
+                      onInteract={pause}
+                      readingMode={readingMode}
+                      blind={false}
+                      englishShown={englishShown}
+                    />
+                    <SaveStar saved={savedCards.has(lines[activeLine]!.idx)} onToggle={() => toggleSaved(lines[activeLine]!.idx)} />
+                  </View>
                 ) : null
               }
               scrollRef={scrollRef}
@@ -216,6 +287,7 @@ export default function PodcastScreen() {
           </View>
           {lines.length > 0 ? (
             <View style={styles.bottom}>
+              {saveError ? <Text style={styles.hint}>{saveError}</Text> : null}
               <PrismButton
                 shape="pill"
                 verb="tools"
@@ -268,6 +340,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.ui,
     textAlign: 'center',
   },
+  slot: { position: 'relative' },
   bottom: {
     flexDirection: 'row',
     alignItems: 'center',

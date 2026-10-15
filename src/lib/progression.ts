@@ -28,9 +28,14 @@ export function itemArt(item: CosmeticItem): ArtSpec {
 
 /** The CatAvatar `equipped` map for a progress and catalog. */
 export function equippedArt(progress: Progress, catalog: CosmeticItem[]): Partial<Record<Slot, ArtSpec | null>> {
+  return equippedArtFromIds(progress.equipped, catalog);
+}
+
+/** The CatAvatar `equipped` map for slot ids (a leaderboard or profile row) and a catalog. */
+export function equippedArtFromIds(equipped: Partial<Record<Slot, string | null>>, catalog: CosmeticItem[]): Partial<Record<Slot, ArtSpec | null>> {
   const out: Partial<Record<Slot, ArtSpec | null>> = {};
   for (const slot of SLOTS) {
-    const id = progress.equipped[slot];
+    const id = equipped[slot];
     const item = id ? catalog.find((i) => i.id === id) : undefined;
     out[slot] = item ? itemArt(item) : null;
   }

@@ -3,7 +3,7 @@
     "name": "Echo Tail",
     "slug": "echo-tail",
     "version": "0.1.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/cat_icon_app.png",
     "scheme": "echotail",
     "userInterfaceStyle": "automatic",

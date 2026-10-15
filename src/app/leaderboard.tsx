@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { FlatList, Image, StyleSheet, Text, View, type ViewToken } from 'react-native';
+import { FlatList, Image, Pressable, StyleSheet, Text, View, type ViewToken } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CatAvatar } from '@/components/cat/cat-avatar';
@@ -26,6 +26,8 @@ export default function LeaderboardScreen() {
   const dir = useDir();
   const sky = useSkyStyle();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const openProfile = useCallback((username: string) => router.push({ pathname: '/profile/[username]', params: { username } }), [router]);
   const { progress, catalog } = useProgress();
   const [board, setBoard] = useState<Leaderboard | null>(null);
   const [failed, setFailed] = useState(false);
@@ -95,7 +97,7 @@ export default function LeaderboardScreen() {
   const rows = useMemo(() => entries.map((e, i) => ({ ...e, rank: i + 1 })).slice(1), [entries]);
 
   const header = top ? (
-    <View style={[styles.spot, dir.row]}>
+    <Pressable accessibilityRole="button" onPress={() => openProfile(top.username)} style={({ pressed }) => [styles.spot, dir.row, pressed && { opacity: 0.8 }]}>
       <View style={styles.spotCat} pointerEvents="none">
         <CatAvatar size={SPOT_CAT} equipped={spotEquipped} />
       </View>
@@ -117,7 +119,7 @@ export default function LeaderboardScreen() {
           <Text style={styles.spotLevel}>{top.level}</Text>
         </View>
       </View>
-    </View>
+    </Pressable>
   ) : null;
 
   let body;
@@ -151,6 +153,7 @@ export default function LeaderboardScreen() {
             equipped={item.rank === myRank ? mineEquipped : item.equipped}
             mine={item.rank === myRank}
             index={index}
+            onOpen={openProfile}
           />
         )}
         getItemLayout={(_, index) => ({ length: ROW_H + GAP, offset: Spacing.lg + HEADER_H + index * (ROW_H + GAP), index })}
@@ -173,7 +176,7 @@ export default function LeaderboardScreen() {
       {body}
       {meInList && me && me.username && !meVisible ? (
         <View style={[styles.pin, { bottom: insets.bottom + Spacing.sm }]}>
-          <LeaderboardRow rank={myRank as number} username={me.username} level={me.level} equipped={mineEquipped} mine pinned nextLine={nextLine} />
+          <LeaderboardRow rank={myRank as number} username={me.username} level={me.level} equipped={mineEquipped} mine pinned nextLine={nextLine} onOpen={openProfile} />
         </View>
       ) : null}
     </View>

@@ -59,10 +59,9 @@ import { registerCard, startOpen, unregisterCard, useMorphHidesTitle, type CardR
 import { startAutoPractice } from '@/lib/auto-practice';
 import { hapticImpact, hapticSelection } from '@/lib/haptics';
 import { invalidateCachedIsland, prewarmIsland } from '@/lib/island-cache';
-import { LONG_ISLAND } from '@/components/tide/transcript-window';
 import { PILL_TAB_BAR_REACH } from '@/components/pill-tab-bar';
 import { invalidateLineAudio } from '@/lib/line-audio-cache';
-import { forgetLastLine, getLastLine, peekLastLine } from '@/lib/last-line';
+import { forgetLastLine, getLastLine, peekLastLine, resumeLine } from '@/lib/last-line';
 import { forgetRung, getRung, loadLadder, peekRung } from '@/lib/speed-ladder';
 import { speedLabel } from '@/components/tide/speed-popover';
 import { cancelDownload, humanBytes, isDownloaded, offlineSummaries, removeDownload, startDownload, useDownloadState, useDownloadStatus } from '@/lib/offline-islands'; // offline-islands
@@ -234,6 +233,7 @@ export default function IslandsScreen() {
   // due again. `dueIds` below adds islands never practiced at all, which the
   // backend never lists (schedule.py only tracks islands it has seen).
   const [fetchedDueIds, setFetchedDueIds] = useState<Set<string>>(new Set());
+  const [reviewDue, setReviewDue] = useState(0);
   const reducedMotion = useReducedMotion();
   // The list has two shapes. The wheel (search closed): a pad above the first
   // card and below the last one centres any card, snapping, scale and dim,
@@ -378,11 +378,10 @@ export default function IslandsScreen() {
       return;
     }
     // The overlay pushes once it covers Home. The flying header shows the
-    // line the player opens on: a long island resumes where it was left,
+    // line the player opens on: an island resumes where it was left,
     // like the player itself.
     const lineCount = item.status === 'ready' ? item.line_count : 0;
-    const saved = lineCount >= LONG_ISLAND ? (peekLastLine(item.id) ?? 0) : 0;
-    const lineIndex = Math.max(0, Math.min(saved, lineCount - 1));
+    const lineIndex = resumeLine(peekLastLine(item.id), lineCount);
     startOpen(
       item.id,
       item.title || t('home.untitledIsland'),
@@ -496,6 +495,8 @@ export default function IslandsScreen() {
   const dueIds = useMemo(() => {
     const ids = new Set<string>();
     for (const island of visibleIslands) {
+      // Long media (podcast, YouTube) is not drilled wholesale: it has the review deck.
+      if (island.source === 'podcast' || island.source === 'youtube') continue;
       if (fetchedDueIds.has(island.id) || (island.status === 'ready' && !(island.id in log.islands))) {
         ids.add(island.id);
       }
@@ -593,6 +594,9 @@ export default function IslandsScreen() {
       void getPracticeLog().then((next) => {
         if (alive) setLog(next);
       });
+      void api.getReviewDue().then((r) => {
+        if (alive) setReviewDue(r.due.length);
+      }).catch(() => {});
       void api.getDueToday().then((rows) => {
         if (alive) setFetchedDueIds(new Set(rows.map((r) => r.island_id)));
       }).catch(() => {});
@@ -909,7 +913,7 @@ export default function IslandsScreen() {
       />
       <View style={styles.headerFixed}>
         <CatBadge />
-        <PracticeCard log={log} dueCount={readyDueCount} onPractice={startPractice} onDrive={startDrive} />
+        <PracticeCard log={log} dueCount={readyDueCount} reviewDue={reviewDue} onPractice={startPractice} onDrive={startDrive} onReview={() => router.push('/review')} />
         {/* pill-tray-tab-bar: sort row start */}
         <PillTrayShell
           wrapStyle={[styles.sortRowWrap, dir.rtl && styles.sortRowWrapRtl]}

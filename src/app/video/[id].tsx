@@ -1,9 +1,11 @@
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { BackHandler, Linking, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
 import type { ScrollView } from 'react-native-gesture-handler';
+import { SymbolView } from 'expo-symbols';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import YoutubePlayer, { type YoutubeIframeRef } from 'react-native-youtube-iframe';
 
@@ -19,13 +21,16 @@ import { Toolbar, type ToolbarItem } from '@/components/tide/toolbar';
 import { BlindIcon, ReadingIcon, RepeatIcon, SpeedIcon } from '@/components/tide/toolbar-icons';
 import { TappableSentence, type ExplainSelection } from '@/components/tide/tappable-sentence';
 import { TideScene } from '@/components/tide/tide-scene';
+import { SaveStar } from '@/components/save-star';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide, verb } from '@/constants/theme';
 import type { RingMode } from '@/components/ring-button';
 import { useTake } from '@/hooks/use-take';
+import { useWatchClock } from '@/hooks/use-watch-clock';
 import { playIntent, useVideoHighlight } from '@/hooks/use-video-highlight';
 import * as api from '@/lib/api';
 import { useT } from '@/lib/i18n';
+import { getLastLine, resumeLine, setLastLine } from '@/lib/last-line';
 import {
   getSettingsSync,
   setBlind as persistBlind,
@@ -33,7 +38,7 @@ import {
   TIMES_MAX,
   type ReadingMode,
 } from '@/lib/settings';
-import { CC_OFF_SCRIPT, watchUrl } from '@/lib/youtube';
+import { CC_OFF_SCRIPT, PLAYER_BRIDGE_SCRIPT, fullscreenPlayerSize, watchUrl } from '@/lib/youtube';
 
 const LANG_CODE: Record<string, string> = {
   ja: 'JP',
@@ -49,16 +54,66 @@ const snapRate = (v: number) => Math.min(2, Math.max(0.25, Math.round(v * 4) / 4
 export default function VideoScreen() {
   const { t } = useT();
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const win = useWindowDimensions();
   const { id, line, preview } = useLocalSearchParams<{
     id: string;
     line?: string;
     preview?: string;
   }>();
 
+  // Fullscreen is landscape. The layout only switches once the window has
+  // actually rotated, so the player is never sized from stale portrait numbers.
+  const [full, setFull] = useState(false);
+  const fs = full && win.width > win.height;
+  const playerSize = fs ? fullscreenPlayerSize(win) : { width: win.width, height: (win.width * 9) / 16 };
+  const width = fs ? win.width - playerSize.width : win.width;
+
+  useEffect(() => {
+    void ScreenOrientation.lockAsync(
+      full ? ScreenOrientation.OrientationLock.LANDSCAPE : ScreenOrientation.OrientationLock.PORTRAIT_UP,
+    ).catch(() => undefined);
+  }, [full]);
+
+  useEffect(
+    () => () => {
+      void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => undefined);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!full) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setFull(false);
+      return true;
+    });
+    return () => sub.remove();
+  }, [full]);
+
+  const fullButton = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={t(full ? 'video.exitFullscreen' : 'video.enterFullscreen')}
+      onPress={() => setFull((f) => !f)}
+      style={({ pressed }) => [styles.fullBtn, pressed && { opacity: 0.7 }]}>
+      <SymbolView
+        name={
+          full
+            ? { ios: 'arrow.down.right.and.arrow.up.left', android: 'fullscreen_exit' }
+            : { ios: 'arrow.up.left.and.arrow.down.right', android: 'fullscreen' }
+        }
+        size={22}
+        tintColor="#fff"
+      />
+    </Pressable>
+  );
+
   const [island, setIsland] = useState<api.Island | null>(null);
   const [video, setVideo] = useState<api.IslandVideo | null>(null);
+  // review-deck: saved sentences of this island, line idx to card id.
+  const [savedCards, setSavedCards] = useState<Map<number, string>>(new Map());
   const [error, setError] = useState('');
+  const [saveError, setSaveError] = useState('');
   const [playing, setPlaying] = useState(false);
   const stateRef = useRef('unstarted');
   const [cannotPlay, setCannotPlay] = useState(false);
@@ -121,6 +176,58 @@ export default function VideoScreen() {
     video?.start_s ?? 0,
   );
 
+  useEffect(() => {
+    if (!island) return;
+    let alive = true;
+    api
+      .listReviewCards(island.id)
+      .then((cards) => alive && setSavedCards(new Map(cards.map((c) => [c.idx, c.id]))))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [island?.id]);
+
+  const toggleSaved = useCallback(
+    (idx: number) => {
+      const existing = savedCards.get(idx);
+      if (existing === 'pending') return;
+      const setCard = (card: string | null) =>
+        setSavedCards((m) => {
+          const next = new Map(m);
+          if (card) next.set(idx, card);
+          else next.delete(idx);
+          return next;
+        });
+      if (existing) {
+        setCard('pending');
+        api
+          .removeReviewCard(existing)
+          .then(() => {
+            setCard(null);
+            setSaveError('');
+          })
+          .catch((e) => {
+            setCard(existing);
+            setSaveError(e instanceof Error ? e.message : '');
+          });
+      } else {
+        setCard('pending');
+        api
+          .saveReviewCard(id, idx)
+          .then((c) => {
+            setCard(c.id);
+            setSaveError('');
+          })
+          .catch((e) => {
+            setCard(null);
+            setSaveError(e instanceof Error ? e.message : '');
+          });
+      }
+    },
+    [savedCards, id],
+  );
+
   // Captions-only videos have no reference audio on the server, so takes are
   // only saved and played back (the embed is the reference).
   const take = useTake(island?.id, activeLine, generation, undefined, undefined, { localOnly: true });
@@ -144,6 +251,9 @@ export default function VideoScreen() {
     if (!recording) return;
     return () => setPlaying(false);
   }, [recording]);
+
+  // Watching earns practice time, wall clock while the embed plays.
+  useWatchClock(island?.id, playing);
 
   // Repeat. A manual jump sets `manual` and refills the count; when the line
   // advances by itself, a count or a pause left holds the video, then replays
@@ -221,8 +331,22 @@ export default function VideoScreen() {
 
   const onReady = useCallback(() => {
     const n = Number(line);
-    if (line !== undefined && Number.isFinite(n)) seekToLine(Math.max(0, Math.floor(n)));
-  }, [line, seekToLine]);
+    if (line !== undefined && Number.isFinite(n)) {
+      seekToLine(Math.max(0, Math.floor(n)));
+      resumed.current = true;
+      return;
+    }
+    void getLastLine(id).then((saved) => {
+      const at = resumeLine(saved, lines.length);
+      if (at > 0) seekToLine(at);
+      resumed.current = true;
+    });
+  }, [line, id, lines.length, seekToLine]);
+  // The ref keeps the mount's line 0 from overwriting the saved line before onReady has read it.
+  const resumed = useRef(false);
+  useEffect(() => {
+    if (resumed.current && lines.length > 0) setLastLine(id, activeLine);
+  }, [id, activeLine, lines.length]);
 
   const onToggle = () => {
     if (loopTimer.current) {
@@ -384,11 +508,11 @@ export default function VideoScreen() {
 
   if (preview) {
     return (
-      <SafeAreaView edges={['bottom']} style={[styles.fill, { backgroundColor: tide.sky[0] }]}>
-        <StatusBar style="light" />
-        <Stack.Screen options={{ title: '' }} />
+      <SafeAreaView edges={fs ? [] : ['bottom']} style={[styles.fill, fs && styles.row, { backgroundColor: tide.sky[0] }]}>
+        <StatusBar style="light" hidden={fs} />
+        <Stack.Screen options={{ title: '', headerShown: !fs }} />
         {cannotPlay ? (
-          <View style={[styles.center, { width, height: (width * 9) / 16, flex: 0 }]}>
+          <View style={[styles.center, { width: playerSize.width, height: playerSize.height, flex: 0 }]}>
             <Text style={styles.hint}>{t('video.cannotPlay')}</Text>
             <PrismButton
               shape="pill"
@@ -400,11 +524,13 @@ export default function VideoScreen() {
             />
           </View>
         ) : (
+          <View style={{ width: playerSize.width, height: playerSize.height }}>
           <YoutubePlayer
-            height={(width * 9) / 16}
-            width={width}
+            height={playerSize.height}
+            width={playerSize.width}
             videoId={preview}
             play={playing}
+            webViewProps={{ injectedJavaScript: PLAYER_BRIDGE_SCRIPT }}
             initialPlayerParams={{
               controls: true,
               rel: false,
@@ -416,6 +542,8 @@ export default function VideoScreen() {
             }}
             onError={() => setCannotPlay(true)}
           />
+          {fullButton}
+          </View>
         )}
         <View style={styles.center}>
           <Text style={styles.hint}>{t('video.noTranscript')}</Text>
@@ -425,9 +553,9 @@ export default function VideoScreen() {
   }
 
   return (
-    <SafeAreaView edges={['bottom']} style={[styles.fill, { backgroundColor: tide.sky[0] }]}>
-      <StatusBar style="light" />
-      <Stack.Screen options={{ title: island?.title ?? '' }} />
+    <SafeAreaView edges={fs ? [] : ['bottom']} style={[styles.fill, { backgroundColor: tide.sky[0] }]}>
+      <StatusBar style="light" hidden={fs} />
+      <Stack.Screen options={{ title: island?.title ?? '', headerShown: !fs }} />
       {error ? (
         <View style={styles.center}>
           <Text style={styles.error}>{error}</Text>
@@ -437,9 +565,9 @@ export default function VideoScreen() {
           <CatConstellation size={120} />
         </View>
       ) : (
-        <>
+        <View style={[styles.fill, fs && styles.row]}>
           {cannotPlay ? (
-            <View style={[styles.center, { width, height: (width * 9) / 16 }]}>
+            <View style={[styles.center, { width: playerSize.width, height: playerSize.height, flex: 0 }]}>
               <Text style={styles.hint}>{t('video.cannotPlay')}</Text>
               <PrismButton
                 shape="pill"
@@ -451,11 +579,12 @@ export default function VideoScreen() {
               />
             </View>
           ) : (
+            <View style={{ width: playerSize.width, height: playerSize.height }}>
             <View pointerEvents={lines.length === 0 ? 'auto' : 'none'}>
               <YoutubePlayer
                 ref={playerRef}
-                height={(width * 9) / 16}
-                width={width}
+                height={playerSize.height}
+                width={playerSize.width}
                 videoId={video.video_id}
                 play={playing}
                 playbackRate={rate}
@@ -466,7 +595,7 @@ export default function VideoScreen() {
                   modestbranding: true,
                   showClosedCaptions: false,
                 }}
-                webViewProps={{ injectedJavaScript: CC_OFF_SCRIPT }}
+                webViewProps={{ injectedJavaScript: PLAYER_BRIDGE_SCRIPT + CC_OFF_SCRIPT }}
                 onReady={onReady}
                 onChangeState={(s: string) => {
                   stateRef.current = s;
@@ -476,6 +605,18 @@ export default function VideoScreen() {
                 onPlaybackRateChange={onPlaybackRateChange}
                 onError={() => setCannotPlay(true)}
               />
+            </View>
+            {lines.length > 0 ? (
+              // The embed takes no touches while the dock drives it, so a tap
+              // on the video goes through the same toggle as the dock's play.
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={playing ? t('player.stop') : t('player.play')}
+                onPress={onToggle}
+                style={StyleSheet.absoluteFill}
+              />
+            ) : null}
+            {fullButton}
             </View>
           )}
           <View style={styles.fill}>
@@ -505,6 +646,7 @@ export default function VideoScreen() {
                       englishShown={englishShown}
                       variant="video"
                     />
+                    <SaveStar saved={savedCards.has(lines[activeLine]!.idx)} onToggle={() => toggleSaved(lines[activeLine]!.idx)} />
                     </View>
                   ) : null
                 }
@@ -521,6 +663,7 @@ export default function VideoScreen() {
             {lines.length > 0 ? (
               <>
                 <View style={styles.bottom}>
+                  {saveError ? <Text style={styles.hint}>{saveError}</Text> : null}
                   {video.captions_only ? null : (
                     <PrismButton shape="pill" verb="speak" label={t('video.shadowLine')} onPress={shadow} />
                   )}
@@ -598,7 +741,7 @@ export default function VideoScreen() {
               />
             ) : null}
           </View>
-        </>
+        </View>
       )}
       {island && lines.length > 0 ? (
         <ExplainSheet
@@ -624,6 +767,18 @@ export default function VideoScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  row: { flexDirection: 'row' },
+  fullBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
   center: {
     flex: 1,
     alignItems: 'center',

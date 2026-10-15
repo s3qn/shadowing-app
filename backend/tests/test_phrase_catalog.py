@@ -216,3 +216,26 @@ def test_repeat_pick_returns_same_island_and_regenerate_refused(fakes):
             authorization=AUTH, x_shadow_device=DEV,
         ))
     assert err.value.status_code == 409
+
+
+def test_rows_have_he_title_samples_and_added_default():
+    for result in (phrase_catalog.catalog("es"), phrase_catalog.search("es")):
+        assert result["topics"]
+        for t in result["topics"]:
+            assert t["titleHe"]
+            assert 1 <= len(t["samples"]) <= 3
+            assert t["samples"][0] == t["sample"]
+            assert t["added"] is False
+        assert all(c["titleHe"] for c in result["categories"])
+
+
+def test_search_marks_added_per_device_and_language(fakes):
+    no_header = main.phrases_search(language="ja", authorization=AUTH)
+    assert not any(t["added"] for t in no_header["topics"])
+    _post(topic="greetings")
+    out = main.phrases_search(language="ja", authorization=AUTH, x_shadow_device=DEV)
+    assert {t["id"] for t in out["topics"] if t["added"]} == {"greetings"}
+    cat = main.phrases_catalog(language="ja", authorization=AUTH, x_shadow_device=DEV)
+    assert {t["id"] for t in cat["topics"] if t["added"]} == {"greetings"}
+    es = main.phrases_search(language="es", authorization=AUTH, x_shadow_device=DEV)
+    assert not any(t["added"] for t in es["topics"])

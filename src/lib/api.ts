@@ -706,8 +706,30 @@ export async function deleteAccount(): Promise<void> {
 }
 
 // --- phrase-islands ---
-export type PhraseTopic = { id: string; title: string; count: number; sample: string };
-export type PhraseCatalog = { topics: PhraseTopic[] };
+export type PhraseTopic = {
+  id: string;
+  title: string;
+  count: number;
+  sample: string;
+  category?: string | null;
+  titleHe?: string;
+  samples?: string[];
+  added?: boolean;
+  matchedPhrase?: string | null;
+};
+export type PhraseCategory = { id: string; title: string; titleHe?: string; count: number };
+export type PhraseCatalog = { topics: PhraseTopic[]; categories?: PhraseCategory[] };
+
+/** Topics filtered by a search word and/or a category; marks the ones this device already added. */
+export async function phraseSearch(
+  language: Language,
+  ui: string,
+  q: string,
+  category: string,
+): Promise<PhraseCatalog> {
+  const qs = `language=${encodeURIComponent(language)}&ui=${encodeURIComponent(ui)}&q=${encodeURIComponent(q)}&category=${encodeURIComponent(category)}`;
+  return json<PhraseCatalog>(await fetch(`${BASE}/phrases/search?${qs}`, { headers: headers() }));
+}
 
 /** The ready-made phrase topics for a learning language, titled in `ui`. */
 export async function phraseCatalog(language: Language, ui: string): Promise<PhraseCatalog> {
@@ -894,4 +916,98 @@ export type Leaderboard = { entries: LeaderboardEntry[]; me: { rank: number | nu
 
 export async function getLeaderboard(): Promise<Leaderboard> {
   return json<Leaderboard>(await expoFetch(`${BASE}/leaderboard`, { headers: headers() }));
+}
+
+export type Profile = {
+  username: string;
+  serial: number;
+  member_since: string;
+  level: number;
+  xp: number;
+  rank: number | null;
+  equipped: Record<Slot, string | null>;
+  streak_days: number;
+  longest_streak: number;
+  days_active: number;
+  best_xp_day: number;
+  cap_days: number;
+  immersion_seconds: number;
+  video_seconds: number;
+  podcast_seconds: number;
+  shadow_seconds: number;
+  islands_started: number;
+  islands_mastered: number;
+  lines_practiced: number;
+  lines_mastered: number;
+  average_accuracy: number | null;
+  milestones: string[];
+  milestones_total: number;
+  cosmetics_owned: number;
+  cosmetics_total: number;
+};
+
+export async function getProfile(username: string): Promise<Profile> {
+  return json<Profile>(await expoFetch(`${BASE}/profile/${encodeURIComponent(username)}`, { headers: headers() }));
+}
+
+// --- review-deck ---
+
+/** A saved sentence in the review deck. `clip` plays a stored wav, `embed`
+ * seeks the YouTube player to `start_s` and stops at `end_s`. */
+export type ReviewCard = {
+  id: string;
+  island_id: string;
+  idx: number;
+  island_title: string;
+  source: IslandSource;
+  language: Language;
+  native: NativeLanguage;
+  ja: string;
+  kana: string;
+  romaji: string;
+  en: string;
+  words: Word[];
+  duration: number;
+  kind: 'clip' | 'embed';
+  video_id: string;
+  start_s: number;
+  end_s: number;
+  level: number;
+  due_on: string;
+  last_reviewed_on: string;
+  reviews: number;
+  lapses: number;
+  created_at: string;
+};
+
+export async function saveReviewCard(islandId: string, idx: number): Promise<ReviewCard> {
+  const form = new FormData();
+  form.append('island_id', islandId);
+  form.append('idx', String(idx));
+  return json<ReviewCard>(await expoFetch(`${BASE}/review/cards`, { method: 'POST', headers: headers(), body: form }));
+}
+
+export async function removeReviewCard(id: string): Promise<void> {
+  await json<unknown>(await expoFetch(`${BASE}/review/cards/${id}`, { method: 'DELETE', headers: headers() }));
+}
+
+export async function listReviewCards(islandId?: string): Promise<ReviewCard[]> {
+  const q = islandId ? `?island_id=${encodeURIComponent(islandId)}` : '';
+  const r = await json<{ cards: ReviewCard[] }>(await expoFetch(`${BASE}/review/cards${q}`, { headers: headers() }));
+  return r.cards;
+}
+
+export async function getReviewDue(): Promise<{ due: ReviewCard[]; total: number }> {
+  return json<{ due: ReviewCard[]; total: number }>(await expoFetch(`${BASE}/review/due`, { headers: headers() }));
+}
+
+export async function gradeReviewCard(id: string, result: 'again' | 'got'): Promise<ReviewCard> {
+  const form = new FormData();
+  form.append('result', result);
+  return json<ReviewCard>(await expoFetch(`${BASE}/review/cards/${id}/grade`, { method: 'POST', headers: headers(), body: form }));
+}
+
+/** Stored clip of a `clip` card, built like episodeAudioUrl (pass it through withUser). */
+export function reviewClipUrl(id: string): string {
+  return `${BASE}/review/cards/${id}/audio?token=${encodeURIComponent(TOKEN)}&device=${encodeURIComponent(deviceIdSync())}`;
 }

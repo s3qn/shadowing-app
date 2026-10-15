@@ -34,6 +34,9 @@ MAX_PRACTICE_SECONDS = 3600.0
 DATA_DIR = Path(os.getenv("SHADOW_DATA_DIR", Path(__file__).parent / "data"))
 DB_PATH = DATA_DIR / "schedule.db"
 
+# Sources whose practice never touches the spaced-repetition schedule.
+NO_SCHEDULE_SOURCES = frozenset({"youtube", "podcast"})
+
 SHADOW_TOKEN = os.getenv("SHADOW_TOKEN", "")
 
 SCHEMA = """
@@ -105,6 +108,19 @@ def init() -> None:
         events_cols = {row["name"] for row in conn.execute("PRAGMA table_info(practice_events)")}
         if "device" not in events_cols:
             conn.execute("ALTER TABLE practice_events ADD COLUMN device TEXT NOT NULL DEFAULT ''")
+        # Where the practiced island's audio came from, stamped at insert so
+        # the split survives the island being deleted.
+        if "source" not in events_cols:
+            conn.execute("ALTER TABLE practice_events ADD COLUMN source TEXT NOT NULL DEFAULT ''")
+        for (island_id,) in conn.execute(
+            "SELECT DISTINCT island_id FROM practice_events WHERE source=''"
+        ).fetchall():
+            src = store.island_source(island_id)
+            if src:
+                conn.execute(
+                    "UPDATE practice_events SET source=? WHERE island_id=? AND source=''",
+                    (src, island_id),
+                )
         state_cols = {row["name"] for row in conn.execute("PRAGMA table_info(schedule_state)")}
         if "device" not in state_cols:
             conn.execute("ALTER TABLE schedule_state ADD COLUMN device TEXT NOT NULL DEFAULT ''")
@@ -159,6 +175,18 @@ def claim_unowned(device: str) -> int:
         return n
 
 
+def immersion(device: str) -> dict:
+    """Total practice seconds for `device` and the split by island source."""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT source, COALESCE(SUM(seconds), 0) AS s FROM practice_events"
+            " WHERE device=? GROUP BY source",
+            (device,),
+        ).fetchall()
+    by_source = {r["source"]: float(r["s"]) for r in rows}
+    return {"total": sum(by_source.values()), "by_source": by_source}
+
+
 def delete_owner(device: str) -> None:
     with connect() as conn:
         conn.execute("DELETE FROM practice_events WHERE device=?", (device,))
@@ -198,11 +226,12 @@ def _log_practice_sync(
 
     today = _today()
     today_date = date.fromisoformat(today)
+    source = store.island_source(island_id) or ""
     with connect() as conn:
         conn.execute(
-            "INSERT INTO practice_events (island_id, seconds, created_at, device)"
-            " VALUES (?, ?, ?, ?)",
-            (island_id, seconds, _now(), device),
+            "INSERT INTO practice_events (island_id, seconds, created_at, device, source)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (island_id, seconds, _now(), device, source),
         )
         # Every second this phone has posted for this island today, this post
         # included. The client only counts line playback (usePracticeClock),
@@ -223,25 +252,28 @@ def _log_practice_sync(
         due_on = row["due_on"] if row else today
         moved_on = row["moved_on"] if row else ""
 
-        if seconds_today >= spacing.PRACTICED_MIN_SECONDS and moved_on != today:
-            days_late = max(0, (today_date - _as_date(due_on, today_date)).days)
-            level = spacing.next_level(level, days_late)
-            due_on = spacing.due_date(today_date, level).isoformat()
-            moved_on = today
+        # YouTube and podcast islands are not part of the due-today loop, so
+        # their practice counts minutes and XP but never moves a due date.
+        if source not in NO_SCHEDULE_SOURCES:
+            if seconds_today >= spacing.PRACTICED_MIN_SECONDS and moved_on != today:
+                days_late = max(0, (today_date - _as_date(due_on, today_date)).days)
+                level = spacing.next_level(level, days_late)
+                due_on = spacing.due_date(today_date, level).isoformat()
+                moved_on = today
 
-        conn.execute(
-            "INSERT INTO schedule_state"
-            " (island_id, level, due_on, last_practiced_on, updated_at, device, moved_on)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?)"
-            " ON CONFLICT(island_id) DO UPDATE SET"
-            " level = excluded.level, due_on = excluded.due_on,"
-            " last_practiced_on = excluded.last_practiced_on, updated_at = excluded.updated_at,"
-            " moved_on = excluded.moved_on"
-            # Only the device that owns the row moves it: a post from another
-            # phone for a known island id leaves the owner's due marker alone.
-            " WHERE schedule_state.device = excluded.device",
-            (island_id, level, due_on, today, _now(), device, moved_on),
-        )
+            conn.execute(
+                "INSERT INTO schedule_state"
+                " (island_id, level, due_on, last_practiced_on, updated_at, device, moved_on)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)"
+                " ON CONFLICT(island_id) DO UPDATE SET"
+                " level = excluded.level, due_on = excluded.due_on,"
+                " last_practiced_on = excluded.last_practiced_on, updated_at = excluded.updated_at,"
+                " moved_on = excluded.moved_on"
+                # Only the device that owns the row moves it: a post from another
+                # phone for a known island id leaves the owner's due marker alone.
+                " WHERE schedule_state.device = excluded.device",
+                (island_id, level, due_on, today, _now(), device, moved_on),
+            )
 
     result = {
         "island_id": island_id,
@@ -264,6 +296,11 @@ async def due_today(
     require_token(authorization)
     device = _require_device(x_shadow_device)
     today = _today()
+    # Long media is watched or listened to, not drilled wholesale: its
+    # sentences are reviewed through the saved-sentence deck instead.
+    excluded = {
+        i["id"] for i in store.list_islands(device) if i["source"] in ("podcast", "youtube")
+    }
     with connect() as conn:
         rows = conn.execute(
             "SELECT island_id, level, due_on, last_practiced_on FROM schedule_state"
@@ -278,4 +315,5 @@ async def due_today(
             "last_practiced_on": row["last_practiced_on"],
         }
         for row in rows
+        if row["island_id"] not in excluded
     ]

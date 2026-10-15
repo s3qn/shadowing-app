@@ -57,6 +57,7 @@ import progression
 import user_profile
 import schedule
 import segment
+import stats
 import store
 import suggest
 import transcribe
@@ -134,6 +135,7 @@ def _startup() -> None:
     schedule.init()
     progression.init()
     user_profile.init()
+    review_deck.init()
     _claim_owner()
     log.info("store ready at %s", store.DB_PATH)
     # Background work dies with the process. Anything still marked as working
@@ -1708,6 +1710,7 @@ def _erase_owner(owner: str) -> None:
     schedule.delete_owner(owner)
     progression.delete_owner(owner)
     user_profile.delete_owner(owner)
+    review_deck.delete_owner(owner)
     import aec
 
     (aec.AEC_DIR / f"{_take_profile_name(owner)}.npz").unlink(missing_ok=True)
@@ -1956,23 +1959,41 @@ app.add_middleware(SecurityHeaders)
 # --- phrase-islands ---
 @app.get("/shadow/phrases/catalog")
 def phrases_catalog(language: str, ui: str = "en",
-                    authorization: str | None = Header(None)) -> dict:
+                    authorization: str | None = Header(None),
+                    x_shadow_device: str = Header("")) -> dict:
     """The ready-made phrase topics for one learning language."""
     require_token(authorization)
     try:
-        return phrase_catalog.catalog(language, ui)
+        return phrase_catalog.mark_added(
+            phrase_catalog.catalog(language, ui), _added_phrase_topics(x_shadow_device, language))
     except KeyError:
         raise HTTPException(404, f"no phrase catalog for language: {language}")
+
+
+# --- phrase-catalog-ui ---
+def _added_phrase_topics(device: str, language: str) -> set[str]:
+    """Topic ids this device already has as a non-failed phrases island.
+    An empty header (or none) means nothing is marked."""
+    if not isinstance(device, str) or not device:
+        return set()
+    return {
+        store.get_island(i["id"])["source_name"]
+        for i in store.list_islands(device)
+        if i["source"] == "phrases" and i["language"] == language and i["status"] != "failed"
+    }
 
 
 # phrase-search
 @app.get("/shadow/phrases/search")
 def phrases_search(language: str, ui: str = "en", q: str = "", category: str = "",
-                   authorization: str | None = Header(None)) -> dict:
+                   authorization: str | None = Header(None),
+                   x_shadow_device: str = Header("")) -> dict:
     """Catalog topics filtered by a search word and/or a category."""
     require_token(authorization)
     try:
-        return phrase_catalog.search(language, ui, q, category)
+        return phrase_catalog.mark_added(
+            phrase_catalog.search(language, ui, q, category),
+            _added_phrase_topics(x_shadow_device, language))
     except KeyError:
         raise HTTPException(404, f"no phrase catalog for language: {language}")
 
@@ -2352,3 +2373,119 @@ async def username_set(
     except user_profile.UsernameTaken:
         raise HTTPException(409, {"code": "username_taken"})
     return {"username": name}
+
+
+# --- stats-profile ---
+
+
+@app.get("/shadow/profile/{username}")
+async def profile_get(
+    username: str,
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    require_token(authorization)
+    _require_device(x_shadow_device)
+    res = await asyncio.to_thread(stats.profile, username, _all_handles)
+    if res is None:
+        raise HTTPException(404, {"code": "profile_not_found"})
+    return res
+
+
+# --- review-deck ---
+import review_deck  # noqa: E402
+
+
+@app.post("/shadow/review/cards")
+async def review_save(
+    island_id: str = Form(...),
+    idx: int = Form(...),
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    island = await asyncio.to_thread(_own_island, island_id, device)
+    line = next((l for l in island["lines"] if l["idx"] == idx), None)
+    if line is None:
+        raise HTTPException(404, "no such line")
+    video = await asyncio.to_thread(store.get_video, island_id)
+    try:
+        return await asyncio.to_thread(review_deck.create_card, device, island, line, video)
+    except ValueError as exc:
+        if str(exc) == "full":
+            raise HTTPException(409, {"code": "review_full"})
+        raise HTTPException(409, {"code": "review_no_audio"})
+
+
+@app.delete("/shadow/review/cards/{card_id}")
+async def review_delete(
+    card_id: str,
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    if not await asyncio.to_thread(review_deck.delete_card, device, card_id):
+        raise HTTPException(404, "no such card")
+    return {"ok": True}
+
+
+@app.get("/shadow/review/cards")
+async def review_list(
+    island_id: str | None = None,
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    cards = await asyncio.to_thread(review_deck.list_cards, device, island_id)
+    return {"cards": cards}
+
+
+@app.get("/shadow/review/due")
+async def review_due(
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    due = await asyncio.to_thread(review_deck.due_cards, device, review_deck._today())
+    total = await asyncio.to_thread(review_deck.count_cards, device)
+    return {"due": due, "total": total}
+
+
+@app.post("/shadow/review/cards/{card_id}/grade")
+async def review_grade(
+    card_id: str,
+    result: str = Form(...),
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    if result not in ("again", "got"):
+        raise HTTPException(400, "result must be again or got")
+    card = await asyncio.to_thread(
+        review_deck.grade, device, card_id, result, review_deck._today()
+    )
+    if card is None:
+        raise HTTPException(404, "no such card")
+    return card
+
+
+@app.get("/shadow/review/cards/{card_id}/audio")
+async def review_audio(
+    card_id: str,
+    token: str = "",
+    device: str = "",
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> FileResponse:
+    _token_or_header(token, authorization)
+    dev = _require_device(x_shadow_device, device)
+    card = await asyncio.to_thread(review_deck.get_card, dev, card_id)
+    path = review_deck.clip_path(card_id)
+    if card is None or card["kind"] != "clip" or not await asyncio.to_thread(path.exists):
+        raise HTTPException(404, "no such clip")
+    return FileResponse(path, media_type="audio/wav")

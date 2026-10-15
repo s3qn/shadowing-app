@@ -247,6 +247,53 @@ def snapshot(owner: str) -> dict:
     return _read(connect(), owner)
 
 
+def stats(owner: str) -> dict:
+    """Public counters for the profile screen, all derived from the ledger."""
+    conn = connect()
+    days = sorted(_day_keys(conn, owner))
+    longest = run = 0
+    prev = None
+    for d in days:
+        cur = date.fromisoformat(d)
+        run = run + 1 if prev is not None and cur - prev == timedelta(days=1) else 1
+        longest = max(longest, run)
+        prev = cur
+    xp_row = conn.execute("SELECT MAX(xp) AS m FROM day_xp WHERE owner=?", (owner,)).fetchone()
+    cap_days = conn.execute(
+        "SELECT COUNT(*) AS n FROM day_xp WHERE owner=? AND xp >= ?", (owner, DAILY_XP_CAP)
+    ).fetchone()["n"]
+    mastered = conn.execute(
+        "SELECT COUNT(*) AS n FROM awards WHERE owner=? AND key LIKE 'mastery:%'", (owner,)
+    ).fetchone()["n"]
+    lines = set()
+    for r in conn.execute("SELECT key FROM awards WHERE owner=? AND key LIKE 'take:%'", (owner,)):
+        parts = r["key"].split(":")
+        if len(parts) >= 4:
+            lines.add((":".join(parts[1:-2]), parts[-2]))
+    lb = conn.execute(
+        "SELECT COUNT(CASE WHEN best >= ? THEN 1 END) AS great, AVG(best) AS avg"
+        " FROM line_best WHERE owner=?",
+        (QUALITY_GREAT, owner),
+    ).fetchone()
+    milestones = [
+        r["key"][3:]
+        for r in conn.execute(
+            "SELECT key FROM awards WHERE owner=? AND key LIKE 'ms:%' ORDER BY key", (owner,)
+        )
+    ]
+    return {
+        "longest_streak": longest,
+        "days_active": len(days),
+        "best_xp_day": int(xp_row["m"] or 0),
+        "cap_days": cap_days,
+        "islands_mastered": mastered,
+        "lines_practiced": len(lines),
+        "lines_mastered": lb["great"] or 0,
+        "average_accuracy": float(lb["avg"]) if lb["avg"] is not None else None,
+        "milestones": milestones,
+    }
+
+
 # --- awards ---
 
 

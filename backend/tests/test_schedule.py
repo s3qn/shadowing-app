@@ -319,3 +319,37 @@ def test_seconds_past_the_per_request_cap_is_a_400():
             authorization=AUTH, x_shadow_device=DEV,
         ))
     assert getattr(exc_info.value, "status_code", None) == 400
+
+
+@pytest.mark.parametrize("source", ["youtube", "podcast"])
+def test_youtube_and_podcast_practice_counts_but_leaves_the_schedule_alone(source):
+    _own(f"island-{source}")
+    with store.connect() as conn:
+        conn.execute("UPDATE islands SET source=? WHERE id=?", (source, f"island-{source}"))
+    result = asyncio.run(schedule.log_practice(
+        island_id=f"island-{source}", seconds=120.0, authorization=AUTH, x_shadow_device=DEV,
+    ))
+    assert result["seconds_today"] >= 120.0
+    with schedule.connect() as conn:
+        n = conn.execute(
+            "SELECT COUNT(*) FROM schedule_state WHERE island_id=?", (f"island-{source}",)
+        ).fetchone()[0]
+        secs = conn.execute(
+            "SELECT SUM(seconds) FROM practice_events WHERE island_id=?", (f"island-{source}",)
+        ).fetchone()[0]
+    assert n == 0
+    assert secs >= 120.0
+
+
+def test_podcast_island_is_left_out_of_due_today_but_voice_stays():
+    for name, source in (("island-pod", "podcast"), ("island-voice", "voice")):
+        _own(name)
+        with store.connect() as conn:
+            conn.execute("UPDATE islands SET source=? WHERE id=?", (source, name))
+        asyncio.run(schedule.log_practice(
+            island_id=name, seconds=30.0, authorization=AUTH, x_shadow_device=DEV,
+        ))
+    due = {r["island_id"] for r in asyncio.run(
+        schedule.due_today(authorization=AUTH, x_shadow_device=DEV))}
+    assert "island-voice" in due
+    assert "island-pod" not in due

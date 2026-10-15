@@ -18,6 +18,7 @@ TOK = None
 def clean():
     with up.connect() as c:
         c.execute("DELETE FROM profiles")
+        c.execute("UPDATE serial_counter SET next=1")
     yield
 
 
@@ -103,3 +104,13 @@ def test_route_codes(monkeypatch):
         run(main.username_set(username="no", authorization=None, x_shadow_device=B))
     assert e.value.status_code == 400
     assert run(main.username_get(authorization=None, x_shadow_device=A)) == {"username": "cat_one"}
+
+
+def test_serial_is_not_reused_after_the_newest_account_is_deleted():
+    up.set_username(A, "cat_one")
+    up.set_username(B, "cat_two")
+    newest = up.lookup("cat_two")["serial"]
+    up.delete_owner(B)
+    up.set_username(B, "cat_three")
+    assert up.lookup("cat_three")["serial"] != newest
+    assert up.lookup("cat_three")["serial"] > newest

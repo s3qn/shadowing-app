@@ -1,8 +1,7 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react';
 import { type NativeScrollEvent, type NativeSyntheticEvent, useWindowDimensions } from 'react-native';
 
-// An island this long remembers the line it was left on (see [id].tsx and
-// Home) and draws bucketed tide marks instead of one per line.
+// An island this long draws bucketed tide marks instead of one per line.
 export const LONG_ISLAND = 120;
 // An island with more lines than this mounts only a window of transcript
 // rows, and opens on the narrow window under the card morph. Fewer: every row.

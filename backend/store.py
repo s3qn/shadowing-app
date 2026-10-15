@@ -377,6 +377,23 @@ def island_device(island_id: str) -> str | None:
     return None if row is None else row["device"]
 
 
+def island_source(island_id: str) -> str | None:
+    """Where an island's audio came from (voice, youtube, podcast, ...), or
+    None for an unknown id. One row, no lines."""
+    with connect() as conn:
+        row = conn.execute("SELECT source FROM islands WHERE id=?", (island_id,)).fetchone()
+    return None if row is None else row["source"]
+
+
+def count_islands(device: str) -> int:
+    """How many ready islands `device` owns."""
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM islands WHERE device=? AND status='ready'", (device,)
+        ).fetchone()
+    return int(row["n"])
+
+
 def list_islands(device: str | None = None) -> list[dict]:
     """`device=None` lists every island regardless of owner, which startup
     healing relies on. A string filters to that device's own islands."""

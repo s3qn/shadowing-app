@@ -42,7 +42,6 @@ import { IslandMenuSheet } from '@/components/tide/island-menu-sheet';
 import { PlayerTitle } from '@/components/tide/player-title';
 import type { SparkleResultData } from '@/components/tide/sparkle-result';
 import { TideScene } from '@/components/tide/tide-scene';
-import { LONG_ISLAND } from '@/components/tide/transcript-window';
 import { useContentReveal, usePieceStyle } from '@/components/tide/use-content-reveal';
 import { Toolbar, type ToolbarItem } from '@/components/tide/toolbar';
 import { BlindPopover } from '@/components/tide/blind-popover';
@@ -88,7 +87,7 @@ import { hapticImpact, hapticSelection } from '@/lib/haptics';
 import { invalidateCachedIsland, peekCachedIsland, readCachedIsland, writeCachedIsland } from '@/lib/island-cache';
 import { requestLoader } from '@/lib/loading-overlay';
 import { useIslandExport } from '@/hooks/use-island-export';
-import { getLastLine, peekLastLine, setLastLine } from '@/lib/last-line';
+import { getLastLine, peekLastLine, resumeLine, setLastLine } from '@/lib/last-line';
 import { useSkyStyle } from '@/lib/sky';
 import { usePhrase, type PhraseSpan } from '@/hooks/use-phrase';
 import { useLineStatus } from '@/hooks/use-line-status';
@@ -276,16 +275,15 @@ export default function IslandScreen() {
   // Opened by the card morph, the local copy Home's press-in read is usually
   // parsed by the time this screen mounts. It goes into the first render, so
   // the island is on screen when the morph lands instead of one more heavy
-  // render later. A long island takes this path only if its saved line is
-  // already known too.
+  // render later. It takes this path only if the saved line is already known.
   const [warmStart] = useState(() => {
     if (!morphActive()) return null;
     const cached = peekCachedIsland(id);
     if (!cached) return null;
     const n = cached.island.lines.length;
-    const saved = n >= LONG_ISLAND ? peekLastLine(id) : 0;
+    const saved = peekLastLine(id);
     if (saved === undefined) return null;
-    return { ...cached, idx: Math.max(0, Math.min(saved, n - 1)) };
+    return { ...cached, idx: resumeLine(saved, n) };
   });
   const warmStartRef = useRef(warmStart);
   const [loadedIsland, setIsland] = useState<api.Island | null>(() => warmStart?.island ?? null);
@@ -788,13 +786,15 @@ export default function IslandScreen() {
     }
     // Puts an island on screen for the first time on this open.
     async function show(data: api.Island, text: string) {
-      // A long island reopens where it was left; short ones still start at line 1.
+      // A ready island reopens where it was left; a chain starts at the top.
       if (ytLine !== undefined && Number.isFinite(Number(ytLine))) { // youtube-shadowing
         setIdx(Math.max(0, Math.min(Math.floor(Number(ytLine)), data.lines.length - 1))); // youtube-shadowing
-      } else if (data.status === 'ready' && data.lines.length >= LONG_ISLAND) {
+      } else if (auto === '1') {
+        setIdx((i) => Math.max(0, Math.min(i, data.lines.length - 1)));
+      } else if (data.status === 'ready') {
         const saved = await getLastLine(id);
         if (!alive || shownText !== null) return false;
-        setIdx(Math.max(0, Math.min(saved, data.lines.length - 1)));
+        setIdx(resumeLine(saved, data.lines.length));
       } else {
         setIdx((i) => Math.max(0, Math.min(i, data.lines.length - 1)));
       }
@@ -927,9 +927,9 @@ export default function IslandScreen() {
   useEffect(() => () => playerGone(id), [id]);
   useEffect(() => () => endAutoPractice(id), [id]); // auto-practice
 
-  // Remembers the line a long island was left on, so reopening it resumes here.
+  // Remembers the line an island was left on, so reopening it resumes here.
   useEffect(() => {
-    if (island && island.lines.length >= LONG_ISLAND) setLastLine(id, idx);
+    if (island) setLastLine(id, idx);
   }, [id, idx, island]);
 
   // Loads blind mode and the player defaults from the settings file.

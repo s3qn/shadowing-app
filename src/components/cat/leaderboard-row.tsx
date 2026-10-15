@@ -1,6 +1,6 @@
 import { memo, useEffect } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSpring, withTiming } from 'react-native-reanimated';
 
 import type { Slot } from '@/constants/cosmetics';
 import { ITEM_IMAGES } from '@/constants/cosmetic-images';
@@ -95,28 +95,33 @@ export type RowProps = {
   nextLine?: string | null;
   /** List position, drives the entrance stagger (first few rows only). */
   index?: number;
+  /** Stable callback shared by every row, called with this row's username. */
+  onOpen?: (username: string) => void;
 };
 
 const STAGGER_MS = 50;
 const STAGGER_CAP = 6;
 
-export const LeaderboardRow = memo(function LeaderboardRow({ rank, username, level, equipped, mine, pinned, nextLine, index = 99 }: RowProps) {
+export const LeaderboardRow = memo(function LeaderboardRow({ rank, username, level, equipped, mine, pinned, nextLine, index = 99, onOpen }: RowProps) {
   const { t } = useT();
   const dir = useDir();
   const reduced = useReducedMotion();
   const staggered = !pinned && index < STAGGER_CAP && !reduced;
   const enter = useSharedValue(staggered || pinned ? 0 : 1);
+  const lift = useSharedValue(staggered || pinned ? 0 : 1);
   useEffect(() => {
     if (reduced) {
       enter.value = 1;
+      lift.value = 1;
       return;
     }
     const delay = pinned ? 120 : index * STAGGER_MS;
     if (pinned || staggered) enter.value = withDelay(delay, withTiming(1, { duration: 260, easing: Easing.out(Easing.cubic) }));
-  }, [reduced, pinned, staggered, index, enter]);
+    if (pinned || staggered) lift.value = withDelay(delay, withSpring(1, { damping: 22, stiffness: 180, mass: 1 }));
+  }, [reduced, pinned, staggered, index, enter, lift]);
   const style = useAnimatedStyle(() => ({
     opacity: enter.value,
-    transform: [{ translateY: (1 - enter.value) * (pinned ? 36 : 14) }],
+    transform: [{ translateY: (1 - lift.value) * (pinned ? 36 : 14) }],
   }));
 
   const gold = rank <= 3;
@@ -124,10 +129,12 @@ export const LeaderboardRow = memo(function LeaderboardRow({ rank, username, lev
   const rankColour = mine ? BLUE : gold ? GOLD : tide.textDim;
   return (
     <Animated.View style={style}>
-      <View
+      <Pressable
         accessible
+        accessibilityRole="button"
         accessibilityLabel={`${rank}. @${username}, ${t('leaderboard.lv')} ${level}`}
-        style={[styles.row, mine && styles.rowMine, pinned && styles.rowPinned, dir.row]}
+        onPress={onOpen ? () => onOpen(username) : undefined}
+        style={({ pressed }) => [styles.row, mine && styles.rowMine, pinned && styles.rowPinned, dir.row, pressed && { opacity: 0.8 }]}
       >
         <Text style={[styles.rank, { color: rankColour }]}>{rank}</Text>
         <Medallion size={52} equipped={equipped} />
@@ -143,7 +150,7 @@ export const LeaderboardRow = memo(function LeaderboardRow({ rank, username, lev
           ) : null}
         </View>
         <LevelChip level={level} tone={tone} />
-      </View>
+      </Pressable>
     </Animated.View>
   );
 });

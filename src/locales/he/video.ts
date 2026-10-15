@@ -7,6 +7,8 @@ export const he = {
   'video.pasteAnother': 'הדבקת קישור אחר',
   'video.watchPreview': 'צפייה (תצוגה מקדימה)',
   'video.noTranscript': 'התמלול עדיין לא זמין',
+  'video.enterFullscreen': 'מסך מלא',
+  'video.exitFullscreen': 'יציאה ממסך מלא',
   'video.build': 'בניית האי',
   'video.yourVideos': 'הסרטונים שלכם',
   'video.empty': 'סרטונים שתוסיפו יופיעו כאן.',

@@ -7,6 +7,8 @@ export const en = {
   'video.pasteAnother': 'Paste another link',
   'video.watchPreview': 'Watch (preview)',
   'video.noTranscript': 'Transcript unavailable yet',
+  'video.enterFullscreen': 'Fullscreen',
+  'video.exitFullscreen': 'Exit fullscreen',
   'video.build': 'Build the island',
   'video.yourVideos': 'Your videos',
   'video.empty': 'Videos you add appear here.',

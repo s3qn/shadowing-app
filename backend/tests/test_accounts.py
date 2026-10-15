@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 import accounts
 import main
+import review_deck
 import schedule
 import store
 
@@ -26,6 +27,7 @@ client = TestClient(main.app)
 def _init_db():
     store.init()
     schedule.init()
+    review_deck.init()
 
 
 def _keypair():

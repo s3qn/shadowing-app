@@ -42,6 +42,31 @@ def _pick(entry: dict, field: str, suffix: str) -> str | None:
     return entry.get(field)
 
 
+def _topic_row(topic: dict, entries: list[dict], suffix: str,
+               matched: str | None = None) -> dict:
+    """One topic as the client sees it, shared by `catalog` and `search`.
+    `added` starts False; `mark_added` sets it per device."""
+    row = {
+        "id": topic["id"],
+        "title": _pick(topic, "title", suffix),
+        "titleHe": topic.get("titleHe") or topic.get("title"),
+        "category": topic.get("category"),
+        "count": len(entries),
+        "sample": entries[0]["text"],
+        "samples": [e["text"] for e in entries[:3]],
+        "added": False,
+        "matchedPhrase": matched,
+    }
+    return row
+
+
+def mark_added(result: dict, added_ids: set[str]) -> dict:
+    """Set `added` on every topic whose id is in `added_ids`."""
+    for topic in result["topics"]:
+        topic["added"] = topic["id"] in added_ids
+    return result
+
+
 def catalog(language: str, ui: str = "en") -> dict:
     """The topics for `language`, titled in the interface language `ui`.
     `sample` is the topic's first phrase. Raises KeyError on an unknown
@@ -50,13 +75,7 @@ def catalog(language: str, ui: str = "en") -> dict:
     by_topic = _CATALOG["phrases"][language]
     return {
         "topics": [
-            {
-                "id": topic["id"],
-                "title": _pick(topic, "title", suffix),
-                "category": topic.get("category"),
-                "count": len(by_topic[topic["id"]]),
-                "sample": by_topic[topic["id"]][0]["text"],
-            }
+            _topic_row(topic, by_topic[topic["id"]], suffix)
             for topic in _CATALOG["topics"]
             if topic["id"] in by_topic
         ],
@@ -70,6 +89,7 @@ def _categories(by_topic: dict, suffix: str) -> list[dict]:
         {
             "id": cat["id"],
             "title": _pick(cat, "title", suffix),
+            "titleHe": cat.get("titleHe") or cat.get("title"),
             "count": sum(1 for t in _CATALOG["topics"]
                          if t.get("category") == cat["id"] and t["id"] in by_topic),
         }
@@ -113,14 +133,7 @@ def search(language: str, ui: str = "en", q: str = "", category: str = "") -> di
                         score, matched = want, hit["text"]
                         break
         if score:
-            hits.append((-score, order, {
-                "id": tid,
-                "title": _pick(topic, "title", suffix),
-                "category": topic.get("category"),
-                "count": len(entries),
-                "sample": entries[0]["text"],
-                "matchedPhrase": matched,
-            }))
+            hits.append((-score, order, _topic_row(topic, entries, suffix, matched)))
     hits.sort(key=lambda h: h[:2])
     return {
         "categories": _categories(by_topic, suffix),
