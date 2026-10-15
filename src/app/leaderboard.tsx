@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
-import { FlatList, Image, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { FlatList, Image, StyleSheet, Text, View, type ViewToken } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -56,8 +56,22 @@ export default function LeaderboardScreen() {
   const me = board?.me ?? null;
   const top = entries[0] ?? null;
   const myRank = me?.rank ?? null;
-  const pinned = myRank !== null && !!me?.username;
+  // The viewer sits inside the list at their real rank (rank 1 shows in the spotlight).
+  const meInList = myRank !== null && myRank >= 2 && !!me?.username;
   const mineEquipped: EquippedIds = progress?.equipped ?? {};
+
+  // Pin a copy of the viewer's row to the bottom only while their real row is
+  // scrolled off-screen. Start assuming it is visible (true) so a viewer near the
+  // top never sees the pinned bar flash on load.
+  const [meVisible, setMeVisible] = useState(true);
+  const myRankRef = useRef<number | null>(myRank);
+  myRankRef.current = myRank;
+  const viewConfigRef = useRef({ itemVisiblePercentThreshold: 55 });
+  const onViewRef = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    const r = myRankRef.current;
+    if (r === null) return;
+    setMeVisible(viewableItems.some((v) => (v.item as { rank?: number } | null)?.rank === r));
+  });
 
   const nextLine = useMemo(() => {
     if (!me || myRank === null || myRank < 2) return null;
@@ -77,11 +91,8 @@ export default function LeaderboardScreen() {
     return out;
   }, [top, catalog]);
 
-  // The list holds ranks 2 and below. The viewer's own row is hidden while the pinned copy shows.
-  const rows = useMemo(
-    () => entries.map((e, i) => ({ ...e, rank: i + 1 })).slice(1).filter((e) => !(pinned && e.rank === myRank)),
-    [entries, pinned, myRank],
-  );
+  // The list holds ranks 2 and below, including the viewer at their real position.
+  const rows = useMemo(() => entries.map((e, i) => ({ ...e, rank: i + 1 })).slice(1), [entries]);
 
   const header = top ? (
     <View style={[styles.spot, dir.row]}>
@@ -133,14 +144,23 @@ export default function LeaderboardScreen() {
         ListHeaderComponent={header}
         ItemSeparatorComponent={() => <View style={{ height: GAP }} />}
         renderItem={({ item, index }) => (
-          <LeaderboardRow rank={item.rank} username={item.username} level={item.level} equipped={item.equipped} index={index} />
+          <LeaderboardRow
+            rank={item.rank}
+            username={item.username}
+            level={item.level}
+            equipped={item.rank === myRank ? mineEquipped : item.equipped}
+            mine={item.rank === myRank}
+            index={index}
+          />
         )}
         getItemLayout={(_, index) => ({ length: ROW_H + GAP, offset: Spacing.lg + HEADER_H + index * (ROW_H + GAP), index })}
         initialNumToRender={8}
         windowSize={7}
         maxToRenderPerBatch={8}
         removeClippedSubviews
-        contentContainerStyle={{ padding: Spacing.lg, paddingBottom: (pinned ? PIN_H + Spacing.xl : Spacing.lg) + insets.bottom + Spacing.lg }}
+        onViewableItemsChanged={onViewRef.current}
+        viewabilityConfig={viewConfigRef.current}
+        contentContainerStyle={{ padding: Spacing.lg, paddingBottom: (meInList ? PIN_H + Spacing.xl : Spacing.lg) + insets.bottom + Spacing.lg }}
         showsVerticalScrollIndicator={false}
       />
     );
@@ -151,7 +171,7 @@ export default function LeaderboardScreen() {
       <View style={[StyleSheet.absoluteFill, sky.from]} />
       <Animated.View style={[StyleSheet.absoluteFill, sky.to, sky.fadeStyle]} />
       {body}
-      {pinned && me && me.username ? (
+      {meInList && me && me.username && !meVisible ? (
         <View style={[styles.pin, { bottom: insets.bottom + Spacing.sm }]}>
           <LeaderboardRow rank={myRank as number} username={me.username} level={me.level} equipped={mineEquipped} mine pinned nextLine={nextLine} />
         </View>
