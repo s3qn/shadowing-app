@@ -10,39 +10,43 @@ Status: **todo** / **doing** / **done** (cite commit) / **parked** (give reason)
 New entries go at the bottom with the next BL number.
 
 ## Doing
-- (nothing in flight)
+- **wave-1015 · BL-19 + BL-2 · Phrase catalog UI + preset search chips.**
+  Worktree phrase-catalog-ui. Built, uncommitted: not done until committed,
+  merged and tsc passes.
+- **wave-1015 · BL-13 · Leaderboard entrance spring.** Worktree stats-profile.
+  Built (a spring tweak; the staggered entrance already existed). Uncommitted.
+- **wave-1015 · BL-25 · Stats + profile view.** Worktree stats-profile. Being
+  planned, nothing built.
+- **wave-1015 · BL-28 · Saved-sentence review deck.** Worktree review-deck.
+  Being planned, nothing built.
+- **wave-1015 · BL-5 · Resume position.** Worktree resume-position. Being
+  planned, nothing built.
+- **wave-1015 · BL-32 · YouTube play/pause/speed reach the embed (2026-10-15).**
+  Library 2.4.1 sends JSON, but the hosted iframe page only accepts plain
+  strings, so controls never reached the embed. Fixed in wave-1015 with
+  PLAYER_BRIDGE_SCRIPT (present in src/lib/youtube.ts, src/app/video/[id].tsx,
+  src/app/review.tsx of the worktree, staged, not committed). Pending Sean's
+  phone retest. Not done until committed and retested.
 
 ## Todo (decided, not yet built)
-- **BL-28 · Saved-sentence review deck.** In a video/podcast, tap a sentence →
-  one-tap star ("Save to review", symbol pickable). Saved sentences become an
-  SRS deck reviewed with the ORIGINAL audio (Sean's call: record/keep the audio
-  clip, not just seek-loop; YouTube ToS/technical reality to resolve in
-  planning). SRS per saved sentence. YouTube + podcasts LEAVE the due-today SRS
-  loop (long media is watch/listen, not drilled wholesale). Decided 2026-10-15.
-- **BL-2 · Preset learner search chips.** Backend phrase-search is MERGED
-  (55f6062) and deployed to prod; the chips UI is still not built.
+- BL-25 sub-items, BL-28 and BL-19 detail stay in Doing above while wave-1015 runs.
+  Notes kept: BL-25 needs a leaderboard row onPress, a backend profile endpoint
+  keyed by username, usePracticeClock wired into video and podcast screens (they
+  count NO time today), new counters for video-watch, podcast-listen and total
+  immersion time (all absent), and the OG "#007" serial (profiles.serial). BL-19
+  needs the search response to return samples, count, added and Hebrew title.
 - **BL-4 · YouTube fullscreen.**
-- **BL-5 · Passive auto-save / resume position.**
-- **BL-13 · Leaderboard entrance animations.**
 - **BL-16 · Harmonizer round 2.** Audit done, fixes not applied.
 - **BL-18 · ET-3 shadow-player UX redesign.** Diagnosis/plan only so far.
-- **BL-19 · Bigger phrase catalog + catalog UI + import-from-web.** Backend
-  search is MERGED (55f6062) and deployed to prod; design winner done; UI never
-  built (src/app/phrases/index.tsx is still a flat topic list); content not
-  grown. Needs the search response to return samples/count/added/Hebrew title
-  first.
-- **BL-25 sub-items (stats/profile, none built):** tap-to-profile route from the
-  leaderboard (no row onPress today); a backend profile endpoint keyed by
-  username; wire usePracticeClock into the video and podcast screens (they count
-  NO time today); instrument video-watch-seconds, podcast-listen-seconds and
-  total-immersion-time (all confirmed absent); OG "#007" serial (profiles.serial).
-- **BL-29 · menu-icons plan.** .claude/plans/menu-icons.md, never built
-  (island-menu-sheet.tsx has no expo-symbols).
 - **BL-20 · ET-4 Rive idle clip.** Still open (BUGS.md ET-4): fix lives in the .riv; untracked kageneko_v2/v3.riv may be the attempt, not wired in.
-- **BL-25 · Statkeeper stats + profile view.** Tap a leaderboard user → dressed
-  cat + all stats. Catalog of 62 stats built; backend counters + profile UI not
-  built. Headline stats: total immersion time, YouTube watch time, podcast
-  listen time.
+- **BL-31 · Podcast shadow flow in one place (2026-10-15).** Sean: listening to a
+  podcast and shadowing a line live on different screens is confusing. "Shadow
+  this line" (src/app/podcast/[id].tsx:300, router.push at :227) opens a different
+  screen (the island player). He wants a faster flow with no screen change.
+  Decided 2026-10-15: in place, like the video screen. The dock record button
+  pauses the podcast, counts 3, records the current line, plays you next to the
+  original, and play continues from the same spot. No screen change. Next wave
+  (podcast/[id].tsx is busy in wave-1015).
 
 ## Parked (reason)
 - **BL-6 / BL-7 / BL-8 · Drive Mode v1 polish** (phone test, native build,
@@ -65,20 +69,21 @@ New entries go at the bottom with the next BL number.
 - Leaderboard medallion pre-baked thumbnails (perf, D47).
 
 ## Done
-- **BL-30 · BUGS.md hygiene** (ET-5 cat surface, ET-6 cat gaze moved to Closed) — fd9b05b, 43dad2a. Verified 2026-10-15 in code (cat-stage.tsx ROCK_*, use-gaze.ts, lookX/lookY in kageneko-view.tsx).
+- **BL-29 · Menu icons** (SF Symbols with Material fallback on island menu rows), a767d12, on main. Keeper-verified 2026-10-15: commit touches sheet-rows.tsx (SymbolView, SheetIcon) and island-menu-sheet.tsx (icon= on its rows); the plan file .claude/plans/menu-icons.md is therefore stale.
+- **BL-30 · BUGS.md hygiene** (ET-5 cat surface, ET-6 cat gaze moved to Closed): fd9b05b, 43dad2a. Verified 2026-10-15 in code (cat-stage.tsx ROCK_*, use-gaze.ts, lookX/lookY in kageneko-view.tsx).
 - **BL-27 · Cinematic YouTube sync overhaul** (voice-synced karaoke, dock
-  controls the video, calm swaps, captions off) — e45a5cf. Opus review clean;
+  controls the video, calm swaps, captions off): e45a5cf. Opus review clean;
   LEAD_S device calibration still owed when Sean tests build 12. Keeper-verified 2026-10-15: commit touches video/[id].tsx, use-video-highlight.ts, ruby-word.tsx, youtube.ts; the Opus-review and device claims are not checkable from git.
-- **BL-phrase-backend · Split phrase catalog + backend search** — 55f6062,
+- **BL-phrase-backend · Split phrase catalog + backend search**: 55f6062,
   deployed to prod. Verified 2026-10-15: prod /shadow/health release 55f6062, /phrases/search route in main.py, backend suite 703 passed.
-- **BL-1 · YouTube cinematic player + per-word karaoke** — 83359ea (superseded by
+- **BL-1 · YouTube cinematic player + per-word karaoke**: 83359ea (superseded by
   BL-27 tuning).
-- **BL-14 · Prominent @username on Home badge** — 6e1c6d9.
-- **BL-22 · Security exploit hunt (coin/XP) + fix + prod deploy** — 03ed10b.
+- **BL-14 · Prominent @username on Home badge**: 6e1c6d9.
+- **BL-22 · Security exploit hunt (coin/XP) + fix + prod deploy**: 03ed10b.
 - **BL-23 · Android beta infra (package, adaptive icon, Google-only sign-in) +
-  APK** — 16b7f3a.
-- **BL-26 · Deferred level-up pop-up** — 700c39e.
-- **BL-perf · Practice route / Rive focus gate / cheaper karaoke** — 29c4239.
-- **BL-lb · Leaderboard shows the viewer at their real rank** — 8f9263a.
+  APK**: 16b7f3a.
+- **BL-26 · Deferred level-up pop-up**: 700c39e.
+- **BL-perf · Practice route / Rive focus gate / cheaper karaoke**: 29c4239.
+- **BL-lb · Leaderboard shows the viewer at their real rank**: 8f9263a.
 - **BL-social (earlier) · Leaderboard with 0-XP users, visual fixes, default
   speed = 1.0.**
