@@ -1,0 +1,9 @@
+[
+  {"id": "social", "title": "Social", "titleHe": "חברה", "order": 0},
+  {"id": "travel", "title": "Travel", "titleHe": "נסיעות", "order": 1},
+  {"id": "food", "title": "Food", "titleHe": "אוכל", "order": 2},
+  {"id": "shopping", "title": "Shopping", "titleHe": "קניות", "order": 3},
+  {"id": "daily-life", "title": "Daily life", "titleHe": "חיי היום־יום", "order": 4},
+  {"id": "care", "title": "Help and care", "titleHe": "עזרה וטיפול", "order": 5},
+  {"id": "work-study", "title": "Work and study", "titleHe": "עבודה ולימודים", "order": 6}
+]

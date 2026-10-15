@@ -1,0 +1,10 @@
+[
+  {"text": "Buenos días.", "en": "Good morning."},
+  {"text": "Buenas tardes.", "en": "Good afternoon."},
+  {"text": "Buenas noches.", "en": "Good evening."},
+  {"text": "Hola, ¿cómo estás?", "en": "Hi, how are you?"},
+  {"text": "Muy bien, gracias. ¿Y tú?", "en": "Very well, thank you. And you?"},
+  {"text": "Hace mucho que no te veo.", "en": "I haven't seen you in a long time."},
+  {"text": "Hasta mañana.", "en": "See you tomorrow."},
+  {"text": "Que tengas un buen día.", "en": "Have a nice day."}
+]

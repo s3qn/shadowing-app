@@ -1965,6 +1965,18 @@ def phrases_catalog(language: str, ui: str = "en",
         raise HTTPException(404, f"no phrase catalog for language: {language}")
 
 
+# phrase-search
+@app.get("/shadow/phrases/search")
+def phrases_search(language: str, ui: str = "en", q: str = "", category: str = "",
+                   authorization: str | None = Header(None)) -> dict:
+    """Catalog topics filtered by a search word and/or a category."""
+    require_token(authorization)
+    try:
+        return phrase_catalog.search(language, ui, q, category)
+    except KeyError:
+        raise HTTPException(404, f"no phrase catalog for language: {language}")
+
+
 async def _build_phrases(island_id: str, texts: list[str], glosses: list[str], title: str,
                          speaker: int, language: str, native: str) -> None:
     """Voice a catalogue topic. No recording and no transcription: the lines

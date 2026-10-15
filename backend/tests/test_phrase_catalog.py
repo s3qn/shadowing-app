@@ -2,7 +2,10 @@
 network: voices.speak and generate.translate_lines are monkeypatched."""
 
 import asyncio
+import json
+import re
 import uuid
+from pathlib import Path
 
 import pytest
 from fastapi import BackgroundTasks, HTTPException
@@ -67,6 +70,91 @@ def test_catalogue_complete(lang):
         assert all(e["text"].strip() for e in entries)
         if lang != "en":
             assert all(e.get("en", "").strip() for e in entries)
+
+
+DATA = Path(phrase_catalog.__file__).parent / "phrase_data"
+KEBAB = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+
+
+def test_split_data_is_valid():
+    topics = json.loads((DATA / "topics.json").read_text())
+    cats = json.loads((DATA / "categories.json").read_text())
+    cat_ids = [c["id"] for c in cats]
+    assert len(set(cat_ids)) == len(cat_ids)
+    for c in cats:
+        assert c["title"] and c["titleHe"] and isinstance(c["order"], int)
+    ids = [t["id"] for t in topics]
+    assert len(set(ids)) == len(ids)
+    for t in topics:
+        assert KEBAB.match(t["id"])
+        assert t["category"] in cat_ids
+        assert t["title"] and t["titleHe"]
+        assert isinstance(t["keywords"], list) and isinstance(t["keywordsHe"], list)
+        for lang in ("ja", "es", "en"):
+            entries = json.loads((DATA / lang / f"{t['id']}.json").read_text())
+            texts = [e["text"] for e in entries]
+            assert all(x.strip() for x in texts)
+            assert len(set(texts)) == len(texts)
+    for lang in ("ja", "es", "en"):
+        stems = {f.stem for f in (DATA / lang).glob("*.json")}
+        assert stems == set(ids)
+
+
+def test_catalog_has_category_fields():
+    cat = phrase_catalog.catalog("ja")
+    assert all(t["category"] for t in cat["topics"])
+    assert {c["id"] for c in cat["categories"]} >= {t["category"] for t in cat["topics"]}
+
+
+def ids(result):
+    return [t["id"] for t in result["topics"]]
+
+
+def test_search_empty_query_returns_all():
+    out = phrase_catalog.search("ja", "en", "", "")
+    assert ids(out) == [t["id"] for t in phrase_catalog.catalog("ja")["topics"]]
+    assert all(t["matchedPhrase"] is None for t in out["topics"])
+
+
+def test_search_by_query_and_ranking():
+    out = phrase_catalog.search("es", "en", "shop")
+    assert ids(out)[0] == "shopping"
+    # keyword hit ("buy") works without a title match
+    assert "shopping" in ids(phrase_catalog.search("es", "en", "  BUY "))
+    # Hebrew title matches under any ui language
+    assert ids(phrase_catalog.search("ja", "en", "קניות")) == ["shopping"]
+
+
+def test_search_phrase_text_sets_matched_phrase():
+    out = phrase_catalog.search("ja", "en", "おはよう")
+    top = out["topics"][0]
+    assert top["id"] == "greetings"
+    assert top["matchedPhrase"] == "おはようございます。"
+
+
+def test_search_by_category_and_no_match():
+    out = phrase_catalog.search("ja", "en", "", "food")
+    assert ids(out) == ["eating-out"]
+    assert phrase_catalog.search("ja", "en", "", "nope")["topics"] == []
+    assert phrase_catalog.search("ja", "en", "zzzqqq")["topics"] == []
+    assert ids(phrase_catalog.search("ja", "en", "shop", "food")) == []
+
+
+def test_search_ui_language_titles():
+    he = phrase_catalog.search("ja", "he", "", "social")
+    assert he["topics"][0]["title"] == "ברכות"
+    assert {c["id"]: c["title"] for c in he["categories"]}["social"] == "חברה"
+
+
+def test_search_route():
+    out = main.phrases_search(language="es", ui="en", q="shopping", category="", authorization=AUTH)
+    assert ids(out)[0] == "shopping"
+    with pytest.raises(HTTPException) as err:
+        main.phrases_search(language="xx", authorization=AUTH)
+    assert err.value.status_code == 404
+    with pytest.raises(HTTPException) as err:
+        main.phrases_search(language="ja", authorization="Bearer wrong")
+    assert err.value.status_code in (401, 403)
 
 
 def test_unknown_language_and_he_titles():

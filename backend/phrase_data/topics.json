@@ -1,0 +1,10 @@
+[
+  {"id": "greetings", "category": "social", "title": "Greetings", "titleHe": "ברכות", "keywords": ["hello", "hi", "goodbye", "morning"], "keywordsHe": ["שלום", "ברכה"]},
+  {"id": "about-me", "category": "social", "title": "About me", "titleHe": "להציג את עצמי", "keywords": ["introduce", "name", "myself", "meet"], "keywordsHe": ["היכרות", "שם"]},
+  {"id": "small-talk", "category": "social", "title": "Small talk", "titleHe": "שיחה קלה", "keywords": ["chat", "talk", "conversation", "weather"], "keywordsHe": ["שיחה", "צ'אט"]},
+  {"id": "questions", "category": "daily-life", "title": "Everyday questions", "titleHe": "שאלות יומיומיות", "keywords": ["ask", "question", "what", "where"], "keywordsHe": ["שאלה", "לשאול"]},
+  {"id": "eating-out", "category": "food", "title": "Eating out", "titleHe": "במסעדה ובבית קפה", "keywords": ["restaurant", "cafe", "order", "menu", "meal"], "keywordsHe": ["מסעדה", "הזמנה"]},
+  {"id": "getting-around", "category": "travel", "title": "Getting around", "titleHe": "להתמצא בדרך", "keywords": ["directions", "station", "train", "bus", "taxi"], "keywordsHe": ["כיוונים", "תחנה"]},
+  {"id": "shopping", "category": "shopping", "title": "Shopping", "titleHe": "קניות", "keywords": ["shop", "buy", "store", "price", "pay"], "keywordsHe": ["לקנות", "חנות", "מחיר"]},
+  {"id": "help", "category": "care", "title": "Asking for help", "titleHe": "לבקש עזרה", "keywords": ["help", "emergency", "problem", "lost"], "keywordsHe": ["עזרה", "חירום"]}
+]
