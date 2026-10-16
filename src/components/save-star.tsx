@@ -49,7 +49,7 @@ export function SaveStar({ saved, onToggle }: { saved: boolean; onToggle: () => 
 }
 
 const styles = StyleSheet.create({
-  wrap: { position: 'absolute', top: 8, end: 8 },
+  wrap: { position: 'absolute', top: 16, end: 8 },
   button: {
     width: 40,
     height: 40,

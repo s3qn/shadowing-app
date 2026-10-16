@@ -37,18 +37,18 @@ import Animated, {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AutoEchoSheet } from '@/components/tide/auto-echo-sheet';
-import { BottomRow } from '@/components/tide/bottom-row';
 import { IslandMenuSheet } from '@/components/tide/island-menu-sheet';
 import { PlayerTitle } from '@/components/tide/player-title';
 import type { SparkleResultData } from '@/components/tide/sparkle-result';
 import { TideScene } from '@/components/tide/tide-scene';
 import { useContentReveal, usePieceStyle } from '@/components/tide/use-content-reveal';
-import { Toolbar, type ToolbarItem } from '@/components/tide/toolbar';
-import { BlindPopover } from '@/components/tide/blind-popover';
+import { CompactDock, DOCK_GOLD_INK, type DockAnchor, type DockAnchorKey, type DockPill } from '@/components/tide/compact-dock';
+import { BlindPopover, blindValueLabel } from '@/components/tide/blind-popover';
 import { READING_LABEL_KEY, ReadingPopover } from '@/components/tide/reading-popover';
 import { RepeatPopover, repeatTileLabel } from '@/components/tide/repeat-popover';
 import { speedLabel, SpeedPopover } from '@/components/tide/speed-popover';
-import { BlindIcon, ReadingIcon, RepeatIcon, SpeedIcon } from '@/components/tide/toolbar-icons';
+import { BlindIcon, ReadingIcon, RepeatIcon } from '@/components/tide/toolbar-icons';
+import { fitScale } from '@/lib/fit-line';
 import { PressScale } from '@/components/press-scale';
 import { CatConstellation } from '@/components/cat-constellation';
 import { ExplainSheet } from '@/components/explain-sheet';
@@ -58,8 +58,7 @@ import { type RingMode } from '@/components/ring-button';
 import { RubyWord } from '@/components/ruby-word';
 import { SELECTION_HANDLE_CLEARANCE, SelectionHandles } from '@/components/selection-handles';
 import { SELECTION_POPUP_WIDTH, SelectionPopup } from '@/components/selection-popup';
-import { useWordHighlight, type WordBox } from '@/components/word-highlight';
-import { WordOutline } from '@/components/word-outline';
+import { useWordHighlight } from '@/components/word-highlight';
 import { POPOVER_WIDTH, WordPanel } from '@/components/word-panel';
 import { SlideReveal } from '@/components/slide-reveal';
 import { TakeFeedback } from '@/components/take-feedback';
@@ -247,7 +246,6 @@ const spanUpdate = (from: number, to: number) => (prev: PhraseSpan | null) =>
 const noop = () => {};
 
 // languages: short code shown on the Blind dock tile and Home's language pill.
-const LANG_CODE: Record<string, string> = { ja: 'JP', es: 'ES', en: 'EN', he: 'HE' };
 
 export default function IslandScreen() {
   const { id, morph, auto, line: ytLine } = useLocalSearchParams<{ id: string; morph?: string; auto?: string; line?: string }>(); // auto-practice, youtube-shadowing
@@ -328,7 +326,8 @@ export default function IslandScreen() {
   // Tile boxes, the dock's top and the player's width live in refs: the
   // first layout must not render the screen, and a popover opening renders
   // anyway, which is when they are read.
-  const speedTile = useRef<TileBox | null>(null);
+  const anchors = useRef<Partial<Record<DockAnchorKey, TileBox>>>({});
+  const [trayOpen, setTrayOpen] = useState(false);
   // The readout the Speed popover's ruler follows live; only its settle
   // commits to `speed` and restarts the line, like the Pause ruler's padMs.
   const [speedLive, setSpeedLive] = useState<number>(() => peekRung(id)?.speed ?? getSettingsSync().defaultSpeed);
@@ -348,14 +347,11 @@ export default function IslandScreen() {
   const ladderEpoch = useRef(0);
   // The Repeat tile's popover and the tile's box, anchored like Blind's.
   const [repeatPopOpen, setRepeatPopOpen] = useState(false);
-  const repeatTile = useRef<TileBox | null>(null);
   // The Blind tile's popover, and where to anchor it: the tile's box in the
   // toolbar row, the dock's in the player, and the player's width.
   const [blindPopOpen, setBlindPopOpen] = useState(false);
-  const blindTile = useRef<TileBox | null>(null);
   // The Reading tile's popover and the tile's box, anchored like Blind's.
   const [readingPopOpen, setReadingPopOpen] = useState(false);
-  const readingTile = useRef<TileBox | null>(null);
   const dockY = useRef(0);
   // An open popover reads those refs at render time, so a tile, dock or width
   // change while one is open renders the screen once more. Closed, it is free.
@@ -367,7 +363,15 @@ export default function IslandScreen() {
   const anchorMoved = useCallback((moved: boolean) => {
     if (moved && popOpenRef.current) bumpAnchors((n) => n + 1);
   }, []);
-  // The dock's height is layout (the scene's spacer): state, set only on a
+  const onAnchor = useCallback(
+    (key: DockAnchorKey, box: DockAnchor) => {
+      const old = anchors.current[key];
+      anchors.current[key] = box;
+      anchorMoved(!old || old.x !== box.x || old.y !== box.y || old.width !== box.width);
+    },
+    [anchorMoved],
+  );
+  // The dock's height is layout (the scene's bottom inset): state, set only on a
   // real change.
   const [dockH, setDockH] = useState(0);
   // The scene's height before its first layout (the window under the header,
@@ -514,9 +518,6 @@ export default function IslandScreen() {
     onError: setError,
   });
   const phrase = usePhrase(lineKey, line, speed);
-  // Each word's layout box by index, on the UI thread for the underline. Kept
-  // next to wordBoxes, which the JS hit-testing reads.
-  const wordBoxesUI = useSharedValue<(WordBox | null)[]>([]);
   // The line audio the player should hold. A string, so a new island object
   // with the same audio (a rename) is not a new source.
   // A pause change is a new pad and so a new URL, and a playing line restarts
@@ -625,6 +626,12 @@ export default function IslandScreen() {
   const [autoUi, setAutoUi] = useState<AutoChain | null>(
     autoStartPlace ? { ...autoStartPlace, next: null, end: null } : null,
   );
+  const [reviewNext, setReviewNext] = useState<api.ReviewProject | null>(null);
+  const lessonOver = echoStep === 'done' || !!autoUi?.end;
+  useEffect(() => {
+    if (!lessonOver) return;
+    api.listLiveReviewCards().then((c) => setReviewNext(api.reviewProjects(c).find((p) => p.due > 0) ?? null)).catch(() => {});
+  }, [lessonOver]);
   useEffect(
     () => () => {
       if (autoHoldRef.current) clearTimeout(autoHoldRef.current);
@@ -1991,11 +1998,7 @@ export default function IslandScreen() {
     staged: morph === '1' && !reducedMotion,
   });
   const revealValues = contentReveal.values;
-  const toolbarInStyle = usePieceStyle(revealValues.toolbar, revealValues.rise);
   const bottomInStyle = usePieceStyle(revealValues.dock, revealValues.rise);
-  const dockBackdropStyle = useAnimatedStyle(() => ({
-    opacity: Number.isFinite(revealValues.toolbar.value) ? revealValues.toolbar.value : 1,
-  }));
 
   // A handle grab fixes the opposite edge of the span, so dragging past it
   // swaps the selection instead of leaving a gap or a stuck handle: the
@@ -2777,105 +2780,57 @@ export default function IslandScreen() {
     }
   }
 
-  // Above the dock: Speed, Repeat, Reading and Blind, each opening its own
+  // The dock's settings tray: Repeat, Reading and Blind, each opening its own
   // popover. Opening one closes the others, and never touches playback.
-  const toolbarItems = useMemo((): ToolbarItem[] => {
+  const trayPills = useMemo((): DockPill[] => {
     const repeatOn = times > 1 || pauseMs > 0;
-    // Lit when this island plays at something other than the person's own
-    // default, not other than 1×: the default is 0.5 on a fresh install, which
-    // would otherwise light the tile on every island.
-    const speedOn = Math.abs(speedLive - getSettingsSync().defaultSpeed) > 0.001;
     const readingOn = readingMode !== 'off';
-    // languages: typed here (not just the useMemo return) so the array
-    // literal below keeps its contextual typing once .filter() is chained.
-    const items: ToolbarItem[] = [
-      {
-        key: 'speed',
-        icon: <SpeedIcon color={speedOn ? verb.listen.c1 : tide.textDim} size={22} />, // prism-player-buttons: verb listen tint
-        label: t('player.toolbarSpeed'),
-        value: speedLabel(speedLive),
-        active: speedOn,
-        onPress: () => {
-          setRepeatPopOpen(false);
-          setReadingPopOpen(false);
-          setBlindPopOpen(false);
-          setSpeedPopOpen((v) => !v);
-        },
-        onLayout: (e) => {
-          const { x, y, width } = e.nativeEvent.layout;
-          const old = speedTile.current;
-          speedTile.current = { x, y, width };
-          anchorMoved(!old || old.x !== x || old.y !== y || old.width !== width);
-        },
-      },
+    const blindOn = blind || !englishShown;
+    const ink = (on: boolean) => (on ? DOCK_GOLD_INK : tide.textDim);
+    const open = (which: 'repeat' | 'reading' | 'blind') => {
+      setSpeedPopOpen(false);
+      setRepeatPopOpen(which === 'repeat' ? (v) => !v : false);
+      setReadingPopOpen(which === 'reading' ? (v) => !v : false);
+      setBlindPopOpen(which === 'blind' ? (v) => !v : false);
+    };
+    const pills: DockPill[] = [
       {
         key: 'repeat',
-        icon: <RepeatIcon color={repeatOn ? verb.listen.c1 : tide.textDim} size={22} />, // prism-player-buttons: verb listen tint
-        label: t('player.toolbarRepeat'),
+        icon: <RepeatIcon color={ink(repeatOn)} size={15} />,
         value: repeatTileLabel(t, times, pauseMs),
-        active: repeatOn,
-        onPress: () => {
-          setSpeedPopOpen(false);
-          setReadingPopOpen(false);
-          setBlindPopOpen(false);
-          setRepeatPopOpen((v) => !v);
-        },
-        onLayout: (e) => {
-          const { x, y, width } = e.nativeEvent.layout;
-          const old = repeatTile.current;
-          repeatTile.current = { x, y, width };
-          anchorMoved(!old || old.x !== x || old.y !== y || old.width !== width);
-        },
-      },
-      {
-        key: 'reading',
-        icon: <ReadingIcon color={readingOn ? verb.listen.c1 : tide.textDim} size={22} />, // prism-player-buttons: verb listen tint
-        label: t('player.toolbarReading'),
-        value: t(READING_LABEL_KEY[readingMode]),
-        active: readingOn,
-        onPress: () => {
-          setSpeedPopOpen(false);
-          setRepeatPopOpen(false);
-          setBlindPopOpen(false);
-          setReadingPopOpen((v) => !v);
-        },
-        onLayout: (e) => {
-          const { x, y, width } = e.nativeEvent.layout;
-          const old = readingTile.current;
-          readingTile.current = { x, y, width };
-          anchorMoved(!old || old.x !== x || old.y !== y || old.width !== width);
-        },
-      },
-      {
-        key: 'blind',
-        icon: <BlindIcon color={blind || !englishShown ? verb.listen.c1 : tide.textDim} size={22} />, // prism-player-buttons: verb listen tint
-        label: t('player.toolbarBlind'),
-        value:
-          blind && !englishShown
-            ? t('player.blindBoth')
-            : blind
-              ? LANG_CODE[island?.language ?? 'ja']
-              : !englishShown
-                ? LANG_CODE[island?.native ?? 'en']
-                : t('player.blindOff'),
-        active: blind || !englishShown,
-        onPress: () => {
-          setSpeedPopOpen(false);
-          setReadingPopOpen(false);
-          setRepeatPopOpen(false);
-          setBlindPopOpen((v) => !v);
-        },
-        onLayout: (e) => {
-          const { x, y, width } = e.nativeEvent.layout;
-          const old = blindTile.current;
-          blindTile.current = { x, y, width };
-          anchorMoved(!old || old.x !== x || old.y !== y || old.width !== width);
-        },
+        on: repeatOn,
+        selected: repeatPopOpen,
+        onPress: () => open('repeat'),
       },
     ];
     // languages: reading modes (furigana, kana, romaji) only exist for Japanese.
-    return items.filter((item) => isJa || item.key !== 'reading');
-  }, [t, speedLive, times, pauseMs, readingMode, blind, englishShown, anchorMoved, isJa, island]);
+    if (isJa) {
+      pills.push({
+        key: 'reading',
+        icon: <ReadingIcon color={ink(readingOn)} size={15} />,
+        value: t(READING_LABEL_KEY[readingMode]),
+        on: readingOn,
+        selected: readingPopOpen,
+        onPress: () => open('reading'),
+      });
+    }
+    pills.push({
+      key: 'blind',
+      icon: <BlindIcon color={ink(blindOn)} size={15} />,
+      value: blindValueLabel(t, blind, englishShown, island?.language ?? 'ja', island?.native ?? 'en'),
+      on: blindOn,
+      selected: blindPopOpen,
+      onPress: () => open('blind'),
+    });
+    return pills;
+  }, [t, times, pauseMs, readingMode, blind, englishShown, isJa, island?.language, island?.native, repeatPopOpen, readingPopOpen, blindPopOpen]);
+  const speedOn = Math.abs(speedLive - getSettingsSync().defaultSpeed) > 0.001;
+  const onSpeedChip = useCallback(() => {
+    setRepeatPopOpen(false);
+    setReadingPopOpen(false);
+    setBlindPopOpen(false);
+    setSpeedPopOpen((v) => !v);
+  }, []);
 
   // A tapped transcript line jumps there and plays it, even from a paused
   // state (go alone would leave a paused line paused).
@@ -2921,6 +2876,21 @@ export default function IslandScreen() {
     if (next) goToIsland(next.nextId);
     else endChain();
   });
+  const onReviewNext = useStableHandler(() => {
+    if (!reviewNext || autoLeavingRef.current) return;
+    autoLeavingRef.current = true;
+    stopEcho();
+    const pathname = reviewNext.source === 'podcast' ? '/podcast/[id]' : '/video/[id]';
+    const islandId = reviewNext.islandId;
+    closeSheetThen(() => {
+      dropChain();
+      router.replace({ pathname, params: { id: islandId, review: '1' } });
+    });
+  });
+  const reviewProp = useMemo(
+    () => (reviewNext ? { label: t('review.continue', { n: reviewNext.due }), onPress: onReviewNext } : null),
+    [reviewNext, t, onReviewNext],
+  );
   const onAutoDone = useStableHandler(() => {
     endAutoPractice();
     closeSheetThen(plainBack);
@@ -3041,34 +3011,15 @@ export default function IslandScreen() {
   const onBlockTouch = useCallback(() => {
     blockTouched.current = true;
   }, []);
-  // Each word's box lands in wordBoxes at once, for the JS hit-testing, and
-  // reaches the UI thread's copy once per frame, after the whole batch of word
-  // layouts, instead of rebuilding and writing the full array for every word.
-  const boxesFrame = useRef<number | null>(null);
-  const writeBoxesSoon = useStableHandler(() => {
-    if (boxesFrame.current !== null) return;
-    boxesFrame.current = requestAnimationFrame(() => {
-      boxesFrame.current = null;
-      const n = live.current.line?.words.length ?? 0;
-      wordBoxesUI.value = Array.from({ length: n }, (_, k) => wordBoxes.current[k] ?? null);
-    });
-  });
+  // Each word's box lands in wordBoxes at once, for the JS hit-testing.
   const onWordLayout = useStableHandler((i: number, e: LayoutChangeEvent) => {
     wordBoxes.current[i] = e.nativeEvent.layout;
-    writeBoxesSoon();
   });
-  // A new line with fewer words may lay out no word at all (every kept box
-  // is unchanged), so the UI copy is trimmed to it here as well.
-  useEffect(() => {
-    writeBoxesSoon();
-  }, [line, writeBoxesSoon]);
-  useEffect(
-    () => () => {
-      if (boxesFrame.current !== null) cancelAnimationFrame(boxesFrame.current);
-    },
-    [],
-  );
 
+  const fit = useMemo(
+    () => (line ? fitScale(line, blockWidth, { base: 22, min: 18, em: isJa ? 1 : 0.6 }) : 1),
+    [line, blockWidth, isJa],
+  );
   const sentence = useMemo(() => {
     if (!line) {
       return null;
@@ -3164,6 +3115,7 @@ export default function IslandScreen() {
                           dimmed={!!phrase.span && (i < phrase.span.from || i > phrase.span.to)}
                           mark={marks && marks[i] !== 'ok' && marks[i] !== 'none' ? marks[i] : null}
                           pitch={pitches?.[i]}
+                          scale={fit}
                           onLayout={noopLayout}
                         />
                       )}
@@ -3184,11 +3136,11 @@ export default function IslandScreen() {
                             dimmed={!!phrase.span && (i < phrase.span.from || i > phrase.span.to)}
                             mark={marks && marks[i] !== 'ok' && marks[i] !== 'none' ? marks[i] : null}
                             pitch={pitches?.[i]}
+                            scale={fit}
                             onLayout={onWordLayout}
                           />
                         ))}
                       </View>
-                      <WordOutline highlight={highlight} boxes={wordBoxesUI} />
                     </>
                   )}
                 </View>
@@ -3237,13 +3189,13 @@ export default function IslandScreen() {
                   rowStyle={styles.words}
                   blur={4.5}
                   renderChunk={(i) => (
-                    <Text key={i} style={styles.ja}>
+                    <Text key={i} style={[styles.ja, fit < 1 && { fontSize: 26 * fit, lineHeight: 38 * fit }]}>
                       {jaChars[i]}
                     </Text>
                   )}
                 />
               ) : (
-                <Text style={styles.ja}>{line.ja}</Text>
+                <Text style={[styles.ja, fit < 1 && { fontSize: 26 * fit, lineHeight: 38 * fit }]}>{line.ja}</Text>
               )}
             </View>
           </GestureDetector>
@@ -3328,6 +3280,7 @@ export default function IslandScreen() {
     glossData,
     explainContext,
     blockWidth,
+    fit,
     handleDragging,
     modeLine,
     enFrosted,
@@ -3350,7 +3303,6 @@ export default function IslandScreen() {
     onRepeatSelection,
     onTapEmpty,
     onWordLayout,
-    wordBoxesUI,
   ]);
 
   // Leaves without the card morph. A route opened by the morph does not
@@ -3437,11 +3389,14 @@ export default function IslandScreen() {
     />
   );
 
-  // Where the scene ends above the dock. Before the island loads there is no
-  // dock yet, so a spacer of the last dock height holds its place: the
-  // waterline sits where it will once the lines land. The loading cat, if a
-  // wait is real, is the root LoadingOverlay: nothing to render here.
+  // What the floating dock covers at the scene's bottom: the dock and the
+  // home indicator under it. The scene draws to the screen's edge, under the
+  // dock, and keeps its waterline above it. Before the island loads there is
+  // no dock yet, so the last dock height holds its place: the waterline sits
+  // where it will once the lines land. The loading cat, if a wait is real, is
+  // the root LoadingOverlay: nothing to render here.
   const dockSpace = dockH > 0 ? dockH : lastDockH;
+  const dockCover = dockSpace + screenInsets.bottom;
 
   if (error && !island) {
     return (
@@ -3470,7 +3425,7 @@ export default function IslandScreen() {
     // below renders, so nothing remounts when the island lands and TideScene
     // fades its lines in.
     return (
-      <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: sky.top }])}>
+      <View style={[styles.fill, { backgroundColor: sky.top }]}>
         <StatusBar style="light" />
         {header(true)}
 
@@ -3496,10 +3451,10 @@ export default function IslandScreen() {
             widenWhen={coveredAtMount ? widenTranscript : undefined}
             contentReveal={revealValues}
             initialHeight={Math.max(0, sceneEstimateH - dockSpace)}
+            bottomInset={dockCover}
           />
-          <View pointerEvents="none" style={{ height: dockSpace }} />
         </Animated.View>
-      </SafeAreaView>
+      </View>
     );
   }
   if (!line) {
@@ -3577,7 +3532,7 @@ export default function IslandScreen() {
   const ringMode: RingMode = status.playing || pendingPlay ? (inBreath ? 'breath' : 'playing') : 'idle';
 
   return (
-    <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: sky.top }])}>
+    <View style={[styles.fill, { backgroundColor: sky.top }]}>
       <StatusBar style="light" />
       {header(true)}
 
@@ -3605,10 +3560,19 @@ export default function IslandScreen() {
           widenWhen={coveredAtMount ? widenTranscript : undefined}
           contentReveal={revealValues}
           initialHeight={Math.max(0, sceneEstimateH - dockSpace)}
+          bottomInset={dockCover}
         />
 
+        {trayOpen ? (
+          <Pressable
+            style={styles.trayBackdrop}
+            onPress={() => setTrayOpen(false)}
+            accessibilityLabel={t('player.dockSettings')}
+          />
+        ) : null}
         <View
-          style={styles.dock}
+          style={[styles.dock, { bottom: screenInsets.bottom }]}
+          pointerEvents="box-none"
           onLayout={(e) => {
             const { y, height } = e.nativeEvent.layout;
             anchorMoved(y !== dockY.current);
@@ -3621,13 +3585,9 @@ export default function IslandScreen() {
               if (Math.abs(held - height) > 0.5) setDockH(height);
             }
           }}>
-          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.dockBackdrop, dockBackdropStyle]} />
-          <Animated.View style={toolbarInStyle}>
-            <Toolbar items={toolbarItems} />
-          </Animated.View>
-          <Animated.View style={bottomInStyle}>
-            <BottomRow
-              ringMode={ringMode}
+          <Animated.View style={bottomInStyle} pointerEvents="box-none">
+            <CompactDock
+              playMode={ringMode === 'idle' ? 'idle' : 'playing'}
               onToggle={onToggle}
               onPrev={onPrev}
               onNext={onNext}
@@ -3636,13 +3596,21 @@ export default function IslandScreen() {
               recording={take.phase === 'recording'}
               level={take.level}
               onRecord={onDockRecord}
+              recordLabel={take.phase === 'recording' ? t('player.stopRecording') : t('player.recordMyTake')}
+              speed={speedLive}
+              speedOn={speedOn}
+              onSpeed={onSpeedChip}
+              pills={trayPills}
+              trayOpen={trayOpen}
+              onTrayToggle={() => setTrayOpen((v) => !v)}
+              onAnchor={onAnchor}
             />
           </Animated.View>
         </View>
-        {speedPopOpen && speedTile.current && playerW.current > 0 ? (
+        {speedPopOpen && anchors.current.speed && playerW.current > 0 ? (
           <SpeedPopover
-            anchorX={speedTile.current.x + speedTile.current.width / 2}
-            anchorTop={dockY.current + speedTile.current.y}
+            anchorX={anchors.current.speed.x + anchors.current.speed.width / 2}
+            anchorTop={dockY.current + anchors.current.speed.y}
             width={playerW.current}
             speed={speedLive}
             onSpeed={pickSpeed}
@@ -3650,20 +3618,20 @@ export default function IslandScreen() {
             onClose={() => setSpeedPopOpen(false)}
           />
         ) : null}
-        {readingPopOpen && readingTile.current && playerW.current > 0 ? (
+        {readingPopOpen && anchors.current.reading && playerW.current > 0 ? (
           <ReadingPopover
-            anchorX={readingTile.current.x + readingTile.current.width / 2}
-            anchorTop={dockY.current + readingTile.current.y}
+            anchorX={anchors.current.reading.x + anchors.current.reading.width / 2}
+            anchorTop={dockY.current + anchors.current.reading.y}
             width={playerW.current}
             value={readingMode}
             onChange={pickReading}
             onClose={() => setReadingPopOpen(false)}
           />
         ) : null}
-        {blindPopOpen && blindTile.current && playerW.current > 0 ? (
+        {blindPopOpen && anchors.current.blind && playerW.current > 0 ? (
           <BlindPopover
-            anchorX={blindTile.current.x + blindTile.current.width / 2}
-            anchorTop={dockY.current + blindTile.current.y}
+            anchorX={anchors.current.blind.x + anchors.current.blind.width / 2}
+            anchorTop={dockY.current + anchors.current.blind.y}
             width={playerW.current}
             jaHidden={blind}
             enHidden={!englishShown}
@@ -3672,10 +3640,10 @@ export default function IslandScreen() {
             onClose={() => setBlindPopOpen(false)}
           />
         ) : null}
-        {repeatPopOpen && repeatTile.current && playerW.current > 0 ? (
+        {repeatPopOpen && anchors.current.repeat && playerW.current > 0 ? (
           <RepeatPopover
-            anchorX={repeatTile.current.x + repeatTile.current.width / 2}
-            anchorTop={dockY.current + repeatTile.current.y}
+            anchorX={anchors.current.repeat.x + anchors.current.repeat.width / 2}
+            anchorTop={dockY.current + anchors.current.repeat.y}
             width={playerW.current}
             times={times}
             pauseMs={pauseMs}
@@ -3693,6 +3661,7 @@ export default function IslandScreen() {
         auto={autoUi}
         onSkip={onAutoSkip}
         onDone={onAutoDone}
+        review={reviewProp}
         onDismissed={onSheetDismissed}
         sentence={hidden ? null : (phrase.label ?? line.ja)}
         english={englishShown ? line.en : null}
@@ -3758,7 +3727,7 @@ export default function IslandScreen() {
         generation={chatGeneration}
         onPlaySentence={onExplainPlay}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -3883,8 +3852,10 @@ const styles = StyleSheet.create({
   enRtl: { writingDirection: 'rtl' },
   menuGlyph: { fontFamily: fonts.ui, fontSize: 22, color: tide.text },
   backGlyph: { fontFamily: fonts.ui, fontSize: 28, color: tide.text },
-  dock: { borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg },
-  dockBackdrop: { backgroundColor: 'rgba(0,0,0,0.18)', borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg },
+  // Above the tray backdrop (15) so the pills and the gear take taps; popovers sit at 20.
+  // Floats over the scene's bottom: only the capsule, the tray and the slot draw.
+  dock: { position: 'absolute', left: 0, right: 0, zIndex: 16 },
+  trayBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 15 },
   body: { fontSize: 15, lineHeight: 22, textAlign: 'center', padding: Spacing.xl },
   inlineError: { fontSize: 13, lineHeight: 18, textAlign: 'center' },
   retry: { paddingVertical: Spacing.md, paddingHorizontal: Spacing.xxl, borderRadius: Radius.pill, marginTop: Spacing.md },

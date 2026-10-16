@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
 
+import { HeaderClosePill } from '@/components/header-close-pill';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
@@ -90,13 +91,7 @@ export default function PodcastBuildScreen() {
           headerStyle: { backgroundColor: tide.sky[0] },
           headerTintColor: tide.text,
           headerShadowVisible: false,
-          headerLeft: () => (
-            <Pressable onPress={cancel} hitSlop={12}>
-              <Text style={{ color: tide.text, fontSize: 16, fontWeight: '600', fontFamily: fonts.ui }}>
-                {t('record.close')}
-              </Text>
-            </Pressable>
-          ),
+          headerLeft: () => <HeaderClosePill label={t('record.close')} onPress={cancel} />,
         }}
       />
       <View style={styles.center}>

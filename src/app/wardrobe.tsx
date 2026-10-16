@@ -226,6 +226,6 @@ const styles = StyleSheet.create({
   grid: { flex: 1, marginTop: Spacing.sm },
   fade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 112 },
   hint: { position: 'absolute', left: Spacing.lg, right: Spacing.lg, textAlign: 'center', fontFamily: fonts.ui, fontSize: 13, color: tide.textDim },
-  notice: { color: '#FF8A97' },
+  notice: { color: tide.record },
   action: { position: 'absolute', left: Spacing.lg, right: Spacing.lg },
 });

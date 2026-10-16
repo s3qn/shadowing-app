@@ -6,7 +6,6 @@ import {
   useEffect,
   useEffectEvent,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -32,20 +31,21 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
-  withSequence,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
 
 import { Frost } from '@/components/frost';
 import { fonts } from '@/constants/fonts';
-import { Radius, tide, tideWaters } from '@/constants/theme';
+import { DOCK_GOLD_INK } from '@/components/tide/compact-dock';
+import { tide, tideWaters } from '@/constants/theme';
 import { useT } from '@/lib/i18n';
 import { useSkyStyle, isNight, currentPeriod } from '@/lib/sky';
 import { useWaterSim } from '@/components/tide/use-water-sim';
 import { WaterSurface } from '@/components/tide/water-surface';
 import { WaterCanvas } from '@/components/tide/water-canvas';
-import { isWindowed, LONG_ISLAND, useTranscriptWindow } from '@/components/tide/transcript-window';
+import { isWindowed, useTranscriptWindow } from '@/components/tide/transcript-window';
+import { LineRail } from '@/components/tide/line-rail';
 import { type ContentReveal, PIECE_RISE, usePieceStyle } from '@/components/tide/use-content-reveal';
 
 /** Temporary kill switch for bisecting the device crash: false skips the
@@ -73,25 +73,14 @@ const CROSSFADE_OUT_MS = 200;
  * before it scrolls with the measurements it has (the line's box did not
  * move, so no event comes). */
 const SYNC_FALLBACK_MS = 120;
-/** The sentence card, transcript and tide marks fade in this long once the
+/** The sentence card, transcript and line rail fade in this long once the
  * island's lines arrive after the scene is already on screen. */
 const REVEAL_MS = 180;
-
-/** The active tide mark rides an elevator to its new line: a spring that
- * settles in about 350ms, plus a brief mid-move stretch. */
-const MARK_SPRING = { damping: 20, stiffness: 210, mass: 1 } as const;
-const MARK_STRETCH_UP_MS = 120;
-
 
 // How far the waterline sits from the top of the scene at the first and last
 // line: the tide rises from WL_MAX to WL_MIN as lineIndex approaches the end.
 const WL_MAX = 0.62;
 const WL_MIN = 0.42;
-
-/** Past LONG_ISLAND lines the tide marks stop being one per
- * line and become this many bucketed marks instead, so a long island doesn't
- * rebuild hundreds of Views on every line change. */
-const MARK_CAP = 40;
 
 type Props = {
   lineIndex: number;
@@ -121,8 +110,13 @@ type Props = {
   contentReveal?: ContentReveal;
   /** The scene's expected height before its first layout, so the water and
    * waterline are drawn from the first frame instead of after a layout pass.
-   * The real layout replaces it. */
+   * The real layout replaces it. It excludes `bottomInset`. */
   initialHeight?: number;
+  /** How much of the scene's bottom a floating overlay (the dock and the
+   * home indicator) covers. The scene still draws under it, but the waterline
+   * maths use the height above it and the transcript can scroll its last line
+   * clear of it. */
+  bottomInset?: number;
   /** Opened under the card morph: a long island's transcript mounts few rows
    * and widens when this calls back (it returns a cancel). Read at mount. */
   widenWhen?: (widen: () => void) => () => void;
@@ -151,6 +145,7 @@ export const TideScene = memo(function TideScene({
   instantReveal,
   contentReveal,
   initialHeight = 0,
+  bottomInset = 0,
   widenWhen,
 }: Props) {
   const { t } = useT();
@@ -158,9 +153,13 @@ export const TideScene = memo(function TideScene({
   // estimate. Both only seed the first frame, the layout events take over.
   const { width: windowW } = useWindowDimensions();
   const seedW = Number.isFinite(windowW) && windowW > 0 ? windowW : 0;
-  const [sceneH, setSceneH] = useState(() =>
-    Number.isFinite(initialHeight) && initialHeight > 0 ? initialHeight : 0,
+  const inset = Number.isFinite(bottomInset) && bottomInset > 0 ? bottomInset : 0;
+  // The full laid-out height, under the overlay too. `sceneH` is the part
+  // above it: the waterline and the auto-scroll target come from that.
+  const [layoutH, setLayoutH] = useState(() =>
+    Number.isFinite(initialHeight) && initialHeight > 0 ? initialHeight + inset : 0,
   );
+  const sceneH = layoutH > 0 ? Math.max(0, layoutH - inset) : 0;
   const [pill, setPill] = useState<'off' | 'on' | null>(null);
   // Whether the transcript should follow playback. A ref, not state: it must
   // read as up to date inside the same handler that just turned it on, and
@@ -192,7 +191,8 @@ export const TideScene = memo(function TideScene({
   const rowLayout = windowed ? onRowLayout : undefined;
 
   const onLayout = (e: LayoutChangeEvent) => {
-    setSceneH(e.nativeEvent.layout.height);
+    const h = e.nativeEvent.layout.height;
+    if (Number.isFinite(h)) setLayoutH(h);
   };
 
   // The water's physics runs only while this screen is focused and the app
@@ -432,54 +432,6 @@ export const TideScene = memo(function TideScene({
     }
   };
 
-  const marks = useMemo(() => {
-    if (lineCount <= LONG_ISLAND) {
-      return Array.from({ length: lineCount }, (_, i) => lineCount - 1 - i).map((i) => (
-        <View key={i} style={[styles.mark, i < lineIndex ? styles.markDone : styles.markPending]} />
-      ));
-    }
-    return Array.from({ length: MARK_CAP }, (_, b) => MARK_CAP - 1 - b).map((b) => {
-      const lastLine = Math.floor(((b + 1) * lineCount) / MARK_CAP) - 1;
-      return <View key={b} style={[styles.mark, lastLine < lineIndex ? styles.markDone : styles.markPending]} />;
-    });
-  }, [lineIndex, lineCount]);
-
-  // The active mark is a separate overlay riding on top of the static track
-  // above, so it can slide between line positions instead of jumping when a
-  // different array element switches to "now". markMounted guards the very
-  // first placement (and any resize before it): those land instantly, only
-  // a genuine line change glides.
-  const [marksH, setMarksH] = useState(0);
-  const markY = useSharedValue(0);
-  const markStretch = useSharedValue(1);
-  const markReady = useSharedValue(0);
-  const markMounted = useRef(false);
-  const onMarksLayout = useCallback((e: LayoutChangeEvent) => setMarksH(e.nativeEvent.layout.height), []);
-
-  useEffect(() => {
-    if (marksH <= 0 || lineCount <= 0) return;
-    const p = lineCount - 1 - lineIndex;
-    const target = lineCount > 1 ? (p * (marksH - 2)) / (lineCount - 1) : (marksH - 2) / 2;
-    if (!markMounted.current) {
-      markMounted.current = true;
-      markY.value = target;
-      markReady.value = withTiming(1, { duration: 150 });
-      return;
-    }
-    if (reducedMotion) {
-      markY.value = withTiming(target, { duration: 150 });
-      markStretch.value = 1;
-      return;
-    }
-    markY.value = withSpring(target, MARK_SPRING);
-    markStretch.value = withSequence(withTiming(1.6, { duration: MARK_STRETCH_UP_MS }), withSpring(1, MARK_SPRING));
-  }, [lineIndex, lineCount, marksH, reducedMotion, markY, markStretch, markReady]);
-
-  const markActiveStyle = useAnimatedStyle(() => ({
-    opacity: markReady.value,
-    transform: [{ translateY: markY.value }, { scaleY: markStretch.value }],
-  }));
-
   const sky = useSkyStyle();
   const night = isNight(new Date());
   const period = currentPeriod(new Date());
@@ -505,7 +457,7 @@ export const TideScene = memo(function TideScene({
       <ScrollView
         ref={scrollRef}
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingTop: WL_MAX * sceneH, minHeight: sceneH }]}
+        contentContainerStyle={[styles.content, { paddingTop: WL_MAX * sceneH, minHeight: sceneH + inset }]}
         onScrollBeginDrag={onScrollBeginDrag}
         onScroll={windowed ? onScroll : undefined}
         scrollEventThrottle={windowed ? 100 : undefined}
@@ -580,13 +532,13 @@ export const TideScene = memo(function TideScene({
             </Frost>
           </Animated.View>
         ) : null}
-        <View style={[styles.water, { paddingBottom: (1 - WL_MIN) * sceneH }]}>
+        <View style={[styles.water, { paddingBottom: (1 - WL_MIN) * sceneH + inset }]}>
           {/* Only ever a fallback below the canvas's own bottom (content
              scrolled past one screen): its top sits exactly at the canvas's
              bottom edge so it never shows a straight edge against the live
              curve above it. */}
           <View
-            style={[styles.waterBody, { top: sceneH, backgroundColor: waterPalette.deep }]}
+            style={[styles.waterBody, { top: sceneH + inset, backgroundColor: waterPalette.deep }]}
             pointerEvents="none"
           />
           {WATER_EFFECTS ? (
@@ -608,7 +560,7 @@ export const TideScene = memo(function TideScene({
           ) : null}
           {WATER_EFFECTS ? (
             <WaterCanvas
-              height={sceneH + 20}
+              height={sceneH + inset + 20}
               initialWidth={seedW}
               lineD={waterSim.lineD}
               boatX={waterSim.boatX}
@@ -645,22 +597,29 @@ export const TideScene = memo(function TideScene({
         </View>
       </ScrollView>
       {countdown !== null ? (
-        <View style={[StyleSheet.absoluteFill, styles.countdownWrap]} pointerEvents="none">
+        <View style={[StyleSheet.absoluteFill, styles.countdownWrap, { paddingBottom: inset }]} pointerEvents="none">
           <Text style={styles.countdown}>{countdown}</Text>
         </View>
       ) : null}
-      <Animated.View style={[styles.marks, revealStyle]} pointerEvents="none" onLayout={onMarksLayout}>
-        {marks}
-        <Animated.View style={[styles.markActive, markActiveStyle]} />
+      <Animated.View
+        style={[StyleSheet.absoluteFill, revealStyle]}
+        pointerEvents="box-none">
+        <LineRail
+          lineIndex={lineIndex}
+          lineCount={lineCount}
+          reducedMotion={reducedMotion}
+          style={sceneH > 0 ? { top: 0.4 * sceneH, bottom: 0.34 * sceneH + inset } : { top: '40%', bottom: '34%' }}
+          onJump={tapLine}
+        />
       </Animated.View>
       {banner ? (
-        <View style={[StyleSheet.absoluteFill, styles.bannerWrap]} pointerEvents="box-none">
+        <View style={[StyleSheet.absoluteFill, styles.bannerWrap, { paddingBottom: inset }]} pointerEvents="box-none">
           {banner}
         </View>
       ) : null}
       {pill ? (
-        <View style={styles.pillWrap} pointerEvents="box-none">
-          <Animated.View entering={FadeIn} exiting={FadeOut}>
+        <View style={[styles.pillWrap, { bottom: inset + 8 }]} pointerEvents="box-none">
+          <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(160)}>
             <Pressable onPress={enableAutoScroll} style={styles.pill} accessibilityRole="button">
               <Text style={styles.pillText}>
                 {pill === 'off' ? t('player.autoScrollDisabled') : t('player.autoScrollEnabled')}
@@ -803,7 +762,7 @@ const styles = StyleSheet.create({
   measure: { position: 'absolute', left: 0, right: 0, top: 0, opacity: 0 },
   active: {
     paddingLeft: 16,
-    paddingRight: 16,
+    paddingRight: 44,
     paddingBottom: 10,
     zIndex: 3,
   },
@@ -814,7 +773,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingLeft: 32,
-    paddingRight: 32,
+    paddingRight: 44,
     paddingTop: 14,
     zIndex: 3,
   },
@@ -829,7 +788,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     overflow: 'visible',
     paddingLeft: 16,
-    paddingRight: 16,
+    paddingRight: 44,
     paddingTop: 8,
     zIndex: 2,
   },
@@ -842,26 +801,24 @@ const styles = StyleSheet.create({
   },
   dimLine: {
     paddingLeft: 16,
-    paddingRight: 16,
+    paddingRight: 44,
     paddingVertical: 5,
   },
   dimCard: {
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: tide.waterline,
-    backgroundColor: tide.water,
     paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingLeft: 16,
+    paddingRight: 44,
     opacity: 0.55,
   },
   submergedRow: {
     paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingLeft: 16,
+    paddingRight: 44,
   },
   dimText: {
     fontFamily: fonts.serifJp,
-    fontSize: 18,
-    lineHeight: 28,
+    fontSize: 15,
+    lineHeight: 22,
     textAlign: 'center',
     color: tide.text,
   },
@@ -877,52 +834,29 @@ const styles = StyleSheet.create({
     color: 'rgba(255,158,128,0.18)',
     fontVariant: ['tabular-nums'],
   },
-  marks: {
-    position: 'absolute',
-    left: 10,
-    top: '40%',
-    bottom: '34%',
-    flexDirection: 'column',
-    justifyContent: 'space-between',
-    zIndex: 4,
-  },
-  mark: { width: 14, height: 2, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.2)' },
-  markPending: {},
-  markDone: {
-    backgroundColor: tide.lang.ja,
-    boxShadow: '0 0 8px rgba(255,158,128,0.8)',
-  },
-  markActive: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: 18,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: tide.text,
-  },
   bannerWrap: {
     zIndex: 5,
   },
   pillWrap: {
     position: 'absolute',
-    top: 10,
     left: 0,
-    right: 88,
+    right: 0,
     alignItems: 'center',
     zIndex: 6,
   },
   pill: {
+    height: 32,
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: Radius.pill,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 999,
+    backgroundColor: 'rgba(20,28,44,0.72)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
+    borderColor: 'rgba(255,226,160,0.28)',
   },
   pillText: {
     fontFamily: fonts.ui,
-    fontSize: 12,
-    color: tide.text,
+    fontSize: 13,
+    color: DOCK_GOLD_INK,
   },
 });

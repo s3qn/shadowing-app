@@ -32,12 +32,23 @@ const JITTER_S = 0.08;
 const SLEW = 0.3;
 /** The estimate never runs further than this past the last sampled time. */
 const MAX_AHEAD_S = 0.5;
-/** Words closer than this are contiguous (the fill does not stop between them). */
+/** Words closer than this are contiguous (the light does not stop between them). */
 const JOIN_GAP_S = 0.25;
-/** The shortest a word's fill may take. */
+/** The shortest a word may stay lit. */
 const MIN_WORD_S = 0.08;
+/** Width of one word handoff, in seconds: the whole word lights at once over
+ * this crossfade, as in the island player (see word-highlight.ts). */
+const FADE_S = 0.1;
 /** A getCurrentTime that has not answered in this long is given up on. */
 const INFLIGHT_MAX_MS = 1000;
+/** A looped line ends this long after its last word, so the trailing silence
+ * is cut short. */
+const END_TAIL_S = 0.25;
+/** A looped line ends at least this long before the next line starts, so the
+ * seek back lands before the next line's first word is heard or lit. */
+const END_LEAD_S = 0.15;
+/** A line shorter than this to its end point never loops (no seek storm). */
+const MIN_LOOP_S = 0.3;
 
 /** Anchor: JS to UI thread. `hard` jumps to `time` and gates to 0, `hold` freezes at the current estimate. */
 type Anchor = {
@@ -59,8 +70,9 @@ type Clock = {
   lit: boolean;
   native: number;
 };
-/** Absolute player seconds per word. */
-type SweepTable = { from: number; to: number; s: number[]; e: number[] };
+/** The line's word boundaries in absolute player seconds (each word's start,
+ * then the last word's end) and each boundary's crossfade width. */
+type WordTable = { from: number; to: number; c: number[]; w: number[] };
 
 export type VideoStateName = 'unstarted' | 'ended' | 'playing' | 'paused' | 'buffering' | 'video cued';
 
@@ -71,7 +83,7 @@ export function playIntent(prev: boolean, state: string): boolean {
   return prev;
 }
 
-function buildSweep(line: Line, lineStart: number): SweepTable | null {
+function buildWords(line: Line, lineStart: number): WordTable | null {
   const words = line.words;
   const n = words.length;
   if (n === 0) return null;
@@ -88,19 +100,51 @@ function buildSweep(line: Line, lineStart: number): SweepTable | null {
     s.push(start);
     e.push(end);
   }
-  return { from: 0, to: n - 1, s, e };
+  const c = [...s, e[n - 1]!];
+  const w = c.map((cj, j) => {
+    const left = j > 0 ? cj - c[j - 1]! : Infinity;
+    const right = j < c.length - 1 ? c[j + 1]! - cj : Infinity;
+    return Math.max(0, Math.min(FADE_S, left, right));
+  });
+  return { from: 0, to: n - 1, c, w };
 }
+
+/** Where each line ends for Repeat, in absolute player seconds, or -1 when it
+ * has no usable end. With `spans`, a line is capped by its own duration
+ * instead of the next entry, which in a filtered list is not its neighbour. */
+function lineEnds(starting: number[], tables: (WordTable | null)[], spans?: number[]): number[] {
+  return starting.map((start, i) => {
+    const span = spans?.[i];
+    const next = spans ? (span !== undefined && Number.isFinite(span) && span > 0 ? start + span : undefined) : starting[i + 1];
+    const t = tables[i];
+    const wordEnd = t ? t.c[t.c.length - 1]! + END_TAIL_S : Infinity;
+    const end = Math.min(next !== undefined ? next - END_LEAD_S : Infinity, wordEnd);
+    return Number.isFinite(end) && end - start >= MIN_LOOP_S ? end : -1;
+  });
+}
+
+/** Repeat: with `on`, the clock stops at each line's end and holds that line
+ * on screen until the caller seeks back (`seekToLine`) or carries on
+ * (`releaseLine`). */
+export type LineLoop = {
+  on: boolean;
+  onLineEnd: (line: number) => void;
+  /** End each line at its own offset plus duration, for a list with gaps. */
+  ownEnds?: boolean;
+};
 
 export function useVideoHighlight(
   playerRef: RefObject<YoutubeIframeRef | null>,
   lines: Line[],
   startS: number,
+  loop?: LineLoop,
 ): {
   highlight: Highlight;
   activeLine: number;
   onChangeState: (state: string) => void;
   onPlaybackRateChange: (rate: string | number) => void;
   seekToLine: (index: number) => void;
+  releaseLine: () => void;
 } {
   const anchor = useSharedValue<Anchor>({
     seq: 0,
@@ -122,17 +166,55 @@ export function useVideoHighlight(
   });
   const gate = useSharedValue(0);
   const highlight = useSharedValue<HighlightState>(IDLE);
-  const tables = useSharedValue<(SweepTable | null)[]>([]);
+  const tables = useSharedValue<(WordTable | null)[]>([]);
   const starts = useSharedValue<number[]>([]);
   const lastLine = useSharedValue(-1);
+  const ends = useSharedValue<number[]>([]);
+  const looping = useSharedValue(false);
+  /** The line held at its end, waiting on the caller, or -1. */
+  const heldLine = useSharedValue(-1);
+  /** The last line whose end fired, so a line fires once per pass. */
+  const firedLine = useSharedValue(-1);
   const [activeLine, setActiveLine] = useState(0);
+  /** The line the card on screen shows. The UI thread switches lines a few
+   * frames before React renders the new card, and the old card reads the same
+   * highlight, so until this catches up nothing lights: otherwise the new
+   * line's first word lights word 0 of the line still on screen. */
+  const shownLine = useSharedValue(0);
+  useEffect(() => {
+    shownLine.value = activeLine;
+  }, [activeLine, shownLine]);
 
   const starting = useMemo(() => lines.map((l) => startS + (l.offset ?? 0)), [lines, startS]);
+  const ownEnds = loop?.ownEnds ?? false;
   useEffect(() => {
+    const built = lines.map((l, i) => buildWords(l, starting[i]!));
     starts.value = starting;
-    tables.value = lines.map((l, i) => buildSweep(l, starting[i]!));
+    tables.value = built;
+    ends.value = lineEnds(starting, built, ownEnds ? lines.map((l) => l.duration) : undefined);
     lastLine.value = -1;
-  }, [lines, starting, starts, tables, lastLine]);
+    heldLine.value = -1;
+    firedLine.value = -1;
+  }, [lines, starting, ownEnds, starts, tables, ends, lastLine, heldLine, firedLine]);
+
+  const loopOn = loop?.on ?? false;
+  const onLineEndRef = useRef(loop?.onLineEnd);
+  onLineEndRef.current = loop?.onLineEnd;
+  useEffect(() => {
+    looping.value = loopOn;
+    if (!loopOn) heldLine.value = -1;
+  }, [loopOn, looping, heldLine]);
+  const releaseLine = useCallback(() => {
+    heldLine.value = -1;
+  }, [heldLine]);
+  const lineEnded = useCallback(
+    (line: number) => {
+      const cb = onLineEndRef.current;
+      if (cb) cb(line);
+      else heldLine.value = -1;
+    },
+    [heldLine],
+  );
 
   const seq = useRef(0);
   const epoch = useRef(0);
@@ -177,7 +259,7 @@ export function useVideoHighlight(
         clock.value = c;
       }
       const est = c.advancing ? Math.min(c.time + ((now - c.at) / 1000) * c.rate, c.native + MAX_AHEAD_S) : c.time;
-      const pos = est + LEAD_S;
+      let pos = est + LEAD_S;
 
       const dt = Math.min(34, info.timeSincePreviousFrame ?? 16);
       const target = c.lit ? 1 : 0;
@@ -193,27 +275,44 @@ export function useVideoHighlight(
         if (st[i]! <= pos) line = i;
         else break;
       }
+      // Repeat: a line held at its end stays on screen, frozen at that end,
+      // until the caller seeks back or lets it go.
+      const held = heldLine.value;
+      if (held >= 0 && held < st.length) {
+        line = held;
+        const he = ends.value[held] ?? -1;
+        if (he > 0) pos = Math.min(pos, he);
+      } else if (looping.value && c.advancing && line !== firedLine.value) {
+        const e = ends.value[line] ?? -1;
+        if (e > 0 && pos >= e) {
+          firedLine.value = line;
+          heldLine.value = line;
+          pos = e;
+          scheduleOnRN(lineEnded, line);
+        }
+      }
       if (line !== lastLine.value) {
         lastLine.value = line;
         scheduleOnRN(setActiveLine, line);
       }
 
-      const t = tables.value[line] ?? null;
+      const t = line === shownLine.value ? (tables.value[line] ?? null) : null;
       let next: HighlightState = IDLE;
       if (t) {
-        // Level runs linearly through each word at the speaking rate and holds
-        // at exactly j + 1 in a gap between words.
+        // Each boundary adds a short eased ramp centred on it, so level holds
+        // at exactly j + 1 while word j is spoken (and through a gap after it)
+        // and the whole word lights at once at its start.
         let level = t.from;
-        for (let j = 0; j < t.s.length; j += 1) {
-          const s0 = t.s[j]!;
-          const e0 = t.e[j]!;
-          if (pos < s0) break;
-          if (pos >= e0) {
+        for (let j = 0; j < t.c.length; j += 1) {
+          const cj = t.c[j]!;
+          const wj = t.w[j]!;
+          if (pos < cj - wj / 2) break;
+          if (!(wj > 0)) {
             level += 1;
             continue;
           }
-          level += (pos - s0) / (e0 - s0);
-          break;
+          const x = Math.min(1, Math.max(0, (pos - cj) / wj + 0.5));
+          level += x * x * (3 - 2 * x);
         }
         next = { level, on: g, from: t.from, to: t.to };
       }
@@ -222,7 +321,7 @@ export function useVideoHighlight(
         highlight.value = next;
       }
     },
-    [anchor, clock, gate, starts, tables, lastLine, highlight],
+    [anchor, clock, gate, starts, tables, lastLine, shownLine, highlight, ends, looping, heldLine, firedLine, lineEnded],
   );
   const frame = useFrameCallback(onFrame, false);
   const setFrames = frame.setActive;
@@ -348,6 +447,9 @@ export function useVideoHighlight(
       lastLine.value = index;
       const playing = state.current === 'playing';
       write({ time: at, advancing: playing, lit: playing || state.current === 'buffering', hard: true });
+      // After the anchor, so no frame sees the hold lifted on the old clock.
+      heldLine.value = -1;
+      firedLine.value = -1;
       // The player snaps to a keyframe, so ask again once it has landed.
       if (seekTimer.current) clearTimeout(seekTimer.current);
       let tries = 0;
@@ -360,7 +462,7 @@ export function useVideoHighlight(
       };
       seekTimer.current = setTimeout(again, 300);
     },
-    [starting, playerRef, write, read, lastLine],
+    [starting, playerRef, write, read, lastLine, heldLine, firedLine],
   );
 
   useEffect(() => {
@@ -382,5 +484,5 @@ export function useVideoHighlight(
     [stopPolling],
   );
 
-  return { highlight, activeLine, onChangeState, onPlaybackRateChange, seekToLine };
+  return { highlight, activeLine, onChangeState, onPlaybackRateChange, seekToLine, releaseLine };
 }

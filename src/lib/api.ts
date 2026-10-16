@@ -997,6 +997,16 @@ export async function listReviewCards(islandId?: string): Promise<ReviewCard[]> 
   return r.cards;
 }
 
+/** All saved cards whose island still exists. The backend keeps a deleted
+ * island's cards, so they are dropped here. When the island list cannot load,
+ * the cards are returned as they are. */
+export async function listLiveReviewCards(): Promise<ReviewCard[]> {
+  const [cards, islands] = await Promise.all([listReviewCards(), listIslands().catch(() => null)]);
+  if (!islands) return cards;
+  const ids = new Set(islands.map((i) => i.id));
+  return cards.filter((c) => ids.has(c.island_id));
+}
+
 export async function getReviewDue(): Promise<{ due: ReviewCard[]; total: number }> {
   return json<{ due: ReviewCard[]; total: number }>(await expoFetch(`${BASE}/review/due`, { headers: headers() }));
 }
@@ -1005,6 +1015,22 @@ export async function gradeReviewCard(id: string, result: 'again' | 'got'): Prom
   const form = new FormData();
   form.append('result', result);
   return json<ReviewCard>(await expoFetch(`${BASE}/review/cards/${id}/grade`, { method: 'POST', headers: headers(), body: form }));
+}
+
+export type ReviewProject = { islandId: string; title: string; source: IslandSource; saved: number; due: number; latest: string };
+
+/** Saved cards grouped by island: most due first, then most recently saved. */
+export function reviewProjects(cards: ReviewCard[]): ReviewProject[] {
+  const today = new Date().toISOString().slice(0, 10);
+  const by = new Map<string, ReviewProject>();
+  for (const c of cards) {
+    const p = by.get(c.island_id) ?? { islandId: c.island_id, title: c.island_title, source: c.source, saved: 0, due: 0, latest: '' };
+    p.saved += 1;
+    if (c.due_on <= today) p.due += 1;
+    if (c.created_at > p.latest) p.latest = c.created_at;
+    by.set(c.island_id, p);
+  }
+  return [...by.values()].sort((a, b) => b.due - a.due || (a.latest < b.latest ? 1 : -1));
 }
 
 /** Stored clip of a `clip` card, built like episodeAudioUrl (pass it through withUser). */

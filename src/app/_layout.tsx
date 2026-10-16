@@ -225,10 +225,10 @@ export default function RootLayout() {
         <Stack.Screen name="settings/app-language" options={{ title: t('settings.appLanguage') }} />
         <Stack.Screen name="before-after" options={{ title: t('beforeAfter.title') }} />
         <Stack.Screen name="review" options={{ title: t('review.title') }} />
-        <Stack.Screen name="leaderboard" options={{ title: t('leaderboard.title'), headerStyle: { backgroundColor: '#080b1c' } }} />
+        <Stack.Screen name="leaderboard" options={{ title: t('leaderboard.title'), headerStyle: { backgroundColor: tide.sky[0] } }} />
         <Stack.Screen name="drive" options={{ headerShown: false, animation: 'fade' }} />
-        <Stack.Screen name="wardrobe" options={{ title: t('wardrobe.title'), headerStyle: { backgroundColor: '#080b1c' } }} />
-        <Stack.Screen name="profile/[username]" options={{ headerStyle: { backgroundColor: '#080b1c' } }} />
+        <Stack.Screen name="wardrobe" options={{ title: t('wardrobe.title'), headerStyle: { backgroundColor: tide.sky[0] } }} />
+        <Stack.Screen name="profile/[username]" options={{ headerStyle: { backgroundColor: tide.sky[0] } }} />
         {/* Dev-only screen, excluded from the app-language inventory. */}
         <Stack.Screen name="prism-lab" options={{ title: 'Prism lab' }} />
         <Stack.Screen name="cat-lab" options={{ title: 'Cat lab' }} />

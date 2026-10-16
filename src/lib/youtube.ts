@@ -36,22 +36,24 @@ export function thumbUrl(id: string): string {
  * Injected into the embed page to switch YouTube's own captions off, since the
  * route draws the active line itself. `cc_load_policy=0` only means "do not
  * force on"; the viewer's stored preference or an uploader default still wins.
- * The player object exists before `onReady`, so it retries every 250ms for up
- * to 30s and keeps unloading for 3s after the first success, then stops.
+ * The player object exists before `onReady`, so it retries every 250ms until
+ * it finds the player, then keeps unloading once a second for the life of the
+ * page: YouTube loads the caption module again when playback starts or the
+ * viewer seeks, which a 3s window missed.
  */
 export const CC_OFF_SCRIPT = `
 (function () {
-  var tries = 0;
-  var stopAt = 0;
   var timer = setInterval(function () {
-    tries += 1;
     var p = window.player;
-    if (p && typeof p.unloadModule === 'function') {
+    if (!p || typeof p.unloadModule !== 'function') return;
+    try { p.unloadModule('captions'); } catch (e) {}
+    try { p.unloadModule('cc'); } catch (e) {}
+    try { p.setOption('captions', 'track', {}); } catch (e) {}
+    clearInterval(timer);
+    timer = setInterval(function () {
       try { p.unloadModule('captions'); } catch (e) {}
       try { p.unloadModule('cc'); } catch (e) {}
-      if (!stopAt) stopAt = Date.now() + 3000;
-    }
-    if ((stopAt && Date.now() > stopAt) || tries > 120) clearInterval(timer);
+    }, 1000);
   }, 250);
 })();
 true;

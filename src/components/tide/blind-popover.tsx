@@ -1,19 +1,27 @@
-import { type ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
 import { PressScale } from '@/components/press-scale';
-import { PopoverBubble } from '@/components/tide/popover-bubble';
-import { BlindIcon } from '@/components/tide/toolbar-icons';
+import { POP, PopoverBubble } from '@/components/tide/popover-bubble';
 import { fonts } from '@/constants/fonts';
-import { tide } from '@/constants/theme';
-import { useDir, useT } from '@/lib/i18n';
+import { type TFn, useDir, useT } from '@/lib/i18n';
 
-const BUTTON = 44;
-const BODY_PAD = 8;
-const GAP = 10;
-/** The bubble's width, and its body's height without the arrow. */
-const BLIND_POP_W = 2 * BUTTON + GAP + 2 * BODY_PAD;
-const BODY_H = BUTTON + 2 * BODY_PAD;
+const LANG_CODE: Record<string, string> = { ja: 'JP', es: 'ES', en: 'EN', he: 'HE' };
+
+/** The Blind pill's value: Both, the hidden language's code, or Off. */
+export function blindValueLabel(t: TFn, blind: boolean, englishShown: boolean, lang: string, native: string): string {
+  if (blind && !englishShown) return t('player.blindBoth');
+  if (blind) return LANG_CODE[lang] ?? lang.toUpperCase();
+  if (!englishShown) return LANG_CODE[native] ?? native.toUpperCase();
+  return t('player.blindOff');
+}
+
+const BODY_PAD_X = 8;
+const BODY_PAD_Y = 7;
+const GAP = 6;
+const BODY_H = 60;
+const PILL_H = BODY_H - 2 * BODY_PAD_Y;
+/** Two pills of half the column width each, plus padding and gap. */
+const BLIND_POP_W = 2 * 86 + GAP + 2 * BODY_PAD_X;
 
 type Props = {
   /** The Blind tile's horizontal centre and top edge, in the parent's coordinates. */
@@ -29,10 +37,10 @@ type Props = {
 };
 
 /**
- * The Blind tile's popover: a small bubble over the tile with two round
- * toggles, the translate glyph for the English and the eye for the Japanese.
- * Each lights in the accent while its text is hidden. A tap anywhere outside
- * closes it. Mount it only while open, over the whole player.
+ * The Blind pill's popover: a bar left of the pill with two toggles, EN for
+ * the translation and JP for the sentence. Each shows gold while its text is
+ * hidden. A tap anywhere outside closes it. Mount it only while open, over
+ * the whole player.
  */
 export function BlindPopover({ anchorX, anchorTop, width, jaHidden, enHidden, onToggleJa, onToggleEn, onClose }: Props) {
   const { t } = useT();
@@ -44,86 +52,31 @@ export function BlindPopover({ anchorX, anchorTop, width, jaHidden, enHidden, on
       parentWidth={width}
       width={BLIND_POP_W}
       height={BODY_H}
-      radius={BODY_H / 2}
+      radius={POP.radius}
+      side="left"
       bodyStyle={{ ...styles.body, ...dir.row }}
       onClose={onClose}>
-      <Toggle on={enHidden} onPress={onToggleEn} label={t('player.hideTranslation')}>
-        <TranslateGlyph color={enHidden ? tide.lang.ja : tide.text} />
-      </Toggle>
-      <Toggle on={jaHidden} onPress={onToggleJa} label={t('player.hideSentence')}>
-        <BlindIcon color={jaHidden ? tide.lang.ja : tide.text} size={22} />
-      </Toggle>
+      <Toggle on={jaHidden} onPress={onToggleJa} label={t('player.hideSentence')} text="JP" />
+      <Toggle on={enHidden} onPress={onToggleEn} label={t('player.hideTranslation')} text="EN" />
     </PopoverBubble>
   );
 }
 
-function Toggle({ on, onPress, label, children }: { on: boolean; onPress: () => void; label: string; children: ReactNode }) {
+function Toggle({ on, onPress, label, text }: { on: boolean; onPress: () => void; label: string; text: string }) {
   return (
     <PressScale
       onPress={onPress}
       accessibilityRole="switch"
       accessibilityLabel={label}
       accessibilityState={{ checked: on }}
-      style={[styles.button, on && styles.buttonOn]}>
-      {children}
+      style={styles.button}>
+      <Text style={[styles.text, { color: on ? POP.goldInk : POP.offInk }]}>{text}</Text>
     </PressScale>
   );
 }
 
-/** The A and 文 translate mark, struck through like the eye beside it so it
- * reads as "hide the translation". Built from characters and a bar, not a drawing. */
-function TranslateGlyph({ color }: { color: string }) {
-  return (
-    <View style={styles.glyph}>
-      <Text style={[styles.glyphA, { color }]}>A</Text>
-      <Text style={[styles.glyphJa, { color }]}>文</Text>
-      <View style={[styles.strike, { backgroundColor: color }]} />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  body: { flexDirection: 'row', gap: GAP, padding: BODY_PAD },
-  button: {
-    width: BUTTON,
-    height: BUTTON,
-    borderRadius: BUTTON / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  buttonOn: { backgroundColor: 'rgba(255,158,128,0.16)', borderColor: tide.lang.ja },
-  glyph: { width: 24, height: 24 },
-  // A slash from top-left to bottom-right, edged in the button colour so it
-  // cuts cleanly through the two characters.
-  strike: {
-    position: 'absolute',
-    left: 11,
-    top: -3,
-    width: 2,
-    height: 30,
-    borderRadius: 1,
-    borderWidth: 0.5,
-    borderColor: tide.water,
-    transform: [{ rotate: '-45deg' }],
-  },
-  glyphA: {
-    position: 'absolute',
-    left: 1,
-    top: -1,
-    fontFamily: fonts.uiMedium,
-    fontWeight: '600',
-    fontSize: 13,
-    lineHeight: 16,
-  },
-  glyphJa: {
-    position: 'absolute',
-    right: 0,
-    bottom: -1,
-    fontFamily: fonts.serifJp,
-    fontSize: 13,
-    lineHeight: 16,
-  },
+  body: { flexDirection: 'row', gap: GAP, paddingHorizontal: BODY_PAD_X, paddingVertical: BODY_PAD_Y },
+  button: { flex: 1, height: PILL_H, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  text: { fontFamily: fonts.uiMedium, fontWeight: '600', fontSize: 13 },
 });

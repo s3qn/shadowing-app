@@ -1,5 +1,5 @@
-import { memo, type ReactNode, useEffect, useRef, useState } from 'react';
-import { type LayoutChangeEvent, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { memo, type ReactNode, useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
   FadeOut,
@@ -17,8 +17,7 @@ import { PressScale } from '@/components/press-scale';
 import { PrismButton } from '@/components/prism';
 import { Frost } from '@/components/frost';
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
-import { type Highlight, useWordInk, type WordBox } from '@/components/word-highlight';
-import { WordOutline } from '@/components/word-outline';
+import { type Highlight, useWordInk } from '@/components/word-highlight';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
@@ -280,13 +279,7 @@ function SentenceHeader({
   blind: boolean;
   onPress: () => void;
 }) {
-  const boxes = useSharedValue<(WordBox | null)[]>([]);
-  const layouts = useRef<Record<number, WordBox>>({});
   if (!sentenceJa) return null;
-  function onWordLayout(i: number, e: LayoutChangeEvent) {
-    layouts.current[i] = e.nativeEvent.layout;
-    boxes.value = words.map((_, k) => layouts.current[k] ?? null);
-  }
   return (
     <PressScale onPress={onPress} haptic={false} style={styles.headerWrap} accessibilityRole="button">
       <Frost frosted={blind}>
@@ -299,10 +292,8 @@ function SentenceHeader({
                 index={i}
                 marked={!!span && i >= span.from && i <= span.to}
                 highlight={highlight}
-                onLayout={onWordLayout}
               />
             ))}
-            <WordOutline highlight={highlight} boxes={boxes} />
           </View>
         ) : (
           <Text style={styles.headerJa}>{sentenceJa}</Text>
@@ -320,18 +311,15 @@ function HeaderWord({
   index,
   marked,
   highlight,
-  onLayout,
 }: {
   text: string;
   index: number;
   marked: boolean;
   highlight: Highlight;
-  onLayout: (i: number, e: LayoutChangeEvent) => void;
 }) {
   const ink = useWordInk(highlight, index, tide.text);
   return (
     <Animated.Text
-      onLayout={(e) => onLayout(index, e)}
       style={[styles.headerJa, styles.headerWord, marked && styles.headerJaMarked, ink]}>
       {text}
     </Animated.Text>

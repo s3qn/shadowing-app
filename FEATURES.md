@@ -243,6 +243,12 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Resume where you left off in islands, podcasts and videos (BL-5)
 - YouTube fullscreen in landscape (BL-4)
 - YouTube play, pause and speed reach the player (BL-32)
+- BL-31 compact floating dock + podcast shadow in place
+- BL-33 repeat ring
+- BL-34 line rail
+- BL-35 tray family with drag rulers
+- BL-37/38 kinsoku rows, no stale highlight
+- BL-41 review inside the players on the ladder
 
 ## Next (approved, in order)
 

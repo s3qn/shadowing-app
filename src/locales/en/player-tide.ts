@@ -60,6 +60,8 @@ export const en = {
   'player.timesAccessibility': 'Times, {label}',
   'player.pauseAccessibility': 'Pause, {label}',
   'player.speedAccessibility': 'Speed, {label}',
+  'player.dockSettings': 'Repeat, reading and blind',
+  'player.speedSetting': 'Speed, {label}',
 
   'player.autoIslandOf': 'Island {n} of {total}',
   'player.autoSkip': 'Skip',
@@ -76,6 +78,6 @@ export const en = {
   'player.autoSkipped_other': '{count} skipped',
   'player.autoDone': 'Done',
 
-  'player.autoScrollDisabled': 'Auto-scroll disabled. Tap to enable',
+  'player.autoScrollDisabled': 'Tap to follow along',
   'player.autoScrollEnabled': 'Auto-scroll enabled',
 };

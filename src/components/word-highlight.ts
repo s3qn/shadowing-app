@@ -14,7 +14,7 @@ import type { Word } from '@/lib/api';
 
 /**
  * The active word highlight, worked out on the UI thread from the audio
- * position alone, so the word colour and the underline can never disagree.
+ * position alone.
  *
  * Why a crossfade and not a left-to-right fill: a fill needs a masked copy of
  * every word, and a furigana word is a wrapping row of columns (one per kanji
@@ -43,7 +43,6 @@ const RESET_WAIT_MS = 1000;
 
 export type HighlightState = { level: number; on: number; from: number; to: number };
 export type Highlight = SharedValue<HighlightState>;
-export type WordBox = { x: number; y: number; width: number; height: number };
 
 // `hard`: jump to `time` and drop the highlight at once. `hold`: stop where
 // the estimate is now (a pause the screen asked for, ahead of its status).

@@ -9,6 +9,7 @@ import { CatConstellation } from '@/components/cat-constellation';
 import { PrismButton } from '@/components/prism';
 import { PressScale } from '@/components/press-scale';
 
+import { HeaderClosePill } from '@/components/header-close-pill';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
@@ -120,13 +121,7 @@ export default function ImportScreen() {
           headerStyle: { backgroundColor: tide.sky[0] },
           headerTintColor: tide.text,
           headerShadowVisible: false,
-          headerLeft: () => (
-            <Pressable onPress={cancel} hitSlop={12}>
-              <Text style={{ color: tide.text, fontSize: 16, fontWeight: '600', fontFamily: fonts.ui }}>
-                {phase === 'building' ? t('record.close') : t('common.cancel')}
-              </Text>
-            </Pressable>
-          ),
+          headerLeft: () => <HeaderClosePill label={phase === 'building' ? t('record.close') : t('common.cancel')} onPress={cancel} />,
         }}
       />
 

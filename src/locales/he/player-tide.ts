@@ -61,6 +61,8 @@ export const he = {
   'player.timesAccessibility': 'פעמים, {label}',
   'player.pauseAccessibility': 'הפסקה, {label}',
   'player.speedAccessibility': 'מהירות, {label}',
+  'player.dockSettings': 'חזרה, קריאה ועיוורון',
+  'player.speedSetting': 'מהירות, {label}',
 
   'player.autoIslandOf': 'אי {n} מתוך {total}',
   'player.autoSkip': 'דלג',
@@ -76,6 +78,6 @@ export const he = {
   'player.autoSkipped_other': 'דילגת על {count}',
   'player.autoDone': 'סיום',
 
-  'player.autoScrollDisabled': 'גלילה אוטומטית כבויה. הקשה כדי להפעיל',
+  'player.autoScrollDisabled': 'הקשה כדי לעקוב',
   'player.autoScrollEnabled': 'גלילה אוטומטית פעילה',
 } satisfies Record<keyof typeof enPlayerTide, string>;

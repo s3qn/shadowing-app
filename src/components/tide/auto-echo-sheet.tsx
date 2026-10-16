@@ -81,7 +81,7 @@ const RISE_SPRING = { stiffness: 170, damping: 16, mass: 1 } as const;
 const RISE_FRACTION = 0.1;
 const FALL_FRACTION = 0.044;
 
-type AutoEchoSheetProps = {
+export type AutoEchoSheetProps = {
   open: boolean;
   onClose: () => void;
   onDismissed?: () => void;
@@ -135,6 +135,8 @@ type AutoEchoSheetProps = {
   auto?: AutoChain | null;
   onSkip?: () => void;
   onDone?: () => void;
+  /** Offers the review project with the most due cards once the lesson is over. */
+  review?: { label: string; onPress: () => void } | null;
 };
 
 /**
@@ -233,6 +235,7 @@ function AutoEchoSheetBase({
   auto = null,
   onSkip,
   onDone,
+  review = null,
 }: AutoEchoSheetProps) {
   const reducedMotion = useReducedMotion();
   const { t } = useT();
@@ -526,6 +529,16 @@ function AutoEchoSheetBase({
           </Animated.View>
 
           <Animated.View style={[styles.controlRow, dir.row, rowStyles[4]]}>
+            {review && (shown.end || shown.step === 'done') ? (
+              <PrismButton
+                shape="pill"
+                verb="read"
+                label={review.label}
+                onPress={review.onPress}
+                accessibilityRole="button"
+                accessibilityLabel={review.label}
+              />
+            ) : null}
             {shown.end && onDone ? (
               <PrismButton
                 shape="pill"

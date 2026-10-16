@@ -1,8 +1,8 @@
 import { memo, type ReactNode, useMemo, useState } from 'react';
 import { type LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
-import Animated, { interpolateColor, useAnimatedStyle } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
-import { type Highlight, useWordInk } from '@/components/word-highlight';
+import { type Highlight, useWordInk, wordIntensity } from '@/components/word-highlight';
 
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
@@ -34,126 +34,16 @@ type Props = {
    * pitch strip at all; empty (a word with no moras), an empty strip so the
    * word keeps the same height as its neighbours. */
   pitch?: MoraPitch[];
-  /** Blind's frost is on: the karaoke colour, the pitch line, the part of
+  /** Blind's frost is on: the lit colour, the pitch line, the part of
    * speech bar, the romaji and the take marks all go, since each gives the
    * text away. Their space stays, so the frost never moves anything. */
   concealed?: boolean;
-  /** Video player karaoke: bigger left-aligned type, sung / lit / next colours
-   * and a clipped colour sweep inside the lit word, all read from `highlight`
-   * on the UI thread. 'step' swaps the sweep for a word-by-word colour step
-   * (reduced motion). Left out, the word renders exactly as before. */
-  karaoke?: 'sweep' | 'step';
+  /** The video player's bigger type (26 pt, furigana 13 pt). */
+  big?: boolean;
+  /** Multiplies every font size and line height of the word (the active line
+   * shrinks to fit two rows, see `fitScale`). Defaults to 1. */
+  scale?: number;
 };
-
-const K_SUNG = '#F2F3FA';
-const K_LIT = '#7CC8FF';
-const K_NEXT = '#9AA2C8';
-
-/** Karaoke state of one word from the shared level: `a` is how far the lit
- * colour has entered it (0..1), `b` how far it has handed off to sung (0..1).
- * Idle (nothing on), every word reads as sung so a paused line stays legible. */
-function karaokeParts(h: { level: number; on: number; from: number; to: number }, i: number, step: boolean) {
-  'worklet';
-  if (h.on === 0 || h.level < 0) return { a: 0, b: 1 };
-  let a = Math.min(1, Math.max(0, h.level - i));
-  let b = Math.min(1, Math.max(0, h.level - i - 1));
-  if (step) {
-    a = a >= 0.5 ? 1 : 0;
-    b = b >= 0.5 ? 1 : 0;
-  }
-  return { a, b };
-}
-
-/** One glyph of a karaoke run. `lit` is how far the lit colour has entered it
- * (0..1); the colour crossfades unsung -> lit as the level sweeps across, so
- * the edge of the fill is one glyph wide and soft. Then it hands off to sung
- * with the word. Colour only: no clip layer, no transform, no setState. */
-function KaraokeGlyph({
-  ch,
-  style,
-  highlight,
-  index,
-  g,
-  m,
-  k,
-  n,
-  step,
-}: {
-  ch: string;
-  style: object;
-  highlight: Highlight;
-  index: number;
-  g: number;
-  m: number;
-  k: number;
-  n: number;
-  step: boolean;
-}) {
-  const anim = useAnimatedStyle(() => {
-    const { a, b } = karaokeParts(highlight.value, index, step);
-    // Not the lit word: b is exactly 0 or 1, so the colour is a constant.
-    if (b === 1) return { color: K_SUNG };
-    if (a === 0) return { color: K_NEXT };
-    const local = Math.min(1, Math.max(0, a * n - k));
-    let lit = Math.min(1, Math.max(0, local * m - g));
-    if (step) lit = lit >= 0.5 ? 1 : 0;
-    const from = interpolateColor(lit, [0, 1], [K_NEXT, K_LIT]);
-    if (b === 0) return { color: from };
-    return { color: interpolateColor(b, [0, 1], [from, K_SUNG]) };
-  });
-  return <Animated.Text style={[style, anim]}>{ch}</Animated.Text>;
-}
-
-/** One run of text with the karaoke colour. A kanji or kana run is a row of
- * glyphs that each crossfade to the lit colour as the entry fraction reaches
- * them, covering this run's share [k/n, (k+1)/n] of the word. `ruby` runs
- * (furigana) stay one text that only changes colour, they do not sweep. */
-function KaraokeText({
-  text,
-  style,
-  highlight,
-  index,
-  k,
-  n,
-  step,
-  ruby,
-}: {
-  text: string;
-  style: object;
-  highlight: Highlight;
-  index: number;
-  k: number;
-  n: number;
-  step: boolean;
-  ruby?: boolean;
-}) {
-  const base = useAnimatedStyle(() => {
-    const { a, b } = karaokeParts(highlight.value, index, step);
-    if (b === 1) return { color: K_SUNG };
-    if (b === 0 && a === 0) return { color: K_NEXT };
-    return { color: interpolateColor(b, [0, 1], [a >= 0.5 ? K_LIT : K_NEXT, K_SUNG]) };
-  });
-  const glyphs = useMemo(() => (ruby ? [] : Array.from(text)), [text, ruby]);
-  if (ruby) return <Animated.Text style={[style, base]}>{text}</Animated.Text>;
-  return (
-    <View style={styles.glyphRow}>
-      {glyphs.map((ch, g) => (
-        <KaraokeGlyph
-          key={g}
-          ch={ch}
-          style={style}
-          highlight={highlight}
-          index={index}
-          g={g}
-          m={glyphs.length}
-          k={k}
-          n={n}
-          step={step}
-        />
-      ))}
-    </View>
-  );
-}
 
 /**
  * One word of the line. React Native has no ruby text, so a word with
@@ -186,16 +76,31 @@ export const RubyWord = memo(function RubyWord({
   showPosAndRomaji = true,
   pitch,
   concealed = false,
-  karaoke,
+  big = false,
+  scale = 1,
 }: Props) {
-  const kStep = karaoke === 'step';
-  const baseSize = karaoke ? styles.baseK : null;
-  const rtSize = karaoke ? styles.rtK : null;
-  const useK = !!karaoke && !concealed && !!highlight;
+  const sc = Number.isFinite(scale) && scale > 0 ? scale : 1;
+  const baseSize = useMemo(
+    () => (big ? scaled(styles.baseBig, sc) : sc === 1 ? null : scaled({ fontSize: 22, lineHeight: BASE_LINE }, sc)),
+    [big, sc],
+  );
+  const rtSize = useMemo(
+    () => (big ? scaled(styles.rtBig, sc) : sc === 1 ? null : scaled({ fontSize: 10, lineHeight: 13 }, sc)),
+    [big, sc],
+  );
+  const romajiSize = useMemo(() => (sc === 1 ? null : scaled({ fontSize: 9, lineHeight: 11 }, sc)), [sc]);
+  // Romaji shows only under the word being spoken (or the one selected). The
+  // row is always rendered so the word's height never changes.
+  // With no romaji row the style reads no highlight, so it never reruns per frame.
+  const romajiHighlight = showPosAndRomaji && showRuby && !!word.ruby ? highlight : undefined;
+  const romajiStyle = useAnimatedStyle(() => {
+    if (selected) return { opacity: 1 };
+    const v = romajiHighlight ? wordIntensity(romajiHighlight.value, index) : 0;
+    return { opacity: Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0 };
+  }, [romajiHighlight, index, selected]);
   const segments = showRuby && word.ruby?.some((s) => s.rt) ? word.ruby : null;
   // Lit and selected are both a colour change, never a filled chip: a solid
-  // box behind one word reads as a UI control, not running text. The lit
-  // word's glow lives in WordOutline, which reads the same highlight value.
+  // box behind one word reads as a UI control, not running text.
   const lit = concealed ? undefined : highlight;
   const baseInk = useWordInk(lit, index, dimmed ? tide.textDim : tide.text);
   const rubyInk = useWordInk(lit, index, tide.textDim);
@@ -260,46 +165,35 @@ export const RubyWord = memo(function RubyWord({
                 {cells ? (
                   <PitchStrip cells={cells} pitch={pitch!.slice(from, from + moraCells(cells))} concealed={concealed} />
                 ) : null}
-                {useK ? (
-                  <>
-                    <KaraokeText text={seg.rt} style={[styles.rt, rtSize!]} highlight={highlight!} index={index} k={i} n={segments.length} step={kStep} ruby />
-                    <KaraokeText text={seg.text} style={[styles.base, baseSize!]} highlight={highlight!} index={index} k={i} n={segments.length} step={kStep} />
-                  </>
-                ) : (
-                  <>
-                    <Animated.Text style={[styles.rt, rtSize, rubyInk]}>{seg.rt}</Animated.Text>
-                    <Animated.Text style={[styles.base, baseSize, baseInk]}>{seg.text}</Animated.Text>
-                  </>
-                )}
+                <Animated.Text style={[styles.rt, rtSize, rubyInk]}>{seg.rt}</Animated.Text>
+                <Animated.Text style={[styles.base, baseSize, baseInk]}>{seg.text}</Animated.Text>
               </View>
             );
           })
         ) : (
           <>
             {showRuby ? <Text style={[styles.rt, rtSize]}>{''}</Text> : null}
-            {useK ? (
-              <KaraokeText text={word.text} style={[styles.base, baseSize!]} highlight={highlight!} index={index} k={0} n={1} step={kStep} />
-            ) : (
             <Animated.Text
               style={[styles.base, baseSize, baseInk]}
               onLayout={
                 pitch
                   ? (e) => {
-                      const next = e.nativeEvent.layout.height > BASE_LINE * 1.5;
+                      const next = e.nativeEvent.layout.height > BASE_LINE * sc * 1.5;
                       if (next !== wrapped) setWrapped(next);
                     }
                   : undefined
               }>
               {word.text}
             </Animated.Text>
-            )}
           </>
         )}
       </View>
       {showPosAndRomaji ? (
         <>
           <View style={[styles.posBar, { backgroundColor: posColor }]} />
-          {romaji ? <Text style={[styles.romaji, concealed && styles.clear]}>{romaji}</Text> : null}
+          {romaji ? (
+            <Animated.Text style={[styles.romaji, romajiSize, concealed && styles.clear, romajiStyle]}>{romaji}</Animated.Text>
+          ) : null}
         </>
       ) : null}
     </View>
@@ -309,6 +203,11 @@ export const RubyWord = memo(function RubyWord({
 /** Height of the pitch strip over a word: the only space pitch adds. */
 const STRIP = 6;
 const BASE_LINE = 32;
+
+/** A font size and line height pair, each multiplied by `k`. */
+function scaled(v: { fontSize?: number; lineHeight?: number }, k: number) {
+  return k === 1 ? v : { fontSize: (v.fontSize ?? 0) * k, lineHeight: (v.lineHeight ?? 0) * k };
+}
 const STROKE = 1.5;
 
 /** The pitch line over one run of cells, drawn with plain Views: a bar per
@@ -371,9 +270,8 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   clear: { color: 'transparent' },
-  baseK: { fontSize: 26, lineHeight: 34 },
-  rtK: { fontSize: 13, lineHeight: 16 },
-  glyphRow: { flexDirection: 'row', flexWrap: 'wrap' },
+  baseBig: { fontSize: 26, lineHeight: 34 },
+  rtBig: { fontSize: 13, lineHeight: 16 },
   strip: { height: STRIP, alignSelf: 'stretch', flexDirection: 'row' },
   bar: { position: 'absolute', left: 0, right: 0, height: STROKE, backgroundColor: PITCH_INK },
   high: { top: 0 },

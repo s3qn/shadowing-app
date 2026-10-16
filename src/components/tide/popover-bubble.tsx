@@ -22,21 +22,55 @@ export function GlassFill({ radius }: { radius: number }) {
   );
 }
 
-const ARROW = 12;
-/** Space between the arrow's tip and the tile under it. */
-const ANCHOR_GAP = 4;
+/** Shared look of the tray column and every dock popover (design T-A). */
+export const POP = {
+  surface: '#0B1322',
+  border: 'rgba(255,255,255,0.07)',
+  shadow: '0 12 30 rgba(0,0,0,0.6)',
+  radius: 20,
+  goldInk: '#FFE2A0',
+  offInk: '#B7B1C6',
+  ink: '#ECE8F4',
+  goldFill: 'rgba(255,200,87,0.12)',
+  goldSelFill: 'rgba(255,200,87,0.10)',
+  goldSelRing: 'rgba(255,200,87,0.8)',
+  goldRing: 'rgba(255,200,87,0.4)',
+  divider: 'rgba(255,255,255,0.07)',
+  tickMajor: 'rgba(236,232,244,0.65)',
+  tickMinor: 'rgba(236,232,244,0.3)',
+} as const;
+/** Width of every pill in the tray column, and the pill height. */
+export const DOCK_PILL_W = 148;
+export const DOCK_PILL_H = 44;
+
+const ARROW = 14;
+/** How far the turned square's tip reaches past its centre (rounded tip). */
+const TIP = 9;
 const EDGE = 8;
 
-/** Heavily damped: the bubble pops up without wobbling. */
-const POP_SPRING = { damping: 26, stiffness: 380, mass: 0.8 } as const;
+/** The bubble rises from its tail. */
+const POP_SPRING = { damping: 22, stiffness: 260, mass: 1 } as const;
+/** The side bubble fades and scales from its tail. */
+const SIDE_SPRING = { damping: 20, stiffness: 240, mass: 1 } as const;
 
 function popIn(_values: EntryAnimationsValues) {
   'worklet';
   return {
-    initialValues: { opacity: 0, transform: [{ translateY: 8 }, { scale: 0.7 }] },
+    initialValues: { opacity: 0, transform: [{ translateY: 10 }, { scale: 0.92 }] },
     animations: {
       opacity: withTiming(1, { duration: 120 }),
       transform: [{ translateY: withSpring(0, POP_SPRING) }, { scale: withSpring(1, POP_SPRING) }],
+    },
+  };
+}
+
+function sideIn(_values: EntryAnimationsValues) {
+  'worklet';
+  return {
+    initialValues: { opacity: 0, transform: [{ scale: 0.85 }] },
+    animations: {
+      opacity: withTiming(1, { duration: 120 }),
+      transform: [{ scale: withSpring(1, SIDE_SPRING) }],
     },
   };
 }
@@ -54,37 +88,72 @@ type Props = {
   height: number;
   radius: number;
   bodyStyle?: ViewStyle;
+  /**
+   * 'top' (default): the bubble sits over the tile, tail pointing down.
+   * 'left': the bubble sits left of a tray pill (DOCK_PILL_W wide, DOCK_PILL_H
+   * high), tail pointing right at its left edge.
+   */
+  side?: 'top' | 'left';
+  /** Space between the tail's tip and the tile: 0 on a tray pill, 4 on the chip. */
+  gap?: number;
   onClose: () => void;
   children: ReactNode;
 };
 
 /**
- * A toolbar tile's popover: a bubble over the tile with an arrow pointing
- * down at it, popping in from the arrow. A tap anywhere outside closes it.
+ * A toolbar tile's popover: a solid bubble over the tile with a tail pointing
+ * at it, rising from the tail. A tap anywhere outside closes it.
  * Mount it only while open, over the whole player.
  */
-export function PopoverBubble({ anchorX, anchorTop, parentWidth, width, height, radius, bodyStyle, onClose, children }: Props) {
+export function PopoverBubble({
+  anchorX,
+  anchorTop,
+  parentWidth,
+  width,
+  height,
+  radius,
+  bodyStyle,
+  side = 'top',
+  gap = 0,
+  onClose,
+  children,
+}: Props) {
   const { t } = useT();
-  const left = Math.max(EDGE, Math.min(parentWidth - width - EDGE, anchorX - width / 2));
-  const top = anchorTop - ANCHOR_GAP - ARROW / 2 - height;
+  const left = side === 'left' ? anchorX - DOCK_PILL_W / 2 - gap - TIP - width : Math.max(EDGE, Math.min(parentWidth - width - EDGE, anchorX - width / 2));
+  const top = side === 'left' ? anchorTop + DOCK_PILL_H / 2 - height / 2 : anchorTop - gap - TIP - height;
   // Kept on the body's straight run, clear of its rounded corners.
-  const arrowLeft = Math.max(radius, Math.min(width - radius, anchorX - left)) - ARROW / 2;
-  const originX = arrowLeft + ARROW / 2;
+  const arrowLeft = Math.max(radius, Math.min(width - radius, anchorX - left));
+  const isLeft = side === 'left';
+  const originX = isLeft ? width + TIP : arrowLeft;
+  const originY = isLeft ? height / 2 : height + TIP;
 
   return (
     <View style={styles.cover} pointerEvents="box-none">
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel={t('player.close')} accessible={false} />
       <Animated.View
-        entering={popIn}
+        entering={isLeft ? sideIn : popIn}
         exiting={POP_OUT}
-        style={[styles.bubble, { left, top, width, height: height + ARROW / 2, transformOrigin: [originX, height + ARROW / 2, 0] }]}>
-        <View style={[styles.arrowClip, { left: arrowLeft - ARROW / 4, top: height - 1 }]} pointerEvents="none">
-          <View style={styles.arrow} />
-        </View>
-        <View style={[styles.body, { height, borderRadius: radius }, bodyStyle]}>
-          <GlassFill radius={radius} />
-          {children}
-        </View>
+        style={[
+          styles.bubble,
+          {
+            left,
+            top,
+            width: isLeft ? width + TIP : width,
+            height: isLeft ? height : height + TIP,
+            transformOrigin: [originX, originY, 0],
+          },
+        ]}>
+        {/* Under the body: only the half past the body's edge shows. */}
+        <View
+          pointerEvents="none"
+          style={[
+            styles.arrow,
+            isLeft
+              ? { left: width - ARROW / 2, top: height / 2 - ARROW / 2, borderRightWidth: 1, borderBottomWidth: 1, transform: [{ rotate: '-45deg' }] }
+              : { left: arrowLeft - ARROW / 2, top: height - ARROW / 2, borderRightWidth: 1, borderBottomWidth: 1, transform: [{ rotate: '45deg' }] },
+          ]}
+        />
+        <View style={[styles.body, { height, width, borderRadius: radius }, bodyStyle]}>{children}</View>
       </Animated.View>
     </View>
   );
@@ -94,26 +163,17 @@ const styles = StyleSheet.create({
   cover: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 20 },
   bubble: { position: 'absolute' },
   body: {
-    boxShadow: prism.shadow,
-  },
-  // Only the lower half of the turned square shows, so the glass body never
-  // lets the top half ghost through.
-  arrowClip: {
-    position: 'absolute',
-    width: ARROW * 1.5,
-    height: ARROW * 0.75,
-    overflow: 'hidden',
+    backgroundColor: POP.surface,
+    borderWidth: 1,
+    borderColor: POP.border,
+    boxShadow: POP.shadow,
   },
   arrow: {
     position: 'absolute',
-    left: ARROW / 4,
-    top: -ARROW / 2,
     width: ARROW,
     height: ARROW,
-    backgroundColor: withAlpha(tide.water, 0.92),
-    borderRightWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: prism.panel.rim,
-    transform: [{ rotate: '45deg' }],
+    backgroundColor: POP.surface,
+    borderColor: POP.border,
+    borderBottomRightRadius: 4,
   },
 });

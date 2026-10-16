@@ -3,19 +3,19 @@ import { StyleSheet, Text } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 
 import { PressScale } from '@/components/press-scale';
-import { PopoverBubble } from '@/components/tide/popover-bubble';
+import { POP, PopoverBubble } from '@/components/tide/popover-bubble';
 import { fonts } from '@/constants/fonts';
-import { tide } from '@/constants/theme';
 import { useDir, useT } from '@/lib/i18n';
 import { READING_OPTIONS, type ReadingMode } from '@/lib/settings';
 import { type Key } from '@/locales/en';
 
-const BUTTON = 44;
-const GAP = 10;
+const BUTTON = 56;
+const PILL_H = 44;
+const GAP = 6;
 const BODY_PAD = 8;
 const STEP = BUTTON + GAP;
 const READING_POP_W = READING_OPTIONS.length * BUTTON + (READING_OPTIONS.length - 1) * GAP + 2 * BODY_PAD;
-const BODY_H = BUTTON + 2 * BODY_PAD;
+const BODY_H = PILL_H + 2 * BODY_PAD;
 
 /** Heavily overdamped: the pill slides to its new icon without a wobble. */
 const PILL_SPRING = { damping: 40, stiffness: 300, mass: 1 } as const;
@@ -45,7 +45,7 @@ type Props = {
 
 /**
  * The Reading tile's popover: three round glyphs in a row, Furigana, Kana
- * and Romaji, with an accent pill that slides behind the picked one. The
+ * and Romaji, with a gold pill that slides behind the picked one. The
  * selected glyph turns dark over the pill; the others stay light. A tap
  * anywhere outside closes it.
  */
@@ -78,7 +78,8 @@ export function ReadingPopover({ anchorX, anchorTop, width, value, onChange, onC
       parentWidth={width}
       width={READING_POP_W}
       height={BODY_H}
-      radius={BODY_H / 2}
+      radius={POP.radius}
+      side="left"
       bodyStyle={{ ...styles.body, ...dir.row }}
       onClose={onClose}>
       <Animated.View style={[styles.pill, pillStyle]} pointerEvents="none" />
@@ -96,7 +97,7 @@ export function ReadingPopover({ anchorX, anchorTop, width, value, onChange, onC
               style={[
                 styles.glyph,
                 (mode === 'romaji' || mode === 'off') && styles.glyphLatin,
-                { color: selected ? tide.sky[0] : tide.text },
+                { color: selected ? POP.goldInk : POP.ink },
               ]}>
               {READING_GLYPH[mode]}
             </Text>
@@ -114,11 +115,13 @@ const styles = StyleSheet.create({
     left: BODY_PAD,
     top: BODY_PAD,
     width: BUTTON,
-    height: BUTTON,
-    borderRadius: BUTTON / 2,
-    backgroundColor: tide.lang.ja,
+    height: PILL_H,
+    borderRadius: 14,
+    backgroundColor: POP.goldFill,
+    borderWidth: 1,
+    borderColor: POP.goldRing,
   },
-  button: { width: BUTTON, height: BUTTON, alignItems: 'center', justifyContent: 'center' },
+  button: { width: BUTTON, height: PILL_H, alignItems: 'center', justifyContent: 'center' },
   glyph: { fontFamily: fonts.serifJp, fontSize: 20 },
   glyphLatin: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 18 },
 });

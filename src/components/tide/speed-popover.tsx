@@ -1,16 +1,20 @@
-import { StyleSheet, Text } from 'react-native';
+import { SymbolView } from 'expo-symbols';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { PopoverBubble } from '@/components/tide/popover-bubble';
+import { POP, PopoverBubble } from '@/components/tide/popover-bubble';
 import { TICK_RULER_H, TickRuler } from '@/components/tide/tick-ruler';
 import { fonts } from '@/constants/fonts';
-import { SPEED_MAX, SPEED_MIN, tide } from '@/constants/theme';
-import { useT } from '@/lib/i18n';
+import { SPEED_MAX, SPEED_MIN } from '@/constants/theme';
+import { useDir, useT } from '@/lib/i18n';
 
-const PAD = 12;
-const RULER_W = 256;
-const HEAD_H = 34;
-const POP_W = RULER_W + 2 * PAD;
-const POP_H = 2 * PAD + HEAD_H + TICK_RULER_H;
+const PAD_X = 14;
+const PAD_Y = 6;
+const RULER_W = 302;
+const HEAD_H = 28;
+const POP_W = RULER_W + 2 * PAD_X;
+const POP_H = 2 * PAD_Y + HEAD_H + TICK_RULER_H;
+/** Distance between ticks: 15 per 0.05. */
+const TICK_STEP = 15;
 
 const SPEED_STEP = 0.05;
 export const SPEED_STEPS = Math.round((SPEED_MAX - SPEED_MIN) / SPEED_STEP) + 1;
@@ -45,6 +49,7 @@ type Props = {
  */
 export function SpeedPopover({ anchorX, anchorTop, width, speed, onSpeed, onSettle, onClose }: Props) {
   const { t } = useT();
+  const dir = useDir();
   return (
     <PopoverBubble
       anchorX={anchorX}
@@ -52,18 +57,27 @@ export function SpeedPopover({ anchorX, anchorTop, width, speed, onSpeed, onSett
       parentWidth={width}
       width={POP_W}
       height={POP_H}
-      radius={20}
+      radius={POP.radius}
+      gap={4}
       bodyStyle={styles.body}
       onClose={onClose}>
-      <Text style={styles.readout}>{speedLabel(speed)}</Text>
+      <View style={[styles.head, dir.row]}>
+        <View style={[styles.labelRow, dir.row]}>
+          <SymbolView name={{ ios: 'speedometer', android: 'speed' }} size={15} weight="regular" tintColor={POP.goldInk} />
+          <Text style={styles.label}>{t('player.toolbarSpeed')}</Text>
+        </View>
+        <Text style={styles.readout}>{speedLabel(speed)}</Text>
+      </View>
       <TickRuler
         width={RULER_W}
         steps={SPEED_STEPS}
         index={Math.round((speed - SPEED_MIN) / SPEED_STEP)}
+        step={TICK_STEP}
+        fadeColor={POP.surface}
         onIndexChange={(i) => onSpeed(speedAt(i))}
         onSettle={(i) => onSettle(speedAt(i))}
-        isMajor={(i) => i % 2 === 0}
-        tickLabel={(i) => speedAt(i).toFixed(1)}
+        isMajor={(i) => i % 5 === 0}
+        tickLabel={(i) => String(speedAt(i))}
         accessibilityLabel={t('player.speedAccessibility', { label: speedLabel(speed) })}
       />
     </PopoverBubble>
@@ -71,15 +85,22 @@ export function SpeedPopover({ anchorX, anchorTop, width, speed, onSpeed, onSett
 }
 
 const styles = StyleSheet.create({
-  body: { padding: PAD, alignItems: 'center', gap: 2 },
-  readout: {
-    height: HEAD_H,
-    lineHeight: HEAD_H,
+  body: { paddingHorizontal: PAD_X, paddingVertical: PAD_Y },
+  head: { height: HEAD_H, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  label: {
     fontFamily: fonts.uiMedium,
-    fontWeight: '500',
-    fontSize: 28,
-    color: tide.text,
-    textAlign: 'center',
+    fontWeight: '600',
+    fontSize: 12,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    color: POP.offInk,
+  },
+  readout: {
+    fontFamily: fonts.uiMedium,
+    fontWeight: '600',
+    fontSize: 24,
+    color: '#FFFFFF',
     fontVariant: ['tabular-nums'],
   },
 });

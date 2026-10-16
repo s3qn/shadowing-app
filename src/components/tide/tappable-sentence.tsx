@@ -1,15 +1,15 @@
 import * as Clipboard from 'expo-clipboard';
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { type LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector, type ScrollView } from 'react-native-gesture-handler';
-import { useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import type { RefObject } from 'react';
 
+import { RepeatPill, RepeatRing, type RepeatInfo } from '@/components/tide/repeat-ring';
 import { RubyWord } from '@/components/ruby-word';
 import { SELECTION_HANDLE_CLEARANCE, SelectionHandles } from '@/components/selection-handles';
+import { SlideReveal } from '@/components/slide-reveal';
 import { SELECTION_POPUP_WIDTH, SelectionPopup } from '@/components/selection-popup';
-import type { Highlight, WordBox } from '@/components/word-highlight';
-import { WordOutline } from '@/components/word-outline';
+import type { Highlight } from '@/components/word-highlight';
 import { POPOVER_WIDTH, WordPanel } from '@/components/word-panel';
 import { fonts } from '@/constants/fonts';
 import { Radius, tide } from '@/constants/theme';
@@ -17,8 +17,11 @@ import type { PhraseSpan } from '@/hooks/use-phrase';
 import * as api from '@/lib/api';
 import { hapticImpact } from '@/lib/haptics';
 import { offlineGloss } from '@/lib/offline-islands';
+import { fitScale } from '@/lib/fit-line';
+import { kinsokuUnits } from '@/lib/kinsoku';
 import { lineRomaji } from '@/lib/romaji';
 import type { ReadingMode } from '@/lib/settings';
+import { useSlideReveal } from '@/lib/slide-reveal';
 
 export type ExplainSelection = {
   span: PhraseSpan;
@@ -43,9 +46,11 @@ type Props = {
   blind?: boolean;
   /** Show the translation strip. Default true. */
   englishShown?: boolean;
-  /** 'video' is the cinematic YouTube player: 26pt left-aligned type, karaoke
-   * colour sweep, no card chrome (the screen draws the glass). Default off. */
+  /** 'video' is the cinematic YouTube player: 26pt left-aligned type and no
+   * card chrome (the screen draws the glass). Default off. */
   variant?: 'default' | 'video';
+  /** Repeat feedback for the video card: a draining ring and pass dots. */
+  repeat?: RepeatInfo;
 };
 
 type Box = { x: number; y: number; width: number; height: number };
@@ -54,6 +59,10 @@ type Box = { x: number; y: number; width: number; height: number };
 // so React skips the render. Module level so the gestures never close over it.
 const spanUpdate = (from: number, to: number) => (prev: PhraseSpan | null) =>
   prev && prev.from === from && prev.to === to ? prev : { from, to };
+
+// The last measured block width per variant. A new line is keyed, so it mounts
+// fresh; seeding from here sizes a long line right on its first frame.
+const lastBlockWidth = { default: 0, video: 0 };
 
 /**
  * The active line as a card on the waterline: tap a word for its reading and
@@ -73,9 +82,9 @@ export const TappableSentence = memo(function TappableSentence({
   blind = false,
   englishShown = true,
   variant = 'default',
+  repeat,
 }: Props) {
   const video = variant === 'video';
-  const reduceMotion = useReducedMotion();
   const isJa = language === 'ja';
   const modeLine = !isJa
     ? null
@@ -84,7 +93,16 @@ export const TappableSentence = memo(function TappableSentence({
       : readingMode === 'romaji'
         ? lineRomaji(line)
         : null;
-  const [blockWidth, setBlockWidth] = useState(0);
+  const [blockWidth, setBlockWidth] = useState(() => lastBlockWidth[variant]);
+  const fit = useMemo(
+    () => fitScale(line, blockWidth, { base: video ? 26 : 22, min: video ? 20 : 18, em: isJa ? 1 : 0.6 }),
+    [line, blockWidth, video, isJa],
+  );
+  const jaReveal = useSlideReveal(blind, scrollRef);
+  const jaChars = useMemo(() => Array.from(line.ja), [line.ja]);
+  // Rows break only between these units, so a particle or a closing "。"
+  // never starts a row on its own.
+  const units = useMemo(() => (isJa ? kinsokuUnits(line.words) : line.words.map((_, i) => [i])), [line.words, isJa]);
   const [selected, setSelected] = useState<number | null>(null);
   const [glossData, setGlossData] = useState<api.Gloss | null>(null);
   const [explainContext, setExplainContext] = useState<string | null | undefined>(undefined);
@@ -92,8 +110,10 @@ export const TappableSentence = memo(function TappableSentence({
   const [handleDragging, setHandleDragging] = useState(false);
 
   const wordBoxes = useRef<Record<number, Box>>({});
-  const wordBoxesUI = useSharedValue<(WordBox | null)[]>([]);
-  const boxesFrame = useRef<number | null>(null);
+  // A word inside a unit lays out against the unit, so its box in the words
+  // view is the unit's origin plus its own.
+  const wordLocal = useRef<Record<number, Box>>({});
+  const unitOrigin = useRef<Record<number, { x: number; y: number }>>({});
   const wordRequestId = useRef(0);
   const anchorWord = useRef(0);
   const handleFixed = useRef(0);
@@ -303,27 +323,33 @@ export const TappableSentence = memo(function TappableSentence({
     [],
   );
 
-  // Each word's box lands in wordBoxes at once for hit-testing and reaches the
-  // UI thread's copy once per frame, after the whole batch of layouts.
-  const writeBoxesSoon = useRef(() => {});
-  writeBoxesSoon.current = () => {
-    if (boxesFrame.current !== null) return;
-    boxesFrame.current = requestAnimationFrame(() => {
-      boxesFrame.current = null;
-      wordBoxesUI.value = Array.from({ length: line.words.length }, (_, k) => wordBoxes.current[k] ?? null);
-    });
+  // Each word's box lands in wordBoxes at once, for hit-testing.
+  const unitOf = useRef<number[]>([]);
+  unitOf.current = [];
+  units.forEach((u, k) => u.forEach((i) => (unitOf.current[i] = k)));
+  const placeWord = (i: number) => {
+    const b = wordLocal.current[i];
+    if (!b) return;
+    const k = unitOf.current[i];
+    const o = k !== undefined && (units[k]?.length ?? 0) > 1 ? unitOrigin.current[k] : undefined;
+    wordBoxes.current[i] = o ? { ...b, x: b.x + o.x, y: b.y + o.y } : b;
   };
+  const place = useRef(placeWord);
+  place.current = placeWord;
   const onWordLayout = useRef((i: number, e: LayoutChangeEvent) => {
-    wordBoxes.current[i] = e.nativeEvent.layout;
-    writeBoxesSoon.current();
+    wordLocal.current[i] = e.nativeEvent.layout;
+    place.current(i);
   }).current;
-  useEffect(
-    () => () => {
-      if (boxesFrame.current !== null) cancelAnimationFrame(boxesFrame.current);
-    },
-    [],
-  );
-  const onBlockLayout = useRef((e: LayoutChangeEvent) => setBlockWidth(e.nativeEvent.layout.width)).current;
+  const onUnitLayout = (k: number, e: LayoutChangeEvent) => {
+    const { x, y } = e.nativeEvent.layout;
+    unitOrigin.current[k] = { x, y };
+    for (const i of units[k] ?? []) place.current(i);
+  };
+  const onBlockLayout = useRef((e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    if (Number.isFinite(w) && w > 0) lastBlockWidth[variant] = w;
+    setBlockWidth(w);
+  }).current;
 
   // Popover under the tapped word, centred on it, kept inside the block.
   const box = selected !== null ? wordBoxes.current[selected] : undefined;
@@ -361,28 +387,67 @@ export const TappableSentence = memo(function TappableSentence({
   const dragPopTop = dragUnion ? dragUnion.bottom + SELECTION_HANDLE_CLEARANCE : 0;
 
   return (
-    <View style={video ? styles.videoCard : styles.activeCard}>
+    <View style={video ? (repeat ? styles.videoCardRepeat : styles.videoCard) : styles.activeCard}>
+      {video && repeat ? (
+        <>
+          <RepeatRing progress={repeat.progress} />
+          <RepeatPill pass={repeat.pass} total={repeat.total} secsLeft={repeat.secsLeft} />
+        </>
+      ) : null}
       {line.words.length > 0 ? (
         <View style={styles.block} onLayout={onBlockLayout}>
-          <GestureDetector gesture={sentenceGesture}>
+          <GestureDetector gesture={blind ? jaReveal.gesture : sentenceGesture}>
             <View collapsable={false}>
-              <View style={[styles.words, video && styles.wordsLeft]}>
-                {line.words.map((w, i) => (
+              {blind ? (
+                <SlideReveal
+                  finger={jaReveal.finger}
+                  count={line.words.length}
+                  rowStyle={[styles.words, video && styles.wordsLeft]}
+                  blur={4.5}
+                  renderChunk={(i, sharp) => (
                   <RubyWord
                     key={i}
-                    word={w}
+                    word={line.words[i]!}
                     showRuby={isJa && readingMode === 'furigana'}
                     showPosAndRomaji={isJa}
                     index={i}
                     highlight={highlight}
-                    concealed={blind}
-                    karaoke={video ? (reduceMotion ? 'step' : 'sweep') : undefined}
-                    selected={i === selected || (!!dragSpan && i >= dragSpan.from && i <= dragSpan.to)}
+                    concealed={!sharp}
+                    big={video}
+                    scale={fit}
+                    selected={false}
                     onLayout={onWordLayout}
                   />
-                ))}
+                  )}
+                />
+              ) : (
+              <View style={[styles.words, video && styles.wordsLeft]}>
+                {units.map((u, k) => {
+                  const words = u.map((i) => (
+                    <RubyWord
+                      key={i}
+                      word={line.words[i]!}
+                      showRuby={isJa && readingMode === 'furigana'}
+                      showPosAndRomaji={isJa}
+                      index={i}
+                      highlight={highlight}
+                      concealed={blind}
+                      big={video}
+                      scale={fit}
+                      selected={i === selected || (!!dragSpan && i >= dragSpan.from && i <= dragSpan.to)}
+                      onLayout={onWordLayout}
+                    />
+                  ));
+                  return u.length > 1 ? (
+                    <View key={`u${u[0]}`} style={styles.unit} onLayout={(e) => onUnitLayout(k, e)}>
+                      {words}
+                    </View>
+                  ) : (
+                    words[0]
+                  );
+                })}
               </View>
-              <WordOutline highlight={highlight} boxes={wordBoxesUI} />
+              )}
             </View>
           </GestureDetector>
           {dragSpan && wordBoxes.current[dragSpan.from] && wordBoxes.current[dragSpan.to] ? (
@@ -412,7 +477,23 @@ export const TappableSentence = memo(function TappableSentence({
           ) : null}
         </View>
       ) : (
-        <Text style={[styles.ja, isJa && { fontFamily: fonts.serifJp }, video && styles.jaVideo]}>{line.ja}</Text>
+        <GestureDetector gesture={jaReveal.gesture}>
+          <View collapsable={false}>
+            {blind ? (
+              <SlideReveal
+                finger={jaReveal.finger}
+                count={jaChars.length}
+                rowStyle={[styles.words, video && styles.wordsLeft]}
+                blur={4.5}
+                renderChunk={(i) => (
+                  <Text key={i} style={[styles.ja, isJa && { fontFamily: fonts.serifJp }, video && styles.jaVideo, fit !== 1 && { fontSize: (video ? 26 : 22) * fit, lineHeight: (video ? 34 : 32) * fit }]}>{jaChars[i]}</Text>
+                )}
+              />
+            ) : (
+          <Text style={[styles.ja, isJa && { fontFamily: fonts.serifJp }, video && styles.jaVideo, fit !== 1 && { fontSize: (video ? 26 : 22) * fit, lineHeight: (video ? 34 : 32) * fit }]}>{line.ja}</Text>
+            )}
+          </View>
+        </GestureDetector>
       )}
       {modeLine && !blind ? <Text style={[styles.reading, video && styles.leftText]}>{modeLine}</Text> : null}
       {line.en && englishShown ? (
@@ -427,13 +508,12 @@ export const TappableSentence = memo(function TappableSentence({
 const styles = StyleSheet.create({
   activeCard: {
     borderRadius: Radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,158,128,0.35)',
     backgroundColor: 'rgba(255,255,255,0.04)',
     paddingVertical: 14,
     paddingHorizontal: 16,
   },
   videoCard: {},
+  videoCardRepeat: { borderRadius: 22, paddingTop: 22, paddingBottom: 14, paddingHorizontal: 16 },
   wordsLeft: { justifyContent: 'flex-start' },
   jaVideo: { fontSize: 26, lineHeight: 34, textAlign: 'left' },
   leftText: { textAlign: 'left' },
@@ -441,6 +521,7 @@ const styles = StyleSheet.create({
   enTextVideo: { fontSize: 15, lineHeight: 21, textAlign: 'left' },
   block: { position: 'relative', zIndex: 5 },
   words: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
+  unit: { flexDirection: 'row', flexShrink: 1, maxWidth: '100%' },
   ja: {
     fontSize: 22,
     lineHeight: 32,
