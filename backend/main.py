@@ -43,6 +43,7 @@ from pydantic import BaseModel
 # from the environment at import time.
 load_dotenv()
 
+import corpus  # voice-topic
 import cues
 import explain
 import export
@@ -503,7 +504,8 @@ async def _synthesize_lines(island_id: str, lines: list[dict], speaker: int,
 
 async def _build_island(island_id: str, audio_path: Path, complexity: str,
                         speaker: int, count: int, register: str = "polite",
-                        learning: str = "ja", native: str = "en") -> None:
+                        learning: str = "ja", native: str = "en",
+                        topic: bool = False) -> None:
     """The whole pipeline, run in the background so the upload returns at
     once. `learning` is the island's own language (what the lines are
     written in); `language` below is whatever whisper hears the recording
@@ -521,10 +523,18 @@ async def _build_island(island_id: str, audio_path: Path, complexity: str,
         store.set_transcript(island_id, text)
         log.info("island %s transcript: %d chars, language=%s", island_id, len(text), language)
 
+        # voice-topic: expand the spoken topic into keywords, pull real
+        # Tatoeba sentences as seeds for the generator.
+        seed = None
+        if topic:
+            store.set_stage(island_id, "writing")
+            keywords = await asyncio.to_thread(generate.expand_topic, text, learning)
+            seed = await asyncio.to_thread(corpus.search, learning, keywords, complexity)
+
         store.set_stage(island_id, "writing")
         generated = await asyncio.to_thread(
             generate.generate_lines, text, complexity, count, language, register,
-            learning=learning, native=native,
+            learning=learning, native=native, **({"seed": seed} if topic else {}),
         )
         lines = generated.get("lines") or []
         if not lines:
@@ -555,6 +565,7 @@ async def create_island(
     native: str = Form("en"),
     speaker: int = Form(voicevox.DEFAULT_SPEAKER),
     count: int = Form(8),
+    topic: int = Form(0),
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
@@ -582,6 +593,7 @@ async def create_island(
     _take_build_slot(device, "create")
     island_id = store.create_island(
         complexity, speaker, register, language, native=native, device=device,
+        **({"source": "phrases", "source_name": "voice-topic"} if topic else {}),
     )
     suffix = Path(audio.filename or "rec.m4a").suffix or ".m4a"
     tmp_dir = Path(tempfile.mkdtemp(prefix=f"island-{island_id}-"))
@@ -597,6 +609,7 @@ async def create_island(
 
     background.add_task(
         _build_island, island_id, wav, complexity, speaker, count, register, language, native,
+        bool(topic),
     )
     return {"id": island_id, "status": "pending"}
 
@@ -1782,8 +1795,17 @@ def _own_island(island_id: str, device: str) -> dict:
 # module-level constants, not inlined os.getenv calls, so a test can
 # monkeypatch them without touching the environment.
 OWNER_DEVICE = os.getenv("SHADOW_OWNER_DEVICE", "")
+# Sean's other device ids (a reinstall mints a new one): exempt from the daily
+# caps like OWNER_DEVICE, but never used to claim unowned rows.
+OWNER_ALIASES = frozenset(
+    d.strip() for d in os.getenv("SHADOW_OWNER_ALIASES", "").split(",") if d.strip()
+)
 DAILY_CREATES = int(os.getenv("SHADOW_DAILY_CREATES", "5"))
 DAILY_REWORKS = int(os.getenv("SHADOW_DAILY_REWORKS", "3"))
+
+
+def _is_owner(device: str) -> bool:
+    return bool(device) and (device == OWNER_DEVICE or device in OWNER_ALIASES)
 
 
 def _claim_owner() -> None:
@@ -1812,7 +1834,7 @@ def _take_use_slot(device: str, kind: str) -> None:
     """Per-owner daily cap for the cheap-but-not-free routes, counted in the
     same builds table. Same rules as `_take_build_slot`: owner device exempt,
     called after validation, and only on a cache miss where there is a cache."""
-    if device == OWNER_DEVICE and OWNER_DEVICE:
+    if _is_owner(device):
         return
     limit = DAILY_CAPS[kind]
     if store.count_builds_today(device, kind) >= limit:
@@ -1827,7 +1849,7 @@ def _take_build_slot(device: str, kind: str) -> None:
     input never consumes a slot. The owner device is exempt. `kind` is
     "create" (record, file import, podcast import) or "rework" (regenerate,
     re-voice); each has its own daily cap."""
-    if device == OWNER_DEVICE and OWNER_DEVICE:
+    if _is_owner(device):
         return
     limit = DAILY_CREATES if kind == "create" else DAILY_REWORKS
     if store.count_builds_today(device, kind) >= limit:

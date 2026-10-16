@@ -50,6 +50,21 @@ read_env() {
   )
 }
 
+# Print the data dir the prod backend will use, read in a subshell like read_env.
+read_data_dir() {
+  (
+    for v in $(compgen -e); do
+      case "$v" in
+        SHADOW_PROD_HOME|SHADOW_PROD_SESSION) ;;
+        SHADOW_*|VOICEVOX_*|WHISPER_*) unset "$v" ;;
+      esac
+    done
+    # shellcheck disable=SC1090
+    . "$1"
+    echo "${SHADOW_DATA_DIR:-$SHADOW_PROD_HOME/data}"
+  )
+}
+
 build_venv() {
   local hash
   hash="$(cat "$APP/backend/requirements.txt" "$APP/backend/requirements-dev.txt" | sha256sum | cut -c1-16)"
@@ -124,7 +139,7 @@ rollback() {
 }
 
 main() {
-  local repo env_file settings token_set sha keep venv
+  local repo env_file settings token_set sha keep venv data_dir
   repo="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
   APP="$SHADOW_PROD_HOME/app"
   LOGS="$SHADOW_PROD_HOME/logs"
@@ -215,6 +230,13 @@ main() {
   done
 
   echo "deploy-prod: $sha healthy on :$PORT ($MODE)"
+
+  # Non-fatal: topic islands fall back to the generator alone without the corpus.
+  data_dir="$(read_data_dir "$env_file")"
+  if [ ! -f "$data_dir/tatoeba.db" ]; then
+    echo "deploy-prod: warning: $data_dir/tatoeba.db is missing, voice topic islands use the generator alone." >&2
+    echo "  Build it: backend/.venv/bin/python backend/scripts/build_tatoeba.py --out $data_dir/tatoeba.db" >&2
+  fi
 }
 
 main "$@"

@@ -352,3 +352,59 @@ def test_japanese_prompt_has_no_latin_speakable_rule(monkeypatch):
     prompt = _captured_prompt(monkeypatch)
     assert "as words" not in prompt
     assert "line breaks" not in prompt
+
+
+# --- voice topic -----------------------------------------------------------
+
+def _cli_ok(stdout, captured=None):
+    def fake_run(argv, **kw):
+        if captured is not None:
+            captured.append(kw.get("input"))
+        return subprocess.CompletedProcess(argv, 0, stdout=stdout, stderr="")
+    return fake_run
+
+
+SEED = [
+    {"id": 901, "text": "ジムに行きます。", "en": "I go to the gym."},
+    {"id": 902, "text": "運動は好きです。", "en": "I like exercise."},
+]
+
+
+def test_expand_topic_parses_array(monkeypatch):
+    monkeypatch.setattr(generate.subprocess, "run", _cli_ok('["gym", "ジム", 3, ""]'))
+    assert generate.expand_topic("phrases for the gym", "ja") == ["gym", "ジム"]
+
+
+def test_expand_topic_falls_back_to_topic_words(monkeypatch):
+    def fail(argv, **kw):
+        return subprocess.CompletedProcess(argv, 1, stdout="", stderr="boom")
+    monkeypatch.setattr(generate.subprocess, "run", fail)
+    assert generate.expand_topic("Phrases for the gym, gym!", "ja") == ["phrases", "for", "the", "gym"]
+
+
+def test_topic_prompt_names_language_seeds_and_src(monkeypatch):
+    captured = []
+    monkeypatch.setattr(generate.subprocess, "run", _cli_ok('{"title": "Gym", "lines": []}', captured))
+    generate.generate_lines("phrases for the gym", "simple", 5, "en", "polite",
+                            learning="ja", native="en", seed=SEED)
+    prompt = captured[0]
+    assert "Japanese sentences" in prompt
+    assert "1. ジムに行きます。\tI go to the gym." in prompt
+    assert "2. 運動は好きです。" in prompt
+    assert '"src"' in prompt
+
+    captured.clear()
+    generate.generate_lines("frases del gimnasio", "simple", 5, "es", "polite",
+                            learning="es", native="en", seed=[])
+    assert "Spanish sentences" in captured[0]
+    assert "(none)" in captured[0]
+
+
+def test_src_maps_to_tatoeba_id(monkeypatch):
+    out = ('{"title": "Gym", "lines": ['
+           '{"ja": "a", "kana": "a", "romaji": "a", "en": "a", "src": 2},'
+           '{"ja": "b", "kana": "b", "romaji": "b", "en": "b", "src": 9},'
+           '{"ja": "c", "kana": "c", "romaji": "c", "en": "c", "src": null}]}')
+    monkeypatch.setattr(generate.subprocess, "run", _cli_ok(out))
+    lines = generate.generate_lines("gym", seed=SEED)["lines"]
+    assert [ln["tatoeba_id"] for ln in lines] == [902, None, None]

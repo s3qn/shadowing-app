@@ -18,7 +18,6 @@ import { userIdSync } from '@/lib/auth';
 import { deviceIdSync } from '@/lib/device';
 import { readCachedIsland } from '@/lib/island-cache';
 import { hash } from '@/lib/line-audio-cache';
-import { passSpeed } from '@/lib/pass-programme';
 import { getSettingsSync } from '@/lib/settings';
 import { peekRung } from '@/lib/speed-ladder';
 
@@ -237,7 +236,7 @@ export async function startDownload(id: string): Promise<boolean> {
     writeText(new File(dir, 'island.json'), text);
 
     const S = peekRung(id)?.speed ?? getSettingsSync().defaultSpeed;
-    const speeds = unique([S, passSpeed(S, 'ladderListen'), 1.0].map(round2));
+    const speeds = unique([S, 1.0].map(round2));
     const pads = unique([0, getSettingsSync().defaultPauseMs]);
 
     const lines: Record<string, string> = {};

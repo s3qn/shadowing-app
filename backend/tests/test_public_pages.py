@@ -29,7 +29,11 @@ def test_pages_are_self_contained():
         assert "prefers-color-scheme" in body
         assert "<script" not in body
         external = re.findall(r"(?:src|href)=[\"'](https?://[^\"']*)", body)
-        assert set(external) <= {"https://www.anthropic.com/legal/privacy"}
+        assert set(external) <= {
+            "https://www.anthropic.com/legal/privacy",
+            "https://tatoeba.org",
+            "https://creativecommons.org/licenses/by/2.0/fr/",
+        }
 
 
 def test_no_em_dash():

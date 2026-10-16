@@ -254,6 +254,8 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - BL-17 ET-1 Spanish Kokoro timings
 - BL-16 Harmonizer round 2
 - Default speed 1.0 on islands
+- BL-42 voice topic phrases (P-A screen, topic mode in Record, Tatoeba corpus)
+- BL-18 practice run in the dock (pass strip, count-in, sheet trimmed)
 
 ## Next (approved, in order)
 

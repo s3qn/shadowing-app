@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS lines (
   timeline    TEXT NOT NULL DEFAULT '[]',
   words       TEXT NOT NULL DEFAULT '[]',
   offset      REAL NOT NULL DEFAULT 0,
+  tatoeba_id  INTEGER,
   PRIMARY KEY (island_id, idx),
   FOREIGN KEY (island_id) REFERENCES islands(id) ON DELETE CASCADE
 );
@@ -139,6 +140,9 @@ def init() -> None:
         # a line's slice starts at in its source audio.
         if "offset" not in cols:
             conn.execute("ALTER TABLE lines ADD COLUMN offset REAL NOT NULL DEFAULT 0")
+        # Databases created before voice topics lack the Tatoeba sentence id.
+        if "tatoeba_id" not in cols:
+            conn.execute("ALTER TABLE lines ADD COLUMN tatoeba_id INTEGER")
         # Databases created before the speech register choice existed lack it.
         island_cols = {row["name"] for row in conn.execute("PRAGMA table_info(islands)")}
         if "register" not in island_cols:
@@ -228,8 +232,9 @@ def add_line(island_id: str, idx: int, line: dict, duration: float, timeline: li
     with connect() as conn:
         conn.execute(
             "INSERT OR REPLACE INTO lines"
-            " (island_id, idx, ja, kana, romaji, en, duration, timeline, words, offset)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?)",
+            " (island_id, idx, ja, kana, romaji, en, duration, timeline, words, offset,"
+            " tatoeba_id)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (
                 island_id,
                 idx,
@@ -241,6 +246,7 @@ def add_line(island_id: str, idx: int, line: dict, duration: float, timeline: li
                 json.dumps(timeline, ensure_ascii=False),
                 json.dumps(words or [], ensure_ascii=False),
                 offset,
+                line.get("tatoeba_id"),
             ),
         )
 

@@ -63,6 +63,11 @@ export default function AboutSettingsScreen() {
             icon={{ ios: 'speaker.wave.2', android: 'volume_up' }}
           />
           <SettingsRow
+            label={t('settings.about.exampleSentences')}
+            value="Tatoeba, CC BY 2.0 FR"
+            icon={{ ios: 'text.quote', android: 'format_quote' }}
+          />
+          <SettingsRow
             label={t('settings.about.speechRecognition')}
             value="faster-whisper"
             last

@@ -123,7 +123,7 @@ const COMPARE_GAP = 6;
 // Each Lottie file (18KB to 40KB of JSON) is required only the first time
 // its pass is actually explained, then kept here so a second look is
 // instant. The onboarding walks all five passes on first run and needs them
-// up front, but the island player's help sheet (`AutoEchoSheet`, this
+// up front, but the island player's help sheet (`PassHelpSheet`, this
 // module's other caller) renders `PassExplainer` only once someone taps
 // help. Requiring all four eagerly at module init used to cost about 108KB
 // of JSON parsing on the JS thread every time an island mounted, whether or

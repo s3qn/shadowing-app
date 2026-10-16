@@ -22,7 +22,8 @@ import { BlindIcon, ReadingIcon, RepeatIcon } from '@/components/tide/toolbar-ic
 import { TappableSentence, type ExplainSelection } from '@/components/tide/tappable-sentence';
 import { TideScene } from '@/components/tide/tide-scene';
 import { SaveStar } from '@/components/save-star';
-import { AutoEchoSheet } from '@/components/tide/auto-echo-sheet';
+import { PassHelpSheet } from '@/components/tide/pass-help-sheet';
+import { PassStrip } from '@/components/tide/pass-strip';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
 import { snapRate, useLadder } from '@/hooks/use-ladder';
@@ -32,7 +33,7 @@ import { playIntent, useVideoHighlight } from '@/hooks/use-video-highlight';
 import * as api from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { getLastLine, resumeLine, setLastLine } from '@/lib/last-line';
-import { textShownAt } from '@/lib/pass-programme';
+import { helpPassOf } from '@/lib/pass-programme';
 import { addLadder } from '@/lib/practice';
 import {
   getSettingsSync,
@@ -331,7 +332,6 @@ export default function VideoScreen() {
       () => () => {
         setPlaying(false);
         ladderRef.current?.stop();
-        setLadderOpen(false);
         void takeRef.current.cancel();
       },
       [],
@@ -340,7 +340,9 @@ export default function VideoScreen() {
 
   // Review mode runs the shadowing ladder on each saved line (the same passes
   // as the island); a finished ladder marks the card reviewed on its own.
-  const [ladderOpen, setLadderOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  // The pass whose help is open, frozen while it is read.
+  const [helpPass, setHelpPass] = useState<0 | 1 | 2 | 3 | 4>(0);
   const lineRef = useRef(activeLine);
   lineRef.current = activeLine;
   const ladder = useLadder(take, speedLive, lines[activeLine]?.duration ?? 0, {
@@ -374,7 +376,6 @@ export default function VideoScreen() {
     advance: () => {
       const next = lineRef.current + 1;
       if (next >= lines.length) {
-        setLadderOpen(false);
         router.back();
         return false;
       }
@@ -385,14 +386,21 @@ export default function VideoScreen() {
   });
   ladderRef.current = ladder;
   // A finished ladder hands the player back at the dock speed.
+  // A stopped or finished run closes its help.
   useEffect(() => {
     if (ladder.step === 'done') setRate(speedLive);
+    if (ladder.step === 'idle' || ladder.step === 'done') setHelpOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ladder.step]);
-  const openLadder = () => {
-    setLadderOpen(true);
-    ladder.start();
-  };
+  const livePass = helpPassOf(ladder.step, 'ladder');
+  const onPassHelp =
+    livePass === null
+      ? undefined
+      : () => {
+          setHelpPass(livePass);
+          setHelpOpen(true);
+        };
+  const openLadder = () => ladder.start();
 
   // A take that ends stops the embed too.
   const recording = take.phase === 'recording';
@@ -525,12 +533,12 @@ export default function VideoScreen() {
   // Record: the embed is the reference. With earphones it plays under the
   // take; on the speaker it stays silent so it never bleeds into the mic.
   async function onDockRecord() {
-    if (take.phase === 'recording') {
-      void take.finishNow();
+    if (review) {
+      ladder.dock.onRecord();
       return;
     }
-    if (review) {
-      openLadder();
+    if (take.phase === 'recording') {
+      void take.finishNow();
       return;
     }
     await startLineTake(speedLive);
@@ -803,7 +811,11 @@ export default function VideoScreen() {
                     recording={recording}
                     level={take.level}
                     onRecord={() => void onDockRecord()}
-                    recordLabel={recording ? t('player.stopRecording') : t('player.recordMyTake')}
+                    recordLabel={review ? ladder.dock.recordLabel : recording ? t('player.stopRecording') : t('player.recordMyTake')}
+                    face={ladder.dock.face}
+                    countIn={ladder.dock.countIn}
+                    ringDisabled={ladder.dock.ringDisabled}
+                    locked={ladder.active}
                     speed={speedLive}
                     speedOn={Math.abs(speedLive - snapRate(getSettingsSync().defaultSpeed)) > 0.001}
                     onSpeed={onSpeedChip}
@@ -814,12 +826,13 @@ export default function VideoScreen() {
                     onAnchor={onAnchor}
                     slot={
                       <View style={styles.bottom} pointerEvents="box-none">
+                        {ladder.step !== 'idle' ? <PassStrip {...ladder.strip} onHelp={onPassHelp} /> : null}
                         {take.error ? <Text style={styles.error}>{take.error}</Text> : null}
                         {saveError ? <Text style={styles.hint}>{saveError}</Text> : null}
                         {review || video.captions_only ? null : (
                           <PrismButton shape="pill" verb="speak" label={t('video.shadowLine')} onPress={shadow} />
                         )}
-                        {take.phase === 'ready' ? (
+                        {take.phase === 'ready' && ladder.step === 'idle' ? (
                           <PrismButton
                             shape="pill"
                             verb="listen"
@@ -884,20 +897,13 @@ export default function VideoScreen() {
           </View>
         </View>
       )}
-      {review && island && lines.length > 0 ? (
-        <AutoEchoSheet
-          open={ladderOpen}
-          onClose={() => {
-            ladder.stop();
-            setLadderOpen(false);
-          }}
-          sentence={textShownAt(ladder.step, 'ladder') === false ? null : (lines[activeLine]?.ja ?? '')}
-          english={englishShown ? (lines[activeLine]?.en ?? null) : null}
-          native={island.native}
-          language={language}
-          moras={null}
-          analysis={null}
-          {...ladder.sheet}
+      {review && island ? (
+        <PassHelpSheet
+          open={helpOpen}
+          pass={helpPass}
+          learning={language}
+          understood={island.native}
+          onClose={() => setHelpOpen(false)}
         />
       ) : null}
       {island && lines.length > 0 ? (

@@ -19,9 +19,6 @@ export const en = {
   'player.startAgain': 'Start again',
   'player.record': 'Record',
   'player.cancelCountIn': 'Cancel the count',
-  'player.autoEchoToggle': 'Go on to the next line, and start over after the last',
-  'player.autoRecordToggle': 'Speak opens the microphone on its own',
-  'player.headsetIn': 'Headphones in: the line plays under your voice.',
   'player.headsetPrompt': 'Put headphones on and the line plays under your voice.',
 
   'player.hideTranslation': 'Hide the translation',
@@ -49,6 +46,11 @@ export const en = {
 
   'player.close': 'Close',
   'player.help': 'How this pass works',
+  'player.startLadder': 'Start the five passes',
+  'player.startAutoEcho': 'Start Auto Echo',
+  'player.recordNow': 'Record now',
+  'player.endRun': 'End the run',
+  'player.unscoredTake': 'No headphones, so this take is not scored.',
 
   'player.off': 'Off',
   'player.readingFurigana': 'Furigana',

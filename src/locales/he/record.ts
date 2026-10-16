@@ -8,6 +8,11 @@ export const he = {
   'record.title.idle': 'לספר על היום שלך, בערך 30 שניות.',
   'record.title.recording': 'להמשיך לספר על היום שלך.',
   'record.title.review': 'ההקלטה שלך',
+  'record.topic.title.idle': 'להגיד נושא',
+  'record.topic.title.recording': 'מקשיב…',
+  'record.topic.title.review': 'הנושא שלך',
+  'record.topic.hint': "להגיד נושא, למשל 'ביטויים לחדר כושר'",
+  'record.topic.build': 'בניית ביטויים',
   'record.promptHint':
     'אפשר לדבר בעברית או באנגלית, איך שנוח. מה שאומרים הופך למשפטים ב{language} על החיים שלך, אז כדאי להשתמש בשמות ובמקומות אמיתיים.',
   'record.language.ja': 'יפנית',

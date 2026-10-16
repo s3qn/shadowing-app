@@ -6,7 +6,7 @@ import {
   useAudioRecorder,
   useAudioRecorderState,
 } from 'expo-audio';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SymbolView } from 'expo-symbols'; // icon-buttons: discard
 import { useEffect, useRef, useState } from 'react';
@@ -45,6 +45,9 @@ import {
 
 const MIN_SECONDS = 10;
 const MAX_SECONDS = 90;
+/** Topic mode: a spoken topic for the phrases build, a few seconds at most. */
+const TOPIC_MIN_SECONDS = 1;
+const TOPIC_MAX_SECONDS = 10;
 const SIDE = 16;
 /** Bars in the review waveform. */
 const WAVE_BARS = 40;
@@ -100,6 +103,9 @@ export default function RecordScreen() {
   const { t } = useT();
   const dir = useDir();
   const router = useRouter();
+  const topic = useLocalSearchParams<{ mode?: string }>().mode === 'topic';
+  const minSeconds = topic ? TOPIC_MIN_SECONDS : MIN_SECONDS;
+  const maxSeconds = topic ? TOPIC_MAX_SECONDS : MAX_SECONDS;
   const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true });
   const state = useAudioRecorderState(recorder, 50);
 
@@ -225,7 +231,7 @@ export default function RecordScreen() {
   // Stop on our own once the cap is hit, so an island never runs long enough to
   // make transcription slow.
   useEffect(() => {
-    if (phase === 'recording' && elapsed >= MAX_SECONDS) void stop();
+    if (phase === 'recording' && elapsed >= maxSeconds) void stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, elapsed]);
 
@@ -235,7 +241,7 @@ export default function RecordScreen() {
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next) => {
       if (next !== 'background' || phase !== 'recording') return;
-      if (elapsed >= MIN_SECONDS) {
+      if (elapsed >= minSeconds) {
         void stop();
         return;
       }
@@ -291,6 +297,11 @@ export default function RecordScreen() {
   async function build() {
     if (!uri) return;
     stopPlayback(player);
+    if (topic) {
+      // A spoken topic goes to the phrases build, which uploads it itself.
+      router.replace({ pathname: '/phrases/build', params: { uri } });
+      return;
+    }
     setPhase('building');
     setError('');
     try {
@@ -332,7 +343,7 @@ export default function RecordScreen() {
     }
   }
 
-  const longEnough = elapsed >= MIN_SECONDS;
+  const longEnough = elapsed >= minSeconds;
   // Not gated on isLoaded: a short local file can load before the status
   // listener subscribes, and play() on a loading file starts once it is ready.
   const canPlay = phase === 'review' && !!uri;
@@ -381,14 +392,14 @@ export default function RecordScreen() {
           <ScrollView style={styles.fill} contentContainerStyle={styles.content}>
             <View style={styles.header}>
               <Text style={[styles.title, dir.text]}>
-                {phase === 'review'
-                  ? t('record.title.review')
-                  : recording
-                    ? t('record.title.recording')
-                    : t('record.title.idle')}
+                {t(
+                  `record.${topic ? 'topic.' : ''}title.${phase === 'review' ? 'review' : recording ? 'recording' : 'idle'}` as 'record.title.idle',
+                )}
               </Text>
               {phase !== 'review' ? (
-                <Text style={[styles.hint, dir.text]}>{t('record.promptHint', { language: languageName[language] })}</Text>
+                <Text style={[styles.hint, dir.text]}>
+                  {topic ? t('record.topic.hint') : t('record.promptHint', { language: languageName[language] })}
+                </Text>
               ) : null}
             </View>
 
@@ -416,15 +427,17 @@ export default function RecordScreen() {
                   <Text style={styles.takeTime}>{clock(taken)}</Text>
                 </View>
 
-                <Segmented
+                {topic ? null : (
+                  <Segmented
                   label={t('record.sentencesLabel')}
                   options={complexityOptions}
                   value={complexity}
                   onChange={setComplexity}
-                />
+                  />
+                )}
                 {/* Register only applies to Japanese (there is no desu/masu
                     style split in Spanish or English). */}
-                {language === 'ja' ? (
+                {!topic && language === 'ja' ? (
                   <Segmented
                     label={t('record.styleLabel')}
                     options={registerChoices}
@@ -443,7 +456,7 @@ export default function RecordScreen() {
                   <View
                     style={[
                       styles.trackFill,
-                      { width: `${Math.min(100, Math.round((elapsed / MAX_SECONDS) * 100))}%` },
+                      { width: `${Math.min(100, Math.round((elapsed / maxSeconds) * 100))}%` },
                     ]}
                   />
                 </View>
@@ -461,7 +474,7 @@ export default function RecordScreen() {
                   verb="speak"
                   on
                   height={prism.sizes.bigRound}
-                  label={t('record.buildIsland')}
+                  label={t(topic ? 'record.topic.build' : 'record.buildIsland')}
                   onPress={build}
                   accessibilityRole="button"
                 />
@@ -496,7 +509,7 @@ export default function RecordScreen() {
                 {/* Always laid out, so the button does not move when it appears. */}
                 <Text style={[styles.keepGoing, dir.text]}>
                   {recording && !longEnough
-                    ? t('record.keepGoing', { seconds: MIN_SECONDS - Math.floor(elapsed) })
+                    ? t('record.keepGoing', { seconds: minSeconds - Math.floor(elapsed) })
                     : recording
                       ? t('record.tapToStop')
                       : t('record.tapToStart')}

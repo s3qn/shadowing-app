@@ -2,6 +2,7 @@ import { memo, type ReactNode, useCallback, useEffect, useRef, useState } from '
 import { type LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
+  cancelAnimation,
   interpolate,
   useAnimatedReaction,
   useAnimatedStyle,
@@ -22,6 +23,7 @@ import { fonts } from '@/constants/fonts';
 import { Radius, prism, tide, verb, withAlpha } from '@/constants/theme';
 import { hapticImpact } from '@/lib/haptics';
 import { useT } from '@/lib/i18n';
+import { COUNT_IN_BEAT_MS } from '@/lib/pass-programme';
 
 export type DockAnchorKey = 'speed' | 'repeat' | 'reading' | 'blind';
 /** A control's box, relative to the dock's root View. Tray pills sit above the capsule, so their y is negative. */
@@ -61,6 +63,14 @@ export type CompactDockProps = {
   compact?: boolean;
   /** Rendered above the capsule, centred, 8 pt gap. */
   slot?: ReactNode;
+  /** What the red button shows: the dot, the count digit, a stop square, or a dimmed dot (press off). */
+  face?: 'dot' | 'count' | 'stop' | 'dim';
+  /** The beat the count is on (3, 2, 1), or null. Pulses one ring per beat. */
+  countIn?: number | null;
+  /** The play face is off (a count, a recording or a take is playing). */
+  ringDisabled?: boolean;
+  /** Mid-run: the chip and the gear are off and the tray stays closed. */
+  locked?: boolean;
   /** Called only when a box changed. */
   onAnchor: (key: DockAnchorKey, box: DockAnchor) => void;
 };
@@ -149,6 +159,10 @@ export const CompactDock = memo(function CompactDock({
   onTrayToggle,
   compact,
   slot,
+  face = 'dot',
+  countIn = null,
+  ringDisabled,
+  locked,
   onAnchor,
 }: CompactDockProps) {
   const { t } = useT();
@@ -156,6 +170,7 @@ export const CompactDock = memo(function CompactDock({
   const playing = playMode === 'playing';
   const showGear = !compact && pills.length > 0;
   const anyOn = pills.some((p) => p.on);
+  const open = trayOpen && !locked;
 
   // Faces: only the play face lights.
   const off = useSharedValue(0);
@@ -186,6 +201,22 @@ export const CompactDock = memo(function CompactDock({
       transform: [{ scale: interpolate(l, [0, 1], [1, 1.35]) }],
     };
   });
+
+  // One ring leaves the red button per count beat: 0 at the beat, 1 when the
+  // next is due. With reduced motion it stands still while the count runs.
+  const beat = useSharedValue(0);
+  useEffect(() => {
+    cancelAnimation(beat);
+    beat.value = 0;
+    if (countIn === null || reduced) return;
+    beat.value = withTiming(1, { duration: COUNT_IN_BEAT_MS, easing: Easing.out(Easing.cubic) });
+    return () => cancelAnimation(beat);
+  }, [countIn, reduced, beat]);
+  const beatStyle = useAnimatedStyle(() => {
+    if (reduced) return { opacity: 0.8, transform: [{ scale: 1.1 }] };
+    const b = Math.min(1, Math.max(0, num(beat.value)));
+    return { opacity: 0.85 * (1 - b), transform: [{ scale: 1 + 0.22 * b }] };
+  }, [reduced]);
 
   // Gear gold.
   const goldT = useSharedValue(0);
@@ -247,7 +278,7 @@ export const CompactDock = memo(function CompactDock({
       closeTimer.current = null;
     }
     const go = (v: number) => (reduced ? withTiming(v, { duration: 150 }) : withSpring(v, OPEN_SPRING));
-    if (trayOpen && showGear) {
+    if (open && showGear) {
       setMounted(true);
       progress.value = go(1);
       pillT.forEach((sv, i) => {
@@ -268,7 +299,7 @@ export const CompactDock = memo(function CompactDock({
     };
     // pillT is three stable shared values.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trayOpen, showGear, reduced]);
+  }, [open, showGear, reduced]);
   const trayStyle = useAnimatedStyle(() => {
     const p = num(progress.value);
     return { opacity: p, transform: [{ translateY: 10 * (1 - p) }, { scale: 0.96 + 0.04 * p }] };
@@ -297,7 +328,7 @@ export const CompactDock = memo(function CompactDock({
               <Glyph ch="‹" />
             </PrismFace>
           </DockPress>
-          <DockPress onPress={onToggle} label={playing ? t('player.stop') : t('player.play')} pressed={0.94}>
+          <DockPress onPress={onToggle} disabled={ringDisabled} label={playing ? t('player.stop') : t('player.play')} pressed={0.94}>
             <PrismFace shape="round" size={44} verb="listen" onT={playT} flat>
               {playing ? <View style={styles.stopSquare} /> : <View style={styles.playTriangle} />}
             </PrismFace>
@@ -307,11 +338,18 @@ export const CompactDock = memo(function CompactDock({
               <Glyph ch="›" />
             </PrismFace>
           </DockPress>
-          <DockPress onPress={onRecord} label={recordLabel}>
+          <DockPress onPress={onRecord} disabled={face === 'dim'} label={recordLabel}>
             <Animated.View pointerEvents="none" style={[styles.recordGlow, glowStyle]} />
             <PrismFace shape="round" size={38} verb="speak" onT={recT} flat>
-              <View style={[styles.recordDot, recording && styles.recordDotActive]} />
+              {face === 'count' ? (
+                <Text style={styles.countDigit}>{countIn ?? ''}</Text>
+              ) : face === 'stop' ? (
+                <View style={styles.recordStop} />
+              ) : (
+                <View style={[styles.recordDot, recording && styles.recordDotActive]} />
+              )}
             </PrismFace>
+            {countIn !== null ? <Animated.View pointerEvents="none" style={[styles.beatRing, beatStyle]} /> : null}
           </DockPress>
           {compact ? null : (
             <View
@@ -322,6 +360,7 @@ export const CompactDock = memo(function CompactDock({
               }}>
               <DockPress
                 onPress={onSpeed}
+                disabled={locked}
                 label={t('player.speedSetting', { label: speedLabel(speed) })}
                 style={styles.chipHit}>
                 <View style={styles.chip}>
@@ -331,7 +370,7 @@ export const CompactDock = memo(function CompactDock({
             </View>
           )}
           {showGear ? (
-            <DockPress onPress={onTrayToggle} label={t('player.dockSettings')}>
+            <DockPress onPress={onTrayToggle} disabled={locked} label={t('player.dockSettings')}>
               <View style={styles.gear}>
                 <Animated.View pointerEvents="none" style={[styles.gearGold, goldStyle]} />
                 <SymbolView name={{ ios: 'gearshape.fill', android: 'settings' }} size={20} tintColor={tide.textDim} />
@@ -346,7 +385,7 @@ export const CompactDock = memo(function CompactDock({
       {mounted && showGear ? (
         <Animated.View
           style={[styles.tray, { bottom: CAPSULE_H + GAP + slotSpace }, trayStyle]}
-          pointerEvents={trayOpen ? 'auto' : 'none'}
+          pointerEvents={open ? 'auto' : 'none'}
           onLayout={(e) => {
             tray.current = { x: e.nativeEvent.layout.x, y: e.nativeEvent.layout.y };
             reportPills();
@@ -444,6 +483,9 @@ const styles = StyleSheet.create({
     backgroundColor: tide.record,
   },
   recordDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: tide.record },
+  recordStop: { width: 14, height: 14, borderRadius: 3, backgroundColor: verb.speak.c1 },
+  countDigit: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 20, color: verb.speak.c1, fontVariant: ['tabular-nums'] },
+  beatRing: { position: 'absolute', width: 50, height: 50, borderRadius: 25, borderWidth: 2, borderColor: tide.record },
   recordDotActive: { backgroundColor: verb.speak.c1 },
   chipHit: { width: 56 },
   chip: {

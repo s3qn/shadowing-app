@@ -96,3 +96,11 @@ def test_regenerate_with_zero_reworks_is_429_before_any_line_is_cleared(monkeypa
     assert exc_info.value.status_code == 429
     island = store.get_island(island_id)
     assert island["lines"] != []
+
+
+def test_owner_alias_is_exempt(monkeypatch):
+    monkeypatch.setattr(main, "OWNER_DEVICE", "")
+    monkeypatch.setattr(main, "OWNER_ALIASES", frozenset({"alias-dev"}))
+    assert main._is_owner("alias-dev")
+    assert not main._is_owner("")
+    assert not main._is_owner("someone-else")

@@ -83,6 +83,7 @@ export const en = {
   'settings.about.creditsFootnote':
     'Speech is generated with VOICEVOX and transcribed with faster-whisper, both open source and run on this device’s own network.',
   'settings.about.voiceSynthesis': 'Voice synthesis',
+  'settings.about.exampleSentences': 'Example sentences, adapted',
   'settings.about.speechRecognition': 'Speech recognition',
   'settings.about.artwork': 'Artwork',
   // The names and the licence code stay as they are in every language.

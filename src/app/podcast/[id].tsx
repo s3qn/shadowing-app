@@ -12,8 +12,9 @@ import { CatConstellation } from '@/components/cat-constellation';
 import { ExplainSheet } from '@/components/explain-sheet';
 import { PressScale } from '@/components/press-scale';
 import { PrismButton } from '@/components/prism';
-import { AutoEchoSheet } from '@/components/tide/auto-echo-sheet';
 import { BlindPopover, blindValueLabel } from '@/components/tide/blind-popover';
+import { PassHelpSheet } from '@/components/tide/pass-help-sheet';
+import { PassStrip } from '@/components/tide/pass-strip';
 import { CompactDock, DOCK_GOLD_INK, type DockAnchor, type DockAnchorKey, type DockPill } from '@/components/tide/compact-dock';
 import { READING_LABEL_KEY, ReadingPopover } from '@/components/tide/reading-popover';
 import { SpeedPopover } from '@/components/tide/speed-popover';
@@ -32,7 +33,7 @@ import { scheduleAudioSessionRelease, startPlayback, stopPlayback, useSessionPla
 import { useT } from '@/lib/i18n';
 import { hapticImpact, hapticSelection } from '@/lib/haptics';
 import { getLastLine, resumeLine, setLastLine } from '@/lib/last-line';
-import { COUNT_IN_BEATS, COUNT_IN_BEAT_MS, textShownAt } from '@/lib/pass-programme';
+import { COUNT_IN_BEATS, COUNT_IN_BEAT_MS, helpPassOf } from '@/lib/pass-programme';
 import { addLadder } from '@/lib/practice';
 import { getSettingsSync, setBlind as persistBlind, setReading as persistReading, type ReadingMode } from '@/lib/settings';
 
@@ -256,7 +257,9 @@ export default function PodcastScreen() {
   const started = useRef(false);
   const ladderOpened = useRef(false);
   const openLadderRef = useRef(() => {});
-  const [ladderOpen, setLadderOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  // The pass whose help is open, frozen while it is read.
+  const [helpPass, setHelpPass] = useState<0 | 1 | 2 | 3 | 4>(0);
   const lineRef = useRef(0);
   const resuming = useRef(false);
   useEffect(() => {
@@ -317,7 +320,6 @@ export default function PodcastScreen() {
     useCallback(
       () => () => {
         ladderRef.current?.stop();
-        setLadderOpen(false);
         cancelShadow();
         stopPlayback(player);
         scheduleAudioSessionRelease();
@@ -434,7 +436,6 @@ export default function PodcastScreen() {
     advance: () => {
       const next = lineRef.current + 1;
       if (next >= lines.length) {
-        setLadderOpen(false);
         router.back();
         return false;
       }
@@ -445,14 +446,21 @@ export default function PodcastScreen() {
   });
   ladderRef.current = ladder;
   // A finished ladder hands the player back at the dock speed.
+  // A stopped or finished run closes its help.
   useEffect(() => {
     if (ladder.step === 'done') setRate(speedLive);
+    if (ladder.step === 'idle' || ladder.step === 'done') setHelpOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ladder.step]);
-  const openLadder = () => {
-    setLadderOpen(true);
-    ladder.start();
-  };
+  const livePass = helpPassOf(ladder.step, 'ladder');
+  const onPassHelp =
+    livePass === null
+      ? undefined
+      : () => {
+          setHelpPass(livePass);
+          setHelpOpen(true);
+        };
+  const openLadder = () => ladder.start();
   openLadderRef.current = openLadder;
 
   async function startLineTake(speed: number): Promise<boolean> {
@@ -474,8 +482,7 @@ export default function PodcastScreen() {
 
   const onRecord = () => {
     if (review) {
-      if (take.phase === 'recording') void take.finishNow();
-      else openLadder();
+      ladder.dock.onRecord();
       return;
     }
     switch (shadowStep) {
@@ -729,7 +736,11 @@ export default function PodcastScreen() {
                   recording={take.phase === 'recording'}
                   level={take.level}
                   onRecord={onRecord}
-                  recordLabel={t(
+                  face={ladder.dock.face}
+                  countIn={ladder.dock.countIn}
+                  ringDisabled={ladder.dock.ringDisabled}
+                  locked={ladder.active}
+                  recordLabel={review ? ladder.dock.recordLabel : t(
                     shadowStep === 'count'
                       ? 'player.cancelCountIn'
                       : shadowStep === 'recording'
@@ -746,11 +757,12 @@ export default function PodcastScreen() {
                   onTrayToggle={() => setTrayOpen((v) => !v)}
                   onAnchor={onAnchor}
                   slot={
-                    take.error || saveError || take.phase === 'ready' ? (
+                    ladder.step !== 'idle' || take.error || saveError || take.phase === 'ready' ? (
                       <View style={styles.bottom} pointerEvents="box-none">
+                        {ladder.step !== 'idle' ? <PassStrip {...ladder.strip} onHelp={onPassHelp} /> : null}
                         {take.error ? <Text style={styles.error}>{take.error}</Text> : null}
                         {saveError ? <Text style={styles.hint}>{saveError}</Text> : null}
-                        {take.phase === 'ready' ? (
+                        {take.phase === 'ready' && ladder.step === 'idle' ? (
                           <PrismButton
                             shape="pill"
                             verb="listen"
@@ -802,20 +814,13 @@ export default function PodcastScreen() {
           ) : null}
         </>
       )}
-      {review && island && lines.length > 0 ? (
-        <AutoEchoSheet
-          open={ladderOpen}
-          onClose={() => {
-            ladder.stop();
-            setLadderOpen(false);
-          }}
-          sentence={textShownAt(ladder.step, 'ladder') === false ? null : (lines[activeLine]?.ja ?? '')}
-          english={englishShown ? (lines[activeLine]?.en ?? null) : null}
-          native={island.native}
-          language={language}
-          moras={null}
-          analysis={null}
-          {...ladder.sheet}
+      {review && island ? (
+        <PassHelpSheet
+          open={helpOpen}
+          pass={helpPass}
+          learning={island.language ?? 'ja'}
+          understood={island.native}
+          onClose={() => setHelpOpen(false)}
         />
       ) : null}
       {island && lines.length > 0 ? (

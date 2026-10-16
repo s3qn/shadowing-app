@@ -20,9 +20,6 @@ export const he = {
   'player.startAgain': 'התחלה מחדש',
   'player.record': 'הקלטה',
   'player.cancelCountIn': 'ביטול הספירה',
-  'player.autoEchoToggle': 'מעבר לשורה הבאה, וחזרה להתחלה אחרי האחרונה',
-  'player.autoRecordToggle': 'פתיחת המיקרופון באופן אוטומטי בשלב הדיבור',
-  'player.headsetIn': 'האוזניות מחוברות: השורה מתנגנת מתחת לקול שלך.',
   'player.headsetPrompt': 'יש לחבר אוזניות כדי שהשורה תתנגן מתחת לקול שלך.',
 
   'player.hideTranslation': 'הסתרת התרגום',
@@ -50,6 +47,11 @@ export const he = {
 
   'player.close': 'סגירה',
   'player.help': 'איך עושים את השלב הזה',
+  'player.startLadder': 'התחלת חמשת השלבים',
+  'player.startAutoEcho': 'התחלת הד אוטומטי',
+  'player.recordNow': 'להקליט עכשיו',
+  'player.endRun': 'סיום התרגול',
+  'player.unscoredTake': 'בלי אוזניות, אז ההקלטה הזו לא מקבלת ציון.',
 
   'player.off': 'כבוי',
   'player.readingFurigana': 'פוריגנה',

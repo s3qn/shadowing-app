@@ -26,12 +26,6 @@ const MODEL_INK = 'rgba(255,158,128,0.7)';
 
 const PLOT_HEIGHT = 18;
 
-/** A single row's height: `plot` (20) plus the kana's line height (16) plus
- * the underline's own margin and height (1 + 2). A caller that mounts and
- * unmounts this row (auto-echo-sheet.tsx) reserves this much space up front
- * so that swap does not resize its container. */
-export const ROW_HEIGHT = 39;
-
 type Cell = {
   key: number;
   phrase: number;

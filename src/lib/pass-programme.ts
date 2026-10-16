@@ -8,7 +8,7 @@
  */
 
 import type { SheetIcon } from '@/components/sheet/sheet-rows';
-import { SPEED_MIN, tide, verb } from '@/constants/theme';
+import { tide, verb } from '@/constants/theme';
 import type { Key } from '@/locales/en';
 
 /** One programme the player's record button can run. */
@@ -270,6 +270,27 @@ export function armedStepOf(programme: Programme): PassStep {
   return programme === 'ladder' ? 'ladderArmed' : 'armed';
 }
 
+/** The step a line's run starts on: Listen in both programmes. */
+export function firstStepOf(programme: Programme): PassStep {
+  return programme === 'ladder' ? 'ladderListen' : 'listen';
+}
+
+/**
+ * The step a tap on mark `index` (0 based) jumps to. The listening passes
+ * return their own step; the recorded pass returns the armed step (the screen
+ * counts in from it); the last pass returns the line half of Compare (or
+ * Echo's Play) when a take is ready, and the armed step when there is none.
+ */
+export function stepOfPass(programme: Programme, index: number, hasTake: boolean): PassStep {
+  const armed = armedStepOf(programme);
+  if (programme === 'ladder') {
+    const steps: PassStep[] = ['ladderListen', 'ladderMumble', 'ladderRead', armed, hasTake ? 'ladderCompare' : armed];
+    return steps[Math.min(Math.max(index, 0), 4)]!;
+  }
+  const steps: PassStep[] = ['listen', 'echo', armed, hasTake ? 'play' : armed];
+  return steps[Math.min(Math.max(index, 0), 3)]!;
+}
+
 /**
  * The count that runs on the record button before a take started by hand:
  * three beats of 600ms, so the microphone opens 1.8s after the tap instead
@@ -309,20 +330,6 @@ export function isActive(step: PassStep): boolean {
  */
 export function programmeOf(step: PassStep): Programme {
   return step.startsWith('ladder') ? 'ladder' : 'echo';
-}
-
-/**
- * A pass's playback speed, relative to `base` (the island's rung as the
- * line started, i.e. `speed-ladder.ts`'s speed): Listen and Mumble play
- * 0.15 under it, clamped to `SPEED_MIN`; every other ladder pass, and every
- * Auto Echo step, plays at `base` itself. The session never writes the
- * rung: this only reads it.
- */
-export function passSpeed(base: number, step: PassStep): number {
-  if (step === 'ladderListen' || step === 'ladderMumble') {
-    return Math.max(SPEED_MIN, Math.round((base - 0.15) * 100) / 100);
-  }
-  return base;
 }
 
 /**

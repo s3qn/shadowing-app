@@ -1,10 +1,11 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
+import { HeaderClosePill } from '@/components/header-close-pill';
 
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
@@ -21,7 +22,7 @@ const READY_HOLD_MS = 900;
 export default function PhrasesBuildScreen() {
   const { t } = useT();
   const router = useRouter();
-  const { topic } = useLocalSearchParams<{ topic: string }>();
+  const { topic, uri } = useLocalSearchParams<{ topic?: string; uri?: string }>();
 
   const [error, setError] = useState('');
   const [stage, setStage] = useState('queued');
@@ -35,19 +36,15 @@ export default function PhrasesBuildScreen() {
   }, []);
 
   useEffect(() => {
-    if (started.current || !topic) return;
+    if (started.current || (!topic && !uri)) return;
     started.current = true;
     setError('');
     getSettings().then(async (settings) => {
       const { learningLanguage, understoodLanguage } = settings;
       const voice = await getVoice(learningLanguage);
-      api
-        .importPhrases(
-          topic,
-          voice,
-          toIslandLanguage(learningLanguage),
-          toNativeLanguage(understoodLanguage),
-        )
+      const language = toIslandLanguage(learningLanguage);
+      const native = toNativeLanguage(understoodLanguage);
+      (uri ? api.createTopicIsland(uri, voice, language, native) : api.importPhrases(topic!, voice, language, native))
         .then(({ id }) => {
           pollRef.current = setInterval(async () => {
             try {
@@ -73,7 +70,7 @@ export default function PhrasesBuildScreen() {
         });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topic]);
+  }, [topic, uri]);
 
   function cancel() {
     if (pollRef.current) clearInterval(pollRef.current);
@@ -86,21 +83,16 @@ export default function PhrasesBuildScreen() {
       <StatusBar style="light" />
       <Stack.Screen
         options={{
+          title: '',
           headerStyle: { backgroundColor: tide.sky[0] },
           headerTintColor: tide.text,
           headerShadowVisible: false,
-          headerLeft: () => (
-            <Pressable onPress={cancel} hitSlop={12}>
-              <Text style={{ color: tide.text, fontSize: 16, fontWeight: '600', fontFamily: fonts.ui }}>
-                {t('record.close')}
-              </Text>
-            </Pressable>
-          ),
+          headerLeft: () => <HeaderClosePill label={t('record.close')} onPress={cancel} />,
         }}
       />
       <View style={styles.center}>
         <CatConstellation size={120} label={api.stageLabel(stage).replace(/…$/, '')} />
-        <Text style={[styles.hint, styles.centerText]}>{t('home.phrasesBuildHint')}</Text>
+        <Text style={[styles.hint, styles.centerText]}>{t(uri ? 'phrases.topicHint' : 'home.phrasesBuildHint')}</Text>
         {error ? <Text style={[styles.error, styles.centerText]}>{error}</Text> : null}
       </View>
     </SafeAreaView>

@@ -72,6 +72,7 @@ export const he = {
   'settings.about.creditsFootnote':
     `הדיבור נוצר באמצעות ${isolate('VOICEVOX')} והתמלול נעשה באמצעות ${isolate('faster-whisper')}, שניהם בקוד פתוח ופועלים ברשת של המכשיר הזה בלבד.`,
   'settings.about.voiceSynthesis': 'סינתזת קול',
+  'settings.about.exampleSentences': 'משפטי דוגמה, בעיבוד',
   'settings.about.speechRecognition': 'זיהוי דיבור',
   'settings.about.artwork': 'עיצוב',
   'settings.about.artworkFootnote': `אמוג׳י מונפש של ${isolate('Google (Noto Emoji)')}, ברישיון ${isolate('CC BY 4.0')}.`,

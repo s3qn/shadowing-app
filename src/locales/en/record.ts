@@ -5,6 +5,11 @@ export const en = {
   'record.title.idle': 'Talk about your day for 30 seconds or so.',
   'record.title.recording': 'Keep talking about your day.',
   'record.title.review': 'Your recording',
+  'record.topic.title.idle': 'Say a topic',
+  'record.topic.title.recording': 'Listening…',
+  'record.topic.title.review': 'Your topic',
+  'record.topic.hint': "Say a topic, like 'phrases for the gym'",
+  'record.topic.build': 'Build phrases',
   'record.promptHint':
     'Speak Hebrew or English, whichever comes naturally. What you say becomes {language} sentences about your own life, so use real names and real places.',
   'record.language.ja': 'Japanese',

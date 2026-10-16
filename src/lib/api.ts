@@ -71,6 +71,8 @@ export type Line = {
   words: Word[];
   /** Where this line starts in the source audio, in seconds. */ // youtube-shadowing
   offset?: number;
+  /** Tatoeba sentence id when the line came from the corpus (voice topics). */
+  tatoeba_id?: number | null;
 };
 
 export type SpeakerStyle = { id: number; name: string; icon: string };
@@ -263,6 +265,8 @@ export async function createIsland(
   count = 8,
   language: Language = 'ja',
   native: NativeLanguage = 'en',
+  // A spoken topic: the backend builds a phrase island from corpus sentences.
+  topic = false,
 ): Promise<{ id: string }> {
   const form = new FormData();
   form.append('audio', new File(uri), 'recording.m4a');
@@ -272,6 +276,7 @@ export async function createIsland(
   form.append('count', String(count));
   form.append('language', language);
   form.append('native', native);
+  if (topic) form.append('topic', '1');
 
   return json<{ id: string }>(
     await expoFetch(`${BASE}/islands`, { method: 'POST', headers: headers(), body: form }),
@@ -756,6 +761,19 @@ export async function importPhrases(
   return json<{ id: string }>(
     await expoFetch(`${BASE}/phrases/import`, { method: 'POST', headers: headers(), body: form }),
   );
+}
+
+/** Build a phrase island from a recorded topic ("phrases for the gym"). Poll getIsland after this. */
+export async function createTopicIsland(
+  uri: string,
+  speaker: number,
+  language: Language,
+  native: NativeLanguage,
+  complexity: Complexity = 'simple',
+  register?: Register,
+  count = 10,
+): Promise<{ id: string }> {
+  return createIsland(uri, complexity, speaker, register, count, language, native, true);
 }
 
 // --- import-file ---
