@@ -37,6 +37,22 @@ Run it before finishing any change under `backend/`, next to
 proven otherwise: fix the code, do not loosen the test. Test dependencies live
 in `backend/requirements-dev.txt`.
 
+# Reuse existing code (Sean's rule)
+
+Always build from the code we already have. New code makes the app heavier and
+every one-off screen grows its own look. Before writing anything:
+
+- Search for an existing screen, component, hook or token that already does
+  it: the video/island/podcast players, TideScene, CompactDock and the popover
+  family, TappableSentence, PrismButton, BottomSheet and confirm-sheet,
+  use-ladder and pass-programme. Extend it with a mode or a prop instead of
+  writing a parallel one.
+- A plan that adds a new screen or component must say which existing one it
+  checked and why it does not fit.
+- A feature should leave net lines flat or down where it can. Delete what it
+  replaces in the same change.
+- Playbook, inventory and duplicate checks: `.claude/runs/reuse-scientist.md`.
+
 # Feature-dev tunnel hygiene
 
 - **Kill a feature's dev server as soon as we stop focusing on that feature.**
