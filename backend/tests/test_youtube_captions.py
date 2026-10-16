@@ -87,7 +87,7 @@ def test_long_text_cut_and_line_cap():
 
 def test_cues_from_lines():
     cues = youtube.cues_from_lines([{"start": 1.0, "end": 2.0, "text": "a"}])
-    assert cues == [{"start": 1.0, "end": 2.0, "text": "a", "words": []}]
+    assert cues == [{"start": 1.0, "end": 2.0, "text": "a", "words": [], "pieces": []}]
 
 
 def test_build_from_captions_makes_a_ready_island_without_audio(monkeypatch):

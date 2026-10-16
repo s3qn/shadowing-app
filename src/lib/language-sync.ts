@@ -13,8 +13,7 @@
  * says so rather than implying anything is retranslated.
  */
 
-import { Alert } from 'react-native';
-
+import { confirmSheet } from '@/lib/confirm-sheet';
 import { LOCALES, type Lang, resolveAppLanguage, t } from '@/lib/i18n';
 import { getLanguage } from '@/lib/languages';
 import {
@@ -60,14 +59,15 @@ export async function applyAppLanguage(next: AppLanguage): Promise<void> {
   // Settings > Language never lets one language be both learned and
   // understood, so do not offer a move its own pair rule would undo.
   if (next === before.learningLanguage) return;
-  Alert.alert(
-    t('settings.langPair.translationsTitle'),
-    t('settings.langPair.translationsBody', { lang: languageName(next), other: languageName(before.understoodLanguage) }),
-    [
-      { text: t('common.cancel'), style: 'cancel' },
-      { text: t('common.ok'), onPress: () => void setUnderstoodLanguage(next) },
+  const pick = await confirmSheet({
+    title: t('settings.langPair.translationsTitle'),
+    message: t('settings.langPair.translationsBody', { lang: languageName(next), other: languageName(before.understoodLanguage) }),
+    actions: [
+      { label: t('common.cancel'), verb: 'tools' },
+      { label: t('common.ok'), verb: 'tools' },
     ],
-  );
+  });
+  if (pick === 1) await setUnderstoodLanguage(next);
 }
 
 /**
@@ -91,12 +91,13 @@ export async function applyUnderstoodLanguage(next: UnderstoodLanguage): Promise
   if (!paired(before)) return;
   const stays = resolveAppLanguage({ ...before, understoodLanguage: next });
   if (stays === next) return;
-  Alert.alert(
-    t('settings.langPair.appTitle'),
-    t('settings.langPair.appBody', { lang: languageName(next), other: languageName(stays) }),
-    [
-      { text: t('common.cancel'), style: 'cancel' },
-      { text: t('common.ok'), onPress: () => void setAppLanguage(next) },
+  const pick = await confirmSheet({
+    title: t('settings.langPair.appTitle'),
+    message: t('settings.langPair.appBody', { lang: languageName(next), other: languageName(stays) }),
+    actions: [
+      { label: t('common.cancel'), verb: 'tools' },
+      { label: t('common.ok'), verb: 'tools' },
     ],
-  );
+  });
+  if (pick === 1) await setAppLanguage(next);
 }

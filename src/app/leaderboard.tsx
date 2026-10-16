@@ -10,7 +10,7 @@ import { PrismButton } from '@/components/prism';
 import { ITEM_IMAGES } from '@/constants/cosmetic-images';
 import { SLOTS, type Equipped } from '@/constants/cosmetics';
 import { fonts } from '@/constants/fonts';
-import { Radius, Spacing, tide } from '@/constants/theme';
+import { Radius, Spacing, prism, tide } from '@/constants/theme';
 import { getLeaderboard, type Leaderboard } from '@/lib/api';
 import { useDir, useT } from '@/lib/i18n';
 import { requestLoader } from '@/lib/loading-overlay';
@@ -199,11 +199,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
     paddingHorizontal: Spacing.md,
-    borderRadius: Radius.lg,
+    borderRadius: prism.panel.radius,
     overflow: 'hidden',
-    backgroundColor: 'rgba(34,58,94,0.78)',
+    backgroundColor: prism.panel.fill,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: prism.panel.rim,
   },
   spotCat: { width: SPOT_CAT, height: SPOT_CAT },
   spotInfo: { flex: 1, minWidth: 0, justifyContent: 'center', gap: 4 },
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
   spotName: { fontFamily: fonts.ui, fontSize: 22, lineHeight: 30, color: tide.text },
   spotBottom: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   chips: { flexDirection: 'row', gap: 4, flexShrink: 1 },
-  itemChip: { width: 28, height: 28, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(247,197,91,0.12)', borderWidth: 1, borderColor: 'rgba(247,197,91,0.45)' },
+  itemChip: { width: 28, height: 28, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,200,87,0.12)', borderWidth: 1, borderColor: 'rgba(255,200,87,0.4)' },
   itemImg: { width: 22, height: 22 },
   spotLevel: { fontFamily: fonts.uiMedium, fontSize: 44, lineHeight: 48, color: GOLD },
   pin: { position: 'absolute', left: Spacing.lg, right: Spacing.lg },

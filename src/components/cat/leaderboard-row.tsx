@@ -5,11 +5,10 @@ import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, w
 import type { Slot } from '@/constants/cosmetics';
 import { ITEM_IMAGES } from '@/constants/cosmetic-images';
 import { fonts } from '@/constants/fonts';
-import { Radius, Spacing, tide } from '@/constants/theme';
+import { Radius, Spacing, prism, tide, verb } from '@/constants/theme';
 import { useDir, useT } from '@/lib/i18n';
 
-export const GOLD = '#F7C55B';
-export const BLUE = '#6FB6FF';
+export const GOLD = verb.read.c1;
 export const ROW_H = 64;
 const BASE_CAT = require('../../../assets/kageneko-base.png') as number;
 const PAWS = require('../../../assets/kageneko-paws.png') as number;
@@ -71,10 +70,10 @@ export const Medallion = memo(function Medallion({ size, equipped }: { size: num
   );
 });
 
-export function LevelChip({ level, tone }: { level: number; tone: 'gold' | 'blue' | 'plain' }) {
+export function LevelChip({ level, tone }: { level: number; tone: 'gold' | 'plain' }) {
   const { t } = useT();
-  const c = tone === 'gold' ? GOLD : tone === 'blue' ? BLUE : tide.text;
-  const bg = tone === 'gold' ? 'rgba(247,197,91,0.14)' : tone === 'blue' ? 'rgba(111,182,255,0.18)' : 'rgba(255,255,255,0.08)';
+  const c = tone === 'gold' ? GOLD : tide.text;
+  const bg = tone === 'gold' ? 'rgba(255,200,87,0.14)' : 'rgba(255,255,255,0.08)';
   return (
     <View style={[styles.chip, { borderColor: c, backgroundColor: bg }]}>
       <Text style={[styles.chipLv, { color: c }]}>{t('leaderboard.lv')}</Text>
@@ -125,8 +124,8 @@ export const LeaderboardRow = memo(function LeaderboardRow({ rank, username, lev
   }));
 
   const gold = rank <= 3;
-  const tone = mine ? 'blue' : gold ? 'gold' : 'plain';
-  const rankColour = mine ? BLUE : gold ? GOLD : tide.textDim;
+  const tone = mine || gold ? 'gold' : 'plain';
+  const rankColour = mine || gold ? GOLD : tide.textDim;
   return (
     <Animated.View style={style}>
       <Pressable
@@ -164,16 +163,16 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     paddingHorizontal: Spacing.md,
     borderRadius: Radius.lg,
-    backgroundColor: 'rgba(34,58,94,0.72)',
+    backgroundColor: prism.panel.fill,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: prism.panel.rim,
   },
-  rowMine: { borderColor: BLUE, backgroundColor: 'rgba(40,80,130,0.8)' },
+  rowMine: { borderColor: GOLD, backgroundColor: 'rgba(255,200,87,0.12)' },
   rowPinned: { height: 72, boxShadow: '0 8px 24px rgba(0,0,0,0.35)' },
   rank: { width: 22, textAlign: 'center', fontFamily: fonts.uiMedium, fontSize: 18 },
   names: { flex: 1 },
   name: { fontFamily: fonts.ui, fontSize: 18, color: tide.text },
-  you: { fontSize: 13, color: BLUE },
+  you: { fontSize: 13, color: GOLD },
   next: { fontFamily: fonts.ui, fontSize: 12, color: tide.textDim, marginTop: 2 },
   chip: { minWidth: 52, alignItems: 'center', paddingVertical: 2, paddingHorizontal: Spacing.sm, borderRadius: Radius.lg, borderWidth: 1.5 },
   chipLv: { fontFamily: fonts.uiMedium, fontSize: 9, letterSpacing: 1 },

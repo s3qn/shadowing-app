@@ -249,6 +249,11 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - BL-35 tray family with drag rulers
 - BL-37/38 kinsoku rows, no stale highlight
 - BL-41 review inside the players on the ladder
+- BL-36 step 1 YouTube word onsets
+- BL-39 own confirm sheet
+- BL-17 ET-1 Spanish Kokoro timings
+- BL-16 Harmonizer round 2
+- Default speed 1.0 on islands
 
 ## Next (approved, in order)
 

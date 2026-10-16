@@ -7,10 +7,9 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } fr
 import { PILL_H } from '@/components/prism/pill-tray';
 import { SLOTS, type Slot } from '@/constants/cosmetics';
 import { fonts } from '@/constants/fonts';
-import { Radius, prism } from '@/constants/theme';
+import { Radius, prism, tide } from '@/constants/theme';
 import { useDir, useT } from '@/lib/i18n';
 
-const INACTIVE = '#B9B4CC';
 const ACTIVE_INK = '#0B0D16';
 const LIGHT_FILL = '#F4F2FA';
 const TRAY_BLUR = 24;
@@ -54,7 +53,7 @@ function SlotPill({ on, label, onPress }: { on: boolean; label: string; onPress:
             </Canvas>
           ) : null}
         </Animated.View>
-        <Text style={[styles.text, { color: on ? ACTIVE_INK : INACTIVE, fontWeight: on ? '600' : '500' }]}>{label}</Text>
+        <Text style={[styles.text, { color: on ? ACTIVE_INK : tide.textDim, fontWeight: on ? '600' : '500' }]}>{label}</Text>
       </Animated.View>
     </Pressable>
   );

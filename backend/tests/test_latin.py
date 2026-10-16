@@ -154,3 +154,53 @@ def test_zero_length_piece_does_not_anchor():
     ]
     out = latin.align(text, pieces, 3.0)
     assert (out[1]["start"], out[1]["end"]) == (1.0, 2.0)
+
+
+# ---------------------------------------------------------------------------
+# align_phonemes
+# ---------------------------------------------------------------------------
+
+def _ph(*spec):
+    return [{"phoneme": p, "start": a, "end": b} for p, a, b in spec]
+
+
+HOLA = _ph(
+    ("o", 0.05, 0.2), ("l", 0.2, 0.3), ("a", 0.3, 0.4), (",", 0.4, 0.5), (" ", 0.5, 0.55),
+    ("m", 0.6, 0.7), ("u", 0.7, 0.9), (" ", 0.9, 0.95),
+    ("g", 1.0, 1.1), ("u", 1.1, 1.3), (".", 1.3, 1.35),
+)
+
+
+def test_align_phonemes_spans_are_contiguous_and_own_their_trailing_gap_and_keep_absolute_times():
+    words = latin.align_phonemes("Hola, mucho gusto.", HOLA, 1.4)
+    assert [w["text"] for w in words] == ["Hola,", "mucho", "gusto."]
+    assert [(w["start"], w["end"]) for w in words] == [(0.05, 0.6), (0.6, 1.0), (1.0, 1.35)]
+
+
+def test_align_phonemes_shape_matches_align():
+    words = latin.align_phonemes("Hola, mucho gusto.", HOLA, 1.4)
+    ref = latin.align("Hola, mucho gusto.", [], 1.4)[0]
+    assert set(words[0]) == set(ref)
+    assert words[0]["pos"] == "other"
+    assert words[0]["ruby"] == [{"text": "Hola,", "rt": ""}]
+
+
+def test_align_phonemes_mismatch_returns_empty():
+    assert latin.align_phonemes("Hola mucho gusto amigos", HOLA, 1.4) == []
+
+
+def test_align_phonemes_empty_timings_returns_empty():
+    assert latin.align_phonemes("Hola", [], 1.0) == []
+
+
+def test_align_phonemes_tolerates_edge_spaces():
+    t = _ph((" ", 0.0, 0.1)) + _ph(("o", 0.1, 0.5), ("a", 0.5, 0.9)) + _ph((" ", 0.9, 1.0))
+    words = latin.align_phonemes("Hola", t, 1.0)
+    assert [(w["start"], w["end"]) for w in words] == [(0.1, 0.9)]
+
+
+def test_align_phonemes_keeps_absolute_times_with_pads_and_gap():
+    t = _ph(("a", 0.054, 0.5), (" ", 0.5, 0.6), ("b", 0.6, 1.1), (".", 1.1, 1.154),
+            (" ", 1.154, 1.374), ("c", 1.374, 2.5))
+    words = latin.align_phonemes("aa bb. cc", t, 2.7)
+    assert [(w["start"], w["end"]) for w in words] == [(0.054, 0.6), (0.6, 1.374), (1.374, 2.5)]

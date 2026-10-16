@@ -32,9 +32,14 @@ async def _fake_speak(text, speaker, speed=1.0):
     return b"RIFF", [], 1.0, ""
 
 
+async def _fake_speak_timed(text, speaker):
+    return b"RIFF", [], 1.0, "", []
+
+
 @pytest.fixture
 def fakes(monkeypatch):
     monkeypatch.setattr(main.voices, "speak", _fake_speak)
+    monkeypatch.setattr(main.voices, "speak_timed", _fake_speak_timed)
     calls = []
 
     def fake_translate(texts, language, native):

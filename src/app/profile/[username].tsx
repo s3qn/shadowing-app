@@ -9,15 +9,13 @@ import { CatAvatar } from '@/components/cat/cat-avatar';
 import { GOLD, LevelChip } from '@/components/cat/leaderboard-row';
 import { PrismButton } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
-import { Radius, Spacing, tide } from '@/constants/theme';
+import { Spacing, prism, tide } from '@/constants/theme';
 import { getProfile, type Profile } from '@/lib/api';
 import { useDir, useT } from '@/lib/i18n';
 import { requestLoader } from '@/lib/loading-overlay';
 import { equippedArtFromIds, useProgress } from '@/lib/progression';
 import { useSkyStyle } from '@/lib/sky';
 
-const CARD_BG = 'rgba(34,58,94,0.72)';
-const CARD_BORDER = 'rgba(255,255,255,0.12)';
 
 type TFn = ReturnType<typeof useT>['t'];
 
@@ -170,11 +168,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
     padding: Spacing.md,
-    borderRadius: Radius.lg,
+    borderRadius: prism.panel.radius,
     overflow: 'hidden',
-    backgroundColor: 'rgba(34,58,94,0.78)',
+    backgroundColor: prism.panel.fill,
     borderWidth: 1,
-    borderColor: CARD_BORDER,
+    borderColor: prism.panel.rim,
   },
   heroInfo: { flex: 1, minWidth: 0, gap: 4 },
   name: { fontFamily: fonts.ui, fontSize: 22, lineHeight: 30, color: tide.text },
@@ -183,14 +181,14 @@ const styles = StyleSheet.create({
   chipRow: { flexDirection: 'row', paddingVertical: 2 },
   header: { fontFamily: fonts.uiMedium, fontSize: 12, lineHeight: 16, letterSpacing: 1.2, textTransform: 'uppercase', color: tide.textDim, marginTop: Spacing.lg, marginBottom: Spacing.sm },
   tiles: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm },
-  tile: { backgroundColor: CARD_BG, borderWidth: 1, borderColor: CARD_BORDER, borderRadius: Radius.lg, padding: Spacing.md, gap: 4 },
+  tile: { backgroundColor: prism.panel.fill, borderWidth: 1, borderColor: prism.panel.rim, borderRadius: prism.panel.radius, padding: Spacing.md, gap: 4 },
   tileSmall: { flex: 1 },
   tileLabel: { fontFamily: fonts.ui, fontSize: 12, lineHeight: 16, color: tide.textDim },
   tileValueBig: { fontFamily: fonts.uiMedium, fontSize: 32, lineHeight: 40, color: GOLD },
   tileValue: { fontFamily: fonts.uiMedium, fontSize: 22, lineHeight: 28, color: tide.text },
-  card: { backgroundColor: CARD_BG, borderWidth: 1, borderColor: CARD_BORDER, borderRadius: Radius.lg, paddingHorizontal: Spacing.md, overflow: 'hidden' },
+  card: { backgroundColor: prism.panel.fill, borderWidth: 1, borderColor: prism.panel.rim, borderRadius: prism.panel.radius, paddingHorizontal: Spacing.md, overflow: 'hidden' },
   statRow: { height: 44, alignItems: 'center', justifyContent: 'space-between' },
-  sep: { borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)' },
+  sep: { borderTopWidth: 1, borderTopColor: prism.panel.rim },
   rowLabel: { fontFamily: fonts.ui, fontSize: 15, color: tide.text },
   rowValue: { fontFamily: fonts.uiMedium, fontSize: 17, color: tide.text },
 });

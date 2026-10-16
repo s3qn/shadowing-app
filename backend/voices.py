@@ -93,3 +93,18 @@ async def speak(text: str, speaker: int, speed: float = 1.0) -> tuple[bytes, lis
         wav, duration = await asyncio.to_thread(kokoro_tts.synthesize, text, name, lang, speed)
         return wav, [], duration, ""
     return await voicevox.speak(text, speaker, speed)
+
+
+async def speak_timed(text: str, speaker: int) -> tuple[bytes, list[dict], float, str, list[dict]]:
+    """`speak` at speed 1.0 plus Kokoro's phoneme timings
+    ([{"phoneme", "start", "end"}], seconds). The timings are [] for a
+    VOICEVOX voice (its mora timeline is the timing) and for a Kokoro model
+    exported without durations."""
+    if speaker in KOKORO_VOICES:
+        name, _, _, lang = KOKORO_VOICES[speaker]
+        wav, duration, timings = await asyncio.to_thread(
+            kokoro_tts.synthesize_timed, text, name, lang
+        )
+        return wav, [], duration, "", timings
+    wav, timeline, duration, kana = await speak(text, speaker)
+    return wav, timeline, duration, kana, []

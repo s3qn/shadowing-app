@@ -4,7 +4,7 @@ import Animated, { cancelAnimation, useAnimatedStyle, useReducedMotion, useShare
 
 import { PrismButton } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
-import { verb } from '@/constants/theme';
+import { tide, verb } from '@/constants/theme';
 
 export const ACTION_H = 54;
 
@@ -15,8 +15,7 @@ const FACE_FILL = {
   backgroundColor: NAVY,
   experimental_backgroundImage: 'linear-gradient(180deg, rgba(255,200,87,0) 0%, rgba(255,200,87,0.22) 100%)',
 };
-const TEXT = '#FFD98A';
-const TEXT_MUTED = '#9AA1C4';
+const TEXT = verb.read.c2;
 
 export type ActionBarProps = {
   /** null hides the bar; the space stays reserved so the grid never jumps. */
@@ -66,7 +65,7 @@ export function ActionBar({ label, price, disabled, busy, onPress }: ActionBarPr
           accessibilityLabel={shown}
           style={[{ borderRadius: 999 }, disabled ? { backgroundColor: NAVY } : FACE_FILL]}>
           <View style={styles.row}>
-            <Text style={[styles.label, { color: disabled ? TEXT_MUTED : TEXT }]}>{shown}</Text>
+            <Text style={[styles.label, { color: disabled ? tide.textDim : TEXT }]}>{shown}</Text>
             {shownPrice !== undefined ? (
               <View style={styles.capsule}>
                 <View style={styles.coin} />

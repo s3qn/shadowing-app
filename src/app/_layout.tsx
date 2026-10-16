@@ -8,6 +8,7 @@ import { useReducedMotion } from 'react-native-reanimated';
 
 import { CardMorphOverlay } from '@/components/card-morph-overlay';
 import { LevelUpModal } from '@/components/level-up-modal';
+import { ConfirmSheetHost } from '@/components/confirm-sheet-host';
 import { LoadingOverlay } from '@/components/loading-overlay';
 import { tide } from '@/constants/theme';
 import { getUsername } from '@/lib/api';
@@ -236,6 +237,7 @@ export default function RootLayout() {
       <CardMorphOverlay />
       <LevelUpHost />
       <LoadingOverlay />
+      <ConfirmSheetHost />
     </GestureHandlerRootView>
   );
 }

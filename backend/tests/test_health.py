@@ -18,3 +18,8 @@ def test_health_echoes_env_vars_when_set(monkeypatch):
     result = main.health()
     assert result["env"] == "prod"
     assert result["release"] == "abc1234"
+
+
+def test_health_reports_kokoro_timings_none_when_unloaded(monkeypatch):
+    monkeypatch.setattr(main.kokoro_tts, "_KOKORO", None)
+    assert main.health()["kokoro_timings"] is None

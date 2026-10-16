@@ -1,10 +1,11 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SettingsRow, SettingsSection } from '@/components/tide/settings-row';
 import { Spacing, tide } from '@/constants/theme';
+import { confirmSheet } from '@/lib/confirm-sheet';
 import * as api from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { humanBytes, removeAllDownloads, totalDownloaded, subscribe } from '@/lib/offline-islands'; // offline-islands
@@ -54,24 +55,28 @@ export default function DataSettingsScreen() {
   // offline-islands
   const [downloads, setDownloads] = useState(totalDownloaded());
   useEffect(() => subscribe(null, () => setDownloads(totalDownloaded())), []);
-  function confirmDeleteDownloads() {
-    Alert.alert(t('settings.data.deleteDownloadsTitle'), t('settings.data.deleteDownloadsBody'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      { text: t('settings.data.deleteAllDownloads'), style: 'destructive', onPress: removeAllDownloads },
-    ]);
+  async function confirmDeleteDownloads() {
+    const pick = await confirmSheet({
+      title: t('settings.data.deleteDownloadsTitle'),
+      message: t('settings.data.deleteDownloadsBody'),
+      actions: [
+        { label: t('common.cancel'), verb: 'tools' },
+        { label: t('settings.data.deleteAllDownloads'), verb: 'speak', destructive: true },
+      ],
+    });
+    if (pick === 1) removeAllDownloads();
   }
 
-  function confirmDeleteAll() {
-    Alert.alert(t('settings.data.deleteAllTitle'), t('settings.data.deleteAllBody'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('settings.data.deleteAllConfirm'),
-        style: 'destructive',
-        onPress: () => {
-          void deleteAllTakes().then(refreshStorage);
-        },
-      },
-    ]);
+  async function confirmDeleteAll() {
+    const pick = await confirmSheet({
+      title: t('settings.data.deleteAllTitle'),
+      message: t('settings.data.deleteAllBody'),
+      actions: [
+        { label: t('common.cancel'), verb: 'tools' },
+        { label: t('settings.data.deleteAllConfirm'), verb: 'speak', destructive: true },
+      ],
+    });
+    if (pick === 1) void deleteAllTakes().then(refreshStorage);
   }
 
   return (

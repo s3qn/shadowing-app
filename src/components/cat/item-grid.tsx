@@ -4,7 +4,7 @@ import Animated, { cancelAnimation, runOnJS, useAnimatedStyle, useReducedMotion,
 
 import { CosmeticArt, SHAPE_BOX } from '@/components/cat/cosmetic-layer';
 import { fonts } from '@/constants/fonts';
-import { Spacing, tide } from '@/constants/theme';
+import { Spacing, tide, verb } from '@/constants/theme';
 import { useDir, useT } from '@/lib/i18n';
 import { itemState, type CosmeticItem, type ItemState, type Progress } from '@/lib/progression';
 
@@ -12,8 +12,8 @@ const COLUMNS = 3;
 export const GAP = Spacing.sm;
 const DISC = 48;
 const ART_SCALE = 0.36;
-const CYAN = '#7CC8FF';
-const GOLD = '#FFC857';
+const CYAN = verb.listen.c1;
+const GOLD = verb.read.c1;
 const INK = '#0B1030';
 const TILE_H = 128;
 const ENTER = { damping: 18, stiffness: 180 } as const;
@@ -99,12 +99,12 @@ function Cell({ item, state, selected, index, size, animate, onPress }: CellProp
       </View>
     ) : state === 'owned' ? (
       <View style={[styles.band, { backgroundColor: 'rgba(255,255,255,0.04)' }]}>
-        <Text style={[styles.bandText, { color: '#98A0CC' }]}>{t('wardrobe.owned')}</Text>
+        <Text style={[styles.bandText, { color: tide.textDim }]}>{t('wardrobe.owned')}</Text>
       </View>
     ) : locked ? (
       <View style={[styles.band, dir.row, { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
-        <LockGlyph color="#8A90B8" style={dir.rtl ? { marginLeft: 5 } : { marginRight: 5 }} />
-        <Text style={[styles.bandText, { color: '#8A90B8' }]}>{t('wardrobe.lv', { n: item.level_req })}</Text>
+        <LockGlyph color={tide.textDim} style={dir.rtl ? { marginLeft: 5 } : { marginRight: 5 }} />
+        <Text style={[styles.bandText, { color: tide.textDim }]}>{t('wardrobe.lv', { n: item.level_req })}</Text>
       </View>
     ) : item.price === 0 ? (
       <View style={[styles.band, { backgroundColor: GOLD }]}>
@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
   check: { position: 'absolute', top: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: CYAN, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
   checkGlyph: { fontSize: 13, lineHeight: 16, fontWeight: '700', color: INK },
   discRing: { width: DISC, height: DISC, borderRadius: DISC / 2 },
-  discRingWorn: { boxShadow: '0 0 0 2px #7CC8FF, 0 0 18px rgba(124,200,255,0.55)' },
+  discRingWorn: { boxShadow: `0 0 0 2px ${CYAN}, 0 0 18px rgba(124,200,255,0.55)` },
   disc: { width: DISC, height: DISC, borderRadius: DISC / 2, backgroundColor: '#232b5e', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   veil: {
     position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,

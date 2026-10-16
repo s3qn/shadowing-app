@@ -80,6 +80,10 @@ async def _fake_speak(text, speaker, speed=1.0):
     return b"RIFF....WAVEfmt ", [], 0.8, ""
 
 
+async def _fake_speak_timed(text, speaker):
+    return b"RIFF....WAVEfmt ", [], 0.8, "", []
+
+
 def test_build_island_for_es_and_he_stores_latin_aligned_words(monkeypatch, tmp_path):
     monkeypatch.setattr(main.transcribe, "transcribe", _fake_transcribe)
     monkeypatch.setattr(
@@ -90,6 +94,7 @@ def test_build_island_for_es_and_he_stores_latin_aligned_words(monkeypatch, tmp_
         },
     )
     monkeypatch.setattr(main.voices, "speak", _fake_speak)
+    monkeypatch.setattr(main.voices, "speak_timed", _fake_speak_timed)
 
     island_id = store.create_island("simple", 10011, register="polite", language="es", native="he")
     wav = tmp_path / "source.wav"

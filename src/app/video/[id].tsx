@@ -133,11 +133,11 @@ export default function VideoScreen() {
   const [explainWhole, setExplainWhole] = useState(false);
   const [generation, setGeneration] = useState(0);
 
-  // Dock state, the same shape as the audio player's. Speed starts at 1x: it
-  // is a video, not the practice default.
-  const [speedLive, setSpeedLive] = useState(1);
+  // Dock state, the same shape as the audio player's. Speed starts at the
+  // Settings default (snapped to a rate the embed plays), never a rung.
+  const [speedLive, setSpeedLive] = useState(() => snapRate(getSettingsSync().defaultSpeed));
   // The embed's rate, set only when the Speed ruler settles.
-  const [rate, setRate] = useState(1);
+  const [rate, setRate] = useState(() => snapRate(getSettingsSync().defaultSpeed));
   const [times, setTimes] = useState(() => getSettingsSync().defaultTimes);
   const [pauseMs, setPauseMs] = useState(() => getSettingsSync().defaultPauseMs);
   const [readingMode, setReadingMode] = useState<ReadingMode>(() => getSettingsSync().reading);
@@ -805,7 +805,7 @@ export default function VideoScreen() {
                     onRecord={() => void onDockRecord()}
                     recordLabel={recording ? t('player.stopRecording') : t('player.recordMyTake')}
                     speed={speedLive}
-                    speedOn={Math.abs(speedLive - 1) > 0.001}
+                    speedOn={Math.abs(speedLive - snapRate(getSettingsSync().defaultSpeed)) > 0.001}
                     onSpeed={onSpeedChip}
                     pills={trayPills}
                     trayOpen={trayOpen}

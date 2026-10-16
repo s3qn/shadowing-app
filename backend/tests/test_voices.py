@@ -108,3 +108,29 @@ def test_speak_routes_a_voicevox_id_to_voicevox(monkeypatch):
     assert timeline == [{"mora": "こ"}]
     assert duration == 0.9
     assert kana == "こんにちは"
+
+
+# ---------------------------------------------------------------------------
+# speak_timed
+# ---------------------------------------------------------------------------
+
+def test_speak_timed_routes_kokoro_ids_to_synthesize_timed(monkeypatch):
+    seen = {}
+
+    def fake(text, name, lang):
+        seen["args"] = (text, name, lang)
+        return b"WAV", 1.5, [{"phoneme": "a", "start": 0.0, "end": 1.5}]
+
+    monkeypatch.setattr(voices.kokoro_tts, "synthesize_timed", fake)
+    out = asyncio.run(voices.speak_timed("hola", 10011))
+    assert seen["args"] == ("hola", "ef_dora", "es")
+    assert out == (b"WAV", [], 1.5, "", [{"phoneme": "a", "start": 0.0, "end": 1.5}])
+
+
+def test_speak_timed_delegates_voicevox_ids_with_no_timings(monkeypatch):
+    async def fake_speak(text, speaker, speed=1.0):
+        return b"W", [{"m": 1}], 2.0, "kana"
+
+    monkeypatch.setattr(voices, "speak", fake_speak)
+    out = asyncio.run(voices.speak_timed("やあ", 3))
+    assert out == (b"W", [{"m": 1}], 2.0, "kana", [])

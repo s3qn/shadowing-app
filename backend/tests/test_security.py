@@ -176,6 +176,11 @@ def test_cached_word_audio_does_not_use_a_slot(monkeypatch, tmp_path):
         return b"RIFF", [], 1.0, None
 
     monkeypatch.setattr(main.voices, "speak", speak)
+
+    async def speak_timed(*a, **k):
+        return (*(await speak()), [])
+
+    monkeypatch.setattr(main.voices, "speak_timed", speak_timed)
     monkeypatch.setattr(store, "DATA_DIR", tmp_path)
     monkeypatch.setitem(main.DAILY_CAPS, "word_audio", 1)
     h = {**AUTH, "X-Shadow-Device": dev}

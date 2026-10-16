@@ -2,7 +2,6 @@ import { Tabs, useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   Dimensions,
   Pressable,
   FlatList,
@@ -52,6 +51,7 @@ import { GlassInput } from '@/components/tide/glass-input';
 import { fonts } from '@/constants/fonts';
 import { prism, Radius, Spacing, tide, verb, withAlpha } from '@/constants/theme';
 import { LitPillCover, LitPillRim, PILL_H, PILL_ICON_OFF, PILL_LABEL_SIZE, PILL_PAD_X, PillTrayShell } from '@/components/prism/pill-tray';
+import { alertSheet, confirmSheet } from '@/lib/confirm-sheet';
 import { useSkyStyle, isNight } from '@/lib/sky';
 import { useT, useDir } from '@/lib/i18n';
 import * as api from '@/lib/api';
@@ -444,7 +444,7 @@ export default function IslandsScreen() {
       if (restore) {
         setIslands((prev) => (prev.some((i) => i.id === id) ? prev : [...prev, restore]));
       }
-      Alert.alert(t('home.deleteFailedTitle'), e instanceof Error ? e.message : t('home.serverNoAnswer'));
+      void alertSheet(t('home.deleteFailedTitle'), e instanceof Error ? e.message : t('home.serverNoAnswer'));
     }
   }
 
@@ -455,7 +455,7 @@ export default function IslandsScreen() {
       invalidateCachedIsland(id);
       setIslands((prev) => prev.map((i) => (i.id === id ? { ...i, title: finalTitle } : i)));
     } catch (e) {
-      Alert.alert(t('home.renameFailedTitle'), e instanceof Error ? e.message : t('home.serverNoAnswer'));
+      void alertSheet(t('home.renameFailedTitle'), e instanceof Error ? e.message : t('home.serverNoAnswer'));
     }
   }
 
@@ -567,15 +567,16 @@ export default function IslandsScreen() {
     requestShape({ ...wanted.current, wheel: true });
   }
 
-  function confirmDelete(item: api.IslandSummary) {
-    Alert.alert(
-      t('home.deleteConfirmTitle', { title: item.title || t('home.untitledIsland') }),
-      t('home.deleteConfirmBody'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        { text: t('common.delete'), style: 'destructive', onPress: () => void remove(item.id) },
+  async function confirmDelete(item: api.IslandSummary) {
+    const pick = await confirmSheet({
+      title: t('home.deleteConfirmTitle', { title: item.title || t('home.untitledIsland') }),
+      message: t('home.deleteConfirmBody'),
+      actions: [
+        { label: t('common.cancel'), verb: 'tools' },
+        { label: t('common.delete'), verb: 'speak', destructive: true },
       ],
-    );
+    });
+    if (pick === 1) void remove(item.id);
   }
 
   // Re-poll whenever the screen comes back into focus, and keep polling while
@@ -1058,7 +1059,7 @@ export default function IslandsScreen() {
           {/* offline-islands: one control, three states */}
           {menuItem?.status === 'ready' ? (
             <GlassPanel style={styles.sheetMenuRow}>
-              <DownloadPill id={menuItem.id} />
+              <DownloadPill id={menuItem.id} closeThen={closeSheetThen} />
             </GlassPanel>
           ) : null}
           </>
@@ -1071,22 +1072,37 @@ export default function IslandsScreen() {
 
 /** offline-islands: the sheet's download control. Its own component, so the
  * per-file progress re-renders this pill and not all of Home. */
-function DownloadPill({ id }: { id: string }) {
+function DownloadPill({ id, closeThen }: { id: string; closeThen: (fn: () => void) => void }) {
   const { t } = useT();
   const download = useDownloadStatus(id);
   const onPress = () => {
     if (download.state === 'none' || download.state === 'failed') {
       void startDownload(id);
     } else if (download.state === 'downloading') {
-      Alert.alert(t('home.downloadStopTitle'), undefined, [
-        { text: t('home.downloadKeepGoing'), style: 'cancel' },
-        { text: t('home.downloadStop'), style: 'destructive', onPress: () => cancelDownload(id) },
-      ]);
+      closeThen(() => {
+        void confirmSheet({
+          title: t('home.downloadStopTitle'),
+          actions: [
+            { label: t('home.downloadKeepGoing'), verb: 'tools' },
+            { label: t('home.downloadStop'), verb: 'speak', destructive: true },
+          ],
+        }).then((pick) => {
+          if (pick === 1) cancelDownload(id);
+        });
+      });
     } else {
-      Alert.alert(t('home.downloadRemoveTitle'), t('home.downloadRemoveBody'), [
-        { text: t('common.cancel'), style: 'cancel' },
-        { text: t('home.downloadRemove'), style: 'destructive', onPress: () => removeDownload(id) },
-      ]);
+      closeThen(() => {
+        void confirmSheet({
+          title: t('home.downloadRemoveTitle'),
+          message: t('home.downloadRemoveBody'),
+          actions: [
+            { label: t('common.cancel'), verb: 'tools' },
+            { label: t('home.downloadRemove'), verb: 'speak', destructive: true },
+          ],
+        }).then((pick) => {
+          if (pick === 1) removeDownload(id);
+        });
+      });
     }
   };
   const label =

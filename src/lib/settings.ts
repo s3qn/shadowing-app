@@ -57,6 +57,9 @@ export type Register = (typeof REGISTER_OPTIONS)[number];
 export const DEFAULT_REGISTER: Register = 'polite';
 
 const DEFAULT_DEFAULT_SPEED = 1;
+// Written with every settings file. A file without it predates the 1.0
+// default speed, so a stored 0.5 there is the old default, not a choice.
+const SETTINGS_VERSION = 1;
 const DEFAULT_HAPTICS = true;
 const DEFAULT_SKY_ALWAYS_NIGHT = false;
 const DEFAULT_KEEP_AWAKE = true;
@@ -134,6 +137,8 @@ export type Settings = {
   /** Home shows every island mixed together with a language pill, instead of
    * only the ones matching `learningLanguage`. Off by default. */
   showAllLanguages: boolean;
+  /** Format marker, `SETTINGS_VERSION` once this build has written the file. */
+  version: number;
 };
 
 const FILE = `${documentDirectory ?? ''}settings.json`;
@@ -164,6 +169,7 @@ const DEFAULTS: Settings = {
   // predates this key.
   onboarded: false,
   showAllLanguages: DEFAULT_SHOW_ALL_LANGUAGES,
+  version: SETTINGS_VERSION,
 };
 // A file exists but is corrupt or not an object: it was written by some
 // earlier version of the app, so this is not a fresh install. Same defaults
@@ -254,9 +260,13 @@ async function read(): Promise<Settings> {
     autoEcho: parsed.autoEcho !== false,
     autoRecord: parsed.autoRecord !== false,
     programme: parsed.programme === 'echo' ? 'echo' : 'ladder',
+    // A file from before `version` holding 0.5 kept the old default: reset it
+    // to 1.0. The next write stamps the version, so a 0.5 picked after that stays.
     defaultSpeed:
       typeof parsed.defaultSpeed === 'number' && parsed.defaultSpeed >= SPEED_MIN && parsed.defaultSpeed <= SPEED_MAX
-        ? parsed.defaultSpeed
+        ? typeof parsed.version !== 'number' && Math.abs(parsed.defaultSpeed - 0.5) < 0.001
+          ? DEFAULT_DEFAULT_SPEED
+          : parsed.defaultSpeed
         : DEFAULT_DEFAULT_SPEED,
     defaultTimes: isTimes(parsed.defaultTimes)
       ? parsed.defaultTimes
@@ -300,6 +310,7 @@ async function read(): Promise<Settings> {
     // onboarded. Only a missing file (handled above) defaults to false.
     onboarded: typeof parsed.onboarded === 'boolean' ? parsed.onboarded : true,
     showAllLanguages: parsed.showAllLanguages === true,
+    version: SETTINGS_VERSION,
   });
 }
 

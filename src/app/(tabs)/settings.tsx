@@ -1,11 +1,12 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, ScrollView, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PILL_TAB_BAR_REACH } from '@/components/pill-tab-bar';
 import { SettingsRow, SettingsSection } from '@/components/tide/settings-row';
 import { Spacing, prism, tide } from '@/constants/theme';
+import { alertSheet, confirmSheet } from '@/lib/confirm-sheet';
 import * as api from '@/lib/api';
 import { provider, signOut, signOutLocal, usingDevBypass } from '@/lib/auth';
 import { LOCALES, type Lang, useT } from '@/lib/i18n';
@@ -27,29 +28,27 @@ export default function SettingsScreen() {
       await signOut();
       router.push('/sign-in');
     } catch (err: unknown) {
-      Alert.alert(t('settings.account.failed'), err instanceof Error ? err.message : '');
+      void alertSheet(t('settings.account.failed'), err instanceof Error ? err.message : '');
     }
   }
 
-  function confirmDeleteAccount() {
-    Alert.alert(t('settings.account.deleteTitle'), t('settings.account.deleteBody'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('settings.account.deleteConfirm'),
-        style: 'destructive',
-        onPress: () => {
-          void (async () => {
-            try {
-              await api.deleteAccount();
-              await signOutLocal();
-              router.push('/sign-in');
-            } catch (err: unknown) {
-              Alert.alert(err instanceof Error ? err.message : t('settings.account.failed'));
-            }
-          })();
-        },
-      },
-    ]);
+  async function confirmDeleteAccount() {
+    const pick = await confirmSheet({
+      title: t('settings.account.deleteTitle'),
+      message: t('settings.account.deleteBody'),
+      actions: [
+        { label: t('common.cancel'), verb: 'tools' },
+        { label: t('settings.account.deleteConfirm'), verb: 'speak', destructive: true },
+      ],
+    });
+    if (pick !== 1) return;
+    try {
+      await api.deleteAccount();
+      await signOutLocal();
+      router.push('/sign-in');
+    } catch (err: unknown) {
+      void alertSheet(err instanceof Error ? err.message : t('settings.account.failed'));
+    }
   }
 
   useFocusEffect(

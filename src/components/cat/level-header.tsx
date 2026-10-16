@@ -14,13 +14,13 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { fonts } from '@/constants/fonts';
-import { tide } from '@/constants/theme';
+import { tide, verb } from '@/constants/theme';
 import { hapticImpact } from '@/lib/haptics';
 import { useDir, useT } from '@/lib/i18n';
 
 export const XP_TRACK = 'rgba(255,255,255,0.10)';
 export const XP_HIGHLIGHT = 'rgba(255,255,255,0.25)';
-const GOLD = '#FFC857';
+const GOLD = verb.read.c1;
 const OUT_CUBIC = Easing.out(Easing.cubic);
 
 export type XpBarProps = {

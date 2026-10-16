@@ -15,12 +15,12 @@ import Animated, {
 import { CatAvatar } from '@/components/cat/cat-avatar';
 import { PrismButton } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
-import { tide } from '@/constants/theme';
+import { tide, verb } from '@/constants/theme';
 import { useT } from '@/lib/i18n';
 import { clearLevelUp, type PendingLevelUp } from '@/lib/level-up-store';
 import { equippedArt, useProgressCache } from '@/lib/progression';
 
-const GOLD = '#FFC857';
+const GOLD = verb.read.c1;
 const WATER = '#3C78C8';
 const OUT_MS = 220;
 const EASE = Easing.bezier(0.2, 0.8, 0.2, 1);

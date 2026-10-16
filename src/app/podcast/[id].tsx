@@ -66,8 +66,9 @@ export default function PodcastScreen() {
   const [loaded, setLoaded] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [failed, setFailed] = useState(false);
-  const [rate, setRate] = useState(1);
-  const [speedLive, setSpeedLive] = useState(1);
+  // Starts at the Settings default speed, never a rung.
+  const [rate, setRate] = useState(() => snapRate(getSettingsSync().defaultSpeed));
+  const [speedLive, setSpeedLive] = useState(() => snapRate(getSettingsSync().defaultSpeed));
   const { width: playerW } = useWindowDimensions();
 
   const player = useAudioPlayer(null, { updateInterval: 50, keepAudioSessionActive: true });
@@ -738,7 +739,7 @@ export default function PodcastScreen() {
                           : 'player.recordMyTake',
                   )}
                   speed={speedLive}
-                  speedOn={Math.abs(speedLive - 1) > 0.001}
+                  speedOn={Math.abs(speedLive - snapRate(getSettingsSync().defaultSpeed)) > 0.001}
                   onSpeed={onSpeedChip}
                   pills={trayPills}
                   trayOpen={trayOpen}

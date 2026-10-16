@@ -99,6 +99,22 @@ def _num(value) -> float:
     return f
 
 
+def _pieces(timed: list[tuple[float, str]], event_end: float) -> list[dict]:
+    """Seg onsets to `[{text, start, end}]` in absolute seconds. Piece end is
+    the next onset, the last piece ends with the event. Non-monotonic onsets
+    are dropped."""
+    kept: list[tuple[float, str]] = []
+    for onset, u in timed:
+        if kept and onset < kept[-1][0]:
+            continue
+        kept.append((onset, u))
+    out = []
+    for i, (onset, u) in enumerate(kept):
+        end = kept[i + 1][0] if i + 1 < len(kept) else event_end
+        out.append({"text": u.strip(), "start": onset, "end": end})
+    return out
+
+
 def json3_to_lines(events) -> list[dict]:
     """Raw json3 `events` to `[{start, end, text}]`: sorted, non-overlapping,
     capped. Raises CaptionsInvalid for the wrong shape, a non-finite or
@@ -117,6 +133,9 @@ def json3_to_lines(events) -> list[dict]:
         start_ms = _num(ev.get("tStartMs", 0))
         dur_ms = _num(ev.get("dDurationMs", 0))
         parts = []
+        timed: list[tuple[float, str]] = []
+        has_offsets = False
+        bad_offset = False
         for seg in segs:
             if not isinstance(seg, dict):
                 raise CaptionsInvalid("seg is not an object")
@@ -124,12 +143,26 @@ def json3_to_lines(events) -> list[dict]:
             if not isinstance(u, str):
                 raise CaptionsInvalid("utf8 is not a string")
             parts.append(u)
+            off_ms = 0.0
+            if "tOffsetMs" in seg:
+                has_offsets = True
+                try:
+                    off_ms = _num(seg["tOffsetMs"])
+                except CaptionsInvalid:
+                    # A bad offset only costs this event its pieces.
+                    bad_offset = True
+            if u.strip():
+                timed.append(((start_ms + off_ms) / 1000.0, u))
         text = _WS_RE.sub(" ", "".join(parts).replace("\n", " ")).strip()
         text = cues_mod.clean_cue_text(text)
         if not text or _MARKER_RE.match(text) or text.startswith("♪"):
             continue
         start = start_ms / 1000.0
-        raw.append({"start": start, "end": start + dur_ms / 1000.0, "text": text[:CAPTION_MAX_CHARS]})
+        end = start + dur_ms / 1000.0
+        entry = {"start": start, "end": end, "text": text[:CAPTION_MAX_CHARS]}
+        if has_offsets and not bad_offset and len(timed) >= 2:
+            entry["pieces"] = _pieces(timed, end)
+        raw.append(entry)
     raw.sort(key=lambda r: r["start"])
     out: list[dict] = []
     for line in raw:
@@ -140,6 +173,11 @@ def json3_to_lines(events) -> list[dict]:
             if prev is not None and prev["end"] - prev["start"] < MERGE_PREV_MAX_S:
                 prev["text"] = (prev["text"] + " " + line["text"])[:CAPTION_MAX_CHARS]
                 prev["end"] = max(prev["end"], line["end"])
+                if prev.get("pieces") and line.get("pieces"):
+                    prev["pieces"].extend(line["pieces"])
+                else:
+                    # Half the anchors would skew the even spread.
+                    prev.pop("pieces", None)
                 continue
             line["end"] = line["start"] + MIN_KEPT_S
         out.append(line)
@@ -149,8 +187,17 @@ def json3_to_lines(events) -> list[dict]:
 
 
 def cues_from_lines(lines: list[dict]) -> list[dict]:
-    """Lines to the cue shape the build uses. No word times exist."""
-    return [
-        {"start": ln["start"], "end": ln["end"], "text": ln["text"], "words": []}
-        for ln in lines
-    ]
+    """Lines to the cue shape the build uses. `pieces` are seg onsets relative
+    to the line start, clamped to the line; empty when the track has none."""
+    cues = []
+    for ln in lines:
+        dur = ln["end"] - ln["start"]
+        pieces = []
+        for pc in ln.get("pieces", []):
+            a = min(max(pc["start"] - ln["start"], 0.0), dur)
+            b = min(max(pc["end"] - ln["start"], 0.0), dur)
+            if b > a:
+                pieces.append({"text": pc["text"], "start": a, "end": b})
+        cues.append({"start": ln["start"], "end": ln["end"], "text": ln["text"],
+                     "words": [], "pieces": pieces})
+    return cues

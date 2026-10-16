@@ -156,3 +156,56 @@ def align(text: str, pieces: list[dict], duration: float) -> list[dict]:
     except Exception:
         log.exception("latin: align failed for %r", text)
         return whole
+
+
+def align_phonemes(text: str, timings: list[dict], duration: float) -> list[dict]:
+    """Word timing from Kokoro's own phoneme durations. `timings` is
+    [{"phoneme", "start", "end"}] with " " phonemes between words, in absolute
+    seconds of the audio. Times are never scaled: the leading pad stays
+    before the first word and the silent tail after the last. Each word
+    starts where its phoneme group starts; the gap after a word belongs to
+    that word (it ends where the next starts) and the last word ends at its
+    own last phoneme. Same shape as `align`. Returns [] (caller falls back to whisper) when there
+    are no timings, the group count differs from the token count, or
+    anything goes wrong."""
+    try:
+        tokens = split_words(text)
+        if duration <= 0 or not tokens or not timings:
+            return []
+        groups: list[list[dict]] = []
+        run: list[dict] = []
+        for t in timings:
+            if t["phoneme"] == " ":
+                if run:
+                    groups.append(run)
+                    run = []
+            else:
+                run.append(t)
+        if run:
+            groups.append(run)
+        if len(groups) != len(tokens):
+            log.warning(
+                "phoneme groups (%d) do not match words (%d) for %r",
+                len(groups), len(tokens), text,
+            )
+            return []
+        starts = [min(duration, max(0.0, g[0]["start"])) for g in groups]
+        for i in range(1, len(starts)):
+            starts[i] = max(starts[i], starts[i - 1])
+        words = []
+        for i, token in enumerate(tokens):
+            if i + 1 < len(tokens):
+                end = starts[i + 1]
+            else:
+                end = min(duration, max(0.0, groups[i][-1]["end"]))
+            words.append({
+                "text": token,
+                "start": round(starts[i], 3),
+                "end": round(max(end, starts[i]), 3),
+                "pos": "other",
+                "ruby": [{"text": token, "rt": ""}],
+            })
+        return words
+    except Exception:
+        log.exception("align_phonemes failed for %r", text)
+        return []

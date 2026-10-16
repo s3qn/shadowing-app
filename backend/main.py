@@ -184,6 +184,7 @@ def health() -> dict:
         "service": "shadow",
         "env": os.getenv("SHADOW_ENV", "dev"),
         "release": os.getenv("SHADOW_RELEASE", ""),
+        "kokoro_timings": kokoro_tts.has_timings(),
     }
 
 
@@ -450,14 +451,15 @@ async def _synthesize_lines(island_id: str, lines: list[dict], speaker: int,
     """Render every line to its own wav. Returns how many succeeded.
 
     ja's word timing comes from VOICEVOX's own mora timeline. Kokoro (es,
-    en) has no timing of its own, so its line is re-transcribed with whisper
+    en) is timed from the model's own phoneme durations (latin.align_phonemes)
+    when the export has them; otherwise the line is re-transcribed with whisper
     right after rendering and the words mapped on with latin.align; a
     transcription failure never fails the island, just that line's timing
     (steady-pace fallback, logged)."""
     done = 0
     for idx, line in enumerate(lines):
         try:
-            wav, timeline, duration, _ = await voices.speak(line["ja"], speaker)
+            wav, timeline, duration, _, timings = await voices.speak_timed(line["ja"], speaker)
         except (voicevox.VoicevoxError, kokoro_tts.KokoroError):
             log.exception("synthesis failed for line %d of %s", idx, island_id)
             continue
@@ -470,15 +472,18 @@ async def _synthesize_lines(island_id: str, lines: list[dict], speaker: int,
         if language == "ja":
             words = await asyncio.to_thread(segment.align, line["ja"], timeline)
         else:
-            result = await asyncio.to_thread(
-                transcribe.transcribe, target, language, word_timestamps=True
-            )
-            if not result.get("ok"):
-                log.warning(
-                    "island %s: whisper could not time line %d, falling back to a steady pace",
-                    island_id, idx,
+            words = latin.align_phonemes(line["ja"], timings, duration)
+            if not words:
+                log.info("no phoneme timings for line %d, timing with whisper", idx)
+                result = await asyncio.to_thread(
+                    transcribe.transcribe, target, language, word_timestamps=True
                 )
-            words = await asyncio.to_thread(latin.align, line["ja"], result.get("words", []), duration)
+                if not result.get("ok"):
+                    log.warning(
+                        "island %s: whisper could not time line %d, falling back to a steady pace",
+                        island_id, idx,
+                    )
+                words = await asyncio.to_thread(latin.align, line["ja"], result.get("words", []), duration)
         store.add_line(island_id, idx, line, duration, timeline, words)
         done += 1
     # A re-voice or regenerate with fewer lines must not leave old wavs behind.
@@ -2137,18 +2142,19 @@ async def youtube_info(url: str, authorization: str | None = Header(None),
 async def _build_from_captions(island_id: str, cue_list: list[dict], title: str,
                                language: str = "ja", native: str = "en") -> None:
     """Build a video island from caption lines. No audio exists, so lines get
-    their reading and an even word pace, with `offset` = the caption start."""
+    their reading and word times from the json3 seg onsets (an even pace when the track has none), with `offset` = the caption start."""
     try:
         store.set_stage(island_id, "aligning")
         ja_texts: list[str] = []
         last_end = 0.0
         for i, cue in enumerate(cue_list):
             duration = max(cue["end"] - cue["start"], 0.05)
+            pieces = cue.get("pieces", [])
             if language == "ja":
-                words = await asyncio.to_thread(segment.align_pieces, cue["text"], [], duration)
+                words = await asyncio.to_thread(segment.align_pieces, cue["text"], pieces, duration)
                 kana = segment.reading(cue["text"])
             else:
-                words = await asyncio.to_thread(latin.align, cue["text"], [], duration)
+                words = await asyncio.to_thread(latin.align, cue["text"], pieces, duration)
                 kana = ""
             line = {"ja": cue["text"], "kana": kana, "romaji": "", "en": ""}
             store.add_line(island_id, i, line, round(duration, 3), [], words, offset=cue["start"])
