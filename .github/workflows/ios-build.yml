@@ -56,7 +56,15 @@ jobs:
         run: npm ci
 
       - name: Build the iOS app on this runner
-        run: npx --yes eas-cli@latest build --platform ios --profile production --local --non-interactive --output "$RUNNER_TEMP/app.ipa"
+        run: |
+          set -o pipefail
+          npx --yes eas-cli@latest build --platform ios --profile production --local --non-interactive --output "$RUNNER_TEMP/app.ipa" 2>&1 | tee "$RUNNER_TEMP/build.log" || {
+            # Annotations are readable without a login, so the error tail lands there.
+            TAIL=$(grep -iE "error|fail|❌|exception" "$RUNNER_TEMP/build.log" | tail -n 25; echo "--- last lines ---"; tail -n 35 "$RUNNER_TEMP/build.log")
+            TAIL="${TAIL//'%'/'%25'}"; TAIL="${TAIL//$'\n'/'%0A'}"; TAIL="${TAIL//$'\r'/'%0D'}"
+            echo "::error title=iOS build failed::${TAIL}"
+            exit 1
+          }
 
       - name: Submit to TestFlight
         if: ${{ github.event_name == 'push' || inputs.submit }}
