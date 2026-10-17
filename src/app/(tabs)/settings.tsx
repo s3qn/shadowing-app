@@ -194,14 +194,14 @@ export default function SettingsScreen() {
           {/* Dev-only row, excluded from the app-language inventory. */}
           {__DEV__ ? (
             <SettingsRow
-              label="Prism lab"
+              label={t('title.prismLab')}
               icon={{ ios: 'sparkles', android: 'auto_awesome' }}
               onPress={() => router.push('/prism-lab')}
             />
           ) : null}
           {__DEV__ ? (
             <SettingsRow
-              label="Cat lab"
+              label={t('title.catLab')}
               last
               icon={{ ios: 'pawprint', android: 'pets' }}
               onPress={() => router.push('/cat-lab')}

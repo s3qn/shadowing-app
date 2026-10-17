@@ -453,8 +453,17 @@ def align_pieces(text: str, pieces: list[dict], duration: float) -> list[dict]:
 
 
 def moras_of(text: str) -> list[str]:
-    """Normalised moras of every chunk of `text`, concatenated."""
-    return [m for c in tokenize(text) for m in c["moras"]]
+    """Normalised moras of every chunk of `text`, concatenated. A ー that
+    janome split off as its own chunk (hiragana こーひー) still becomes the
+    vowel of the mora before it, as it does inside one chunk."""
+    out: list[str] = []
+    for c in tokenize(text):
+        for m in c["moras"]:
+            if m == "ー" and out:
+                prev = out[-1]
+                m = _VOWEL.get(prev[-1] if prev[-1] in _SMALL else prev[0], m)
+            out.append(m)
+    return out
 
 
 def reading_distance(a: str, b: str) -> int:

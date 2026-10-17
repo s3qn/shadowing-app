@@ -5,5 +5,5 @@ export const he = {
   'beforeAfter.first': 'ראשון',
   'beforeAfter.now': 'עכשיו',
   'beforeAfter.noTakeNow': 'אין הקלטה עכשיו',
-  'beforeAfter.empty': 'ההקלטה הראשונה של כל משפט נשמרת. הקליטו משפט פעם שנייה ושתי ההקלטות ייפגשו כאן.',
+  'beforeAfter.empty': 'ההקלטה הראשונה של כל משפט נשמרת. אחרי הקלטה שנייה של משפט, שתי ההקלטות נפגשות כאן.',
 } satisfies Record<keyof typeof enBeforeAfter, string>;

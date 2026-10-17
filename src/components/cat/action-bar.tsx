@@ -5,6 +5,7 @@ import Animated, { cancelAnimation, useAnimatedStyle, useReducedMotion, useShare
 import { PrismButton } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
 import { tide, verb } from '@/constants/theme';
+import { useDir } from '@/lib/i18n';
 
 export const ACTION_H = 54;
 /** How long the Buy sweep stays lit. Pill stays enabled and fully visible meanwhile (disabled would sink and dim it). */
@@ -36,6 +37,7 @@ export type ActionBarProps = {
  * `disabled` (locked or unaffordable) drops the gold and mutes the text.
  */
 export function ActionBar({ label, price, disabled, busy, onPress }: ActionBarProps) {
+  const dir = useDir();
   const reduced = useReducedMotion();
   const [shown, setShown] = useState(label);
   const [shownPrice, setShownPrice] = useState(price);
@@ -83,10 +85,10 @@ export function ActionBar({ label, price, disabled, busy, onPress }: ActionBarPr
           onPress={onPress}
           accessibilityLabel={shown}
           style={[{ borderRadius: 999 }, disabled ? { backgroundColor: NAVY } : FACE_FILL]}>
-          <View style={styles.row}>
-            <Text style={[styles.label, { color: disabled ? tide.textDim : TEXT }]}>{shown}</Text>
+          <View style={[styles.row, dir.row]}>
+            <Text style={[styles.label, dir.writing, { color: disabled ? tide.textDim : TEXT }]}>{shown}</Text>
             {shownPrice !== undefined ? (
-              <View style={styles.capsule}>
+              <View style={[styles.capsule, dir.row]}>
                 <View style={styles.coin} />
                 <Text style={styles.capsuleText}>{shownPrice}</Text>
               </View>

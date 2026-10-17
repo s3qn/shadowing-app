@@ -129,7 +129,7 @@ export default function UsernameScreen() {
               accessibilityLabel={t('username.title')}
             />
           </View>
-          <Text style={[styles.status, { color: colour }]}>{message}</Text>
+          <Text style={[styles.status, dir.text, { color: colour }]}>{message}</Text>
         </View>
         <View style={styles.footer}>
           <PrismButton

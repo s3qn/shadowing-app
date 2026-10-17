@@ -131,19 +131,19 @@ export const LeaderboardRow = memo(function LeaderboardRow({ rank, username, lev
       <Pressable
         accessible
         accessibilityRole="button"
-        accessibilityLabel={`${rank}. @${username}, ${t('leaderboard.lv')} ${level}`}
+        accessibilityLabel={t('leaderboard.rowLabel', { rank, name: `@${username}`, level })}
         onPress={onOpen ? () => onOpen(username) : undefined}
         style={({ pressed }) => [styles.row, mine && styles.rowMine, pinned && styles.rowPinned, dir.row, pressed && { opacity: 0.8 }]}
       >
         <Text style={[styles.rank, { color: rankColour }]}>{rank}</Text>
         <Medallion size={52} equipped={equipped} />
         <View style={styles.names}>
-          <Text numberOfLines={1} style={[styles.name, { textAlign: 'left', writingDirection: 'ltr' }]}>
+          <Text numberOfLines={1} style={[styles.name, { textAlign: dir.rtl ? 'right' : 'left', writingDirection: 'ltr' }]}>
             @{username}
             {pinned ? <Text style={styles.you}>{`  ${t('leaderboard.you')}`}</Text> : null}
           </Text>
           {pinned && nextLine ? (
-            <Text numberOfLines={1} style={styles.next}>
+            <Text numberOfLines={1} style={[styles.next, dir.text]}>
               {nextLine}
             </Text>
           ) : null}

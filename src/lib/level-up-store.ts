@@ -35,3 +35,100 @@ export function clearLevelUp() {
 export function usePendingLevelUp(): PendingLevelUp | null {
   return useSyncExternalStore(subscribe, () => pending);
 }
+
+// BL-51: the session summary and XP moment, and the small "+N XP" pop for XP
+// earned anywhere else. Same store so the root host shows one at a time.
+export type RecapLine = { islandId: string; title: string; kind: 'island' | 'video' | 'podcast'; score: number | null; words: number; text: string; en: string };
+export type XpBreakdown = { sentences: number; score: number; first: number; streak: number };
+export type Celebration = {
+  xp: number;
+  coins: number;
+  streak: number;
+  sentences: number;
+  avgScore: number | null;
+  breakdown: XpBreakdown | null;
+  /** Level and bar before the XP, and after. */
+  before: { level: number; into: number; toNext: number };
+  after: { level: number; into: number; toNext: number };
+  /** The session's lines, or null for a review run with no per-line detail. */
+  recap: { lines: RecapLine[]; seconds: number } | null;
+  /** The finish request failed: show the local summary only, XP syncs later. */
+  offline?: boolean;
+};
+
+let celebration: Celebration | null = null;
+let toastXp = 0;
+let toastId = 0;
+let sessionActive = false;
+
+export function pushCelebration(c: Celebration) {
+  celebration = c;
+  emit();
+}
+export function clearCelebration() {
+  if (!celebration) return;
+  celebration = null;
+  emit();
+}
+export function useCelebration(): Celebration | null {
+  return useSyncExternalStore(subscribe, () => celebration);
+}
+
+/** auto-practice marks the running session: its summary and level-up frame wait for the end, the toast does not. */
+export function setSessionActive(on: boolean) {
+  sessionActive = on;
+}
+export function isSessionActive(): boolean {
+  return sessionActive;
+}
+
+/**
+ * XP earned anywhere, in a session too: pops a toast, adding to one still
+ * showing. `cap` with n 0 is the once-a-day "daily cap reached" note.
+ */
+export function pushXpToast(n: number, cap = false) {
+  if (celebration || !(n > 0 || cap)) return;
+  if (n > 0) toastXp += n;
+  toastCap = cap && toastXp === 0;
+  toastId += 1;
+  emit();
+}
+export function clearXpToast() {
+  toastXp = 0;
+  toastCap = false;
+  emit();
+}
+let toastCap = false;
+let toastSnap = { n: 0, id: 0, cap: false };
+export function useXpToast(): { n: number; id: number; cap: boolean } {
+  return useSyncExternalStore(subscribe, () => {
+    if (toastSnap.n !== toastXp || toastSnap.id !== toastId || toastSnap.cap !== toastCap) {
+      toastSnap = { n: toastXp, id: toastId, cap: toastCap };
+    }
+    return toastSnap;
+  });
+}
+
+// The ladder's stage view shows XP itself, next to the take's score: while
+// one is mounted an award pops there instead of in the toast.
+let inlineHosts = 0;
+let inline = { n: 0, id: 0, cap: false };
+/** Called by a mounted stage view; returns its release. */
+export function holdInlineXp(): () => void {
+  inlineHosts += 1;
+  return () => {
+    inlineHosts = Math.max(0, inlineHosts - 1);
+  };
+}
+export function hasInlineXp(): boolean {
+  return inlineHosts > 0;
+}
+/** Pops "+N XP" (or the cap note with n 0) on the mounted stage view. */
+export function pushInlineXp(n: number, cap = false) {
+  if (!(n > 0 || cap)) return;
+  inline = { n, id: inline.id + 1, cap: cap && n === 0 };
+  emit();
+}
+export function useInlineXp(): { n: number; id: number; cap: boolean } {
+  return useSyncExternalStore(subscribe, () => inline);
+}

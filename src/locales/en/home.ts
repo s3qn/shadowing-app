@@ -19,8 +19,7 @@ export const en = {
   'home.untitledIsland': 'Untitled island',
   'home.failed': 'Failed',
   'home.dueToday': 'Due today',
-  'home.autoPractice': 'Practice today',
-  'home.autoPracticeNone': 'Nothing due today',
+  'home.practiceNow': 'Practice now',
   // Base keys exist only so `t('home.lines', { count })` type-checks: the
   // plural suffix always wins at runtime once `count` is passed (see
   // `pluralSuffix` in `src/lib/i18n.ts`).

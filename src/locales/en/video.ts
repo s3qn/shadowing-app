@@ -18,7 +18,6 @@ export const en = {
   'video.cannotPlay': 'This video cannot be played here.',
   'video.openInYoutube': 'Open it in YouTube',
   'video.shadowLine': 'Shadow this line',
-  'video.playTake': 'Play my take',
   'video.stageReading': 'Reading captions…',
   'video.err.no_captions': 'This video has no captions, so it cannot be built.',
   'video.err.captions_blocked': 'YouTube would not give the captions. Try again later or on another network.',

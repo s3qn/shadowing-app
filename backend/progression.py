@@ -38,6 +38,10 @@ MINUTE_XP, MINUTE_COINS = 5, 1
 MINUTE_CAP = 20
 TAKE_XP, TAKE_COINS = 10, 2
 TAKES_PER_DAY = 60
+# A take on a line already paid today (take:...) still pays a little, so every
+# sentence said shows XP: REP_XP_BASE plus 1 per REP_XP_STEP score points, at
+# most REP_XP_MAX, inside the daily cap like every other repeatable source.
+REP_XP_BASE, REP_XP_STEP, REP_XP_MAX = 2, 25, 6
 
 # Every repeatable source (take, minute, practiced, day, streak, quality,
 # mastery) is clamped to this much XP per UTC day. Milestones are exempt.
@@ -62,6 +66,18 @@ MILESTONES = {
     "level_10": (0, 60),
     "level_20": (0, 100),
 }
+
+# Daily review (BL-51). Outside DAILY_XP_CAP, like milestones.
+REVIEW_MIN_SENTENCES = 3
+REVIEW_SECONDS_PER_SENTENCE = 3
+REVIEW_MAX_COUNTED = 30
+REVIEW_XP_PER_SENTENCE = 4
+REVIEW_NEUTRAL_SCORE = 50.0
+REVIEW_REPEAT_FACTORS = (1.0, 0.4, 0.2, 0.1)
+REVIEW_MAX_PAID_PER_DAY = 10
+REVIEW_FIRST_BONUS = 40
+REVIEW_STREAK_BONUS_PER_DAY = 5
+REVIEW_STREAK_BONUS_DAYS = 7
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS progress (
@@ -223,11 +239,20 @@ def _read(conn: sqlite3.Connection, owner: str) -> dict:
     while end.isoformat() in days:
         streak += 1
         end -= timedelta(days=1)
+    review_days = _review_days(conn, owner)
+    rend = date.fromisoformat(today)
+    if today not in review_days:
+        rend -= timedelta(days=1)
+    review_streak = 0
+    while rend.isoformat() in review_days:
+        review_streak += 1
+        rend -= timedelta(days=1)
     return {
         "xp": xp,
         "xp_today": used["xp"] if used else 0,
         "xp_today_cap": DAILY_XP_CAP,
         "streak_days": streak,
+        "review_streak_days": review_streak,
         "level": level,
         "coins": coins,
         "xp_into_level": into,
@@ -369,6 +394,26 @@ def _day_keys(conn: sqlite3.Connection, owner: str) -> set[str]:
     }
 
 
+def _review_days(conn: sqlite3.Connection, owner: str) -> set[str]:
+    return {
+        r["key"][10:]
+        for r in conn.execute(
+            "SELECT key FROM awards WHERE owner=? AND key LIKE 'reviewday:%'", (owner,)
+        )
+    }
+
+
+def _review_streak(conn: sqlite3.Connection, owner: str, end_day: str) -> int:
+    """Consecutive `reviewday:` keys ending at `end_day`."""
+    days = _review_days(conn, owner)
+    cur = date.fromisoformat(end_day)
+    n = 0
+    while cur.isoformat() in days:
+        n += 1
+        cur -= timedelta(days=1)
+    return n
+
+
 def _streak_days(conn: sqlite3.Connection, owner: str, end_day: str) -> int:
     """Consecutive paid `day:` keys ending at `end_day`."""
     days = _day_keys(conn, owner)
@@ -390,6 +435,15 @@ def _ok_ratio(score) -> tuple[float, int] | None:
     if not scored:
         return None
     return sum(1 for w in scored if w == "ok") / len(scored), len(scored)
+
+
+def rep_xp(score) -> int:
+    """XP for a repeat take: REP_XP_BASE, plus 1 per REP_XP_STEP points of the
+    score's total (0-100), at most REP_XP_MAX. No usable total pays the base."""
+    total = score.get("total") if isinstance(score, dict) else None
+    if isinstance(total, bool) or not isinstance(total, (int, float)) or total != total:
+        return REP_XP_BASE
+    return min(REP_XP_MAX, REP_XP_BASE + int(max(0.0, min(100.0, float(total))) // REP_XP_STEP))
 
 
 def _milestones(conn: sqlite3.Connection, owner: str, day: str, ctx: dict) -> tuple[int, int, list[str]]:
@@ -493,6 +547,7 @@ def _run_awards(
                         got_xp += gx
                         got_coins += gc
                         break
+        note_cap = ctx.pop("note_cap", False)
         mx, mc, names = _milestones(conn, owner, day, ctx)
         got_xp += mx
         got_coins += mc
@@ -501,6 +556,12 @@ def _run_awards(
         used = conn.execute(
             "SELECT xp FROM day_xp WHERE owner=? AND day=?", (owner, day)
         ).fetchone()
+        capped = bool(used and used["xp"] >= DAILY_XP_CAP)
+        # A take the cap paid nothing for says so, once a day: the zero-XP
+        # capnote key records that the note went out.
+        cap_note = False
+        if note_cap and capped and got_xp == 0:
+            cap_note = _apply(conn, owner, f"capnote:{day}", 0, 0, day, False)[0]
         conn.commit()
     except BaseException:
         conn.rollback()
@@ -511,7 +572,8 @@ def _run_awards(
         "level": level,
         "leveled_up": level > old_level,
         "milestones": names,
-        "capped": bool(used and used["xp"] >= DAILY_XP_CAP),
+        "capped": capped,
+        "cap_note": cap_note,
     }
 
 
@@ -563,10 +625,12 @@ def award_take(
 ) -> dict:
     """The base take award plus the quality tiers (whole-line takes with at
     least QUALITY_MIN_WORDS scoreable words), the line_best record and the
-    island mastery bonus, all in one transaction."""
+    island mastery bonus, all in one transaction. A line whose base award is
+    already paid today pays the small repeat award (rep_xp) instead."""
     day = _today()
-    entries = [(f"take:{island_id}:{idx}:{day}", TAKE_XP, TAKE_COINS)]
-    ctx: dict = {}
+    take_key = f"take:{island_id}:{idx}:{day}"
+    entries = [(take_key, TAKE_XP, TAKE_COINS)]
+    ctx: dict = {"note_cap": True}
     ratio = _ok_ratio(score) if whole_line else None
     if ratio is not None and ratio[1] >= QUALITY_MIN_WORDS:
         r = ratio[0]
@@ -578,8 +642,15 @@ def award_take(
         ctx["perfect"] = r >= 1.0
 
     def prepare(conn: sqlite3.Connection) -> list[tuple[str, int, int]]:
-        if ratio is None:
-            return []
+        out: list[tuple[str, int, int]] = []
+        if conn.execute("SELECT 1 FROM awards WHERE owner=? AND key=?", (owner, take_key)).fetchone():
+            n = conn.execute(
+                "SELECT COUNT(*) AS n FROM awards WHERE owner=? AND key LIKE ?",
+                (owner, f"rep:{island_id}:{idx}:{day}:%"),
+            ).fetchone()["n"]
+            out.append((f"rep:{island_id}:{idx}:{day}:{n}", rep_xp(score), 0))
+        if ratio is None or not whole_line:
+            return out
         conn.execute(
             "INSERT INTO line_best (owner, island_id, idx, best, updated_at) VALUES (?, ?, ?, ?, ?)"
             " ON CONFLICT(owner, island_id, idx) DO UPDATE SET"
@@ -588,7 +659,7 @@ def award_take(
         )
         idxs = list(line_idxs)
         if not idxs:
-            return []
+            return out
         best = {
             r["idx"]: r["best"]
             for r in conn.execute(
@@ -596,10 +667,88 @@ def award_take(
             )
         }
         if all(best.get(i, 0.0) >= QUALITY_GREAT for i in idxs):
-            return [(f"mastery:{island_id}", MASTERY_XP, MASTERY_COINS)]
-        return []
+            out.append((f"mastery:{island_id}", MASTERY_XP, MASTERY_COINS))
+        return out
 
-    return _run_awards(owner, entries, day, take_cap=True, prepare=prepare if whole_line else None, ctx=ctx)
+    return _run_awards(owner, entries, day, take_cap=True, prepare=prepare, ctx=ctx)
+
+
+def _check_local_day(local_day: str) -> str:
+    """The client's calendar date, accepted only within UTC date +-1 day."""
+    try:
+        d = date.fromisoformat(str(local_day))
+    except ValueError:
+        raise _err(422, code="bad_local_day")
+    if abs((d - date.fromisoformat(_today())).days) > 1:
+        raise _err(422, code="bad_local_day")
+    return d.isoformat()
+
+
+def award_review(
+    owner: str, session_id: str, sentences: int, seconds: float, avg_score, local_day: str
+) -> dict:
+    """XP for finishing a daily review. Outside the daily cap. Pays 0 (and
+    writes nothing) for a short or too-fast run, a replayed session_id, or the
+    11th session of a day."""
+    day = _check_local_day(local_day)
+    conn = connect()
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        before = conn.execute("SELECT xp FROM progress WHERE owner=?", (owner,)).fetchone()
+        old_level = level_for(before["xp"] if before else 0)
+        gx = gc = 0
+        first = False
+        parts = {"sentences": 0, "score": 0, "first": 0, "streak": 0}
+        key = f"review:{day}:{session_id}"
+        n = min(int(sentences), int(max(0, seconds) // REVIEW_SECONDS_PER_SENTENCE), REVIEW_MAX_COUNTED)
+        replay = conn.execute(
+            "SELECT 1 FROM awards WHERE owner=? AND key=?", (owner, key)
+        ).fetchone()
+        k = conn.execute(
+            "SELECT COUNT(*) AS n FROM awards WHERE owner=? AND key LIKE ?",
+            (owner, f"review:{day}:%"),
+        ).fetchone()["n"]
+        if not replay and int(sentences) >= REVIEW_MIN_SENTENCES and n >= REVIEW_MIN_SENTENCES \
+                and k < REVIEW_MAX_PAID_PER_DAY:
+            try:
+                score = float(avg_score)
+                if score != score:
+                    score = REVIEW_NEUTRAL_SCORE
+            except (TypeError, ValueError):
+                score = REVIEW_NEUTRAL_SCORE
+            score = max(0.0, min(100.0, score))
+            f = REVIEW_REPEAT_FACTORS[min(k, len(REVIEW_REPEAT_FACTORS) - 1)]
+            xp = max(1, round(REVIEW_XP_PER_SENTENCE * n * (0.5 + score / 100) * f))
+            # The summary's rows: the flat per-sentence part, then what the score added.
+            parts["sentences"] = min(xp, round(REVIEW_XP_PER_SENTENCE * n * f))
+            parts["score"] = xp - parts["sentences"]
+            first = k == 0
+            if first:
+                _apply(conn, owner, f"reviewday:{day}", 0, 0, day, False)
+                streak = _review_streak(conn, owner, day)
+                parts["first"] = REVIEW_FIRST_BONUS
+                parts["streak"] = REVIEW_STREAK_BONUS_PER_DAY * min(streak, REVIEW_STREAK_BONUS_DAYS)
+                xp += parts["first"] + parts["streak"]
+            _, gx, gc = _apply(conn, owner, key, xp, xp // 10, day, False)
+        after = conn.execute("SELECT xp FROM progress WHERE owner=?", (owner,)).fetchone()
+        level = level_for(after["xp"] if after else 0)
+        progress = _read(conn, owner)
+        prev = (date.fromisoformat(day) - timedelta(days=1)).isoformat()
+        streak = _review_streak(conn, owner, day) or _review_streak(conn, owner, prev)
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+    return {
+        "xp": gx,
+        "coins": gc,
+        "level": level,
+        "leveled_up": level > old_level,
+        "streak": streak,
+        "first_of_day": first and gx > 0,
+        "breakdown": parts if gx > 0 else {"sentences": 0, "score": 0, "first": 0, "streak": 0},
+        "progress": progress,
+    }
 
 
 # --- shop ---

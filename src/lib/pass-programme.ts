@@ -1,51 +1,35 @@
 /**
  * The player's step machine, factored out of `src/app/island/[id].tsx` so the
- * step vocabulary and every "what happens next" rule live in one pure place.
- * Two programmes share it: Auto Echo (Listen, Echo, Speak, Play, wrapping
- * forever) and the five-pass ladder (Listen, Mumble, Read along, Shadow,
- * Compare, once per line, no wrap). No React, no storage, no timers: every
- * export here is a plain function or constant over its arguments.
+ * step vocabulary and every "what happens next" rule live in one pure place:
+ * the five-pass ladder (Listen, Memorise, Say, Record, Compare, once per
+ * line). No React, no storage, no timers: every export here is a plain
+ * function or constant over its arguments.
  */
 
 import type { SheetIcon } from '@/components/sheet/sheet-rows';
 import { tide, verb } from '@/constants/theme';
 import type { Key } from '@/locales/en';
 
-/** One programme the player's record button can run. */
-export type Programme = 'echo' | 'ladder';
-
 /**
- * Every step either programme's step machine can be in. `idle` is before
- * Start and `done` is after the run ends, both shared by the two programmes
- * and outside the segment row. The unprefixed five (`listen`, `echo`,
- * `armed`, `speak`, `play`) belong to Auto Echo; the `ladder*` steps belong
- * to the five-pass ladder, one per pass except Shadow (`ladderArmed` while
- * waiting on a manual Record, `ladderShadow` while recording) and Compare
- * (`ladderCompare` plays the line, `ladderPlay` plays the take back), which
- * each share one segment bar.
+ * Every step the ladder can be in. `idle` is before Start and `done` is after
+ * the run ends. The `ladder*` steps are one per pass except Record
+ * (`ladderArmed` while waiting on a manual Record, `ladderRecord` while
+ * recording) and Compare (`ladderCompare` plays the line, `ladderPlay` plays
+ * the take back), which each share one segment bar.
  */
 export type PassStep =
   | 'idle'
   | 'done'
-  | 'listen'
-  | 'echo'
-  | 'armed'
-  | 'speak'
-  | 'play'
   | 'ladderListen'
-  | 'ladderMumble'
-  | 'ladderRead'
+  | 'ladderMemorise'
+  | 'ladderSay'
   | 'ladderArmed'
-  | 'ladderShadow'
+  | 'ladderRecord'
   | 'ladderCompare'
   | 'ladderPlay';
 
-/** Old name for `PassStep`, kept so files that have not moved to the ladder
- * yet still compile against the same type. */
-export type EchoStep = PassStep;
-
 /** What the active segment's fill animates against. */
-export type FillKind = 'line' | 'pad' | 'record' | 'take' | 'none';
+export type FillKind = 'line' | 'record' | 'take' | 'none';
 
 /**
  * The five ladder passes in order: the pass's title, its one-line
@@ -61,20 +45,20 @@ export const LADDER_PASSES: readonly { titleKey: Key; lineKey: Key; icon: SheetI
     colour: verb.listen.c1,
   },
   {
-    titleKey: 'settings.onboarding.passMumbleTitle',
-    lineKey: 'settings.onboarding.ladderMumble',
+    titleKey: 'settings.onboarding.passMemoriseTitle',
+    lineKey: 'settings.onboarding.ladderMemorise',
+    icon: { ios: 'brain.head.profile', android: 'psychology' },
+    colour: verb.read.c1,
+  },
+  {
+    titleKey: 'settings.onboarding.passSayTitle',
+    lineKey: 'settings.onboarding.ladderSay',
     icon: { ios: 'mouth', android: 'record_voice_over' },
     colour: verb.speak.c2,
   },
   {
-    titleKey: 'settings.onboarding.passReadTitle',
-    lineKey: 'settings.onboarding.ladderRead',
-    icon: { ios: 'book', android: 'menu_book' },
-    colour: verb.read.c1,
-  },
-  {
-    titleKey: 'settings.onboarding.passShadowTitle',
-    lineKey: 'settings.onboarding.ladderShadow',
+    titleKey: 'settings.onboarding.passRecordTitle',
+    lineKey: 'settings.onboarding.ladderRecord',
     icon: { ios: 'mic', android: 'mic' },
     colour: verb.speak.c1,
   },
@@ -86,90 +70,25 @@ export const LADDER_PASSES: readonly { titleKey: Key; lineKey: Key; icon: SheetI
   },
 ] as const;
 
-// Auto Echo's four bars all fill in the same tide blue, as they always have.
-const ECHO_SEGMENTS: readonly { labelKey: Key; colour: string }[] = [
-  { labelKey: 'player.segmentListen', colour: tide.lang.ja },
-  { labelKey: 'player.segmentEcho', colour: tide.lang.ja },
-  { labelKey: 'player.segmentSpeak', colour: tide.lang.ja },
-  { labelKey: 'player.play', colour: tide.lang.ja },
-];
-
 /**
- * The segment row for a programme: one bar per pass, in order, with the
- * label key the bar shows and the colour it fills in. Four bars for Auto
- * Echo, five for the ladder (each in its own pass colour).
+ * The hint line for a step: the line the onboarding already taught for that
+ * pass, so the sheet says exactly what the tutorial promised.
  */
-export function segmentsOf(programme: Programme): readonly { labelKey: Key; colour: string }[] {
-  if (programme === 'echo') return ECHO_SEGMENTS;
-  return LADDER_PASSES.map((pass) => ({ labelKey: pass.titleKey, colour: pass.colour }));
-}
-
-/**
- * Which segment bar (0 based) a step lights up: -1 before Start, one past
- * the last bar once the run is `done` (every bar reads as finished). Armed
- * shares its pass's own recording step (Speak and Shadow); Compare's take
- * half (`ladderPlay`) shares `ladderCompare`'s bar. `programme` only matters
- * for `idle` and `done`, the two steps both programmes pass through; every
- * other step names its programme in its own literal.
- */
-export function segmentIndexOf(step: PassStep, programme: Programme): number {
-  if (step === 'idle') return -1;
-  if (step === 'done') return segmentsOf(programme).length;
-  switch (step) {
-    case 'listen':
-      return 0;
-    case 'echo':
-      return 1;
-    case 'armed':
-    case 'speak':
-      return 2;
-    case 'play':
-      return 3;
-    case 'ladderListen':
-      return 0;
-    case 'ladderMumble':
-      return 1;
-    case 'ladderRead':
-      return 2;
-    case 'ladderArmed':
-    case 'ladderShadow':
-      return 3;
-    case 'ladderCompare':
-    case 'ladderPlay':
-      return 4;
-  }
-}
-
-/**
- * The hint line under the segment row for a step: Auto Echo keeps its own
- * short instructions; the ladder reuses the longer line the onboarding
- * already taught for that pass, so the sheet says exactly what the
- * tutorial promised. `programme` disambiguates `idle` and `done`.
- */
-export function hintKeyOf(step: PassStep, programme: Programme): Key {
+export function hintKeyOf(step: PassStep): Key {
   switch (step) {
     case 'idle':
       return 'player.stepReady';
     case 'done':
-      return programme === 'ladder' ? 'player.ladderDone' : 'player.stepDone';
-    case 'listen':
-      return 'player.stepListen';
-    case 'echo':
-      return 'player.stepEcho';
-    case 'armed':
-    case 'speak':
-      return 'player.stepSpeak';
-    case 'play':
-      return 'player.stepPlay';
+      return 'player.ladderDone';
     case 'ladderListen':
       return 'settings.onboarding.passListenLine';
-    case 'ladderMumble':
-      return 'settings.onboarding.passMumbleLine';
-    case 'ladderRead':
-      return 'settings.onboarding.passReadLine';
+    case 'ladderMemorise':
+      return 'settings.onboarding.passMemoriseLine';
+    case 'ladderSay':
+      return 'settings.onboarding.passSayLine';
     case 'ladderArmed':
-    case 'ladderShadow':
-      return 'settings.onboarding.passShadowLine';
+    case 'ladderRecord':
+      return 'settings.onboarding.passRecordLine';
     case 'ladderCompare':
     case 'ladderPlay':
       return 'settings.onboarding.passCompareLine';
@@ -178,21 +97,17 @@ export function hintKeyOf(step: PassStep, programme: Programme): Key {
 
 /**
  * Which pass's explanation the practice sheet's help should show for a step,
- * 0 based over the five ladder passes, or `null` where there is nothing to
- * show. Auto Echo returns `null` at every step: the onboarding only teaches
- * the ladder, so its four steps have no explanation to open. The ladder's
- * `idle` and `done` return Listen, the pass Start (or Start again) begins
- * with.
+ * 0 based over the five ladder passes. `idle` and `done` return Listen, the
+ * pass Start (or Start again) begins with.
  */
-export function helpPassOf(step: PassStep, programme: Programme): 0 | 1 | 2 | 3 | 4 | null {
-  if (programme === 'echo') return null;
+export function helpPassOf(step: PassStep): 0 | 1 | 2 | 3 | 4 {
   switch (step) {
-    case 'ladderMumble':
+    case 'ladderMemorise':
       return 1;
-    case 'ladderRead':
+    case 'ladderSay':
       return 2;
     case 'ladderArmed':
-    case 'ladderShadow':
+    case 'ladderRecord':
       return 3;
     case 'ladderCompare':
     case 'ladderPlay':
@@ -201,32 +116,24 @@ export function helpPassOf(step: PassStep, programme: Programme): 0 | 1 | 2 | 3 
     case 'idle':
     case 'done':
       return 0;
-    default:
-      return null;
   }
 }
 
 /**
  * What the active segment's fill animates against: a `line`'s own playback
- * position, the `pad` (the post-line silence Echo listens through), a
- * `record`ing in progress, or a saved `take` playing back. `none` for the
- * steps with nothing to time a fill against (idle, armed and its ladder
- * twin, done).
+ * position, a `record`ing in progress, or a saved `take` playing back.
+ * `none` for the steps with nothing to time a fill against (idle, armed,
+ * done).
  */
 export function fillKindOf(step: PassStep): FillKind {
   switch (step) {
-    case 'listen':
     case 'ladderListen':
-    case 'ladderMumble':
-    case 'ladderRead':
+    case 'ladderMemorise':
+    case 'ladderSay':
     case 'ladderCompare':
       return 'line';
-    case 'echo':
-      return 'pad';
-    case 'speak':
-    case 'ladderShadow':
+    case 'ladderRecord':
       return 'record';
-    case 'play':
     case 'ladderPlay':
       return 'take';
     default:
@@ -235,22 +142,20 @@ export function fillKindOf(step: PassStep): FillKind {
 }
 
 /**
- * Whether the sentence area and the waterline should show the text: `null`
- * for every Auto Echo step, where the Blind setting alone decides as it
- * always has; a fixed `true`/`false` for the ladder's passes, which
- * override Blind pass by pass (hidden through Listen, Mumble, Shadow and
- * its armed wait; shown for Read along, Compare, its take half, and the
- * finished ladder). `programme` disambiguates `idle` and `done`.
+ * Whether the sentence area and the waterline should show the text: a fixed
+ * `true`/`false` during a run, which overrides Blind step by step, and `null`
+ * before Start, where the Blind setting alone decides. The text stays in
+ * view through every stage, the recorded take included; only the blind take
+ * after it (`finalTake`, run when `blindTake` is on) hides it.
  */
-export function textShownAt(step: PassStep, programme: Programme): boolean | null {
-  if (programme === 'echo') return null;
+export function textShownAt(step: PassStep, blindTake: boolean, finalTake = false): boolean | null {
   switch (step) {
-    case 'ladderListen':
-    case 'ladderMumble':
-    case 'ladderShadow':
     case 'ladderArmed':
-      return false;
-    case 'ladderRead':
+    case 'ladderRecord':
+      return !(blindTake && finalTake);
+    case 'ladderListen':
+    case 'ladderMemorise':
+    case 'ladderSay':
     case 'ladderCompare':
     case 'ladderPlay':
     case 'done':
@@ -260,60 +165,44 @@ export function textShownAt(step: PassStep, programme: Programme): boolean | nul
   }
 }
 
-/** The step Shadow/Speak runs as, for the given programme. */
-export function speakStepOf(programme: Programme): PassStep {
-  return programme === 'ladder' ? 'ladderShadow' : 'speak';
-}
-
-/** The step that waits on a tap on Record, for the given programme. */
-export function armedStepOf(programme: Programme): PassStep {
-  return programme === 'ladder' ? 'ladderArmed' : 'armed';
-}
-
-/** The step a line's run starts on: Listen in both programmes. */
-export function firstStepOf(programme: Programme): PassStep {
-  return programme === 'ladder' ? 'ladderListen' : 'listen';
-}
-
 /**
  * The step a tap on mark `index` (0 based) jumps to. The listening passes
- * return their own step; the recorded pass returns the armed step (the screen
- * counts in from it); the last pass returns the line half of Compare (or
- * Echo's Play) when a take is ready, and the armed step when there is none.
+ * return their own step; Record returns the armed step (the screen counts in
+ * from it); Compare returns its line half when a take is ready, and the armed
+ * step when there is none.
  */
-export function stepOfPass(programme: Programme, index: number, hasTake: boolean): PassStep {
-  const armed = armedStepOf(programme);
-  if (programme === 'ladder') {
-    const steps: PassStep[] = ['ladderListen', 'ladderMumble', 'ladderRead', armed, hasTake ? 'ladderCompare' : armed];
-    return steps[Math.min(Math.max(index, 0), 4)]!;
-  }
-  const steps: PassStep[] = ['listen', 'echo', armed, hasTake ? 'play' : armed];
-  return steps[Math.min(Math.max(index, 0), 3)]!;
+export function stepOfPass(index: number, hasTake: boolean): PassStep {
+  const steps: PassStep[] = [
+    'ladderListen',
+    'ladderMemorise',
+    'ladderSay',
+    'ladderArmed',
+    hasTake ? 'ladderCompare' : 'ladderArmed',
+  ];
+  return steps[Math.min(Math.max(index, 0), 4)]!;
 }
 
 /**
- * The count that runs on the record button before a take started by hand:
- * three beats of 600ms, so the microphone opens 1.8s after the tap instead
- * of under it. Shared by the screen, which runs the beats, and by the sheet,
- * which pulses one ring per beat over the same 600ms.
+ * The count that runs before a stage: three beats, 600ms each unless the
+ * ladder's pace sets its own beat. Shared by the screen, which runs the
+ * beats, and by the dock, which pulses one ring per beat.
  */
 export const COUNT_IN_BEATS = 3;
 export const COUNT_IN_BEAT_MS = 600;
 
-/** True while a take is being recorded, in either programme. */
+/** True while a take is being recorded. */
 export function isSpeakStep(step: PassStep): boolean {
-  return step === 'speak' || step === 'ladderShadow';
+  return step === 'ladderRecord';
 }
 
-/** True while the sheet is waiting for a manual tap on Record (Auto Record
- * off), in either programme. */
+/** True while the sheet is waiting for a manual tap on Record (Auto Record off). */
 export function isArmedStep(step: PassStep): boolean {
-  return step === 'armed' || step === 'ladderArmed';
+  return step === 'ladderArmed';
 }
 
-/** True while a saved take is playing back, in either programme. */
+/** True while a saved take is playing back. */
 export function isPlayStep(step: PassStep): boolean {
-  return step === 'play' || step === 'ladderPlay';
+  return step === 'ladderPlay';
 }
 
 /** False only before Start and after the run ends: every other step is a
@@ -323,24 +212,20 @@ export function isActive(step: PassStep): boolean {
 }
 
 /**
- * The step a line's finish (its pad included) moves to. Listen and Echo
- * (Auto Echo) and Read along (the ladder) hand off to Speak/Shadow, armed
- * if Auto Record is off or straight into the recording if it is on;
- * Listen and Mumble in the ladder simply move on to the next line pass;
- * Compare's line half hands off to its take half. Any other step is not a
- * line-finish step and is returned unchanged.
+ * The step a line's finish (its pad included) moves to. Listen and Memorise
+ * move on to the next listening pass; Say hands off to Record, armed if Auto
+ * Record is off or straight into the recording if it is on; Compare's line
+ * half hands off to its take half. Any other step is not a line-finish step
+ * and is returned unchanged.
  */
 export function nextOnLineFinish(step: PassStep, autoRecord: boolean): PassStep {
   switch (step) {
-    case 'listen':
-    case 'echo':
-      return autoRecord ? 'speak' : 'armed';
     case 'ladderListen':
-      return 'ladderMumble';
-    case 'ladderMumble':
-      return 'ladderRead';
-    case 'ladderRead':
-      return autoRecord ? 'ladderShadow' : 'ladderArmed';
+      return 'ladderMemorise';
+    case 'ladderMemorise':
+      return 'ladderSay';
+    case 'ladderSay':
+      return autoRecord ? 'ladderRecord' : 'ladderArmed';
     case 'ladderCompare':
       return 'ladderPlay';
     default:
@@ -349,24 +234,93 @@ export function nextOnLineFinish(step: PassStep, autoRecord: boolean): PassStep 
 }
 
 /**
- * The step a saved take moves to: Speak hands off to Play, Shadow to
- * Compare's take half. Any other step is returned unchanged.
+ * The step a saved take moves to: Record hands off to Compare. Any other
+ * step is returned unchanged.
  */
 export function afterTakeSaved(step: PassStep): PassStep {
-  if (step === 'speak') return 'play';
-  if (step === 'ladderShadow') return 'ladderCompare';
+  if (step === 'ladderRecord') return 'ladderCompare';
   return step;
 }
 
 /**
  * The step a played-back take moves to: `more` is whether there is a line
- * left to run (Auto Echo's "go on to the next line" toggle, on and
- * wrapping past the last line; the ladder's same toggle, off past the
- * island's last line). `false` ends the run. Any other step is returned
- * unchanged.
+ * left to run (the "go on to the next line" toggle, off past the island's
+ * last line). `false` ends the run. Any other step is returned unchanged.
  */
 export function afterTakePlayed(step: PassStep, more: boolean): PassStep {
-  if (step === 'play') return more ? 'listen' : 'done';
   if (step === 'ladderPlay') return more ? 'ladderListen' : 'done';
   return step;
+}
+
+/** How fast the ladder paces itself. */
+export const LADDER_PACE_OPTIONS = ['calm', 'steady', 'quick'] as const;
+export type LadderPace = (typeof LADDER_PACE_OPTIONS)[number];
+
+/**
+ * Per pace: how long a stage announces itself, one count beat, the gap
+ * between repeats, and how many times Memorise and Say play.
+ */
+export const LADDER_PACING: Record<
+  LadderPace,
+  { announceMs: number; beatMs: number; gapMs: number; memorise: number; say: number }
+> = {
+  calm: { announceMs: 1200, beatMs: 800, gapMs: 700, memorise: 2, say: 2 },
+  steady: { announceMs: 800, beatMs: 600, gapMs: 500, memorise: 2, say: 1 },
+  quick: { announceMs: 400, beatMs: 450, gapMs: 300, memorise: 1, say: 1 },
+};
+
+/** What comes before a stage runs (or between its repeats). */
+export type Prelude = { phase: 'announce' } | { phase: 'count'; beat: number } | { phase: 'gap' } | null;
+
+/** Whether a stage announces and counts in before it runs. Compare does not: it plays the line, then the take, straight away. */
+export function hasPrelude(step: PassStep): boolean {
+  return step !== 'ladderCompare';
+}
+
+export type LadderStage = 'listen' | 'memorise' | 'say' | 'record' | 'compare';
+
+/** The five stages in run order. */
+export const LADDER_STAGE_ORDER: readonly LadderStage[] = ['listen', 'memorise', 'say', 'record', 'compare'];
+
+/** The stage a ladder step belongs to, or null for any other step. */
+export function stageOf(step: PassStep): LadderStage | null {
+  switch (step) {
+    case 'ladderListen':
+      return 'listen';
+    case 'ladderMemorise':
+      return 'memorise';
+    case 'ladderSay':
+      return 'say';
+    case 'ladderArmed':
+    case 'ladderRecord':
+      return 'record';
+    case 'ladderCompare':
+    case 'ladderPlay':
+      return 'compare';
+    default:
+      return null;
+  }
+}
+
+/** How many times a step's line plays in a row: Memorise and Say follow the
+ * pace, every other step plays once. */
+export function repeatsOf(step: PassStep, pace: LadderPace): number {
+  if (step === 'ladderMemorise') return LADDER_PACING[pace].memorise;
+  if (step === 'ladderSay') return LADDER_PACING[pace].say;
+  return 1;
+}
+
+/**
+ * What the ladder does when a line finishes playing: play it again while
+ * `repeat` (1 based) is under the step's repeats, otherwise wrap
+ * `nextOnLineFinish`.
+ */
+export function onLadderLineFinish(
+  step: PassStep,
+  repeat: number,
+  autoRecord: boolean,
+  pace: LadderPace,
+): { kind: 'repeat' } | { kind: 'next'; step: PassStep } {
+  if (repeat < repeatsOf(step, pace)) return { kind: 'repeat' };
+  return { kind: 'next', step: nextOnLineFinish(step, autoRecord) };
 }

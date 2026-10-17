@@ -12,7 +12,7 @@ import { PrismButton } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
-import { useT } from '@/lib/i18n';
+import { useDir, useT } from '@/lib/i18n';
 import { parseYouTubeId, thumbUrl } from '@/lib/youtube';
 
 const SIDE = 16;
@@ -26,6 +26,7 @@ function rowStatus(v: api.VideoListItem, t: ReturnType<typeof useT>['t']): strin
 /** Find a video: one Paste button reads the clipboard, no typing. */
 export default function VideoAddScreen() {
   const { t } = useT();
+  const dir = useDir();
   const router = useRouter();
   const [info, setInfo] = useState<api.YouTubeInfo | null>(null);
   const [hint, setHint] = useState('');
@@ -100,8 +101,8 @@ export default function VideoAddScreen() {
         {info ? (
           <View style={styles.card}>
             <Image source={{ uri: info.thumbnail }} style={styles.thumb} contentFit="cover" />
-            <Text style={styles.title} numberOfLines={2}>{info.title}</Text>
-            {info.author ? <Text style={styles.meta}>{info.author}</Text> : null}
+            <Text style={[styles.title, dir.content]} numberOfLines={2}>{info.title}</Text>
+            {info.author ? <Text style={[styles.meta, dir.content]}>{info.author}</Text> : null}
           </View>
         ) : null}
 
@@ -116,7 +117,7 @@ export default function VideoAddScreen() {
             <PrismButton shape="pill" verb="listen" label={t('video.paste')} onPress={paste} disabled={busy} />
           )}
           {busy ? <CatConstellation compact /> : null}
-          {hint ? <Text style={styles.hint}>{hint}</Text> : null}
+          {hint ? <Text style={[styles.hint, dir.writing]}>{hint}</Text> : null}
           {hint === t('video.copyFirst') ? (
             <PrismButton
               shape="pill"
@@ -129,20 +130,20 @@ export default function VideoAddScreen() {
           ) : null}
         </View>
 
-        <Text style={styles.section}>{t('video.yourVideos')}</Text>
+        <Text style={[styles.section, dir.text]}>{t('video.yourVideos')}</Text>
         {videos === null ? (
           <View style={styles.loading}>
             <CatConstellation size={64} />
           </View>
         ) : videos.length === 0 ? (
-          <Text style={styles.meta}>{failed ? t('api.unreachable') : t('video.empty')}</Text>
+          <Text style={[styles.meta, dir.text]}>{failed ? t('api.unreachable') : t('video.empty')}</Text>
         ) : (
           videos.map((v) => (
-            <PressScale key={v.island_id} onPress={() => open(v)} style={styles.row}>
+            <PressScale key={v.island_id} onPress={() => open(v)} style={[styles.row, dir.row]}>
               <Image source={{ uri: thumbUrl(v.video_id) }} style={styles.rowThumb} contentFit="cover" />
               <View style={styles.rowText}>
-                <Text style={styles.rowTitle} numberOfLines={2}>{v.title}</Text>
-                <Text style={[styles.meta, v.status === 'failed' && { color: tide.record }]} numberOfLines={2}>
+                <Text style={[styles.rowTitle, dir.content]} numberOfLines={2}>{v.title}</Text>
+                <Text style={[styles.meta, dir.text, v.status === 'failed' && { color: tide.record }]} numberOfLines={2}>
                   {rowStatus(v, t)}
                 </Text>
               </View>

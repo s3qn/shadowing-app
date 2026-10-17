@@ -4,9 +4,9 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import type { ArtSpec, Slot } from '@/constants/cosmetics';
 import { SLOTS } from '@/constants/cosmetics';
 import { ITEM_IMAGES } from '@/constants/cosmetic-images';
-import { getCosmeticsCatalog, getProgress, type CosmeticItem, type Progress } from '@/lib/api';
+import { getCosmeticsCatalog, getProgress, type CosmeticItem, type Progress, type ReviewFinished } from '@/lib/api';
 import { useT } from '@/lib/i18n';
-import { pushLevelUp } from '@/lib/level-up-store';
+import { hasInlineXp, isSessionActive, pushCelebration, pushInlineXp, pushLevelUp, pushXpToast, type Celebration } from '@/lib/level-up-store';
 
 export type { CosmeticItem, Progress };
 
@@ -47,6 +47,9 @@ export function equippedArtFromIds(equipped: Partial<Record<Slot, string | null>
 let progressCache: Progress | null = null;
 let catalogCache: { ui: string; items: CosmeticItem[] } | null = null;
 let lastLevel: number | null = null;
+// The progress before a session's first toasted award, so its summary's bar
+// still starts where the session did.
+let sessionBase: Progress | null = null;
 const listeners = new Set<() => void>();
 
 // Level milestones pay coins (see progression.py MILESTONES), every other
@@ -61,7 +64,38 @@ function setProgress(p: Progress) {
     pushLevelUp({ level: p.level, prevLevel: lastLevel, coins });
   }
   if (lastLevel === null || p.level > lastLevel) lastLevel = p.level;
+  if (progressCache && p.xp > progressCache.xp) pushXpToast(p.xp - progressCache.xp);
   progressCache = p;
+}
+
+/**
+ * An award the backend paid with a take or a practice event: pops "+N XP"
+ * at once (on the ladder's stage view when one is up, else as the toast),
+ * then refetches the progress. The cache takes the XP first, so the refetch
+ * (or a later screen focus) does not pop the same XP again. A take the daily
+ * cap paid nothing for pops the cap note instead, once a day (`cap_note`).
+ */
+export function noteAward(award: { xp?: number; cap_note?: boolean } | null | undefined) {
+  const xp = award?.xp;
+  if (typeof xp !== 'number' || !Number.isFinite(xp) || xp < 0) return;
+  if (xp === 0) {
+    if (award?.cap_note === true) {
+      if (hasInlineXp()) pushInlineXp(0, true);
+      else pushXpToast(0, true);
+    }
+    return;
+  }
+  if (!isSessionActive()) sessionBase = null;
+  else if (!sessionBase) sessionBase = progressCache;
+  if (hasInlineXp()) pushInlineXp(xp);
+  else pushXpToast(xp);
+  if (progressCache) progressCache = { ...progressCache, xp: progressCache.xp + xp };
+  getProgress()
+    .then((p) => {
+      setProgress(p);
+      emit();
+    })
+    .catch(() => {});
 }
 
 function emit() {
@@ -72,6 +106,43 @@ function subscribe(l: () => void) {
   return () => {
     listeners.delete(l);
   };
+}
+
+/** The cached progress right now, read outside React. */
+export function progressNow(): Progress | null {
+  return progressCache;
+}
+
+/** Shows the session summary and XP moment for a finished review, then stores its progress. */
+export function celebrateReview(res: ReviewFinished, sentences: number, avgScore: number | null, recap: Celebration['recap']) {
+  const p = res.progress;
+  const prev = sessionBase ?? progressCache;
+  sessionBase = null;
+  // Without a cached progress the bar starts where the XP alone would put it.
+  const before = prev
+    ? { level: prev.level, into: prev.xp_into_level, toNext: prev.xp_to_next }
+    : { level: p.level, into: Math.max(0, p.xp_into_level - res.xp), toNext: p.xp_to_next + Math.min(res.xp, p.xp_into_level) };
+  pushCelebration({
+    xp: res.xp,
+    coins: res.coins,
+    streak: res.streak,
+    sentences,
+    avgScore,
+    breakdown: res.breakdown ?? null,
+    before,
+    after: { level: p.level, into: p.xp_into_level, toNext: p.xp_to_next },
+    recap,
+  });
+  applyProgress(p);
+}
+
+/** The session-finished request failed: the summary from local data, no XP frame. */
+export function celebrateOffline(sentences: number, avgScore: number | null, recap: NonNullable<Celebration['recap']>) {
+  sessionBase = null;
+  const at = progressCache
+    ? { level: progressCache.level, into: progressCache.xp_into_level, toNext: progressCache.xp_to_next }
+    : { level: 1, into: 0, toNext: 0 };
+  pushCelebration({ xp: 0, coins: 0, streak: 0, sentences, avgScore, breakdown: null, before: at, after: at, recap, offline: true });
 }
 
 /** Replaces the cached progress, e.g. with a buy or equip response. */

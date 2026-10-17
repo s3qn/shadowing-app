@@ -67,6 +67,8 @@ export type CompactDockProps = {
   face?: 'dot' | 'count' | 'stop' | 'dim';
   /** The beat the count is on (3, 2, 1), or null. Pulses one ring per beat. */
   countIn?: number | null;
+  /** One count beat in ms, so the beat ring matches the pace. Defaults to Auto Echo's. */
+  beatMs?: number;
   /** The play face is off (a count, a recording or a take is playing). */
   ringDisabled?: boolean;
   /** Mid-run: the chip and the gear are off and the tray stays closed. */
@@ -161,6 +163,7 @@ export const CompactDock = memo(function CompactDock({
   slot,
   face = 'dot',
   countIn = null,
+  beatMs = COUNT_IN_BEAT_MS,
   ringDisabled,
   locked,
   onAnchor,
@@ -209,9 +212,9 @@ export const CompactDock = memo(function CompactDock({
     cancelAnimation(beat);
     beat.value = 0;
     if (countIn === null || reduced) return;
-    beat.value = withTiming(1, { duration: COUNT_IN_BEAT_MS, easing: Easing.out(Easing.cubic) });
+    beat.value = withTiming(1, { duration: beatMs, easing: Easing.out(Easing.cubic) });
     return () => cancelAnimation(beat);
-  }, [countIn, reduced, beat]);
+  }, [countIn, reduced, beat, beatMs]);
   const beatStyle = useAnimatedStyle(() => {
     if (reduced) return { opacity: 0.8, transform: [{ scale: 1.1 }] };
     const b = Math.min(1, Math.max(0, num(beat.value)));

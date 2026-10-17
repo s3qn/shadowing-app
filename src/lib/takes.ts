@@ -42,15 +42,14 @@ export type ThenTake = {
   speed: number | null;
 };
 
-/** How a finished Auto Echo take is celebrated at the end of the Play step. */
+/** How well a take kept up, from its score. */
 export type ResultTier = 'great' | 'good' | 'retry';
 
 /**
  * Tier from a score's ok-word ratio alone (`'none'` words are outside the
  * phrase span or unscoreable and excluded). `null` when the score has no
  * scoreable words, meaning the caller must fall back to something else.
- * Shared by `resultTier` and `lineTiers` so their ratio thresholds cannot
- * drift apart.
+ * Used by `lineTiers`.
  */
 function scoredTier(score: TakeScore | null): ResultTier | null {
   const scored = score?.words.filter((w) => w !== 'none') ?? [];
@@ -72,25 +71,6 @@ export function wordsKeptUp(score: TakeScore | null): { kept: number; total: num
   const scored = score?.words.filter((w) => w !== 'none') ?? [];
   if (scored.length === 0) return null;
   return { kept: scored.filter((w) => w === 'ok').length, total: scored.length };
-}
-
-/**
- * Judge one Play-step take: scored (Speak played the line under the voice)
- * uses `scoredTier`. Silent (no score possible) falls back to how closely
- * `takeDuration` matches the line's own duration, a cheap on-device proxy,
- * not a scored fact. A score with zero scoreable words is treated as
- * unscored.
- */
-export function resultTier(score: TakeScore | null, takeDuration: number, lineEnd: number): ResultTier {
-  const tier = scoredTier(score);
-  if (tier) return tier;
-  if (lineEnd > 0 && takeDuration > 0) {
-    const ratio = takeDuration / lineEnd;
-    if (ratio >= 0.85 && ratio <= 1.15) return 'great';
-    if (ratio >= 0.6 && ratio <= 1.4) return 'good';
-    return 'retry';
-  }
-  return 'retry';
 }
 
 /** A line's celebration tier for the lantern wheel, or `'none'` untaken. */

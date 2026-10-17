@@ -76,28 +76,28 @@ export const PASSES: PassInfo[] = [
   {
     ...LADDER_PASSES[1],
     ladderLineKey: LADDER_PASSES[1].lineKey,
-    headlineKey: 'settings.onboarding.passMumbleHeadline',
-    lineKey: 'settings.onboarding.passMumbleLine',
+    headlineKey: 'settings.onboarding.passMemoriseHeadline',
+    lineKey: 'settings.onboarding.passMemoriseLine',
     speed: '0.7',
-    a: 84,
-    artTop: 0.46,
-    nextVerb: 'speak',
-  },
-  {
-    ...LADDER_PASSES[2],
-    ladderLineKey: LADDER_PASSES[2].lineKey,
-    headlineKey: 'settings.onboarding.passReadHeadline',
-    lineKey: 'settings.onboarding.passReadLine',
-    speed: '0.85',
     a: 102,
     artTop: 0.34,
     nextVerb: 'read',
   },
   {
+    ...LADDER_PASSES[2],
+    ladderLineKey: LADDER_PASSES[2].lineKey,
+    headlineKey: 'settings.onboarding.passSayHeadline',
+    lineKey: 'settings.onboarding.passSayLine',
+    speed: '0.85',
+    a: 84,
+    artTop: 0.46,
+    nextVerb: 'speak',
+  },
+  {
     ...LADDER_PASSES[3],
     ladderLineKey: LADDER_PASSES[3].lineKey,
-    headlineKey: 'settings.onboarding.passShadowHeadline',
-    lineKey: 'settings.onboarding.passShadowLine',
+    headlineKey: 'settings.onboarding.passRecordHeadline',
+    lineKey: 'settings.onboarding.passRecordLine',
     speed: '0.85',
     a: 102,
     artTop: 0.46,
@@ -140,9 +140,9 @@ function getLottieSource(index: 0 | 1 | 2 | 3): LottieSource {
     index === 0
       ? require('../../../assets/lottie/listen-ear.json')
       : index === 1
-        ? require('../../../assets/lottie/mumble-lips.json')
+        ? require('../../../assets/lottie/read-eyes.json')
         : index === 2
-          ? require('../../../assets/lottie/read-eyes.json')
+          ? require('../../../assets/lottie/mumble-lips.json')
           : require('../../../assets/lottie/shadow-head.json');
   lottieCache[index] = source;
   return source;
@@ -230,11 +230,11 @@ export function PassExplainer({
 
           <View style={[styles.effectAnchor, { top: `${info.artTop * 100}%` }]}>
             {pass === 0 ? <ListenEffect colour={info.colour} a={info.a} /> : null}
-            {pass === 1 ? <MumbleEffect colour={info.colour} a={info.a} /> : null}
+            {pass === 2 ? <MumbleEffect colour={info.colour} a={info.a} /> : null}
             {pass === 3 ? <ShadowBubbles a={info.a} /> : null}
           </View>
 
-          {pass === 2 ? (
+          {pass === 1 ? (
             <View style={styles.readArea}>
               <View style={styles.readRow}>
                 <ReadAlongRow words={READ_ALONG_WORDS[toIslandLanguage(learning)]} colour={info.colour} />

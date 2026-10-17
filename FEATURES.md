@@ -266,6 +266,11 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - BL-45 subtitle quality pipeline phase 1
 - BL-47 animations A1 A7 A10
 - Dev review tour
+- BL-51 staged ladder
+- BL-51 take score
+- BL-51 Practice now sessions
+- BL-51 daily Review XP and session summary
+- Hebrew and RTL pass (The Translator)
 
 ## Next (approved, in order)
 

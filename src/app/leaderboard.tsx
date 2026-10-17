@@ -103,9 +103,9 @@ export default function LeaderboardScreen() {
       </View>
       <View style={styles.spotInfo}>
         <Text style={[styles.spotKicker, dir.text]}>{`1 · ${t('leaderboard.highest').toUpperCase()}`}</Text>
-        <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.spotName, { writingDirection: 'ltr', textAlign: 'left' }]}>{`@${top.username}`}</Text>
-        <View style={styles.spotBottom}>
-          <View style={styles.chips}>
+        <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.spotName, { writingDirection: 'ltr', textAlign: dir.rtl ? 'right' : 'left' }]}>{`@${top.username}`}</Text>
+        <View style={[styles.spotBottom, dir.row]}>
+          <View style={[styles.chips, dir.row]}>
             {(['head', 'face', 'body', 'accessory'] as const).map((slot) => {
               const id = top.equipped[slot];
               const src = id ? ITEM_IMAGES[id] : undefined;

@@ -179,14 +179,15 @@ export default function BeforeAfterScreen() {
     stopPlayback(player);
     setWhich(null);
     if (before === null || before === cursor || reduced) return;
-    const dir = cursor > before ? 1 : -1;
+    // Forward comes in from the reading end: the right in English, the left in Hebrew.
+    const dir = (cursor > before ? 1 : -1) * (rtl ? -1 : 1);
     slideX.value = SLIDE_PX * dir;
     slideX.value = withSpring(0, { damping: 20, stiffness: 220 });
     fade.value = 0;
     fade.value = withTiming(1, { duration: 160, easing: Easing.out(Easing.quad) });
     metaFade.value = 0;
     metaFade.value = withDelay(40, withTiming(1, { duration: 160, easing: Easing.out(Easing.quad) }));
-  }, [cursor, reduced, player, slideX, fade, metaFade]);
+  }, [cursor, reduced, player, slideX, fade, metaFade, rtl]);
 
   const cardStyle = useAnimatedStyle(() => ({
     opacity: cardOpacity.value * fade.value,
@@ -215,7 +216,7 @@ export default function BeforeAfterScreen() {
     body = (
       <Animated.View style={[styles.cardWrap, cardStyle]}>
         <GlassPanel style={styles.card}>
-          <Text style={styles.note}>{t('player.couldNotLoadIsland')}</Text>
+          <Text style={[styles.note, rtl && styles.enRtl]}>{t('player.couldNotLoadIsland')}</Text>
         </GlassPanel>
       </Animated.View>
     );
@@ -225,8 +226,8 @@ export default function BeforeAfterScreen() {
     body = (
       <Animated.View style={[styles.cardWrap, cardStyle]}>
         <GlassPanel style={styles.card}>
-          <Text style={styles.emptyTitle}>{island.title}</Text>
-          <Text style={styles.note}>{t('beforeAfter.empty')}</Text>
+          <Text style={[styles.emptyTitle, { writingDirection: 'auto' }]}>{island.title}</Text>
+          <Text style={[styles.note, rtl && styles.enRtl]}>{t('beforeAfter.empty')}</Text>
         </GlassPanel>
       </Animated.View>
     );
@@ -241,7 +242,7 @@ export default function BeforeAfterScreen() {
           </GlassPanel>
         </Animated.View>
 
-        <View style={styles.discs}>
+        <View style={[styles.discs, rtl && styles.rowRtl]}>
           <Animated.View style={[styles.column, firstColStyle]}>
             <RingButton size={72} mode={which === 'first' && playing ? 'playing' : 'idle'} onPress={() => onDisc('first')} />
             <Text style={styles.name}>{t('beforeAfter.first')}</Text>
@@ -262,9 +263,9 @@ export default function BeforeAfterScreen() {
 
         <Animated.View style={[styles.stepperWrap, stepperStyle]}>
           <GlassPanel>
-            <View style={styles.stepper}>
+            <View style={[styles.stepper, rtl && styles.rowRtl]}>
               <RoundButton
-                glyph="‹"
+                glyph={rtl ? '›' : '‹'}
                 flat
                 label={t('player.previousLine')}
                 disabled={cursor === 0}
@@ -274,7 +275,7 @@ export default function BeforeAfterScreen() {
                 <PlayerTitle title={island.title} lineIndex={lineIdx ?? 0} lineCount={island.lines.length} />
               </View>
               <RoundButton
-                glyph="›"
+                glyph={rtl ? '‹' : '›'}
                 flat
                 label={t('player.nextLine')}
                 disabled={cursor >= comparable.length - 1}
@@ -300,6 +301,8 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   content: { flex: 1, paddingTop: 96 },
   contentRtl: {},
+  // Hebrew reads First on the right and steps forward to the left.
+  rowRtl: { flexDirection: 'row-reverse' },
   cardWrap: { marginHorizontal: Spacing.lg },
   card: { paddingVertical: 16, paddingHorizontal: 18, gap: 8 },
   ja: { fontFamily: fonts.serifJp, fontSize: 24, lineHeight: 34, textAlign: 'center', color: tide.text },

@@ -2,7 +2,7 @@ import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-rou
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BackHandler, Linking, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { AppState, BackHandler, Linking, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import type { ScrollView } from 'react-native-gesture-handler';
 import { SymbolView } from 'expo-symbols';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,12 +22,13 @@ import { TappableSentence, type ExplainSelection } from '@/components/tide/tappa
 import { TideScene } from '@/components/tide/tide-scene';
 import { SaveStar } from '@/components/save-star';
 import { PassHelpSheet } from '@/components/tide/pass-help-sheet';
-import { PassStrip } from '@/components/tide/pass-strip';
+import { LadderHelpButton, LadderStageView } from '@/components/tide/ladder-stage';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
-import { snapRate, type useLadder } from '@/hooks/use-ladder';
+import { snapRate, takeWatchSec, type useLadder } from '@/hooks/use-ladder';
 import { useDockPopovers } from '@/hooks/use-dock-popovers';
 import { useLadderWiring } from '@/hooks/use-ladder-wiring';
+import { autoPlaceOf, endAutoPractice } from '@/lib/auto-practice';
 import { useSavedCards } from '@/hooks/use-saved-cards';
 import { useTake } from '@/hooks/use-take';
 import { useWatchClock } from '@/hooks/use-watch-clock';
@@ -44,12 +45,16 @@ export default function VideoScreen() {
   const { t } = useT();
   const router = useRouter();
   const win = useWindowDimensions();
-  const { id, line, preview, review } = useLocalSearchParams<{
+  const { id, line, preview, review, session } = useLocalSearchParams<{
     id: string;
     line?: string;
     preview?: string;
     review?: string;
+    session?: string;
   }>();
+  // A practice session hops here with the lines the plan picked; a stale param with no live session is ignored.
+  const [inSession] = useState(() => session === '1' && autoPlaceOf(id) !== null);
+  useEffect(() => () => endAutoPractice(id), [id]); // leaving mid-session reports the lines done
 
   // Fullscreen is landscape. The layout only switches once the window has
   // actually rotated, so the player is never sized from stale portrait numbers.
@@ -103,7 +108,7 @@ export default function VideoScreen() {
   const [video, setVideo] = useState<api.IslandVideo | null>(null);
   const [error, setError] = useState('');
   // review-deck: saved sentences of this island, line idx to card id.
-  const { savedCards, saveError, reviewSet, loadReviewCards, toggleSaved, gradeOnce } = useSavedCards(island?.id, id, !!review);
+  const { savedCards, saveError, reviewSet, loadReviewCards, toggleSaved, gradeOnce } = useSavedCards(island?.id, id, !!review, inSession);
   const [playing, setPlaying] = useState(false);
   const stateRef = useRef('unstarted');
   const [cannotPlay, setCannotPlay] = useState(false);
@@ -244,11 +249,13 @@ export default function VideoScreen() {
       setPlaying(true);
     }, pauseMs);
   };
+  // A running ladder needs each line's end too, so it holds the line between passes.
+  const [ladderOn, setLadderOn] = useState(false);
   const { highlight, activeLine, onChangeState, onPlaybackRateChange, seekToLine, releaseLine } = useVideoHighlight(
     playerRef,
     lines,
     video?.start_s ?? 0,
-    { on: !!review || times > 1 || pauseMs > 0, onLineEnd, ownEnds: !!review },
+    { on: !!review || ladderOn || times > 1 || pauseMs > 0, onLineEnd, ownEnds: !!review },
   );
   const seekToLineRef = useRef(seekToLine);
   seekToLineRef.current = seekToLine;
@@ -257,7 +264,7 @@ export default function VideoScreen() {
 
   // Captions-only videos have no reference audio on the server, so takes are
   // only saved and played back (the embed is the reference).
-  const take = useTake(island?.id, lines[activeLine]?.idx ?? 0, generation, undefined, undefined, { localOnly: true });
+  const take = useTake(island?.id, lines[activeLine]?.idx ?? 0, generation, undefined, undefined, { localOnly: video?.captions_only !== false, countPass: true });
   const takeRef = useRef(take);
   takeRef.current = take;
 
@@ -274,15 +281,32 @@ export default function VideoScreen() {
     ),
   );
 
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      // Not 'inactive': the first mic permission prompt sends it mid-take.
+      if (state === 'background') ladderRef.current?.stop();
+    });
+    return () => sub.remove();
+  }, []);
+
   const lineRef = useRef(activeLine);
-  lineRef.current = activeLine;
+  // Frozen while a ladder runs, so the highlight cannot move the ladder's line.
+  if (!ladderRef.current?.active) lineRef.current = activeLine;
   const { ladder, helpOpen, setHelpOpen, helpPass, onPassHelp } = useLadderWiring({
-    take, speedLive, lines, lineRef, ladderRef, island, activeLine, seekToLine, setRate, gradeOnce,
+    take, speedLive, lines, lineRef, ladderRef, island, activeLine, seekToLine, setRate, gradeOnce, session: inSession,
+    onRecordStart: review ? 'ladder' : 'line',
     playLine: () => jump(lineRef.current),
     record: (snapped) => startLineTake(snapped),
     stop: () => setPlaying(false),
+    resume: () => {
+      // The record button's ladder is over: the video plays on from the next line.
+      setRate(speedLive);
+      const next = lineRef.current + 1;
+      if (next < lines.length) jump(next);
+    },
   });
   const openLadder = () => ladder.start();
+  useEffect(() => setLadderOn(ladder.active), [ladder.active]);
 
   // A take that ends stops the embed too.
   const recording = take.phase === 'recording';
@@ -409,31 +433,69 @@ export default function VideoScreen() {
   };
   const pickTimes = (n: number) => setTimes(Math.min(TIMES_MAX, n));
 
-  // Record: the embed is the reference. With earphones it plays under the
-  // take; on the speaker it stays silent so it never bleeds into the mic.
-  async function onDockRecord() {
-    if (review) {
-      ladder.dock.onRecord();
-      return;
-    }
-    if (take.phase === 'recording') {
-      void take.finishNow();
-      return;
-    }
-    await startLineTake(speedLive);
-  }
+  // Stamps where the line starts in the take (see markLineStart), so a
+  // headphone take, which has no echo for the backend to anchor on, still
+  // gets its timing scored. The embed has no status stream, so its position
+  // is asked for until one reply lands near the line's start, while it plays.
+  const stampTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const takeRate = useRef(1);
+  const stampLineStart = (tries = 20) => {
+    if (stampTimer.current) clearTimeout(stampTimer.current);
+    stampTimer.current = null;
+    const p = playerRef.current;
+    if (!p) return;
+    const retry = () => {
+      if (tries > 1) stampTimer.current = setTimeout(() => stampLineStart(tries - 1), 150);
+    };
+    const sent = Date.now();
+    p.getCurrentTime()
+      .then((time) => {
+        const at = lineRef.current;
+        const start = (video?.start_s ?? 0) + (lines[at]?.offset ?? 0);
+        const next = lines[at + 1]?.offset;
+        const sec = review || next === undefined ? (lines[at]?.duration ?? 0) : next - (lines[at]?.offset ?? 0);
+        const r = takeRate.current > 0 ? takeRate.current : 1;
+        const inLine = time - start;
+        // Only a reply while playing and near the line's start counts: one
+        // still carrying the pre-seek position, or a buffering stall at 0, is not it.
+        if (stateRef.current !== 'playing' || !Number.isFinite(inLine) || inLine <= 0 || inLine >= Math.min(2, sec * 0.5)) {
+          retry();
+          return;
+        }
+        // Wall time from the line's start: track seconds at the take's rate,
+        // plus half the round trip the reply spent coming back.
+        takeRef.current.markLineStart(inLine / r + (Date.now() - sent) / 2000);
+      })
+      .catch(retry);
+  };
+  useEffect(
+    () => () => {
+      if (stampTimer.current) clearTimeout(stampTimer.current);
+    },
+    [],
+  );
 
+  // A ladder take: the embed is the reference and plays under the take,
+  // like the island's Record my take. On the speaker the backend removes the
+  // bleed and keeps any echo left out of the score. A captions-only video has
+  // no server reference to clean against, so there the speaker stays silent.
   async function startLineTake(speed: number): Promise<boolean> {
     take.stopTake();
     const at = lineRef.current;
     const start = lines[at]?.offset;
     const nextStart = lines[at + 1]?.offset;
     const lineSec = review ? lines[at]?.duration : start !== undefined && nextStart !== undefined ? nextStart - start : undefined;
-    jump(at);
-    // The watchdog wants wall-clock seconds: the line plays at `speed`.
+    // The watchdog wants wall-clock seconds: the line plays at `speed`, and
+    // the take keeps the ladder's room after it (takeWatchSec).
     const wallSec = lineSec !== undefined && speed > 0 ? lineSec / speed : lineSec;
-    const res = await take.startTake(wallSec, speed, 'take', 0, null, 'auto');
+    takeRate.current = speed;
+    const localOnly = video?.captions_only !== false;
+    const res = await take.startTake(wallSec !== undefined && wallSec > 0 ? takeWatchSec(wallSec) : undefined, speed, 'take', 0, null, localOnly ? 'auto' : false);
     if (!res || res.silent) setPlaying(false);
+    else {
+      jump(at);
+      stampLineStart();
+    }
     return !!res;
   }
   openLadderRef.current = openLadder;
@@ -555,15 +617,21 @@ export default function VideoScreen() {
   // The dock floats over the transcript's bottom, above the home indicator;
   // the transcript runs on under it to the screen's edge.
   const dockBottom = fs ? 0 : insets.bottom;
-  // Sheets are laid out for portrait, so leave fullscreen when one opens.
+  // Sheets and the ladder's stage view are laid out for portrait, so leave fullscreen when one opens.
   useEffect(() => {
-    if (helpOpen || explainOpen) setFull(false);
-  }, [helpOpen, explainOpen]);
+    if (helpOpen || explainOpen || ladder.active) setFull(false);
+  }, [helpOpen, explainOpen, ladder.active]);
 
   return (
     <View style={[styles.fill, { backgroundColor: tide.sky[0] }]}>
       <StatusBar style="light" hidden={fs} />
-      <Stack.Screen options={{ title: island?.title ?? '', headerShown: !fs }} />
+      <Stack.Screen
+        options={{
+          title: island?.title ?? '',
+          headerShown: !fs,
+          headerRight: ladder.stage && onPassHelp ? () => <LadderHelpButton onPress={onPassHelp} /> : undefined,
+        }}
+      />
       {error ? (
         <View style={styles.center}>
           <Text style={styles.error}>{error}</Text>
@@ -598,6 +666,7 @@ export default function VideoScreen() {
                 stateRef.current = s;
                 setPlaying((p) => playIntent(p, s));
                 onChangeState(s);
+                if (s === 'playing' && takeRef.current.phase === 'recording') stampLineStart();
               }}
               onPlaybackRateChange={onPlaybackRateChange}
               onError={() => setCannotPlay(true)}
@@ -622,8 +691,8 @@ export default function VideoScreen() {
                 lineCount={lines.length}
                 lines={sceneLines}
                 blind={blind}
-                busy={playing}
-                countdown={null}
+                busy={playing || ladder.prelude !== null}
+                countdown={ladder.beat}
                 sentence={
                   lines[activeLine] ? (
                     <View style={styles.slot}>
@@ -667,7 +736,11 @@ export default function VideoScreen() {
                     importantForAccessibility="no"
                   />
                 ) : null}
-                <View style={[styles.dock, { bottom: dockBottom }]} onLayout={onDockLayout} pointerEvents="box-none">
+                <View
+                  // Hidden, not only covered, while the stage view is up.
+                  style={[styles.dock, { bottom: dockBottom }, ladder.stage && styles.underStage]}
+                  onLayout={onDockLayout}
+                  pointerEvents={ladder.stage ? 'none' : 'box-none'}>
                   <CompactDock
                     playMode={playing ? 'playing' : 'idle'}
                     onToggle={onToggle}
@@ -677,10 +750,11 @@ export default function VideoScreen() {
                     nextDisabled={activeLine >= lines.length - 1}
                     recording={recording}
                     level={take.level}
-                    onRecord={() => void onDockRecord()}
-                    recordLabel={review ? ladder.dock.recordLabel : recording ? t('player.stopRecording') : t('player.recordMyTake')}
+                    onRecord={ladder.dock.onRecord}
+                    recordLabel={ladder.dock.recordLabel}
                     face={ladder.dock.face}
                     countIn={ladder.dock.countIn}
+                    beatMs={ladder.dock.beatMs}
                     ringDisabled={ladder.dock.ringDisabled}
                     locked={ladder.active}
                     speed={speedLive}
@@ -693,22 +767,11 @@ export default function VideoScreen() {
                     onAnchor={onAnchor}
                     slot={
                       <View style={styles.bottom} pointerEvents="box-none">
-                        {ladder.step !== 'idle' ? <PassStrip {...ladder.strip} onHelp={onPassHelp} /> : null}
                         {take.error ? <Text style={styles.error}>{take.error}</Text> : null}
                         {saveError ? <Text style={styles.hint}>{saveError}</Text> : null}
                         {review || video.captions_only ? null : (
                           <PrismButton shape="pill" verb="speak" label={t('video.shadowLine')} onPress={shadow} />
                         )}
-                        {take.phase === 'ready' && ladder.step === 'idle' ? (
-                          <PrismButton
-                            shape="pill"
-                            verb="listen"
-                            flat
-                            press="light"
-                            label={t('video.playTake')}
-                            onPress={() => (take.takePlaying ? take.stopTake() : take.playTake())}
-                          />
-                        ) : null}
                       </View>
                     }
                   />
@@ -746,6 +809,8 @@ export default function VideoScreen() {
                 onToggleJa={toggleBlind}
                 onToggleEn={toggleEnglish}
                 onClose={() => setBlindPopOpen(false)}
+                lang={island?.language ?? 'ja'}
+                native={island?.native ?? 'en'}
               />
             ) : null}
             {repeatPopOpen && anchors.current.repeat ? (
@@ -764,7 +829,9 @@ export default function VideoScreen() {
           </View>
         </View>
       )}
-      {review && island ? (
+      {/* Under the video, so it stays in view while the ladder runs. */}
+      {ladder.stage ? <LadderStageView {...ladder.stage} top={fs ? 0 : playerSize.height} onHelp={onPassHelp} /> : null}
+      {island ? (
         <PassHelpSheet
           open={helpOpen}
           pass={helpPass}
@@ -846,6 +913,7 @@ const styles = StyleSheet.create({
   },
   // Above the tray backdrop (15) so the pills and the gear take taps; popovers sit at 20.
   // Floats over the transcript: only the capsule, the tray and the slot draw.
+  underStage: { opacity: 0 },
   dock: { position: 'absolute', left: 0, right: 0, zIndex: 16 },
   trayBackdrop: { zIndex: 15 },
 });

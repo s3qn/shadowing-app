@@ -4,6 +4,7 @@ import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { CryptoDigestAlgorithm, digestStringAsync, randomUUID } from 'expo-crypto';
 
 import { GOOGLE_IOS_CLIENT_ID, GOOGLE_WEB_CLIENT_ID } from '@/lib/auth-config';
+import { t } from '@/lib/i18n';
 import { SESSION_STORAGE_KEY, supabase } from '@/lib/supabase';
 
 export type SignInResult = 'ok' | 'cancelled';
@@ -129,7 +130,7 @@ export async function signInWithApple(): Promise<SignInResult> {
     if ((err as { code?: string }).code === 'ERR_REQUEST_CANCELED') return 'cancelled';
     throw err;
   }
-  if (!credential.identityToken) throw new Error('Apple sent no identity token.');
+  if (!credential.identityToken) throw new Error(t('settings.account.noToken', { provider: 'Apple' }));
   const { error } = await supabase.auth.signInWithIdToken({
     provider: 'apple',
     token: credential.identityToken,
@@ -149,7 +150,7 @@ export async function signInWithGoogle(): Promise<SignInResult> {
   const res = await GoogleSignin.signIn();
   if (res.type === 'cancelled') return 'cancelled';
   const token = res.data.idToken;
-  if (!token) throw new Error('Google sent no identity token.');
+  if (!token) throw new Error(t('settings.account.noToken', { provider: 'Google' }));
   const { error } = await supabase.auth.signInWithIdToken({ provider: 'google', token });
   if (error) throw error;
   return 'ok';

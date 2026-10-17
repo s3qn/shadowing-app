@@ -3,39 +3,44 @@ import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { PressScale } from '@/components/press-scale';
+import { Segmented } from '@/components/segmented';
 import { SettingsRow, SettingsSection } from '@/components/tide/settings-row';
 import { PAUSE_STEPS, pauseLabel, TIMES_STEPS, timesLabel } from '@/components/tide/repeat-popover';
 import { TickRuler } from '@/components/tide/tick-ruler';
 import { fonts } from '@/constants/fonts';
-import { Radius, SPEED_MAX, SPEED_MIN, Spacing, tide } from '@/constants/theme';
+import { SPEED_MAX, SPEED_MIN, Spacing, tide } from '@/constants/theme';
 import { useDir, useT } from '@/lib/i18n';
-import type { Programme } from '@/lib/pass-programme';
+import { LADDER_PACE_OPTIONS, type LadderPace } from '@/lib/pass-programme';
 import {
   getSettings,
   getSettingsSync,
   PAUSE_STEP_MS,
   setAutoEcho,
   setAutoRecord,
+  setBlindTake,
   setDefaultPauseMs,
   setDefaultSpeed,
   setDefaultTimes,
   setKeepAwake,
-  setProgramme,
+  setLadderPace,
   TIMES_MIN,
 } from '@/lib/settings';
-
-const PROGRAMME_OPTIONS: readonly Programme[] = ['ladder', 'echo'];
 
 const SPEED_OPTIONS = [0.5, 0.7, 0.85, 1, 1.15, 1.3, 1.5];
 
 export default function PlaybackSettingsScreen() {
   const { t } = useT();
   const dir = useDir();
+  const speedChoices = SPEED_OPTIONS.filter((x) => x >= SPEED_MIN && x <= SPEED_MAX).map((x) => ({ value: String(x), label: `${x}x` }));
+  const paceChoices = LADDER_PACE_OPTIONS.map((p) => ({
+    value: p,
+    label: t(p === 'calm' ? 'settings.playback.paceCalm' : p === 'steady' ? 'settings.playback.paceSteady' : 'settings.playback.paceQuick'),
+  }));
   // Seeded from the sync cache so the chip that is already chosen is the one
   // lit on the first frame, before the file read below answers.
   const [defaultSpeed, setDefaultSpeedState] = useState(() => getSettingsSync().defaultSpeed);
-  const [programme, setProgrammeState] = useState<Programme>(() => getSettingsSync().programme);
+  const [ladderPace, setLadderPaceState] = useState<LadderPace>(() => getSettingsSync().ladderPace);
+  const [blindTake, setBlindTakeState] = useState(() => getSettingsSync().blindTake);
   const [defaultTimes, setDefaultTimesState] = useState(1);
   const [defaultPauseMs, setDefaultPauseMsState] = useState(0);
   // The rulers span the card's inner width, measured once it lays out.
@@ -50,7 +55,8 @@ export default function PlaybackSettingsScreen() {
       void getSettings().then((s) => {
         if (!alive) return;
         setDefaultSpeedState(s.defaultSpeed);
-        setProgrammeState(s.programme);
+        setLadderPaceState(s.ladderPace);
+        setBlindTakeState(s.blindTake);
         setDefaultTimesState(s.defaultTimes);
         setDefaultPauseMsState(s.defaultPauseMs);
         setAutoEchoState(s.autoEcho);
@@ -63,59 +69,48 @@ export default function PlaybackSettingsScreen() {
     }, []),
   );
 
-  function chip(active: boolean) {
-    return [
-      styles.chip,
-      {
-        backgroundColor: active ? tide.lang.ja : 'rgba(255,255,255,0.08)',
-        borderColor: active ? tide.lang.ja : 'rgba(255,255,255,0.14)',
-      },
-    ];
-  }
-
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       <ScrollView contentContainerStyle={styles.list}>
         <SettingsSection title={t('settings.playback.speed')} footnote={t('settings.playback.defaultFootnote')}>
-          <View style={styles.chipRow}>
-            {SPEED_OPTIONS.filter((s) => s >= SPEED_MIN && s <= SPEED_MAX).map((s) => {
-              const on = s === defaultSpeed;
-              return (
-                <PressScale
-                  key={s}
-                  onPress={() => {
-                    setDefaultSpeedState(s);
-                    void setDefaultSpeed(s);
-                  }}
-                  style={chip(on)}>
-                  <Text style={[styles.chipText, { color: on ? tide.sky[0] : tide.text }]}>{s}x</Text>
-                </PressScale>
-              );
-            })}
+          <View style={styles.segBox}>
+            <Segmented
+              scrollable
+              options={speedChoices}
+              value={String(defaultSpeed)}
+              onChange={(v) => {
+                const next = Number(v);
+                setDefaultSpeedState(next);
+                void setDefaultSpeed(next);
+              }}
+            />
           </View>
         </SettingsSection>
 
-        <SettingsSection
-          title={t('player.programme')}
-          footnote={`${t('player.ladder')}: ${t('settings.onboarding.ladderLine')}\n${t('player.autoEcho')}: ${t('player.echoDescription')}`}>
-          <View style={[styles.chipRow, dir.row]}>
-            {PROGRAMME_OPTIONS.map((p) => {
-              const on = p === programme;
-              return (
-                <PressScale
-                  key={p}
-                  onPress={() => {
-                    setProgrammeState(p);
-                    void setProgramme(p);
-                  }}
-                  style={chip(on)}>
-                  <Text style={[styles.chipText, { color: on ? tide.sky[0] : tide.text }]}>
-                    {t(p === 'ladder' ? 'player.ladder' : 'player.autoEcho')}
-                  </Text>
-                </PressScale>
-              );
-            })}
+        <SettingsSection title={t('settings.playback.pace')} footnote={t('settings.playback.paceFootnote')}>
+          <View style={styles.segBox}>
+            <Segmented
+              options={paceChoices}
+              value={ladderPace}
+              onChange={(p) => {
+                setLadderPaceState(p);
+                void setLadderPace(p);
+              }}
+            />
           </View>
+        </SettingsSection>
+
+        <SettingsSection title={t('settings.playback.blindTake')} footnote={t('settings.playback.blindTakeFootnote')}>
+          <SettingsRow
+            label={t('settings.playback.blindTake')}
+            last
+            icon={{ ios: 'eye.slash', android: 'visibility_off' }}
+            switchValue={blindTake}
+            onSwitchChange={(next) => {
+              setBlindTakeState(next);
+              void setBlindTake(next);
+            }}
+          />
         </SettingsSection>
 
         <SettingsSection title={t('settings.playback.times')} footnote={t('settings.playback.timesFootnote')}>
@@ -197,10 +192,8 @@ export default function PlaybackSettingsScreen() {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   list: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: 170 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, padding: Spacing.md },
-  chip: { borderWidth: 1, borderRadius: Radius.pill, paddingVertical: Spacing.xs + 2, paddingHorizontal: Spacing.md },
+  segBox: { padding: Spacing.md },
   rulerBox: { padding: Spacing.md, alignItems: 'center', gap: Spacing.xs },
   readout: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 20, color: tide.text, fontVariant: ['tabular-nums'] },
-  chipText: { fontSize: 13, fontWeight: '600', fontFamily: fonts.ui },
   footnote: { fontSize: 12, lineHeight: 17, marginHorizontal: Spacing.sm, marginTop: -Spacing.md },
 });

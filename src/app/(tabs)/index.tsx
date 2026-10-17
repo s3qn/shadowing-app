@@ -57,7 +57,6 @@ import { useSkyStyle, isNight } from '@/lib/sky';
 import { useT, useDir } from '@/lib/i18n';
 import * as api from '@/lib/api';
 import { registerCard, startOpen, unregisterCard, useMorphHidesTitle, type CardRect } from '@/lib/card-morph';
-import { startAutoPractice } from '@/lib/auto-practice';
 import { hapticImpact, hapticSelection } from '@/lib/haptics';
 import { invalidateCachedIsland, prewarmIsland } from '@/lib/island-cache';
 import { PILL_TAB_BAR_REACH } from '@/components/pill-tab-bar';
@@ -265,7 +264,6 @@ export default function IslandsScreen() {
   // due again. `dueIds` below adds islands never practiced at all, which the
   // backend never lists (schedule.py only tracks islands it has seen).
   const [fetchedDueIds, setFetchedDueIds] = useState<Set<string>>(new Set());
-  const [reviewDue, setReviewDue] = useState(0);
   const reducedMotion = useReducedMotion();
   // The list has two shapes. The wheel (search closed): a pad above the first
   // card and below the last one centres any card, snapping, scale and dim,
@@ -548,16 +546,6 @@ export default function IslandsScreen() {
     [visibleIslands, practicable],
   );
 
-  // Practice today: the due list in the order Home shows it, run as one chain.
-  const startPractice = useCallback(() => {
-    const queue = sortedAll
-      .filter(practicable)
-      .map((i) => ({ id: i.id, title: i.title || t('home.untitledIsland') }));
-    if (queue.length === 0) return;
-    startAutoPractice(queue);
-    router.push({ pathname: '/island/[id]', params: { id: queue[0].id, auto: '1' } });
-  }, [sortedAll, practicable, router, t]);
-
   // Drive: starts on the first due island with audio, else the newest ready one with audio.
   const startDrive = useCallback(() => {
     const withAudio = (i: api.IslandSummary) => i.status === 'ready' && i.has_audio !== false;
@@ -625,9 +613,6 @@ export default function IslandsScreen() {
       void getPracticeLog().then((next) => {
         if (alive) setLog(next);
       });
-      void api.getReviewDue().then((r) => {
-        if (alive) setReviewDue(r.due.length);
-      }).catch(() => {});
       void api.getDueToday().then((rows) => {
         if (alive) setFetchedDueIds(new Set(rows.map((r) => r.island_id)));
       }).catch(() => {});
@@ -952,7 +937,7 @@ export default function IslandsScreen() {
       />
       <View style={styles.headerFixed}>
         <CatBadge />
-        <PracticeCard log={log} dueCount={readyDueCount} reviewDue={reviewDue} onPractice={startPractice} onDrive={startDrive} onReview={() => router.push('/review')} />
+        <PracticeCard log={log} dueCount={readyDueCount} onPractice={() => router.push('/review')} onDrive={startDrive} />
         {/* pill-tray-tab-bar: sort row start */}
         <SortRow sort={sort} onSort={setSort} labels={SORT_LABEL} />
         {/* pill-tray-tab-bar: sort row end */}
@@ -1050,7 +1035,7 @@ export default function IslandsScreen() {
           </>
         ) : (
           <>
-          <GlassPanel style={styles.sheetMenuRow}>
+          <GlassPanel style={[styles.sheetMenuRow, dir.row]}>
             <PrismButton
               shape="pill"
               verb="tools"
@@ -1516,7 +1501,7 @@ const IslandRow = memo(function IslandRow({
         />
         <Animated.View pointerEvents="none" style={[styles.flashFill, { backgroundColor: tide.lang.ja }, flashFillStyle]} />
         <Animated.View pointerEvents="none" style={[styles.flashBorder, { borderColor: tide.lang.ja }, flashBorderStyle]} />
-        <View style={styles.cardTop}>
+        <View style={[styles.cardTop, dir.row]}>
           {/* `dir.content`, not `dir.text`: a title is content, ordered by
               its own script whatever the interface language is. */}
           <Text numberOfLines={2} style={[styles.cardTitle, dir.content, { color: tide.text, opacity: titleHidden ? 0 : 1 }]}>

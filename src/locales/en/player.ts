@@ -15,4 +15,11 @@ export const en = {
   'player.exportFailed': 'Could not export this island. Try again.',
   'player.exportNotReady': 'This island is still being built, or a line has no audio yet.',
   'player.exportVoiceUnavailable': 'The voice engine is unavailable right now.',
+  // Seconds left in a repeat pause, on the pass pill.
+  'player.secsLeft': '{n}s',
+  // Short language tags on the Blind pill and its two toggles.
+  'player.langCode.ja': 'JP',
+  'player.langCode.es': 'ES',
+  'player.langCode.en': 'EN',
+  'player.langCode.he': 'HE',
 };

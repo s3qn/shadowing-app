@@ -633,7 +633,7 @@ export default function PhrasesScreen() {
                     keyboardShouldPersistTaps="handled"
                     ListHeaderComponent={
                       <View style={styles.searchHead}>
-                        <View style={styles.search}>
+                        <View style={[styles.search, dir.row, dir.rtl && styles.searchRtl]}>
                           <View style={styles.searchIcon} pointerEvents="none">
                             <SearchIcon color={tide.text} size={18} />
                           </View>
@@ -724,6 +724,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingRight: Spacing.md,
   },
+  searchRtl: { paddingRight: 0, paddingLeft: Spacing.md },
   searchIcon: { width: SEARCH_H - 2, height: SEARCH_H - 2, alignItems: 'center', justifyContent: 'center' },
   searchInput: {
     flex: 1,

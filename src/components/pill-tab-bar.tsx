@@ -266,6 +266,7 @@ export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps
                   on={on}
                   index={index}
                   pressedIndex={pressedIndex}
+                  rtl={rtl}
                   onLayout={(e) => {
                     const { x, width } = e.nativeEvent.layout;
                     handleTabLayout(index, x, width);
@@ -288,6 +289,8 @@ type TabPillProps = {
   index: number;
   pressedIndex: SharedValue<number>;
   onLayout: (e: import('react-native').LayoutChangeEvent) => void;
+  /** Hebrew: the icon leads from the right. */
+  rtl: boolean;
 };
 
 /**
@@ -298,7 +301,7 @@ type TabPillProps = {
  * own index into `pressedIndex`, instead of this component's own
  * `Pressable`, since one `GestureDetector` now covers the whole row.
  */
-function TabPill({ children, on, index, pressedIndex, onLayout }: TabPillProps) {
+function TabPill({ children, on, index, pressedIndex, onLayout, rtl }: TabPillProps) {
   const scale = useSharedValue(1);
   useAnimatedReaction(
     () => pressedIndex.value === index,
@@ -309,7 +312,7 @@ function TabPill({ children, on, index, pressedIndex, onLayout }: TabPillProps) 
   );
   const scaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   return (
-    <AnimatedView onLayout={onLayout} style={[styles.pill, on ? null : styles.pillChrome, scaleStyle]}>
+    <AnimatedView onLayout={onLayout} style={[styles.pill, rtl && styles.pillRtl, on ? null : styles.pillChrome, scaleStyle]}>
       {children}
     </AnimatedView>
   );
@@ -337,6 +340,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: PILL_PAD_X,
     borderRadius: Radius.pill,
   },
+  pillRtl: { flexDirection: 'row-reverse' },
   pillChrome: {
     backgroundColor: prism.tray.pillFill,
     borderWidth: 1,

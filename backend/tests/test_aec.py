@@ -207,3 +207,18 @@ def test_decode_encode_round_trip(tmp_path):
     # ordinary int16 rounding. Measured max error was ~6.1e-5 on this
     # signal; 1e-3 leaves headroom without hiding a real codec regression.
     assert np.max(np.abs(y - x)) < 1e-3
+
+
+def test_heard_speaker_tells_speaker_from_headphones(
+    room_case: SimpleNamespace, double_talk_case: SimpleNamespace
+):
+    # with no profile at all: the line played out loud under the voice, versus
+    # the voice alone with a little self noise (headphones)
+    rng = np.random.default_rng(7)
+    voice = double_talk_case.voice
+    over_speaker = room_case.mic_clean + voice
+    phones = voice + aec._dbfs_noise(rng, len(voice), -58.0)
+
+    assert aec.heard_speaker(room_case.line, over_speaker) is True
+    assert aec.heard_speaker(room_case.line, phones) is False
+    assert aec.bleed_ncc(room_case.line, np.zeros(0)) == 0.0

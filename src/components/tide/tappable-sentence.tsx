@@ -19,6 +19,7 @@ import { hapticImpact } from '@/lib/haptics';
 import { offlineGloss } from '@/lib/offline-islands';
 import { fitScale } from '@/lib/fit-line';
 import { kinsokuUnits } from '@/lib/kinsoku';
+import { useDir } from '@/lib/i18n';
 import { lineRomaji } from '@/lib/romaji';
 import type { ReadingMode } from '@/lib/settings';
 import { useSlideReveal } from '@/lib/slide-reveal';
@@ -84,6 +85,7 @@ export const TappableSentence = memo(function TappableSentence({
   variant = 'default',
   repeat,
 }: Props) {
+  const dir = useDir();
   const video = variant === 'video';
   const isJa = language === 'ja';
   const modeLine = !isJa
@@ -498,7 +500,7 @@ export const TappableSentence = memo(function TappableSentence({
       {modeLine && !blind ? <Text style={[styles.reading, video && styles.leftText]}>{modeLine}</Text> : null}
       {line.en && englishShown ? (
         <View style={video ? styles.enVideo : styles.enStrip}>
-          <Text style={[styles.en, video && styles.enTextVideo]}>{line.en}</Text>
+          <Text style={[styles.en, video && styles.enTextVideo, video ? dir.content : { writingDirection: 'auto' }]}>{line.en}</Text>
         </View>
       ) : null}
     </View>

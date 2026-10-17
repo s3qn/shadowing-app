@@ -1,9 +1,10 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useState, type MutableRefObject } from 'react';
+import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 
 import { snapRate, useLadder, type LadderIo } from '@/hooks/use-ladder';
 import type { useTake } from '@/hooks/use-take';
 import * as api from '@/lib/api';
+import { finishAutoIsland, finishSession, noteSessionLine, routeFor } from '@/lib/auto-practice';
 import { helpPassOf } from '@/lib/pass-programme';
 import { addLadder } from '@/lib/practice';
 
@@ -22,10 +23,12 @@ type Opts = {
   playLine: (snapped: number) => void;
   record: (snapped: number) => Promise<boolean>;
   stop: () => void;
-  /** After a single in-place pass: play on from the next line. */
+  /** After the record button's one-line ladder: play on from the next line. */
   resume?: () => void;
-  /** What the dock record button starts from idle; defaults to the ladder. */
-  onRecordStart?: 'ladder' | 'once';
+  /** What the dock record button starts from idle: the ladder over every line (default) or on the current line only. */
+  onRecordStart?: 'ladder' | 'line';
+  /** A practice session: lines are reported and the last line hops to the next project. */
+  session?: boolean;
 };
 
 /**
@@ -38,6 +41,8 @@ export function useLadderWiring(o: Opts) {
   const [helpOpen, setHelpOpen] = useState(false);
   // The pass whose help is open, frozen while it is read.
   const [helpPass, setHelpPass] = useState<0 | 1 | 2 | 3 | 4>(0);
+  // When the line's ladder started, for the session's seconds per line (0 = not started).
+  const lineStart = useRef(0);
   const io: LadderIo = {
     playLine: (speed) => {
       // The pass rate lives in `rate` only: speedLive stays the dock speed
@@ -59,19 +64,32 @@ export function useLadderWiring(o: Opts) {
     },
     resume: o.resume,
     onLineDone: () => {
-      o.gradeOnce(o.lines[o.lineRef.current]?.idx ?? -1);
+      const line = o.lines[o.lineRef.current];
+      o.gradeOnce(line?.idx ?? -1);
       if (o.island) addLadder(o.island.id);
+      if (o.session && o.island && line) {
+        noteSessionLine(o.island.id, line.idx, lineStart.current ? (Date.now() - lineStart.current) / 1000 : 0, line);
+        lineStart.current = 0;
+      }
     },
     advance: () => {
       const next = o.lineRef.current + 1;
       if (next >= o.lines.length) {
-        router.back();
+        const to = o.session && o.island ? finishAutoIsland(o.island.id, 'shadowed') : null;
+        if (to) router.replace(routeFor(to.nextId, to.nextKind));
+        else {
+          if (o.session) finishSession(true);
+          router.back();
+        }
         return false;
       }
+      lineStart.current = Date.now();
       o.seekToLine(next);
       o.lineRef.current = next;
       return true;
     },
+    lineText: o.lines[o.activeLine]?.ja ?? '',
+    line: o.lines[o.activeLine] ?? null,
   };
   const ladder = useLadder(o.take, o.speedLive, o.lines[o.activeLine]?.duration ?? 0, io, {
     onRecordStart: o.onRecordStart,
@@ -80,17 +98,15 @@ export function useLadderWiring(o: Opts) {
   // A finished ladder hands the player back at the dock speed.
   // A stopped or finished run closes its help.
   useEffect(() => {
+    if (ladder.step !== 'idle' && ladder.step !== 'done' && !lineStart.current) lineStart.current = Date.now();
     if (ladder.step === 'done') o.setRate(o.speedLive);
     if (ladder.step === 'idle' || ladder.step === 'done') setHelpOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ladder.step]);
-  const livePass = helpPassOf(ladder.step, 'ladder');
-  const onPassHelp =
-    livePass === null
-      ? undefined
-      : () => {
-          setHelpPass(livePass);
-          setHelpOpen(true);
-        };
+  const livePass = helpPassOf(ladder.step);
+  const onPassHelp = () => {
+    setHelpPass(livePass);
+    setHelpOpen(true);
+  };
   return { ladder, helpOpen, setHelpOpen, helpPass, onPassHelp };
 }

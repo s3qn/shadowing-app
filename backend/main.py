@@ -25,6 +25,7 @@ import secrets
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -37,7 +38,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from dotenv import load_dotenv
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # Before the local imports: store, voicevox and transcribe read their settings
 # from the environment at import time.
@@ -57,6 +58,7 @@ import podcast
 import phrase_catalog
 import podcast_catalog
 import progression
+import review_session
 import user_profile
 import schedule
 import segment
@@ -175,6 +177,17 @@ def _startup() -> None:
                 log.warning("island %s was interrupted with no lines", island["id"])
     if _kokoro_warm_up_wanted():
         threading.Thread(target=kokoro_tts.warm_up, name="kokoro-warm-up", daemon=True).start()
+    if _whisper_warm_up_wanted():
+        # The first take of a session otherwise waits ~8s for the model load.
+        threading.Thread(target=transcribe.warm_up, name="whisper-warm-up", daemon=True).start()
+
+
+def _whisper_warm_up_wanted() -> bool:
+    """Opt-in: only SHADOW_WHISPER_WARM=1 loads the medium model at startup
+    (about 1.5GB RSS). Always off under pytest or SHADOW_ENV=test."""
+    if os.getenv("SHADOW_WHISPER_WARM", "").strip() != "1":
+        return False
+    return os.getenv("SHADOW_ENV") != "test" and "pytest" not in sys.modules
 
 
 def _kokoro_warm_up_wanted() -> bool:
@@ -184,7 +197,7 @@ def _kokoro_warm_up_wanted() -> bool:
     flag = os.getenv("SHADOW_KOKORO_WARMUP", "").strip()
     if flag:
         return flag == "1"
-    return any(island["language"] != "ja" for island in store.list_islands())
+    return any(island.get("language", "ja") != "ja" for island in store.list_islands())
 
 
 @app.get("/health")
@@ -1322,7 +1335,7 @@ def _run_calibration(src: Path, ref_path: Path, device: str) -> dict:
 
 def _run_clean(src: Path, ref_path: Path, profile, island_id: str, idx: int,
                line: dict, speed: float, span: tuple[int, int] | None,
-               lag_ms: int, line_start_ms: int) -> dict:
+               lag_ms: int, line_start_ms: int, language: str = "ja") -> dict:
     """Take the played line back out of a take, store both versions, score
     the take's timing against the line's words, and analyse mora length and
     pitch accent. Blocking, for the same reasons as _run_calibration."""
@@ -1381,6 +1394,19 @@ def _run_clean(src: Path, ref_path: Path, profile, island_id: str, idx: int,
             "moras": [],
             "curve": {"line": [], "take": []},
         }
+
+    import take_content
+
+    # An uncleaned take recorded over the speaker still holds the line
+    # itself, which whisper would read back as a perfect shadow.
+    try:
+        echo_left = not result.cleaned and aec.heard_speaker(ref_audio, mic)
+    except Exception:
+        log.exception("bleed check failed island=%s idx=%d", island_id, idx)
+        echo_left = False
+    line_text = take_content.span_text(line["words"], span, speed, line["ja"], language)
+    score = _bl51_total(score, analysis, clean_path if result.cleaned else raw_path,
+                        line_text, language, echo_left)
 
     return {
         "cleaned": result.cleaned,
@@ -1473,7 +1499,7 @@ async def upload_take(
             lag_ms = max(0, min(5000, lag))
             response = await asyncio.to_thread(
                 _run_clean, src, ref_path, profile, island_id, idx,
-                line, render_speed, span, lag_ms, line_start,
+                line, render_speed, span, lag_ms, line_start, island.get("language", "ja"),
             )
             try:
                 response["award"] = await asyncio.to_thread(
@@ -1484,6 +1510,13 @@ async def upload_take(
                 )
             except Exception:
                 log.exception("take award failed")
+            try:
+                await asyncio.to_thread(
+                    store.add_take_score, device, island_id, idx, island.get("language", "ja"),
+                    response["score"], render_speed, span is None,
+                )
+            except Exception:
+                log.exception("take score save failed")
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         log.info(
@@ -1547,7 +1580,7 @@ async def regenerate(
         )
     background.add_task(
         _build_island, island_id, wav, complexity, island["speaker"], count,
-        island.get("register", "polite"), island["language"], island.get("native", "en"),
+        island.get("register", "polite"), island.get("language", "ja"), island.get("native", "en"),
     )
     return {"id": island_id, "status": "working", "complexity": complexity}
 
@@ -1588,7 +1621,7 @@ async def revoice(
     ]
     if not lines:
         raise HTTPException(409, "the island has no lines to re-voice")
-    if voices.language_for(speaker) != island["language"]:
+    if voices.language_for(speaker) != island.get("language", "ja"):
         raise HTTPException(400, "that voice does not speak the island's language")
 
     _take_build_slot(device, "rework")
@@ -1596,7 +1629,7 @@ async def revoice(
     store.set_stage(island_id, "speaking")
     # Lines are replaced one at a time as they render (INSERT OR REPLACE), so
     # an interruption leaves a mix of voices rather than an empty island.
-    background.add_task(_revoice, island_id, lines, speaker, island["title"], island["language"])
+    background.add_task(_revoice, island_id, lines, speaker, island["title"], island.get("language", "ja"))
     return {"id": island_id, "status": "working", "speaker": speaker}
 
 
@@ -2563,7 +2596,7 @@ async def _align_one(island_id: str) -> None:
             job = store.video_audio_path(island_id, "job.json")
             job.write_text(json.dumps({
                 "wav": str(wav),
-                "language": align.LANGUAGE_NAMES.get(island["language"], "Japanese"),
+                "language": align.LANGUAGE_NAMES.get(island.get("language", "ja"), "Japanese"),
                 "windows": [{k: w[k] for k in ("id", "start", "end", "text")} for w in windows],
             }, ensure_ascii=False), encoding="utf-8")
             result = await asyncio.to_thread(
@@ -2574,7 +2607,7 @@ async def _align_one(island_id: str) -> None:
             updates = align.apply(windows, lines, result)
             for upd in updates:
                 line = by_idx[upd["idx"]]
-                if island["language"] == "ja":
+                if island.get("language", "ja") == "ja":
                     words = await asyncio.to_thread(
                         segment.align_pieces, line["text"], upd["pieces"], upd["duration"])
                 else:
@@ -2858,3 +2891,154 @@ async def review_audio(
     if card is None or card["kind"] != "clip" or not await asyncio.to_thread(path.exists):
         raise HTTPException(404, "no such clip")
     return FileResponse(path, media_type="audio/wav")
+
+
+# BL-51 score
+def _bl51_total(score: dict, analysis: dict, take_path: Path, line_text: str, language: str,
+                echo_left: bool = False) -> dict:
+    """Adds total, parts, heard and totalNote to a take's score: whisper's
+    reading of the take against the line, blended with timing and pitch.
+    `echo_left` (the take still holds the played line) skips whisper and
+    leaves content out of the blend. Never raises."""
+    import take_content
+
+    out = dict(score)
+    try:
+        if out.get("note") == "No voice heard in the take":
+            out.update(total=None, parts={"content": None, "timing": None, "pitch": None},
+                       heard="", totalNote=out["note"])
+            return out
+        heard = {"ok": False} if echo_left else transcribe.transcribe(take_path, language=language, fast=True)
+        content = None
+        if heard.get("ok"):
+            content = take_content.content_score(line_text, heard.get("text", ""), language)
+        timing = take_content.timing_score(out)
+        pitch = take_content.pitch_score(analysis)
+        total = take_content.blend(content, timing, pitch)
+        out.update(
+            total=total,
+            parts={"content": content, "timing": timing, "pitch": pitch},
+            heard=heard.get("text", "") if heard.get("ok") else "",
+            totalNote="" if total is not None else "Could not hear the words",
+        )
+    except Exception:
+        log.exception("take total failed")
+        out.update(total=None, parts={"content": None, "timing": None, "pitch": None},
+                   heard="", totalNote="Could not score the take")
+    return out
+
+
+# BL-51 xp
+class ReviewFinishedBody(BaseModel):
+    session_id: str = Field(min_length=1, max_length=64)
+    sentences: int = Field(ge=0, le=10000)
+    seconds: float = Field(ge=0, le=86400)
+    avg_score: float | None = None
+    local_day: str
+    lines: list["SessionLine"] = Field(default_factory=list, max_length=200)
+    completed: bool = True
+
+
+class SessionLine(BaseModel):
+    island_id: str = Field(min_length=1, max_length=64)
+    idx: int = Field(ge=0, le=100000)
+    seconds: float = Field(ge=0, le=86400)
+    score: int | None = None
+
+
+ReviewFinishedBody.model_rebuild()
+
+
+@app.post("/shadow/review/session-finished")
+async def review_session_finished(
+    body: ReviewFinishedBody,
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    await asyncio.to_thread(
+        review_session.finish, device, body.session_id, body.sentences, body.seconds,
+        body.avg_score, [ln.model_dump() for ln in body.lines], body.completed,
+    )
+    return await asyncio.to_thread(
+        progression.award_review, device, body.session_id, body.sentences,
+        body.seconds, body.avg_score, body.local_day,
+    )
+
+
+# BL-51 sessions
+class SessionPick(BaseModel):
+    island_id: str
+    count: int
+
+
+class SessionStartBody(BaseModel):
+    size: int = 20
+    order: list[str] = []
+    # The learner's edited plan, in play order. Non-empty replaces size and order.
+    projects: list[SessionPick] = []
+    # Learning language to keep; empty mixes every language.
+    language: str = ""
+
+
+def _session_size(size: int) -> int:
+    if size not in review_session.SIZES:
+        raise HTTPException(422, "size must be 5, 10, 20 or 30")
+    return size
+
+
+def _session_edit(raw: str) -> list[tuple[str, int]] | None:
+    """`id:count,id:count` from the plan query, or None when absent."""
+    if not raw:
+        return None
+    out = []
+    for part in raw.split(","):
+        key, _, n = part.partition(":")
+        if not key or not n.isdigit():
+            raise HTTPException(422, "projects must be id:count pairs")
+        out.append((key, int(n)))
+    return out
+
+
+@app.get("/shadow/review/session/plan")
+async def review_session_plan(
+    size: int = 20,
+    order: str = "",
+    projects: str = "",
+    language: str = "",
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    edit = _session_edit(projects)
+    return await asyncio.to_thread(review_session.plan, device,
+                                   size if edit else _session_size(size),
+                                   [k for k in order.split(",") if k], edit, language or None)
+
+
+@app.get("/shadow/review/session/projects")
+async def review_session_projects(
+    language: str = "",
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    return {"projects": await asyncio.to_thread(review_session.available, device,
+                                                language or None)}
+
+
+@app.post("/shadow/review/session/start")
+async def review_session_start(
+    body: SessionStartBody,
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    edit = [(p.island_id, p.count) for p in body.projects] or None
+    return await asyncio.to_thread(review_session.start, device,
+                                   body.size if edit else _session_size(body.size),
+                                   body.order, edit, body.language or None)

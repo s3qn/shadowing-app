@@ -9,7 +9,7 @@ import { documentDirectory, getInfoAsync, readAsStringAsync, writeAsStringAsync 
 
 import { SPEED_MAX, SPEED_MIN } from '@/constants/theme';
 import { getLanguage } from '@/lib/languages';
-import type { Programme } from '@/lib/pass-programme';
+import { LADDER_PACE_OPTIONS, type LadderPace } from '@/lib/pass-programme';
 
 export const DEFAULT_VOICE = 3;
 // languages: VOICEVOX style id for Japanese, Kokoro voice ids for Spanish and
@@ -45,6 +45,10 @@ export const READING_OPTIONS = ['off', 'furigana', 'kana', 'romaji'] as const;
 export type ReadingMode = (typeof READING_OPTIONS)[number];
 const DEFAULT_READING: ReadingMode = 'furigana';
 const DEFAULT_PITCH = true;
+
+/** Sentences a practice session can hold, smallest first. */
+export const SESSION_SIZES = [5, 10, 20, 30] as const;
+export type SessionSize = (typeof SESSION_SIZES)[number];
 
 // Minutes of practice a day the learner aims for, picked in onboarding and
 // shown on Home as today's target.
@@ -108,9 +112,12 @@ export type Settings = {
   register: Register;
   autoEcho: boolean;
   autoRecord: boolean;
-  /** The player's step machine when the record button starts a run: the
-   * five-pass ladder (default) or the plain Auto Echo loop. */
-  programme: Programme;
+  /** How long the ladder announces and counts each stage, and how often Memorise and Say repeat. */
+  ladderPace: LadderPace;
+  /** Sentences in a practice session: 5, 10, 20 or 30. */
+  sessionSize: SessionSize;
+  /** Record hides the sentence for the one recorded take. Off keeps it in view. */
+  blindTake: boolean;
   /** Playback speed a new island's player opens at, `SPEED_MIN`-`SPEED_MAX`. */
   defaultSpeed: number;
   /** JLPT level the Phrases grammar rail last settled on. Null until the learner picks one. */
@@ -142,8 +149,8 @@ export type Settings = {
    * truly fresh install; an existing settings file from before this key
    * existed is treated as already onboarded. */
   onboarded: boolean;
-  /** Home shows every island mixed together with a language pill, instead of
-   * only the ones matching `learningLanguage`. Off by default. */
+  /** Home and Practice show every language mixed together (Home with a
+   * language pill), instead of only `learningLanguage`. Off by default. */
   showAllLanguages: boolean;
   /** Format marker, `SETTINGS_VERSION` once this build has written the file. */
   version: number;
@@ -160,7 +167,9 @@ const DEFAULTS: Settings = {
   register: DEFAULT_REGISTER,
   autoEcho: true,
   autoRecord: true,
-  programme: 'ladder',
+  ladderPace: 'calm',
+  sessionSize: 20,
+  blindTake: true,
   defaultSpeed: DEFAULT_DEFAULT_SPEED,
   grammarLevel: DEFAULT_GRAMMAR_LEVEL,
   defaultTimes: DEFAULT_DEFAULT_TIMES,
@@ -268,7 +277,9 @@ async function read(): Promise<Settings> {
     register: REGISTER_OPTIONS.includes(parsed.register as Register) ? (parsed.register as Register) : DEFAULT_REGISTER,
     autoEcho: parsed.autoEcho !== false,
     autoRecord: parsed.autoRecord !== false,
-    programme: parsed.programme === 'echo' ? 'echo' : 'ladder',
+    ladderPace: LADDER_PACE_OPTIONS.includes(parsed.ladderPace as LadderPace) ? (parsed.ladderPace as LadderPace) : 'calm',
+    sessionSize: SESSION_SIZES.includes(parsed.sessionSize as SessionSize) ? (parsed.sessionSize as SessionSize) : 20,
+    blindTake: parsed.blindTake !== false,
     // A file from before `version` holding 0.5 kept the old default: reset it
     // to 1.0. The next write stamps the version, so a 0.5 picked after that stays.
     defaultSpeed:
@@ -436,8 +447,16 @@ export async function setAutoRecord(autoRecord: boolean): Promise<void> {
   await update({ autoRecord });
 }
 
-export async function setProgramme(programme: Programme): Promise<void> {
-  await update({ programme });
+export async function setLadderPace(ladderPace: LadderPace): Promise<void> {
+  await update({ ladderPace });
+}
+
+export async function setSessionSize(sessionSize: SessionSize): Promise<void> {
+  await update({ sessionSize });
+}
+
+export async function setBlindTake(blindTake: boolean): Promise<void> {
+  await update({ blindTake });
 }
 
 export async function setDefaultSpeed(defaultSpeed: number): Promise<void> {
@@ -495,6 +514,13 @@ export async function setLearningLanguage(learningLanguage: LearningLanguage): P
  * `ja`/`es`/`en` for `language`. Takes a `LearningLanguage` already in hand
  * (from a hook's state, or a `Settings` object). Also narrows the type back to what the backend's request functions expect,
  * since a widened catalogue id otherwise only typechecks as `string`. */
+/** The learning language a Practice session keeps, or undefined when the
+ * learner picked "Show all languages". */
+export function sessionLanguage(): 'ja' | 'es' | 'en' | undefined {
+  const s = getSettingsSync();
+  return s.showAllLanguages ? undefined : toIslandLanguage(s.learningLanguage);
+}
+
 export function toIslandLanguage(id: LearningLanguage): 'ja' | 'es' | 'en' {
   return (LEARNING_LANGUAGE_OPTIONS as readonly string[]).includes(id) ? (id as 'ja' | 'es' | 'en') : 'ja';
 }

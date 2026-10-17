@@ -16,6 +16,7 @@ export const en = {
   'title.about': 'About',
   'title.language': 'Language',
   'title.prismLab': 'Prism lab',
+  'title.catLab': 'Cat lab',
 
   'common.cancel': 'Cancel',
   'common.delete': 'Delete',
@@ -49,6 +50,14 @@ export const en = {
   'api.recording_too_large': 'That recording is too large.',
   'api.audio_undecodable': 'That audio could not be decoded.',
   'api.empty_upload': 'That upload was empty.',
+  'api.too_long': 'That is too long. Keep it under {limit} characters.',
+  'api.no_episode': 'This episode has no audio to play yet.',
+  'api.not_video': 'This island is not a video.',
+  'api.align_busy': 'The video audio is still being matched.',
+  'api.align_closed': 'This video cannot be matched again.',
+  'api.profile_not_found': 'That profile does not exist.',
+  // Any other failed request: the status code says which.
+  'api.requestFailed': 'Request failed ({status})',
   'api.level_locked': 'Reach level {level_req} to get that.',
   'api.not_enough_coins': 'Not enough coins for that.',
   'api.not_owned': 'You do not own that yet.',
@@ -72,8 +81,4 @@ export const en = {
 
   'api.account_delete_unavailable': 'Account deletion is not set up on the server yet.',
   'api.account_delete_failed': 'The account could not be deleted. Try again later.',
-  'levelUp.kicker': 'Level up',
-  'levelUp.level': 'Level {n}',
-  'levelUp.coins': '+{n} coins',
-  'levelUp.continue': 'Continue',
 };

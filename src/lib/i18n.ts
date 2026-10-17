@@ -83,8 +83,11 @@ function interpolate(template: string, vars?: Vars): string {
 
 function translate(lang: Lang, key: Key, vars?: Vars): string {
   let resolvedKey: string = key;
-  if (vars && typeof vars.count === 'number') {
-    const suffixed = `${key}_${pluralSuffix(lang, vars.count)}`;
+  // The plural count is `count`, else `n` (most counted templates name it so);
+  // only a key that has `_one`/`_two` variants is affected.
+  const count = vars ? (typeof vars.count === 'number' ? vars.count : typeof vars.n === 'number' ? vars.n : undefined) : undefined;
+  if (count !== undefined) {
+    const suffixed = `${key}_${pluralSuffix(lang, count)}`;
     const fallbackOther = `${key}_other`;
     if (lookup(lang, suffixed) !== undefined) resolvedKey = suffixed;
     else if (lookup(lang, fallbackOther) !== undefined) resolvedKey = fallbackOther;

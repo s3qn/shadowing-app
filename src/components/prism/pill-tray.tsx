@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useMemo, useRef } from 'react';
 import { type StyleProp, StyleSheet, View, type ViewStyle } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Canvas, Fill, LinearGradient, RoundedRect, vec } from '@shopify/react-native-skia';
-import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, type SharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming, type SharedValue, type WithTimingConfig } from 'react-native-reanimated';
 
 import { Radius, prism, withAlpha } from '@/constants/theme';
 
@@ -193,9 +193,11 @@ export const PILL_SPRING = { damping: 18, overshootClamping: true };
 /**
  * Placement for a `SlidingLitPill`. The first placement is instant so the pill
  * does not fly in from x = 0, and so is any placement under reduced motion;
- * after that it springs to the active item's `{ x, width }`.
+ * after that it springs to the active item's `{ x, width }`, or eases there
+ * with `timing` when given.
  */
-export function useSlidingPill(active: { x: number; width: number } | undefined) {
+export function useSlidingPill(active: { x: number; width: number } | undefined, opts?: { timing?: WithTimingConfig }) {
+  const timing = opts?.timing;
   const reducedMotion = useReducedMotion();
   const translateX = useSharedValue(0);
   const width = useSharedValue(0);
@@ -208,9 +210,9 @@ export function useSlidingPill(active: { x: number; width: number } | undefined)
       placed.current = true;
       return;
     }
-    translateX.value = withSpring(active.x, PILL_SPRING);
-    width.value = withSpring(active.width, PILL_SPRING);
-  }, [active, reducedMotion, translateX, width]);
+    translateX.value = timing ? withTiming(active.x, timing) : withSpring(active.x, PILL_SPRING);
+    width.value = timing ? withTiming(active.width, timing) : withSpring(active.width, PILL_SPRING);
+  }, [active, reducedMotion, timing, translateX, width]);
   return { translateX, width };
 }
 

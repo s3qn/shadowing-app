@@ -127,6 +127,34 @@ def find_delay(ref: np.ndarray, mic: np.ndarray, max_s: float = 3.0) -> int:
     return int(np.argmax(np.abs(c)))
 
 
+def bleed_ncc(ref: np.ndarray, mic: np.ndarray, max_s: float = 3.0) -> float:
+    """Normalised correlation (0 to 1) between the line and the take at the
+    take's best delay: how much of the played line the mic heard. Needs no
+    stored profile."""
+    ref = np.asarray(ref, dtype=np.float64)
+    mic = np.asarray(mic, dtype=np.float64)
+    max_lag = min(int(max_s * SR), max(len(mic) - 1, 0))
+    if max_lag <= 0 or len(ref) == 0:
+        return 0.0
+    c = _xcorr(ref, mic, max_lag)
+    d = int(np.argmax(np.abs(c)))
+    seg = mic[d:d + len(ref)]
+    den = float(np.linalg.norm(ref[:len(seg)]) * np.linalg.norm(seg))
+    return float(abs(c[d]) / den) if den > 0.0 else 0.0
+
+
+# Measured on the 12 stored real takes: the ones recorded over the speaker
+# read 0.17 to 0.29, the rest 0.04 to 0.09 (the best of 72000 lags against
+# unrelated speech is never zero).
+BLEED_NCC = 0.12
+
+
+def heard_speaker(ref: np.ndarray, mic: np.ndarray) -> bool:
+    """True when the take carries an audible copy of the line, i.e. it was
+    recorded over the phone's speaker rather than through headphones."""
+    return bleed_ncc(ref, mic) >= BLEED_NCC
+
+
 def _align(ref: np.ndarray, d: int, lead: int = _ALIGN_LEAD) -> np.ndarray:
     """Shift ref so the filter sees it `lead` samples early.
 

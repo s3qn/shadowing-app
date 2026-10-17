@@ -10,7 +10,7 @@
  * throws "Unsupported FormDataPart implementation" if you try it.
  */
 
-import { fetch as expoFetch } from 'expo/fetch';
+import { fetch as expoFetchRaw } from 'expo/fetch';
 import { Directory, File, Paths } from 'expo-file-system';
 
 import type { ArtSpec, Slot } from '@/constants/cosmetics';
@@ -18,6 +18,17 @@ import { accessTokenSync } from '@/lib/auth';
 import { deviceIdSync } from '@/lib/device';
 import { t } from '@/lib/i18n';
 import { en, type Key } from '@/locales/en';
+
+/** A request that never reached the server (offline, DNS, TLS) rejects with
+ * the platform's English "Network request failed", and screens show
+ * `e.message`. Say it in the reader's language instead. An abort passes
+ * through untouched for the caller that asked for it. */
+function unreachable(e: unknown): never {
+  if (e instanceof Error && e.name === 'AbortError') throw e;
+  throw new Error(t('api.unreachable'));
+}
+const fetch: typeof globalThis.fetch = (input, init) => globalThis.fetch(input, init).catch(unreachable);
+const expoFetch: typeof expoFetchRaw = (input, init) => expoFetchRaw(input, init).catch(unreachable);
 
 const BASE = process.env.EXPO_PUBLIC_SHADOW_API_URL ?? '';
 const TOKEN = process.env.EXPO_PUBLIC_SHADOW_TOKEN ?? '';
@@ -181,7 +192,7 @@ async function json<T>(res: Response): Promise<T> {
     }
     if (typeof detail === 'string' && detail) throw new Error(detail);
     const looksLikeHtml = body.trimStart().startsWith('<');
-    throw new Error(looksLikeHtml ? `Request failed (${res.status})` : `${res.status} ${body.slice(0, 160)}`);
+    throw new Error(looksLikeHtml ? t('api.requestFailed', { status: res.status }) : `${res.status} ${body.slice(0, 160)}`);
   }
   return (await res.json()) as T;
 }
@@ -262,6 +273,20 @@ async function postReviewFile(kind: 'voice' | 'shot', wave: string, id: string, 
     form.append('id', id);
     form.append('file', new File(uri), name);
     const res = await expoFetch(`${BASE}/dev/review/${kind}`, { method: 'POST', headers: headers(), body: form });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Tells the dev machine the tour is finished. True when the server logged it. */
+export async function postReviewDone(wave: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${BASE}/dev/review/done`, {
+      method: 'POST',
+      headers: { ...headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ wave }),
+    });
     return res.ok;
   } catch {
     return false;
@@ -459,12 +484,12 @@ export async function revoice(id: string, speaker: number): Promise<void> {
   await json<unknown>(res);
 }
 
-export async function postPracticeEvent(islandId: string, seconds: number): Promise<void> {
+export async function postPracticeEvent(islandId: string, seconds: number): Promise<{ award?: { xp: number } }> {
   const form = new FormData();
   form.append('island_id', islandId);
   form.append('seconds', String(seconds));
   const res = await expoFetch(`${BASE}/schedule/practice`, { method: 'POST', headers: headers(), body: form });
-  await json<unknown>(res);
+  return json<{ award?: { xp: number } }>(res);
 }
 
 export type DueIsland = { island_id: string; level: number; due_on: string; last_practiced_on: string };
@@ -640,6 +665,12 @@ export type TakeScore = {
   behindMs: number | null;
   anchor: 'echo' | 'clock' | null;
   note: string;
+  /** 0..100 blend of content, timing and pitch; null when unscorable. Absent in score files saved before it existed. */
+  total?: number | null;
+  parts?: { content: number | null; timing: number | null; pitch: number | null };
+  /** What the speech recogniser heard in the take. */
+  heard?: string;
+  totalNote?: string;
 };
 
 /** What makes a mora take longer to say than a plain short one, when known. */
@@ -692,6 +723,8 @@ export type TakeClean = {
   score?: TakeScore;
   /** Missing on a calibration upload. */
   analysis?: TakeAnalysis;
+  /** The XP this take earned; missing on a calibration upload or a failed award. */
+  award?: { xp: number };
 };
 
 /**
@@ -968,6 +1001,8 @@ export type Progress = {
   xp_today_cap: number;
   /** Consecutive practice days; not shown yet. */
   streak_days: number;
+  /** Consecutive local days with a paid daily review. */
+  review_streak_days: number;
   level: number;
   coins: number;
   xp_into_level: number;
@@ -993,6 +1028,77 @@ export type CosmeticsCatalog = { version: number; slots: Slot[]; shapes: Record<
 
 export async function getProgress(): Promise<Progress> {
   return json<Progress>(await fetch(`${BASE}/progress`, { headers: headers() }));
+}
+
+export type SessionKind = 'island' | 'video' | 'podcast';
+export type SessionProject = { island_id: string; title: string; source: string; kind: SessionKind; total: number; picked: number[] };
+export type SessionPlan = {
+  session_id: string | null;
+  size: number;
+  count: number;
+  minutes: number;
+  seconds_per_sentence: number;
+  projects: SessionProject[];
+  first: { island_id: string; idx: number; ja: string; kana: string; en: string; words: Word[] } | null;
+};
+
+/** A project the learner can put in a session, with how many lines it has. */
+export type SessionCatalogueItem = { island_id: string; title: string; source: string; kind: SessionKind; total: number };
+/** The learner's own plan: these projects in this order, each with up to `count` lines. */
+export type SessionPick = { island_id: string; count: number };
+/** `order` (island ids) plays those projects first; `projects` replaces the size and order with an edited plan. */
+/** `language` keeps only projects in that learning language; absent mixes every language. */
+export type SessionShape = { order?: string[]; projects?: SessionPick[]; language?: string };
+
+/** The planned practice session for a size (5, 10, 20 or 30). Writes nothing. */
+export async function getSessionPlan(size: number, shape: SessionShape = {}): Promise<SessionPlan> {
+  const order = shape.order?.length ? `&order=${encodeURIComponent(shape.order.join(','))}` : '';
+  const picks = shape.projects?.length ? `&projects=${encodeURIComponent(shape.projects.map((p) => `${p.island_id}:${p.count}`).join(','))}` : '';
+  const lang = shape.language ? `&language=${encodeURIComponent(shape.language)}` : '';
+  return json<SessionPlan>(await fetch(`${BASE}/review/session/plan?size=${size}${order}${picks}${lang}`, { headers: headers() }));
+}
+
+/** Every project with saved lines, for adding one to a session. */
+export async function getSessionCatalogue(language?: string): Promise<SessionCatalogueItem[]> {
+  const lang = language ? `?language=${encodeURIComponent(language)}` : '';
+  return (await json<{ projects: SessionCatalogueItem[] }>(await fetch(`${BASE}/review/session/projects${lang}`, { headers: headers() }))).projects;
+}
+
+/** Starts a session: the same plan with a session id, and the row written. */
+export async function startSession(size: number, shape: SessionShape = {}): Promise<SessionPlan> {
+  return json<SessionPlan>(
+    await fetch(`${BASE}/review/session/start`, {
+      method: 'POST',
+      headers: { ...headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ size, order: shape.order ?? [], projects: shape.projects ?? [], language: shape.language ?? '' }),
+    }),
+  );
+}
+
+export type ReviewFinished = { xp: number; coins: number; level: number; leveled_up: boolean; streak: number; first_of_day: boolean;
+  /** The XP split for the summary rows; all 0 when nothing was paid. */
+  breakdown?: { sentences: number; score: number; first: number; streak: number };
+  progress: Progress;
+};
+
+/** Reports a finished daily review; the server pays XP and returns the new progress. */
+export async function finishReviewSession(body: {
+  session_id: string;
+  sentences: number;
+  seconds: number;
+  avg_score?: number;
+  lines?: { island_id: string; idx: number; seconds: number; score: number | null }[];
+  completed?: boolean;
+}): Promise<ReviewFinished> {
+  const d = new Date();
+  const local_day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return json<ReviewFinished>(
+    await fetch(`${BASE}/review/session-finished`, {
+      method: 'POST',
+      headers: { ...headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...body, local_day }),
+    }),
+  );
 }
 
 export async function getCosmeticsCatalog(ui: 'en' | 'he'): Promise<CosmeticsCatalog> {
@@ -1129,10 +1235,6 @@ export async function listLiveReviewCards(): Promise<ReviewCard[]> {
   if (!islands) return cards;
   const ids = new Set(islands.map((i) => i.id));
   return cards.filter((c) => ids.has(c.island_id));
-}
-
-export async function getReviewDue(): Promise<{ due: ReviewCard[]; total: number }> {
-  return json<{ due: ReviewCard[]; total: number }>(await expoFetch(`${BASE}/review/due`, { headers: headers() }));
 }
 
 export async function gradeReviewCard(id: string, result: 'again' | 'got'): Promise<ReviewCard> {

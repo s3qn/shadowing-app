@@ -7,7 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useReducedMotion } from 'react-native-reanimated';
 
 import { CardMorphOverlay } from '@/components/card-morph-overlay';
-import { LevelUpModal } from '@/components/level-up-modal';
+import { SessionCelebration, XpToast } from '@/components/session-celebration';
 import { ConfirmSheetHost } from '@/components/confirm-sheet-host';
 import { LoadingOverlay } from '@/components/loading-overlay';
 import { ReviewTour } from '@/components/review-tour';
@@ -17,7 +17,7 @@ import { loadSession, onSessionLost } from '@/lib/auth';
 import { loadDeviceId } from '@/lib/device';
 import { loadOfflineIndex } from '@/lib/offline-islands'; // offline-islands
 import { useT } from '@/lib/i18n';
-import { usePendingLevelUp } from '@/lib/level-up-store';
+import { useCelebration, usePendingLevelUp } from '@/lib/level-up-store';
 import { getSettings } from '@/lib/settings';
 
 SplashScreen.preventAutoHideAsync();
@@ -25,16 +25,24 @@ SplashScreen.preventAutoHideAsync();
 // Routes that are a practice session: a level-up waits until none is focused.
 const PRACTICE_ROUTES = new Set(['island/[id]', 'record', 'drive', 'video', 'podcast']);
 
-/** Shows the queued level-up once the user has left every practice screen. */
+/** The session summary as soon as a session ends; a level-up from anywhere else once the user has left every practice screen; else the XP toast. */
+const celebrationKeys = new WeakMap<object, number>();
+let nextCelebrationKey = 0;
+
 function LevelUpHost() {
   const pending = usePendingLevelUp();
+  const celebration = useCelebration();
   const segments = useSegments() as string[];
-  if (!pending) return null;
+  if (celebration) {
+    let key = celebrationKeys.get(celebration);
+    if (key === undefined) celebrationKeys.set(celebration, (key = ++nextCelebrationKey));
+    return <SessionCelebration key={key} c={celebration} levelUp={pending} />;
+  }
   const first = segments[0] ?? '';
   // island/[id] is one route name across two segments.
   const route = first === 'island' ? 'island/[id]' : first;
-  if (PRACTICE_ROUTES.has(route)) return null;
-  return <LevelUpModal levelUp={pending} />;
+  if (!pending || PRACTICE_ROUTES.has(route)) return <XpToast />;
+  return <SessionCelebration c={null} levelUp={pending} />;
 }
 
 export default function RootLayout() {
@@ -232,8 +240,8 @@ export default function RootLayout() {
         <Stack.Screen name="wardrobe" options={{ title: t('wardrobe.title'), headerStyle: { backgroundColor: tide.sky[0] } }} />
         <Stack.Screen name="profile/[username]" options={{ headerStyle: { backgroundColor: tide.sky[0] } }} />
         {/* Dev-only screen, excluded from the app-language inventory. */}
-        <Stack.Screen name="prism-lab" options={{ title: 'Prism lab' }} />
-        <Stack.Screen name="cat-lab" options={{ title: 'Cat lab' }} />
+        <Stack.Screen name="prism-lab" options={{ title: t('title.prismLab') }} />
+        <Stack.Screen name="cat-lab" options={{ title: t('title.catLab') }} />
       </Stack>
       {__DEV__ ? <ReviewTour /> : null}
       <CardMorphOverlay />

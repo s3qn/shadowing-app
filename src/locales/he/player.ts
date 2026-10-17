@@ -16,4 +16,9 @@ export const he = {
   'player.exportFailed': 'לא ניתן לייצא את האי. כדאי לנסות שוב.',
   'player.exportNotReady': 'האי עדיין בבנייה, או שלשורה אין קול עדיין.',
   'player.exportVoiceUnavailable': 'מנוע הקול אינו זמין כרגע.',
+  'player.secsLeft': '{n} שנ׳',
+  'player.langCode.ja': 'יפנית',
+  'player.langCode.es': 'ספרדית',
+  'player.langCode.en': 'אנגלית',
+  'player.langCode.he': 'עברית',
 } satisfies Record<keyof typeof enPlayer, string>;

@@ -105,12 +105,38 @@ def test_the_21st_minute_pays_nothing(owner):
     assert progression.snapshot(owner)["xp"] == before
 
 
-def test_award_take_same_island_idx_day_pays_once(owner):
+def test_award_take_same_line_again_pays_the_small_repeat(owner):
     first = progression.award_take(owner, "isl", 0)
     again = progression.award_take(owner, "isl", 0)
-    # take 10 + day 20 + first_take 40
+    # take 10 + day 20 + first_take 40, then only the repeat: base 2 with no score
     assert first["xp"] == 10 + 20 + 40
-    assert again["xp"] == 0
+    assert again["xp"] == 2
+
+
+@pytest.mark.parametrize("total,xp", [(None, 2), (0, 2), (24, 2), (25, 3), (60, 4), (99, 5), (100, 6), (250, 6), (float("nan"), 2)])
+def test_repeat_take_pays_two_plus_one_per_25_points(owner, total, xp):
+    progression.award_take(owner, "isl", 0)
+    got = progression.award_take(owner, "isl", 0, score={"total": total})
+    assert got["xp"] == xp
+
+
+def test_every_repeat_of_a_line_pays(owner, day):
+    progression.award_take(owner, "isl", 0)
+    for _ in range(3):
+        assert progression.award_take(owner, "isl", 0, score={"total": 80})["xp"] == 5
+    total, xp = _ledger(owner)
+    assert total == xp
+
+
+def test_cap_note_comes_once_a_day_when_a_take_pays_nothing(owner, day, monkeypatch):
+    monkeypatch.setattr(progression, "DAILY_XP_CAP", 30)
+    first = progression.award_take(owner, "isl", 0)  # take 10 + day 20 fills the cap
+    assert first["cap_note"] is False
+    blocked = progression.award_take(owner, "isl", 0)
+    assert blocked["xp"] == 0 and blocked["capped"] is True and blocked["cap_note"] is True
+    again = progression.award_take(owner, "isl", 1)
+    assert again["xp"] == 0 and again["cap_note"] is False
+    assert progression.snapshot(owner)["xp_today"] == 30
 
 
 def test_the_61st_take_of_a_day_pays_nothing(owner, monkeypatch):
@@ -380,6 +406,7 @@ def test_partial_clamp_and_replay(owner, day, monkeypatch):
     assert got["xp"] == 5
     assert _row_xp(owner, f"take:isl:1:{day}") == 5
     assert progression.snapshot(owner)["xp_today"] == 35
+    # A repeat of the same line at the cap pays nothing and writes no XP.
     again = progression.award_take(owner, "isl", 1)
     assert (again["xp"], again["coins"]) == (0, 0)
     assert progression.snapshot(owner)["xp_today"] == 35
@@ -522,8 +549,9 @@ def test_mastery_pays_once_after_every_line_is_great(owner, day, monkeypatch):
     got = progression.award_take(owner, "isl", 2, **kw)
     assert _row_xp(owner, key) == 60
     assert "first_mastery" in got["milestones"]
+    # Mastery and its milestone do not pay twice; only the small repeat does.
     again = progression.award_take(owner, "isl", 2, **kw)
-    assert again["xp"] == 0 and again["milestones"] == []
+    assert again["xp"] == progression.rep_xp(great) and again["milestones"] == []
 
 
 def test_mastery_counts_toward_the_cap_and_waits_for_a_day_with_room(owner, monkeypatch):

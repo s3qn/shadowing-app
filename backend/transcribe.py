@@ -26,6 +26,11 @@ log = logging.getLogger(__name__)
 WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL", "medium")
 WHISPER_DEVICE = "cpu"
 WHISPER_COMPUTE_TYPE = "int8"
+# Two CTranslate2 workers share one copy of the weights (measured: same RSS
+# as one), so a take's few seconds of decoding run beside an import's long
+# transcription instead of queueing behind each of its 30 s windows. Each
+# worker uses 4 threads; this box has 8 cores.
+WHISPER_WORKERS = 2
 
 _MODEL = None
 # Two first transcriptions at once would otherwise both load the ~8s model.
@@ -47,6 +52,7 @@ def _get_model():
             WHISPER_MODEL_SIZE,
             device=WHISPER_DEVICE,
             compute_type=WHISPER_COMPUTE_TYPE,
+            num_workers=WHISPER_WORKERS,
         )
         log.info(
             "whisper loaded (%s/%s/%s) in %.1fs",
@@ -58,11 +64,21 @@ def _get_model():
     return _MODEL
 
 
+def warm_up() -> None:
+    """Loads the model ahead of the first take, for a startup thread. Never
+    raises."""
+    try:
+        _get_model()
+    except Exception:
+        log.exception("whisper warm-up failed")
+
+
 def transcribe(
     audio_path: Path,
     language: str | None = None,
     word_timestamps: bool = False,
     vad: bool = False,
+    fast: bool = False,
 ) -> dict:
     """Transcribe a local audio file.
 
@@ -74,7 +90,9 @@ def transcribe(
     segment's `"words"` and flattened onto the top-level `"words"` list (both
     `[{"start", "end", "text"}, ...]`), for the import pipeline's aligner.
     `vad` filters silence before transcription, useful on a whole imported
-    file rather than a short recording.
+    file rather than a short recording. `fast` is for a take of one line:
+    greedy decoding, no temperature fallback and no timestamp tokens, the
+    cheapest settings that still read a clear line correctly.
 
     Returns {"ok": bool, "text": str, "language": str,
     "segments": [{"start", "end", "text", "words"}, ...], "words": [...]}.
@@ -91,6 +109,9 @@ def transcribe(
         kwargs = {"language": language, "vad_filter": vad, "word_timestamps": word_timestamps}
         if word_timestamps:
             kwargs["condition_on_previous_text"] = False
+        if fast:
+            kwargs.update(beam_size=1, temperature=0.0, condition_on_previous_text=False,
+                          without_timestamps=not word_timestamps)
         segments, info = model.transcribe(str(audio_path), **kwargs)
         seg_list = []
         words: list[dict] = []

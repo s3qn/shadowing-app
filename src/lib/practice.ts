@@ -15,6 +15,7 @@ import {
 } from 'expo-file-system/legacy';
 
 import { postPracticeEvent } from './api';
+import { noteAward } from './progression';
 
 export type PracticeLog = {
   days: Record<string, number>; // 'YYYY-MM-DD' -> seconds
@@ -247,7 +248,9 @@ export function flushPractice(): Promise<void> {
       }
       await write({ days, islands, passes, ladders });
       for (const [id, seconds] of Object.entries(toMerge.islands)) {
-        void postPracticeEvent(id, seconds).catch(() => {});
+        void postPracticeEvent(id, seconds)
+          .then((r) => noteAward(r.award))
+          .catch(() => {});
       }
     })
     .catch(() => {});

@@ -9,7 +9,7 @@ export const he = {
   'record.title.recording': 'להמשיך לספר על היום שלך.',
   'record.title.review': 'ההקלטה שלך',
   'record.topic.title.idle': 'להגיד נושא',
-  'record.topic.title.recording': 'מקשיב…',
+  'record.topic.title.recording': 'בהאזנה…',
   'record.topic.title.review': 'הנושא שלך',
   'record.topic.hint': "להגיד נושא, למשל 'ביטויים לחדר כושר', או נקודת דקדוק, למשל ながら",
   'record.topic.build': 'בניית ביטויים',

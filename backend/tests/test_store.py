@@ -7,6 +7,7 @@ island_id fixture, so tests do not depend on each other or on run order.
 
 import sqlite3
 import threading
+import uuid
 from pathlib import Path
 
 import pytest
@@ -506,3 +507,16 @@ def test_add_line_roundtrips_span_and_defaults_empty(island_id):
     store.set_source(island_id, "grammar", "ながら")
     isl = store.get_island(island_id)
     assert (isl["source"], isl["source_name"]) == ("grammar", "ながら")
+
+
+def test_take_scores_own_rows_in_order_and_deleted():
+    a, b = f"dev_{uuid.uuid4().hex}", f"dev_{uuid.uuid4().hex}"
+    s = {"total": 70, "parts": {"content": 80, "timing": 50, "pitch": None}}
+    store.add_take_score(a, "i", 0, "ja", s, 1.0, True)
+    store.add_take_score(a, "i", 1, "ja", {**s, "total": 90}, 0.8, False)
+    store.add_take_score(b, "i", 0, "ja", s, 1.0, True)
+    rows = store.list_take_scores(a)
+    assert [r["total"] for r in rows] == [70, 90] and rows[1]["whole_line"] == 0
+    assert store.list_take_scores(a, since="9999") == []
+    store.delete_owner_rows(a)
+    assert store.list_take_scores(a) == [] and len(store.list_take_scores(b)) == 1

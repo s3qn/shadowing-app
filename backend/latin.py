@@ -34,6 +34,12 @@ def _normalize(word: str) -> str:
     return "".join(ch for ch in stripped if ch.isalnum()).casefold()
 
 
+def normalize_words(text: str) -> list[str]:
+    """Normalised words of a line: whitespace split, accents and punctuation
+    stripped, case folded, empties dropped."""
+    return [w for w in (_normalize(t) for t in text.split()) if w]
+
+
 def fill_spans(spans: list, weights: list[float], duration: float) -> list[list[float]]:
     """Completes partly anchored [start, end] spans in place. Each run of None
     is filled proportionally to `weights`, between whichever anchors (or 0 and

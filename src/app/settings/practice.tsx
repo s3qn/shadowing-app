@@ -3,11 +3,10 @@ import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { PressScale } from '@/components/press-scale';
+import { Segmented } from '@/components/segmented';
 import { SettingsRow, SettingsSection } from '@/components/tide/settings-row';
-import { fonts } from '@/constants/fonts';
-import { Radius, Spacing, tide } from '@/constants/theme';
-import { useDir, useT } from '@/lib/i18n';
+import { Spacing, tide } from '@/constants/theme';
+import { useT } from '@/lib/i18n';
 import { type Key } from '@/locales/en';
 import {
   getSettings,
@@ -29,7 +28,6 @@ const READING_LABEL_KEY: Record<ReadingMode, Key> = {
 
 export default function PracticeSettingsScreen() {
   const { t } = useT();
-  const dir = useDir();
   const [reading, setReadingState] = useState<ReadingMode>('furigana');
   const [pitch, setPitchState] = useState(true);
   const [hideEnglish, setHideEnglishState] = useState(false);
@@ -55,6 +53,8 @@ export default function PracticeSettingsScreen() {
     }, []),
   );
 
+  const readingChoices = READING_OPTIONS.map((opt) => ({ value: opt, label: t(READING_LABEL_KEY[opt]) }));
+
   async function pickReading(next: ReadingMode) {
     setReadingState(next);
     await setReading(next);
@@ -65,26 +65,12 @@ export default function PracticeSettingsScreen() {
       <ScrollView contentContainerStyle={styles.list}>
         {isJapanese ? (
           <SettingsSection title={t('settings.practice.reading')} footnote={t('settings.playback.defaultFootnote')}>
-            <View style={[styles.chipRow, dir.row]}>
-              {READING_OPTIONS.map((opt) => {
-                const on = opt === reading;
-                return (
-                  <PressScale
-                    key={opt}
-                    onPress={() => pickReading(opt)}
-                    style={[
-                      styles.chip,
-                      {
-                        backgroundColor: on ? tide.lang.ja : 'rgba(255,255,255,0.08)',
-                        borderColor: on ? tide.lang.ja : 'rgba(255,255,255,0.14)',
-                      },
-                    ]}>
-                    <Text style={[styles.chipText, { color: on ? tide.sky[0] : tide.text }]}>
-                      {t(READING_LABEL_KEY[opt])}
-                    </Text>
-                  </PressScale>
-                );
-              })}
+            <View style={styles.segBox}>
+              <Segmented
+                options={readingChoices}
+                value={reading}
+                onChange={(next) => void pickReading(next)}
+              />
             </View>
           </SettingsSection>
         ) : null}
@@ -129,7 +115,5 @@ export default function PracticeSettingsScreen() {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   list: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: 170 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, padding: Spacing.md },
-  chip: { borderWidth: 1, borderRadius: Radius.pill, paddingVertical: Spacing.xs + 2, paddingHorizontal: Spacing.md },
-  chipText: { fontSize: 13, fontWeight: '600', fontFamily: fonts.ui },
+  segBox: { padding: Spacing.md },
 });

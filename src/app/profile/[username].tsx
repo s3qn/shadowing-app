@@ -102,10 +102,10 @@ export default function ProfileScreen() {
         <View style={[styles.hero, dir.row]}>
           <CatAvatar size={150} equipped={art} />
           <View style={styles.heroInfo}>
-            <Text numberOfLines={1} style={[styles.name, { writingDirection: 'ltr', textAlign: 'left' }]}>{`@${p.username}`}</Text>
-            <Text style={[styles.serial, { writingDirection: 'ltr', textAlign: 'left' }]}>{`#${String(p.serial).padStart(3, '0')}`}</Text>
+            <Text numberOfLines={1} style={[styles.name, { writingDirection: 'ltr', textAlign: dir.rtl ? 'right' : 'left' }]}>{`@${p.username}`}</Text>
+            <Text style={[styles.serial, { writingDirection: 'ltr', textAlign: dir.rtl ? 'right' : 'left' }]}>{`#${String(p.serial).padStart(3, '0')}`}</Text>
             <Text style={[styles.since, dir.text]}>{t('profile.memberSince', { date: memberSince })}</Text>
-            <View style={styles.chipRow}>
+            <View style={[styles.chipRow, dir.row]}>
               <LevelChip level={p.level} tone="gold" />
             </View>
             {p.rank !== null ? <Text style={[styles.since, dir.text]}>{t('profile.rank', { n: p.rank })}</Text> : null}
@@ -114,7 +114,7 @@ export default function ProfileScreen() {
 
         <Text style={[styles.header, dir.text]}>{t('profile.immersion')}</Text>
         <StatTile big label={t('profile.total')} value={formatDuration(p.immersion_seconds, t)} />
-        <View style={styles.tiles}>
+        <View style={[styles.tiles, dir.row]}>
           <StatTile label={t('profile.youtube')} value={formatDuration(p.video_seconds, t)} />
           <StatTile label={t('profile.podcast')} value={formatDuration(p.podcast_seconds, t)} />
           <StatTile label={t('profile.shadowing')} value={formatDuration(p.shadow_seconds, t)} />
@@ -165,6 +165,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.lg, padding: Spacing.xl },
   msg: { fontFamily: fonts.ui, fontSize: 15, color: tide.text, textAlign: 'center' },
   hero: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
     padding: Spacing.md,
@@ -187,7 +188,7 @@ const styles = StyleSheet.create({
   tileValueBig: { fontFamily: fonts.uiMedium, fontSize: 32, lineHeight: 40, color: GOLD },
   tileValue: { fontFamily: fonts.uiMedium, fontSize: 22, lineHeight: 28, color: tide.text },
   card: { backgroundColor: prism.panel.fill, borderWidth: 1, borderColor: prism.panel.rim, borderRadius: prism.panel.radius, paddingHorizontal: Spacing.md, overflow: 'hidden' },
-  statRow: { height: 44, alignItems: 'center', justifyContent: 'space-between' },
+  statRow: { flexDirection: 'row', height: 44, alignItems: 'center', justifyContent: 'space-between' },
   sep: { borderTopWidth: 1, borderTopColor: prism.panel.rim },
   rowLabel: { fontFamily: fonts.ui, fontSize: 15, color: tide.text },
   rowValue: { fontFamily: fonts.uiMedium, fontSize: 17, color: tide.text },

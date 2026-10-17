@@ -9,7 +9,7 @@ import { BottomSheet } from '@/components/sheet/bottom-sheet';
 import { PrismButton } from '@/components/prism/prism-button';
 import { PILL_LABEL_SIZE } from '@/components/prism/pill-tray';
 import { applyPlaybackMode, applyRecordingMode, scheduleAudioSessionRelease } from '@/lib/audio-mode';
-import { getReview, postShot, postVerdict, postVoiceNote, type ReviewTour as Tour, type ReviewVerdict } from '@/lib/api';
+import { getReview, postReviewDone, postShot, postVerdict, postVoiceNote, type ReviewTour as Tour, type ReviewVerdict } from '@/lib/api';
 import { tide } from '@/constants/theme';
 
 const DEFAULT_CHIPS = ['slow', 'ugly', 'bug', 'not like the mock', 'confusing'];
@@ -49,7 +49,7 @@ export function ReviewTour() {
   const [open, setOpen] = useState(false);
   const [saved, setSaved] = useState<Record<string, Saved>>({});
   const [summary, setSummary] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [doneFailed, setDoneFailed] = useState(false);
   const [notes, setNotes] = useState<Record<string, number>>({});
   const [recording, setRecording] = useState(false);
   const [shots, setShots] = useState(0);
@@ -185,6 +185,25 @@ export function ReviewTour() {
     }
     await snap(step.id, true);
   };
+  /** Flush pending notes, then tell the dev machine the tour is done. */
+  const sendDone = async () => {
+    setBusy(true);
+    setOpen(false);
+    setNoteMsg('Sending…');
+    let ok = false;
+    try {
+      const left: Pending[] = [];
+      for (const p of await readPending()) if (!(await uploadNote(p))) left.push(p);
+      await writePending(left);
+      ok = left.length === 0 && (await postReviewDone(tour.wave));
+    } catch {
+      ok = false;
+    }
+    setDoneFailed(!ok);
+    setNoteMsg(ok ? 'Sent to Claude' : 'Not sent, tap to retry');
+    setBusy(false);
+    if (ok) setTimeout(() => setNoteMsg((m) => (m === 'Sent to Claude' ? '' : m)), 3000);
+  };
   const next = () => {
     if (index + 1 >= tour.steps.length) setSummary(true);
     else setIndex(index + 1);
@@ -198,6 +217,7 @@ export function ReviewTour() {
         <Pressable
           onPress={() => {
             if (recording) void stopNote();
+            else if (doneFailed && !busy) void sendDone();
             else if (failed && !busy) void sendNote(failed);
             else setOpen(true);
           }}
@@ -222,8 +242,7 @@ export function ReviewTour() {
             {flagged.map((s) => (
               <Text key={s.id} style={styles.line}>{`• ${saved[s.id].verdict}: ${s.title}`}</Text>
             ))}
-            <PrismButton shape="pill" verb="tools" on label="Send to Claude" onPress={() => setSent(true)} />
-            {sent ? <Text style={styles.line}>{`Saved ${done} verdicts`}</Text> : null}
+            <PrismButton shape="pill" verb="tools" on label="Send to Claude" onPress={() => void sendDone()} />
             <Pressable onPress={() => setSummary(false)}>
               <Text style={styles.link}>Back</Text>
             </Pressable>

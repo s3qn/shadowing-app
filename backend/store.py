@@ -93,6 +93,49 @@ CREATE TABLE IF NOT EXISTS videos (
   align_error    TEXT NOT NULL DEFAULT '',
   align_attempts INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS take_scores (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  device     TEXT NOT NULL,
+  island_id  TEXT NOT NULL,
+  idx        INTEGER NOT NULL,
+  language   TEXT NOT NULL DEFAULT 'ja',
+  total      INTEGER,
+  content    INTEGER,
+  timing     INTEGER,
+  pitch      INTEGER,
+  speed      REAL NOT NULL DEFAULT 1,
+  whole_line INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_take_scores_device_created ON take_scores(device, created_at);
+
+CREATE TABLE IF NOT EXISTS review_sessions (
+  id                TEXT PRIMARY KEY,
+  device            TEXT NOT NULL,
+  size              INTEGER NOT NULL,
+  planned_sentences INTEGER NOT NULL DEFAULT 0,
+  planned_seconds   REAL NOT NULL DEFAULT 0,
+  plan              TEXT NOT NULL DEFAULT '{}',
+  started_at        TEXT NOT NULL,
+  finished_at       TEXT NOT NULL DEFAULT '',
+  actual_sentences  INTEGER NOT NULL DEFAULT 0,
+  actual_seconds    REAL NOT NULL DEFAULT 0,
+  avg_score         REAL,
+  completed         INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS review_session_lines (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id TEXT NOT NULL,
+  device     TEXT NOT NULL,
+  island_id  TEXT NOT NULL,
+  idx        INTEGER NOT NULL,
+  position   INTEGER NOT NULL,
+  seconds    REAL NOT NULL DEFAULT 0,
+  score      INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_review_session_lines_session ON review_session_lines(session_id);
+CREATE INDEX IF NOT EXISTS idx_review_sessions_device ON review_sessions(device, started_at);
 """
 
 
@@ -119,12 +162,41 @@ def connect() -> sqlite3.Connection:
     return dbconn.thread_conn(_local, DB_PATH, "foreign_keys = ON", "journal_mode = WAL")
 
 
+def backup_before_bl51(db_path: Path, data_dir: Path) -> Path | None:
+    """Copies an existing database that predates the review_sessions tables to
+    `islands.db.bak-bl51-<YYYYMMDD>` (sqlite backup API, safe under WAL) before
+    the migration adds them. Returns the copy's path, or None when there is no
+    database or it already has the tables. Runs once: after the migration the
+    tables exist, so the next start skips it."""
+    if not db_path.exists():
+        return None
+    src = sqlite3.connect(db_path)
+    try:
+        has = src.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='review_sessions'"
+        ).fetchone()
+        if has:
+            return None
+        dest = data_dir / f"islands.db.bak-bl51-{datetime.now(timezone.utc):%Y%m%d}"
+        if dest.exists():
+            return None
+        out = sqlite3.connect(dest)
+        try:
+            src.backup(out)
+        finally:
+            out.close()
+        return dest
+    finally:
+        src.close()
+
+
 def init() -> None:
     """Create the data directories and the schema. Called once at app
     startup (and once per test by the `_init_db` fixture); the mkdirs used to
     run inside `connect()` itself, which meant every hot-path call paid for
     four syscalls it only ever needed once."""
     _make_dirs()
+    backup_before_bl51(DB_PATH, DATA_DIR)
     with connect() as conn:
         conn.executescript(SCHEMA)
         # Databases created before word timings existed lack the column.
@@ -481,6 +553,76 @@ def log_build(device: str, kind: str) -> None:
 def delete_owner_rows(device: str) -> None:
     with connect() as conn:
         conn.execute("DELETE FROM builds WHERE device=?", (device,))
+        conn.execute("DELETE FROM take_scores WHERE device=?", (device,))
+        conn.execute("DELETE FROM review_session_lines WHERE device=?", (device,))
+        conn.execute("DELETE FROM review_sessions WHERE device=?", (device,))
+
+
+def add_take_score(device: str, island_id: str, idx: int, language: str,
+                   score: dict, speed: float, whole_line: bool) -> None:
+    """Keeps one row per uploaded take so sessions can aggregate later. No
+    foreign key on island_id: a deleted island keeps its history."""
+    parts = score.get("parts") or {}
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO take_scores (device, island_id, idx, language, total, content,"
+            " timing, pitch, speed, whole_line, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (device, island_id, idx, language, score.get("total"), parts.get("content"),
+             parts.get("timing"), parts.get("pitch"), speed, 1 if whole_line else 0, _now()),
+        )
+
+
+def list_take_scores(device: str, since: str = "") -> list[dict]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM take_scores WHERE device=? AND created_at>=? ORDER BY created_at, id",
+            (device, since),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def add_session(device: str, session_id: str, size: int, planned_sentences: int,
+                planned_seconds: float, plan: dict) -> None:
+    with connect() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO review_sessions (id, device, size, planned_sentences,"
+            " planned_seconds, plan, started_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (session_id, device, size, planned_sentences, planned_seconds,
+             json.dumps(plan, ensure_ascii=False), _now()),
+        )
+
+
+def finish_session(device: str, session_id: str, sentences: int, seconds: float,
+                   avg_score: float | None, lines: list[dict], completed: bool) -> bool:
+    """Closes an open session and writes its line rows. False (and no write)
+    for an unknown, foreign or already finished id."""
+    with connect() as conn:
+        cur = conn.execute(
+            "UPDATE review_sessions SET finished_at=?, actual_sentences=?, actual_seconds=?,"
+            " avg_score=?, completed=? WHERE id=? AND device=? AND finished_at=''",
+            (_now(), sentences, seconds, avg_score, 1 if completed else 0, session_id, device),
+        )
+        if cur.rowcount == 0:
+            return False
+        conn.executemany(
+            "INSERT INTO review_session_lines (session_id, device, island_id, idx, position,"
+            " seconds, score) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [(session_id, device, ln["island_id"], ln["idx"], pos, ln.get("seconds", 0),
+              ln.get("score")) for pos, ln in enumerate(lines)],
+        )
+    return True
+
+
+def list_sessions(device: str, limit: int = 5) -> list[dict]:
+    """Finished sessions, newest first."""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM review_sessions WHERE device=? AND finished_at!=''"
+            " ORDER BY finished_at DESC, started_at DESC LIMIT ?",
+            (device, limit),
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def line_audio_path(island_id: str, idx: int) -> Path:

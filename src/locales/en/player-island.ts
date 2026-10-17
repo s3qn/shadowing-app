@@ -34,6 +34,7 @@ export const en = {
   'player.toolbarBlind': 'Blind',
   'player.blindBoth': 'Both',
   'player.blindOff': 'Off',
+  'player.takeScore': 'Score {score}',
   'player.keptUpWords': 'Kept up with {kept} of {total} words',
   'player.ladderUp': 'Next line at {speed}',
   'player.ladderDown': 'Back to {speed} from the next line',

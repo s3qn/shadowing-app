@@ -26,6 +26,8 @@ import {
 } from '@/lib/audio-mode';
 import { t } from '@/lib/i18n';
 import { addPass } from '@/lib/practice';
+import { noteAward } from '@/lib/progression';
+import { noteTakeScore } from '@/lib/take-scores';
 import { cleanTakeFile, deleteTake, findTake, saveTake, saveTakeAnalysis, saveTakeScore, type Take } from '@/lib/takes';
 
 /** How often the recorder's meter is sampled into the level shared value. */
@@ -137,10 +139,13 @@ export function useTake(
    * Play fill from it. */
   onStatus?: (s: AudioStatus) => void,
   /** `localOnly` saves and plays takes without the cleaner or a score, for a
-   * line with no reference audio on the server (a captions-only video). */
-  options?: { localOnly?: boolean },
+   * line with no reference audio on the server (a captions-only video).
+   * `countPass` adds the pass here for a scored take, for screens with no line
+   * player whose finish event would count it (video, podcast). */
+  options?: { localOnly?: boolean; countPass?: boolean },
 ) {
   const localOnly = options?.localOnly ?? false;
+  const countPass = options?.countPass ?? false;
   const recorder = useAudioRecorder(WAV_RECORDING_OPTIONS);
 
   const [recording, setRecording] = useState(false);
@@ -375,6 +380,7 @@ export function useTake(
     setClean({ state: 'working', erleDb: null, note: '' }, key);
     try {
       const result = await uploadTake(targetIslandId, targetIdx, saved.uri, speed, false, span, lagMs, lineStartMs);
+      noteAward(result.award);
       if (result.score) {
         const score = result.score;
         try {
@@ -382,6 +388,8 @@ export function useTake(
         } catch {
           // Best effort: the marks just won't survive a line switch and back.
         }
+        // Outside the try: a failed disk write still counts toward the session score.
+        noteTakeScore({ islandId: targetIslandId, idx: targetIdx, recordedAt: saved.recordedAt, total: score.total ?? null });
         // Same recordedAt guard as the cleanUri update below: a new take, or
         // a line switch and back, must not resurrect a stale score.
         updateTake(key, (onScreen) =>
@@ -462,6 +470,7 @@ export function useTake(
               if (seq === takeSeq.current) setClean({ state: 'skipped', erleDb: null, note: '' }, savedFor.key);
               return;
             }
+            if (countPass) addPass(savedFor.islandId);
             void cleanTake(
               savedFor.key,
               savedFor.islandId,

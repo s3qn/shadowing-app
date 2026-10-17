@@ -14,7 +14,7 @@ import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import { useFollowBuild } from '@/hooks/use-follow-build';
 import * as api from '@/lib/api';
-import { useT } from '@/lib/i18n';
+import { useDir, useT } from '@/lib/i18n';
 import { getSettings, getVoice, toIslandLanguage, toNativeLanguage } from '@/lib/settings';
 
 const SIDE = 16;
@@ -29,6 +29,7 @@ function stem(name: string): string {
 
 export default function ImportScreen() {
   const { t } = useT();
+  const dir = useDir();
   const router = useRouter();
 
   const [phase, setPhase] = useState<Phase>('pick');
@@ -102,31 +103,31 @@ export default function ImportScreen() {
       {phase === 'building' ? (
         <View style={styles.center}>
           <CatConstellation size={120} label={api.stageLabel(stage).replace(/…$/, '')} />
-          <Text style={[styles.hint, styles.centerText]}>{t('import.buildHint')}</Text>
+          <Text style={[styles.hint, styles.centerText, dir.writing]}>{t('import.buildHint')}</Text>
         </View>
       ) : (
         <>
           <ScrollView style={styles.fill} contentContainerStyle={styles.content}>
             <View style={styles.header}>
-              <Text style={styles.title}>{t('import.title')}</Text>
-              <Text style={styles.hint}>{t('import.hint')}</Text>
+              <Text style={[styles.title, dir.text]}>{t('import.title')}</Text>
+              <Text style={[styles.hint, dir.text]}>{t('import.hint')}</Text>
             </View>
 
-            <PressScale onPress={pickAudio} accessibilityRole="button" style={styles.pickRow}>
-              <Text style={styles.pickLabel}>{t('import.audio')}</Text>
-              <Text style={styles.pickValue} numberOfLines={1}>
+            <PressScale onPress={pickAudio} accessibilityRole="button" style={[styles.pickRow, dir.row]}>
+              <Text style={[styles.pickLabel, dir.writing]}>{t('import.audio')}</Text>
+              <Text style={[styles.pickValue, dir.rtl && styles.pickValueRtl]} numberOfLines={1}>
                 {audio ? audio.name : t('import.choose')}
               </Text>
             </PressScale>
 
-            <PressScale onPress={pickSubtitles} accessibilityRole="button" style={styles.pickRow}>
-              <Text style={styles.pickLabel}>{t('import.subtitles')}</Text>
-              <Text style={styles.pickValue} numberOfLines={1}>
+            <PressScale onPress={pickSubtitles} accessibilityRole="button" style={[styles.pickRow, dir.row]}>
+              <Text style={[styles.pickLabel, dir.writing]}>{t('import.subtitles')}</Text>
+              <Text style={[styles.pickValue, dir.rtl && styles.pickValueRtl]} numberOfLines={1}>
                 {srt ? srt.name : t('import.choose')}
               </Text>
             </PressScale>
 
-            {error ? <Text style={styles.error}>{error}</Text> : null}
+            {error ? <Text style={[styles.error, dir.text]}>{error}</Text> : null}
           </ScrollView>
 
           <View style={styles.actions}>
@@ -178,6 +179,8 @@ const styles = StyleSheet.create({
   },
   pickLabel: { fontSize: 15, color: tide.text, fontFamily: fonts.uiMedium, fontWeight: '500' },
   pickValue: { flex: 1, textAlign: 'right', fontSize: 14, color: tide.textDim, fontFamily: fonts.ui },
+  // The value trails the label: on the left edge in Hebrew.
+  pickValueRtl: { textAlign: 'left', writingDirection: 'auto' },
   error: { fontSize: 14, lineHeight: 20, color: tide.record, fontFamily: fonts.ui },
   actions: { paddingHorizontal: SIDE, paddingTop: Spacing.md, paddingBottom: Spacing.sm, gap: Spacing.xs },
   primary: { alignSelf: 'center' },

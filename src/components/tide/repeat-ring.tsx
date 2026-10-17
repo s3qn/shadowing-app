@@ -7,6 +7,8 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 
+import { useDir, useT } from '@/lib/i18n';
+
 const CORAL = '#FF9E80';
 const THICK = 2;
 const RADIUS = 24;
@@ -160,6 +162,8 @@ export function RepeatRing({ progress }: { progress: SharedValue<number> }) {
 
 /** Pass dots, plus the seconds left during a pause. Sits above the card edge. */
 export function RepeatPill({ pass, total, secsLeft }: { pass: number; total: number; secsLeft: number | null }) {
+  const { t } = useT();
+  const dir = useDir();
   const scale = useSharedValue(0.85);
   useEffect(() => {
     scale.value = withSpring(1, { damping: 15, stiffness: 240 });
@@ -170,10 +174,10 @@ export function RepeatPill({ pass, total, secsLeft }: { pass: number; total: num
   return (
     <Animated.View
       pointerEvents="none"
-      style={[styles.pill, { borderColor: pausing ? 'rgba(255,200,87,0.55)' : 'rgba(255,255,255,0.18)' }, enter]}
+      style={[styles.pill, dir.rtl && styles.pillRtl, dir.row, { borderColor: pausing ? 'rgba(255,200,87,0.55)' : 'rgba(255,255,255,0.18)' }, enter]}
     >
       {dots ? (
-        <View style={styles.dots}>
+        <View style={[styles.dots, dir.row]}>
           {Array.from({ length: total }, (_, i) => (
             <View
               key={i}
@@ -189,7 +193,7 @@ export function RepeatPill({ pass, total, secsLeft }: { pass: number; total: num
           {pass}/{total}
         </Text>
       )}
-      {pausing ? <Text style={styles.secs}>{secsLeft}s</Text> : null}
+      {pausing ? <Text style={styles.secs}>{t('player.secsLeft', { n: secsLeft })}</Text> : null}
     </Animated.View>
   );
 }
@@ -224,6 +228,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 7,
   },
+  // Hebrew pins the pill to the card's other corner, the reading edge.
+  pillRtl: { right: undefined, left: 16 },
   dots: { flexDirection: 'row', gap: 5 },
   dot: { width: 10, height: 10, borderRadius: 5 },
   count: { color: '#fff', fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] },

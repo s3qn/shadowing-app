@@ -92,3 +92,26 @@ def test_shot_saved_and_skipped_in_merge(env):
     assert all(s["verdict"] is None for s in dev_review.get_review(AUTH)["steps"])
     with pytest.raises(HTTPException):
         asyncio.run(dev_review.post_shot("w1", "a", up, "Bearer no"))
+
+
+def test_done_appends_one_line_each_press_and_skipped_in_merge(env):
+    _write_tour(env)
+    dev_review.post_verdict(dev_review.VerdictBody(wave="w1", id="a", verdict="fix"), AUTH)
+    dev_review.post_done(dev_review.DoneBody(wave="w1"), AUTH)
+    dev_review.post_done(dev_review.DoneBody(wave="w1"), AUTH)
+    rows = [json.loads(x) for x in (env / "verdicts.jsonl").read_text().splitlines()]
+    done = [r for r in rows if r.get("done")]
+    assert len(done) == 2
+    assert set(done[0]) == {"wave", "done", "ts"} and done[0]["wave"] == "w1" and done[0]["done"] is True
+    steps = dev_review.get_review(AUTH)["steps"]
+    assert steps[0]["verdict"] == "fix" and steps[1]["verdict"] is None
+    with pytest.raises(HTTPException) as e:
+        dev_review.post_done(dev_review.DoneBody(wave="w1"), "Bearer no")
+    assert e.value.status_code == 401
+
+
+def test_done_route_absent_in_prod(monkeypatch):
+    # main mounts the router only when enabled(), so prod has no route (404).
+    monkeypatch.setenv("SHADOW_ENV", "prod")
+    assert not dev_review.enabled()
+    assert "/shadow/dev/review/done" in [r.path for r in dev_review.router.routes]

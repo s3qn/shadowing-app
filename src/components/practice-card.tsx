@@ -194,7 +194,7 @@ function DayCell({ letter, minutes, isToday, reducedMotion }: {
   );
 }
 
-export function PracticeCard({ log, dueCount, reviewDue = 0, onPractice, onDrive, onReview }: { log: PracticeLog; dueCount: number; reviewDue?: number; onPractice: () => void; onDrive: () => void; onReview?: () => void }) {
+export function PracticeCard({ log, dueCount, onPractice, onDrive }: { log: PracticeLog; dueCount: number; onPractice: () => void; onDrive: () => void }) {
   const { t } = useT();
   const dir = useDir();
   const reducedMotion = useReducedMotion();
@@ -253,8 +253,7 @@ export function PracticeCard({ log, dueCount, reviewDue = 0, onPractice, onDrive
           shape="pill"
           verb="speak"
           height={44}
-          label={dueCount === 0 ? t('home.autoPracticeNone') : t('home.autoPractice')}
-          disabled={dueCount === 0}
+          label={t('home.practiceNow')}
           onPress={onPractice}
           containerStyle={{ flex: 1 }}
           style={{ alignSelf: 'stretch', justifyContent: 'center' }}>
@@ -264,21 +263,6 @@ export function PracticeCard({ log, dueCount, reviewDue = 0, onPractice, onDrive
           <SymbolView name={{ ios: 'car.fill', android: 'directions_car' }} size={16} weight="regular" tintColor={verb.listen.c1} />
         </PrismButton>
       </View>
-      {onReview ? (
-        <View style={[styles.actions, dir.row]}>
-          <PrismButton
-            shape="pill"
-            verb="read"
-            flat
-            height={44}
-            label={reviewDue > 0 ? t('review.homeDue', { n: reviewDue }) : t('review.homeNone')}
-            onPress={onReview}
-            containerStyle={{ flex: 1 }}
-            style={{ alignSelf: 'stretch', justifyContent: 'center' }}>
-            <SymbolView name={{ ios: 'star.fill', android: 'star' }} size={16} weight="regular" tintColor={verb.read.c1} />
-          </PrismButton>
-        </View>
-      ) : null}
     </View>
   );
 }

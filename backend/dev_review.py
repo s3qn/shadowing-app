@@ -146,3 +146,19 @@ async def post_shot(
     with _verdicts_file().open("a", encoding="utf-8") as f:
         f.write(json.dumps({"wave": wave, "id": id, "shot": name}) + "\n")
     return {"ok": True, "shot": name}
+
+
+class DoneBody(BaseModel):
+    wave: str = Field(max_length=200)
+
+
+@router.post("/shadow/dev/review/done")
+def post_done(body: DoneBody, authorization: str | None = Header(None)):
+    """Marks the tour as sent. Each press appends one line; the merge skips it."""
+    _require_token(authorization)
+    path = _verdicts_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    row = {"wave": _slug(body.wave), "done": True, "ts": datetime.now(timezone.utc).isoformat()}
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    return {"ok": True}

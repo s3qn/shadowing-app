@@ -1,5 +1,7 @@
 import type { en as enCommon } from '../en/common';
 
+import { isolate } from '@/lib/bidi';
+
 /**
  * Glossary (fixed, used by every namespace): island אי / איים; line שורה;
  * take טייק; podcast פודקאסט; episode פרק; Blind ללא טקסט; Reading קריאה
@@ -30,6 +32,7 @@ export const he = {
   'title.about': 'אודות',
   'title.language': 'שפה',
   'title.prismLab': 'מעבדת פריזמה',
+  'title.catLab': 'מעבדת החתול',
 
   'common.cancel': 'ביטול',
   'common.delete': 'מחיקה',
@@ -58,9 +61,16 @@ export const he = {
   'api.recording_too_large': 'ההקלטה גדולה מדי.',
   'api.audio_undecodable': 'לא ניתן לפענח את הקול.',
   'api.empty_upload': 'העלאה ריקה.',
-  'api.level_locked': 'הגיעו לרמה {level_req} כדי לקבל את זה.',
+  'api.too_long': 'הטקסט ארוך מדי. עד {limit} תווים.',
+  'api.no_episode': 'לפרק הזה עדיין אין שמע לנגינה.',
+  'api.not_video': 'האי הזה אינו סרטון.',
+  'api.align_busy': 'השמע של הסרטון עדיין בהתאמה.',
+  'api.align_closed': 'אי אפשר להתאים את הסרטון הזה שוב.',
+  'api.profile_not_found': 'הפרופיל הזה לא קיים.',
+  'api.requestFailed': `הבקשה נכשלה ${isolate('({status})')}`,
+  'api.level_locked': 'נפתח ברמה {level_req}.',
   'api.not_enough_coins': 'אין מספיק מטבעות.',
-  'api.not_owned': 'עדיין אין לכם את זה.',
+  'api.not_owned': 'הפריט הזה עדיין לא שלך.',
   'api.unknown_item': 'הפריט הזה כבר לא קיים.',
 
   'islandError.import_interrupted': 'הייבוא הופסק.',
@@ -79,9 +89,5 @@ export const he = {
   'islandError.unknown': 'משהו השתבש.',
 
   'api.account_delete_unavailable': 'מחיקת חשבון עדיין לא הוגדרה בשרת.',
-  'api.account_delete_failed': 'לא ניתן היה למחוק את החשבון. נסו שוב מאוחר יותר.',
-  'levelUp.kicker': 'עלית רמה',
-  'levelUp.level': 'רמה {n}',
-  'levelUp.coins': '+{n} מטבעות',
-  'levelUp.continue': 'המשך',
+  'api.account_delete_failed': 'לא ניתן היה למחוק את החשבון. כדאי לנסות שוב מאוחר יותר.',
 } satisfies Record<keyof typeof enCommon, string>;

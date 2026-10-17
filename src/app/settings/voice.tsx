@@ -11,8 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
-import { languageColor } from '@/components/language-picker';
-import { PressScale } from '@/components/press-scale';
+import { Segmented } from '@/components/segmented';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
@@ -148,27 +147,12 @@ export default function VoiceScreen() {
                     its own script, not the interface's. */}
                 <Text style={[styles.name, { color: tide.text }, dir.content]}>{sp.name}</Text>
               </View>
-              <View style={[styles.chips, dir.row]}>
-                {sp.styles.map((st) => {
-                  const on = st.id === chosen;
-                  return (
-                    <PressScale
-                      key={st.id}
-                      onPress={() => pick(st.id)}
-                      style={[
-                        styles.chip,
-                        {
-                          backgroundColor: on ? languageColor(island) : 'rgba(255,255,255,0.08)',
-                          borderColor: on ? languageColor(island) : 'rgba(255,255,255,0.14)',
-                        },
-                      ]}>
-                      <Text style={[styles.chipText, { color: on ? tide.sky[0] : tide.text }]}>
-                        {st.name}
-                      </Text>
-                    </PressScale>
-                  );
-                })}
-              </View>
+              <Segmented
+                scrollable
+                options={sp.styles.map((st) => ({ value: String(st.id), label: st.name }))}
+                value={String(chosen)}
+                onChange={(v) => void pick(Number(v))}
+              />
             </View>
           );
         }}
@@ -190,12 +174,4 @@ const styles = StyleSheet.create({
   iconFallback: { backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
   iconFallbackText: { fontSize: 17, color: tide.text, fontFamily: fonts.uiMedium, fontWeight: '500' },
   name: { fontSize: 17, fontWeight: '600' },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  chip: {
-    borderWidth: 1,
-    borderRadius: Radius.pill,
-    paddingVertical: Spacing.xs + 2,
-    paddingHorizontal: Spacing.md,
-  },
-  chipText: { fontSize: 13, fontWeight: '600' },
 });
