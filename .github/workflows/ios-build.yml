@@ -40,6 +40,18 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Use the newest Xcode on the runner
+        run: |
+          ls -d /Applications/Xcode*.app
+          NEWEST=$(ls -d /Applications/Xcode_*.app | sort -V | tail -n 1)
+          sudo xcode-select -s "$NEWEST/Contents/Developer"
+          xcodebuild -version
+          pod --version || true
+          fastlane --version || true
+
+      - name: Check the Expo login
+        run: npx --yes eas-cli@latest whoami
+
       - name: Install dependencies
         run: npm ci
 
