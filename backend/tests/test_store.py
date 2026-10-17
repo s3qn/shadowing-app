@@ -496,3 +496,13 @@ def test_set_explain_answer_marked_word_order_matters():
 
     assert store.get_explain_answer("学校に行きます。", ["行きます", "学校"], "explain this") == "order A"
     assert store.get_explain_answer("学校に行きます。", ["学校", "行きます"], "explain this") == "order B"
+
+
+def test_add_line_roundtrips_span_and_defaults_empty(island_id):
+    store.add_line(island_id, 0, {"ja": "歩きながら話す", "span": "ながら"}, 1.0, [])
+    store.add_line(island_id, 1, {"ja": "歩く"}, 1.0, [])
+    lines = store.get_island(island_id)["lines"]
+    assert [ln["span"] for ln in lines] == ["ながら", ""]
+    store.set_source(island_id, "grammar", "ながら")
+    isl = store.get_island(island_id)
+    assert (isl["source"], isl["source_name"]) == ("grammar", "ながら")

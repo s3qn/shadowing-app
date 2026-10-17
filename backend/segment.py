@@ -450,3 +450,75 @@ def align_pieces(text: str, pieces: list[dict], duration: float) -> list[dict]:
     except Exception:
         log.exception("segment: align_pieces failed for %r", text)
         return whole
+
+
+def moras_of(text: str) -> list[str]:
+    """Normalised moras of every chunk of `text`, concatenated."""
+    return [m for c in tokenize(text) for m in c["moras"]]
+
+
+def reading_distance(a: str, b: str) -> int:
+    """Levenshtein distance between the mora lists of two texts."""
+    x, y = moras_of(a), moras_of(b)
+    prev = list(range(len(y) + 1))
+    for i, mx in enumerate(x, 1):
+        cur = [i]
+        for j, my in enumerate(y, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (mx != my)))
+        prev = cur
+    return prev[-1]
+
+
+_KATA_CH = re.compile(r"[ァ-ヺー]")
+_FUNCTION_POS = ("助詞", "助動詞")
+
+
+def _function_words(text: str) -> list[str]:
+    """Surfaces of the particles and auxiliaries, in order. These carry the
+    meaning a sound-alike fix must never change: から/ので, た/ない, が/は."""
+    return [t.surface for t in _tokenizer().tokenize(text) if t.part_of_speech.split(",")[0] in _FUNCTION_POS]
+
+
+def _in_katakana(text: str, i1: int, i2: int) -> bool:
+    """True when text[i1:i2] is katakana or spaces and sits next to katakana."""
+    if not all(_KATA_CH.match(ch) or ch.isspace() for ch in text[i1:i2]):
+        return False
+    near = text[max(0, i1 - 1):i2 + 1]
+    return any(_KATA_CH.match(ch) for ch in near)
+
+
+def sound_alike(original: str, candidate: str) -> tuple[bool, str]:
+    """Kana guard for ASR corrections: (accepted, reason). Accepts the same
+    reading; otherwise the particles and auxiliaries must be identical and the
+    change must be one mora, two moras inside a katakana word, or a short kanji
+    swap with the same reading length inside one word."""
+    cand = candidate.strip()
+    if not cand or "\n" in cand or not original:
+        return False, "length"
+    ratio = len(cand) / len(original)
+    if not 0.6 <= ratio <= 1.5:
+        return False, "length"
+    d = reading_distance(original, cand)
+    n = len(moras_of(original))
+    reason = f"moras:{d}/{n}"
+    if d == 0:
+        return True, reason
+    if _function_words(original) != _function_words(cand):
+        return False, "function-word"
+    if d <= 1:
+        return True, reason
+    ops = [o for o in difflib.SequenceMatcher(None, original, cand, autojunk=False).get_opcodes() if o[0] != "equal"]
+    if d <= 2 and ops and all(_in_katakana(original, i1, i2) and _in_katakana(cand, j1, j2) for _, i1, i2, j1, j2 in ops):
+        return True, reason
+    if len(ops) == 1 and ops[0][0] == "replace":
+        _, i1, i2, j1, j2 = ops[0]
+        a, b = original[i1:i2], cand[j1:j2]
+        if (len(a) <= 2 and len(b) <= 2 and _KANJI.fullmatch(a) and _KANJI.fullmatch(b)
+                and len(moras_of(a)) == len(moras_of(b))):
+            pos = 0
+            for c in tokenize(cand):
+                end = pos + len(c["text"])
+                if pos <= j1 and j2 <= end and c["moras"] and not c.get("unknown"):
+                    return True, "kanji-swap"
+                pos = end
+    return False, reason

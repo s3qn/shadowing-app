@@ -5,6 +5,7 @@ import {
   Dimensions,
   Pressable,
   FlatList,
+  type LayoutChangeEvent,
   type ListRenderItemInfo,
   RefreshControl,
   StyleSheet,
@@ -50,7 +51,7 @@ import { SearchIcon } from '@/components/tide/toolbar-icons';
 import { GlassInput } from '@/components/tide/glass-input';
 import { fonts } from '@/constants/fonts';
 import { prism, Radius, Spacing, tide, verb, withAlpha } from '@/constants/theme';
-import { LitPillCover, LitPillRim, PILL_H, PILL_ICON_OFF, PILL_LABEL_SIZE, PILL_PAD_X, PillTrayShell } from '@/components/prism/pill-tray';
+import { PILL_H, PILL_ICON_OFF, PILL_LABEL_SIZE, PILL_PAD_X, PillTrayShell, SlidingLitPill, useSlidingPill } from '@/components/prism/pill-tray';
 import { alertSheet, confirmSheet } from '@/lib/confirm-sheet';
 import { useSkyStyle, isNight } from '@/lib/sky';
 import { useT, useDir } from '@/lib/i18n';
@@ -154,24 +155,18 @@ type Sort = (typeof SORTS)[number];
 
 // pill-tray-tab-bar: sort row start
 const SORT_PILL_BORDER = 1;
-/** The box inside a sort pill's border, which the lit fill and rim fill. */
-const SORT_PILL_INNER_H = PILL_H - 2 * SORT_PILL_BORDER;
 /**
- * One sort option in the Home sort row: a pill that hugs its label and
- * crossfades its own lit fill. The fill and rim take the pill's real size
- * from their own absolute fill, not from a measurement kept in state, so a
- * label that changes width (the app language switching between "Newest" and
- * "החדשים ביותר") takes them with it.
+ * One sort option: a pill that hugs its label with a plain press scale. The
+ * active option shows only the sliding lit pill underneath; an inactive one
+ * draws its own faint chip. The border width is constant so the pill never
+ * changes size when it turns on.
  */
-function SortPill({ on, label, onPress }: { on: boolean; label: string; onPress: () => void }) {
-  const litOpacity = useSharedValue(on ? 1 : 0);
+function SortPill({ on, label, onPress, onLayout }: { on: boolean; label: string; onPress: () => void; onLayout: (e: LayoutChangeEvent) => void }) {
   const scale = useSharedValue(1);
-  useEffect(() => {
-    litOpacity.value = withTiming(on ? 1 : 0, { duration: 200 });
-  }, [on, litOpacity]);
   const scaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   return (
     <Pressable
+      onLayout={onLayout}
       onPress={onPress}
       onPressIn={() => {
         scale.value = withTiming(0.96, { duration: 80 });
@@ -179,12 +174,49 @@ function SortPill({ on, label, onPress }: { on: boolean; label: string; onPress:
       onPressOut={() => {
         scale.value = withSpring(1, prism.press.spring);
       }}>
-      <Animated.View style={[styles.pill, scaleStyle]}>
-        <LitPillCover height={SORT_PILL_INNER_H} opacity={litOpacity} />
-        <LitPillRim radius={SORT_PILL_INNER_H / 2} opacity={litOpacity} />
+      <Animated.View style={[styles.pill, on ? null : styles.pillChrome, scaleStyle]}>
         <Text style={[styles.pillText, { color: on ? prism.tray.lit.label : PILL_ICON_OFF }]}>{label}</Text>
       </Animated.View>
     </Pressable>
+  );
+}
+
+/**
+ * The Home sort row: one lit pill slides between the options, like the tab
+ * bar. The row inside the tray shares a coordinate space with each option's
+ * onLayout, so the slider origin and the measured x agree.
+ */
+function SortRow({ sort, onSort, labels }: { sort: Sort; onSort: (s: Sort) => void; labels: Record<Sort, string> }) {
+  const dir = useDir();
+  const layoutsRef = useRef<Array<{ x: number; width: number }>>([]);
+  const [layouts, setLayouts] = useState<Array<{ x: number; width: number }>>([]);
+  // Widest option measured so far; the slider's canvas only grows (see PillTabBar).
+  const [fillWidth, setFillWidth] = useState(0);
+  const { translateX, width } = useSlidingPill(layouts[SORTS.indexOf(sort)]);
+  const measured = useCallback((i: number, e: LayoutChangeEvent) => {
+    const { x, width: w } = e.nativeEvent.layout;
+    layoutsRef.current[i] = { x, width: w };
+    setFillWidth((widest) => Math.max(widest, w));
+    if (layoutsRef.current.filter((l) => l).length === SORTS.length) setLayouts([...layoutsRef.current]);
+  }, []);
+  return (
+    <PillTrayShell wrapStyle={[styles.sortRowWrap, dir.rtl && styles.sortRowWrapRtl]}>
+      <View style={[styles.sortRow, dir.row]}>
+        <SlidingLitPill translateX={translateX} width={width} fillWidth={fillWidth} />
+        {SORTS.map((s, i) => (
+          <SortPill
+            key={s}
+            on={sort === s}
+            label={labels[s]}
+            onLayout={(e) => measured(i, e)}
+            onPress={() => {
+              if (s !== sort) void hapticSelection();
+              onSort(s);
+            }}
+          />
+        ))}
+      </View>
+    </PillTrayShell>
   );
 }
 // pill-tray-tab-bar: sort row end
@@ -922,21 +954,7 @@ export default function IslandsScreen() {
         <CatBadge />
         <PracticeCard log={log} dueCount={readyDueCount} reviewDue={reviewDue} onPractice={startPractice} onDrive={startDrive} onReview={() => router.push('/review')} />
         {/* pill-tray-tab-bar: sort row start */}
-        <PillTrayShell
-          wrapStyle={[styles.sortRowWrap, dir.rtl && styles.sortRowWrapRtl]}
-          style={[styles.sortRow, dir.row]}>
-          {SORTS.map((s) => (
-            <SortPill
-              key={s}
-              on={sort === s}
-              label={SORT_LABEL[s]}
-              onPress={() => {
-                if (s !== sort) void hapticSelection();
-                setSort(s);
-              }}
-            />
-          ))}
-        </PillTrayShell>
+        <SortRow sort={sort} onSort={setSort} labels={SORT_LABEL} />
         {/* pill-tray-tab-bar: sort row end */}
       </View>
       <Animated.FlatList
@@ -1629,15 +1647,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     height: PILL_H,
-    // Clips the lit fill and LitPillRim's straight top highlight to the
-    // rounded shape, like the tab bar's slidingPill.
     borderRadius: PILL_H / 2,
-    overflow: 'hidden',
     borderWidth: SORT_PILL_BORDER,
-    borderColor: 'rgba(255,255,255,0.05)',
-    backgroundColor: prism.tray.pillFill,
+    borderColor: 'transparent',
     paddingHorizontal: PILL_PAD_X,
   },
+  pillChrome: { backgroundColor: prism.tray.pillFill, borderColor: 'rgba(255,255,255,0.05)' },
   pillText: { fontSize: PILL_LABEL_SIZE, fontWeight: '600', fontFamily: fonts.ui },
   // pill-tray-tab-bar: sort row end
   star: {

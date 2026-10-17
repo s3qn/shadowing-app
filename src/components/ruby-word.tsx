@@ -10,6 +10,9 @@ import type { Word } from '@/lib/api';
 import { type MoraPitch, moraCells, type PitchCell, runCells } from '@/lib/pitch';
 import { kanaToRomaji } from '@/lib/romaji';
 
+/** A grammar island's point (GR2-B3 `.ja b`). */
+export const GRAMMAR_LILAC = '#C9B8FF';
+
 type Props = {
   word: Word;
   /** Furigana above the kanji. Off, the word is one plain column. */
@@ -19,6 +22,8 @@ type Props = {
   /** The playing line's word highlight. Left out, the word never lights. */
   highlight?: Highlight;
   selected: boolean;
+  /** Part of a grammar island's point: lilac and semibold (GR2-B3). */
+  grammar?: boolean;
   /** Drawn in the muted colour (a word outside a phrase loop's span). */
   dimmed?: boolean;
   /** How the last take's timing scored this word: a coloured bottom border,
@@ -70,6 +75,7 @@ export const RubyWord = memo(function RubyWord({
   index,
   highlight,
   selected,
+  grammar = false,
   dimmed,
   mark,
   onLayout,
@@ -102,7 +108,10 @@ export const RubyWord = memo(function RubyWord({
   // Lit and selected are both a colour change, never a filled chip: a solid
   // box behind one word reads as a UI control, not running text.
   const lit = concealed ? undefined : highlight;
-  const baseInk = useWordInk(lit, index, dimmed ? tide.textDim : tide.text);
+  const inGrammar = grammar && !concealed;
+  // The lilac is the base the karaoke ink fades from and back to, so the mark
+  // survives the highlight passing over it.
+  const baseInk = useWordInk(lit, index, inGrammar ? GRAMMAR_LILAC : dimmed ? tide.textDim : tide.text);
   const rubyInk = useWordInk(lit, index, tide.textDim);
   // A plain word that wraps onto a second row: the moras cannot be placed by
   // character any more, so its strip stays empty.
@@ -110,6 +119,7 @@ export const RubyWord = memo(function RubyWord({
   const markColor = concealed
     ? 'transparent'
     : mark === 'early' ? tide.listen : mark === 'late' ? tide.turn : mark === 'dropped' ? tide.record : 'transparent';
+  const ink = inGrammar ? styles.grammar : null;
   const posColor = concealed ? 'transparent' : tide.pos[word.pos ?? 'other'];
   const romaji = useMemo(
     () => (showRuby && word.ruby ? kanaToRomaji(word.ruby.map((s) => s.rt || s.text).join('')) : ''),
@@ -166,7 +176,7 @@ export const RubyWord = memo(function RubyWord({
                   <PitchStrip cells={cells} pitch={pitch!.slice(from, from + moraCells(cells))} concealed={concealed} />
                 ) : null}
                 <Animated.Text style={[styles.rt, rtSize, rubyInk]}>{seg.rt}</Animated.Text>
-                <Animated.Text style={[styles.base, baseSize, baseInk]}>{seg.text}</Animated.Text>
+                <Animated.Text style={[styles.base, baseSize, baseInk, ink]}>{seg.text}</Animated.Text>
               </View>
             );
           })
@@ -174,7 +184,7 @@ export const RubyWord = memo(function RubyWord({
           <>
             {showRuby ? <Text style={[styles.rt, rtSize]}>{''}</Text> : null}
             <Animated.Text
-              style={[styles.base, baseSize, baseInk]}
+              style={[styles.base, baseSize, baseInk, ink]}
               onLayout={
                 pitch
                   ? (e) => {
@@ -260,6 +270,7 @@ const styles = StyleSheet.create({
   segment: { alignItems: 'center', flexShrink: 1, maxWidth: '100%' },
   rt: { fontFamily: fonts.serifJp, fontSize: 10, lineHeight: 13, includeFontPadding: false },
   base: { fontFamily: fonts.serifJp, fontSize: 22, lineHeight: BASE_LINE, includeFontPadding: false },
+  grammar: { fontWeight: '600' },
   posBar: { height: 2, borderRadius: 1, marginTop: 2, alignSelf: 'stretch' },
   romaji: {
     fontFamily: fonts.ui,

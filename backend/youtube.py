@@ -7,6 +7,7 @@ and posts the raw events. Everything here is pure and offline.
 
 from __future__ import annotations
 
+import difflib
 import logging
 import math
 import re
@@ -201,3 +202,209 @@ def cues_from_lines(lines: list[dict]) -> list[dict]:
         cues.append({"start": ln["start"], "end": ln["end"], "text": ln["text"],
                      "words": [], "pieces": pieces})
     return cues
+
+
+SPLIT_MAX_CHARS = 25
+SPLIT_MAX_S = 6.0
+SPLIT_MIN_CHARS = 6
+SPLIT_HARD_CHARS = 40
+SPLIT_MIN_CHILD = 2
+CLAUSE_ENDS = ("けど", "から", "とか", "って", "ので")
+_PUNCT_END = "、。？！,.?!"
+
+
+def apply_corrections(lines: list[dict], candidates: dict[int, str]) -> tuple[list[dict], list[dict]]:
+    """Apply the candidates that pass the kana guard. Pure: returns new lines
+    and a QA entry per candidate, accepted or not. Pieces are kept as they are."""
+    import segment
+
+    out = [dict(ln) for ln in lines]
+    qa = []
+    for idx, cand in sorted(candidates.items()):
+        if not 0 <= idx < len(out):
+            continue
+        before = lines[idx]["text"]
+        ok, reason = segment.sound_alike(before, cand)
+        if ok:
+            out[idx]["text"] = cand.strip()
+            log.info("correction %d accepted (%s): %r -> %r", idx, reason, before, cand)
+        else:
+            log.info("correction %d rejected (%s): %r -> %r", idx, reason, before, cand)
+        qa.append({"idx": idx, "start": lines[idx]["start"], "before": before,
+                   "after": cand, "accepted": ok, "reason": reason})
+    return out, qa
+
+
+def _char_clock(text: str, pieces: list[dict] | None, start: float, end: float,
+                owners: list[int | None] | None = None) -> list[float]:
+    """One time per character of `text`: from the pieces when given, else linear.
+    When `owners` is a list it is filled with the piece index each char matched."""
+    n = len(text)
+    times: list[float | None] = [None] * n
+    if owners is not None:
+        owners[:] = [None] * n
+    if pieces:
+        flat, owner = [], []
+        for pi, p in enumerate(pieces):
+            for k, ch in enumerate(p["text"]):
+                if not ch.isspace():
+                    flat.append(ch)
+                    owner.append((pi, k))
+        idx = [i for i, ch in enumerate(text) if not ch.isspace()]
+        sm = difflib.SequenceMatcher(None, "".join(text[i] for i in idx), "".join(flat), autojunk=False)
+        for blk in sm.get_matching_blocks():
+            for off in range(blk.size):
+                pi, k = owner[blk.b + off]
+                p = pieces[pi]
+                m = max(len(p["text"]), 1)
+                times[idx[blk.a + off]] = p["start"] + (p["end"] - p["start"]) * k / m
+                if owners is not None:
+                    owners[idx[blk.a + off]] = pi
+    known = [i for i, t in enumerate(times) if t is not None]
+    if not known:
+        return [start + (end - start) * i / max(n, 1) for i in range(n)]
+    out = []
+    for i in range(n):
+        if times[i] is not None:
+            out.append(times[i])
+            continue
+        lo = max((k for k in known if k < i), default=None)
+        hi = min((k for k in known if k > i), default=None)
+        t0, i0 = (times[lo], lo) if lo is not None else (start, -1)
+        t1, i1 = (times[hi], hi) if hi is not None else (end, n)
+        out.append(t0 + (t1 - t0) * (i - i0) / (i1 - i0))
+    return out
+
+
+def _is_boundary(chunk_text: str) -> bool:
+    t = chunk_text.rstrip()
+    if not t:
+        return False
+    if t[-1] in _PUNCT_END:
+        return True
+    return t.rstrip(_PUNCT_END).endswith(CLAUSE_ENDS)
+
+
+def _split_one(ln: dict, max_chars: int, max_s: float) -> list[dict]:
+    import segment
+
+    text = ln["text"]
+    chunks = segment.tokenize(text)
+    if "".join(c["text"] for c in chunks) != text:
+        return [ln]
+    ends, pos = [], 0
+    for c in chunks:
+        pos += len(c["text"])
+        ends.append(pos)
+    ends = ends[:-1]
+    bounds = [(e, _is_boundary(c["text"])) for e, c in zip(ends, chunks)]
+    owners: list[int | None] = []
+    clock = _char_clock(text, ln.get("pieces"), ln["start"], ln["end"], owners)
+    size = lambda a, b: len(re.sub(r"\s", "", text[a:b]))
+
+    def t_at(k: int) -> float:
+        return round(clock[k], 3)
+
+    cuts, a = [], 0
+    while True:
+        rem_s = ln["end"] - (t_at(a) if a else ln["start"])
+        if size(a, len(text)) <= max_chars and rem_s <= max_s:
+            break
+
+        def ok_cut(k: int) -> bool:
+            left_s = t_at(k) - (t_at(a) if a else ln["start"])
+            right_s = ln["end"] - t_at(k)
+            return left_s >= MIN_KEPT_S and right_s >= MIN_KEPT_S
+
+        def fits(k: int) -> bool:
+            left_s = t_at(k) - (t_at(a) if a else ln["start"])
+            return size(a, k) <= max_chars and left_s <= max_s
+
+        cands = [e for e, b in bounds if b and e > a and ok_cut(e)]
+        pick = None
+        within = [e for e in cands if fits(e) and size(a, e) >= SPLIT_MIN_CHARS]
+        if within:
+            pick = within[-1]
+        else:
+            after = [e for e in cands if not fits(e)]
+            if after:
+                pick = after[0]
+            elif size(a, len(text)) > SPLIT_HARD_CHARS:
+                allc = [e for e, _ in bounds if e > a and ok_cut(e)]
+                if allc:
+                    pick = min(allc, key=lambda e: abs(size(a, e) - max_chars))
+        if pick is None:
+            break
+        cuts.append(pick)
+        a = pick
+    # Keep cut times strictly increasing, then fold any child too thin to
+    # tap (whitespace or a lone 「ね。」) into its neighbour.
+    mono, prev = [], ln["start"]
+    for k in cuts:
+        if prev < t_at(k) < ln["end"]:
+            mono.append(k)
+            prev = t_at(k)
+    cuts = mono
+    while cuts:
+        edges = [0] + cuts + [len(text)]
+        thin = next((i for i in range(len(edges) - 1)
+                     if sum(ch.isalnum() for ch in text[edges[i]:edges[i + 1]]) < SPLIT_MIN_CHILD), None)
+        if thin is None:
+            break
+        del cuts[max(thin - 1, 0)]
+    if not cuts:
+        return [ln]
+    edges = [0] + cuts + [len(text)]
+    times = [ln["start"]] + [t_at(k) for k in cuts] + [ln["end"]]
+    bare = lambda s: re.sub(r"\s", "", s)
+    out = []
+    for i in range(len(edges) - 1):
+        s, e = edges[i], edges[i + 1]
+        while s < e and text[s].isspace():
+            s += 1
+        while e > s and text[e - 1].isspace():
+            e -= 1
+        child = {"start": times[i], "end": times[i + 1], "text": text[s:e]}
+        if "pieces" in ln:
+            lo = times[i] if i else float("-inf")
+            hi = times[i + 1] if i < len(edges) - 2 else float("inf")
+            kept = [p for p in ln["pieces"] if lo <= p["start"] < hi]
+            if not kept or bare("".join(p["text"] for p in kept)) != bare(child["text"]):
+                kept = _child_pieces(text, s, e, owners, clock, times[i], times[i + 1])
+            child["pieces"] = kept
+        out.append(child)
+    return out
+
+
+def _child_pieces(text: str, s: int, e: int, owners: list[int | None], clock: list[float],
+                  t0: float, t1: float) -> list[dict]:
+    """Pieces covering exactly text[s:e], cut where the source piece changes,
+    timed from the char clock and clamped into [t0, t1)."""
+    groups: list[list] = []
+    for k in range(s, e):
+        o = owners[k] if k < len(owners) else None
+        if not groups or (o is not None and groups[-1][1] is not None and o != groups[-1][1]):
+            groups.append([k, o])
+        elif groups[-1][1] is None:
+            groups[-1][1] = o
+    out, prev = [], t0
+    for j, (g0, _) in enumerate(groups):
+        g1 = groups[j + 1][0] if j + 1 < len(groups) else e
+        st = t0 if j == 0 else min(max(round(clock[g0], 3), prev), t1)
+        out.append({"text": text[g0:g1], "start": st, "end": t1})
+        if j:
+            out[j - 1]["end"] = st
+        prev = st
+    return out
+
+
+def split_lines(lines: list[dict], max_chars: int = SPLIT_MAX_CHARS, max_s: float = SPLIT_MAX_S) -> list[dict]:
+    """Split long ja lines at clause ends, never inside a janome chunk. Pure."""
+    out: list[dict] = []
+    for ln in lines:
+        text = ln["text"]
+        if len(re.sub(r"\s", "", text)) <= max_chars and ln["end"] - ln["start"] <= max_s:
+            out.append(ln)
+        else:
+            out.extend(_split_one(ln, max_chars, max_s))
+    return out

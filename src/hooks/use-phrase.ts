@@ -25,6 +25,24 @@ function spanToAudio(line: Line, span: PhraseSpan, speed: number): AudioSpan | n
   return { startMs, endMs };
 }
 
+/** The shortest run of words whose joined text contains `text` (a grammar island's span), or null. */
+export function textSpanToWords(line: Line, text: string | undefined): PhraseSpan | null {
+  if (!text) return null;
+  const { words } = line;
+  let best: PhraseSpan | null = null;
+  for (let from = 0; from < words.length; from++) {
+    let joined = '';
+    for (let to = from; to < words.length; to++) {
+      joined += words[to].text;
+      if (joined.includes(text)) {
+        if (!best || to - from < best.to - best.from) best = { from, to };
+        break;
+      }
+    }
+  }
+  return best;
+}
+
 /**
  * A phrase is a run of words of one line, kept as word indices so it survives
  * a speed or pause change. It is keyed on the line (generation plus idx) so a

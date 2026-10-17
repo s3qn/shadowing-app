@@ -107,5 +107,11 @@ export const he = {
   'phrases.micLabel': 'להגיד נושא',
   'phrases.topicHint': 'יוצרים משפטים על מה שאמרתם. לוקח פחות מדקה.',
   'phrases.added': 'נוסף',
+  'phrases.tabPhrases': 'ביטויים',
+  'phrases.tabGrammar': 'דקדוק',
+  'phrases.flipHint': '‹ גוררים הצידה כדי להחליף ›',
+  'phrases.grammarSearch': 'חיפוש דקדוק לפי תבנית, קריאה או משמעות',
+  'phrases.grammarSearchClear': 'ניקוי החיפוש',
+  'phrases.grammarNoMatch': 'אין נקודת דקדוק שמתאימה',
   'home.phrasesBuildHint': 'זה לוקח פחות מדקה. אפשר לסגור את המסך הזה, האי ממשיך להיבנות ומופיע ברשימה כשהוא מוכן.',
 } satisfies Record<keyof typeof enHome, string>;

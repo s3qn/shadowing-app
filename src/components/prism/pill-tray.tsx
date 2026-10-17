@@ -1,8 +1,8 @@
-import { type ReactNode, useMemo } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef } from 'react';
 import { type StyleProp, StyleSheet, View, type ViewStyle } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Canvas, Fill, LinearGradient, RoundedRect, vec } from '@shopify/react-native-skia';
-import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, type SharedValue } from 'react-native-reanimated';
 
 import { Radius, prism, withAlpha } from '@/constants/theme';
 
@@ -187,6 +187,68 @@ export function LitPillRim({ radius, opacity, held }: LitPillRimProps) {
   );
 }
 
+/** Spring that slides the lit pill to a tab or option, and settles it after a cancelled scrub. */
+export const PILL_SPRING = { damping: 18, overshootClamping: true };
+
+/**
+ * Placement for a `SlidingLitPill`. The first placement is instant so the pill
+ * does not fly in from x = 0, and so is any placement under reduced motion;
+ * after that it springs to the active item's `{ x, width }`.
+ */
+export function useSlidingPill(active: { x: number; width: number } | undefined) {
+  const reducedMotion = useReducedMotion();
+  const translateX = useSharedValue(0);
+  const width = useSharedValue(0);
+  const placed = useRef(false);
+  useEffect(() => {
+    if (!active) return;
+    if (reducedMotion || !placed.current) {
+      translateX.value = active.x;
+      width.value = active.width;
+      placed.current = true;
+      return;
+    }
+    translateX.value = withSpring(active.x, PILL_SPRING);
+    width.value = withSpring(active.width, PILL_SPRING);
+  }, [active, reducedMotion, translateX, width]);
+  return { translateX, width };
+}
+
+const AnimatedView = Animated.createAnimatedComponent(View);
+
+export type SlidingLitPillProps = {
+  translateX: SharedValue<number>;
+  width: SharedValue<number>;
+  /** Width of the fill's fixed canvas: the widest item measured so far (growing only). */
+  fillWidth: number;
+  /** Scrub hold, 0 to 1: grows the pill a little and brightens the rim. */
+  held?: SharedValue<number>;
+};
+
+/**
+ * The one lit pill that slides under a row of items. Render it first inside
+ * the row (which has no padding) so `translateX` counts from the row's edge.
+ * The fill's Canvas is drawn at `fillWidth` and held there, so switching items
+ * never resizes it (a resize recreates the Skia canvas and the gradient gaps
+ * for a frame); this container clips it down to the current width. The rim is
+ * sized to the container instead, so its right end stays round.
+ */
+export function SlidingLitPill({ translateX, width, fillWidth, held }: SlidingLitPillProps) {
+  const opacity = useSharedValue(1);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }, { scale: 1 + (held ? held.value : 0) * 0.06 }],
+    width: width.value,
+  }));
+  return (
+    <AnimatedView pointerEvents="none" style={[styles.slidingPill, style]}>
+      <View style={[styles.litFillBox, { width: fillWidth, height: PILL_H }]}>
+        <LitPillFill width={fillWidth} height={PILL_H} opacity={opacity} />
+      </View>
+      <LitPillRim radius={PILL_H / 2} opacity={opacity} held={held} />
+    </AnimatedView>
+  );
+}
+
 const styles = StyleSheet.create({
   wrap: { position: 'relative' },
   pane: {
@@ -207,6 +269,8 @@ const styles = StyleSheet.create({
   rim: { ...StyleSheet.absoluteFill, borderRadius: Radius.pill, borderWidth: 1, borderColor: prism.tray.rim },
   topLine: { position: 'absolute', top: 1, left: 1, right: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.16)' },
   // boxShadow may not draw on a fully transparent view.
+  slidingPill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: PILL_H / 2, overflow: 'hidden' },
+  litFillBox: { position: 'absolute', left: 0, top: 0 },
   litGlow: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.01)', boxShadow: prism.tray.lit.glow },
   litTopLine: { position: 'absolute', height: 1, backgroundColor: prism.tray.lit.highlight },
   heldGlow: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.01)', boxShadow: '0 4 18 rgba(124,200,255,0.45)' },

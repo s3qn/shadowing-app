@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Animated, { cancelAnimation, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { cancelAnimation, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 
 import { PrismButton } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
 import { tide, verb } from '@/constants/theme';
 
 export const ACTION_H = 54;
+/** How long the Buy sweep stays lit. Pill stays enabled and fully visible meanwhile (disabled would sink and dim it). */
+const SWEEP_MS = 650;
 
 /** The wardrobe page colour, used as the navy top of the pill. */
 const NAVY = '#0B1020';
@@ -38,13 +40,29 @@ export function ActionBar({ label, price, disabled, busy, onPress }: ActionBarPr
   const [shown, setShown] = useState(label);
   const [shownPrice, setShownPrice] = useState(price);
   const t = useSharedValue(label ? 1 : 0);
+  const [sweep, setSweep] = useState(false);
+  const sweeping = useRef(false);
+  // A Buy tap lights the Prism edge for SWEEP_MS (its 180ms rise plus a visible hold); the fade-out below waits for it.
+  // Buy clears the selection (price goes undefined) in the same render busy turns true, so remember the last price.
+  const lastPrice = useRef(price);
+  if (price !== undefined) lastPrice.current = price;
+  useEffect(() => {
+    if (!busy || lastPrice.current === undefined || reduced) return;
+    sweeping.current = true;
+    setSweep(true);
+    const id = setTimeout(() => {
+      sweeping.current = false;
+      setSweep(false);
+    }, SWEEP_MS);
+    return () => clearTimeout(id);
+  }, [busy, reduced]);
   useEffect(() => {
     cancelAnimation(t);
     if (label) {
       setShown(label);
       t.value = reduced ? 1 : withTiming(1, { duration: 160 });
     } else {
-      t.value = reduced ? 0 : withTiming(0, { duration: 120 });
+      t.value = reduced ? 0 : withDelay(sweeping.current ? SWEEP_MS - 120 : 0, withTiming(0, { duration: 120 }));
     }
   }, [label, reduced, t]);
   // Kept apart from the fade effect so a price change never restarts the fade.
@@ -59,8 +77,9 @@ export function ActionBar({ label, price, disabled, busy, onPress }: ActionBarPr
         <PrismButton
           shape="pill"
           verb="read"
+          on={sweep}
           height={ACTION_H}
-          disabled={disabled || busy || !label}
+          disabled={!sweep && (disabled || busy || !label)}
           onPress={onPress}
           accessibilityLabel={shown}
           style={[{ borderRadius: 999 }, disabled ? { backgroundColor: NAVY } : FACE_FILL]}>

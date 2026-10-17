@@ -22,6 +22,10 @@ type Opts = {
   playLine: (snapped: number) => void;
   record: (snapped: number) => Promise<boolean>;
   stop: () => void;
+  /** After a single in-place pass: play on from the next line. */
+  resume?: () => void;
+  /** What the dock record button starts from idle; defaults to the ladder. */
+  onRecordStart?: 'ladder' | 'once';
 };
 
 /**
@@ -53,6 +57,7 @@ export function useLadderWiring(o: Opts) {
       void o.take.cancel();
       o.setRate(o.speedLive);
     },
+    resume: o.resume,
     onLineDone: () => {
       o.gradeOnce(o.lines[o.lineRef.current]?.idx ?? -1);
       if (o.island) addLadder(o.island.id);
@@ -68,7 +73,9 @@ export function useLadderWiring(o: Opts) {
       return true;
     },
   };
-  const ladder = useLadder(o.take, o.speedLive, o.lines[o.activeLine]?.duration ?? 0, io);
+  const ladder = useLadder(o.take, o.speedLive, o.lines[o.activeLine]?.duration ?? 0, io, {
+    onRecordStart: o.onRecordStart,
+  });
   o.ladderRef.current = ladder;
   // A finished ladder hands the player back at the dock speed.
   // A stopped or finished run closes its help.

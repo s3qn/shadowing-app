@@ -1,8 +1,6 @@
 import { useAudioPlayer } from 'expo-audio';
-import * as Haptics from 'expo-haptics';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import type { ScrollView } from 'react-native-gesture-handler';
@@ -10,7 +8,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
 import { ExplainSheet } from '@/components/explain-sheet';
-import { PressScale } from '@/components/press-scale';
 import { PrismButton } from '@/components/prism';
 import { BlindPopover, blindValueLabel } from '@/components/tide/blind-popover';
 import { PassHelpSheet } from '@/components/tide/pass-help-sheet';
@@ -34,12 +31,8 @@ import { useTrackHighlight } from '@/hooks/use-track-highlight';
 import * as api from '@/lib/api';
 import { scheduleAudioSessionRelease, startPlayback, stopPlayback, useSessionPlayer } from '@/lib/audio-mode';
 import { useT } from '@/lib/i18n';
-import { hapticImpact, hapticSelection } from '@/lib/haptics';
 import { getLastLine, resumeLine, setLastLine } from '@/lib/last-line';
-import { COUNT_IN_BEATS, COUNT_IN_BEAT_MS } from '@/lib/pass-programme';
 import { getSettingsSync } from '@/lib/settings';
-
-type ShadowStep = 'idle' | 'count' | 'recording' | 'compare';
 
 /** The track stops this far before a line's end. It has to stay above the
  * highlight's LEAD_CAP_S (0.25) so the extrapolated clock never crosses into the
@@ -90,34 +83,9 @@ export default function PodcastScreen() {
   } = useDockPopovers();
   const insets = useSafeAreaInsets();
 
-  // In-place take: pause, count in, record the line, play it next to the original.
-  // The line and generation are pinned while a take runs, so the highlight
-  // drifting near the line's end cannot switch the take to the next line.
-  const [shadowStep, setShadowStepState] = useState<ShadowStep>('idle');
-  const [pin, setPinState] = useState<{ line: number; gen: number } | null>(null);
-  const pinRef = useRef(pin);
-  const setPin = useCallback((p: { line: number; gen: number } | null) => {
-    pinRef.current = p;
-    setPinState(p);
-  }, []);
-  const pinned = shadowStep !== 'idle' && pin !== null;
-  const take = useTake(
-    island?.id,
-    lines[pinned ? pin.line : activeLine]?.idx ?? 0,
-    pinned ? pin.gen : generation,
-    undefined,
-    undefined,
-    { localOnly: true },
-  );
-  const takeRef = useRef(take);
-  takeRef.current = take;
-  const stepRef = useRef<ShadowStep>('idle');
-  const setShadowStep = useCallback((s: ShadowStep) => {
-    stepRef.current = s;
-    setShadowStepState(s);
-  }, []);
-  const [countIn, setCountIn] = useState<number | null>(null);
-  const countTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // One take machine: useLadder runs both the review ladder and the single
+  // in-place pass (count in, record under the line, play it next to the original).
+  const take = useTake(island?.id, lines[activeLine]?.idx ?? 0, generation, undefined, undefined, { localOnly: true });
   const stopAt = useRef<StopAt | null>(null);
 
   useEffect(() => {
@@ -151,12 +119,7 @@ export default function PodcastScreen() {
         stopAt.current = null;
         stopPlayback(player);
         if (s.didJustFinish) ended.current = true;
-        if (ladderRef.current?.active) {
-          ladderRef.current.lineFinished();
-          return;
-        }
-        if (stepRef.current === 'recording') takeRef.current.scheduleStop();
-        else if (stepRef.current === 'compare') takeRef.current.playTake();
+        if (ladderRef.current?.active) ladderRef.current.lineFinished();
         return;
       }
       if (s.didJustFinish) {
@@ -216,104 +179,45 @@ export default function PodcastScreen() {
     scheduleAudioSessionRelease();
   }, [player]);
 
-  const cancelShadow = useCallback(() => {
-    if (countTimer.current) clearTimeout(countTimer.current);
-    countTimer.current = null;
-    setCountIn(null);
-    stopAt.current = null;
-    const t = takeRef.current;
-    if (stepRef.current === 'recording' || t.phase === 'recording') void t.cancel();
-    t.stopTake();
-    setShadowStep('idle');
-  }, [setShadowStep]);
-
   useFocusEffect(
     useCallback(
       () => () => {
         ladderRef.current?.stop();
-        cancelShadow();
         stopPlayback(player);
         scheduleAudioSessionRelease();
       },
-      [player, cancelShadow],
+      [player],
     ),
   );
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       // Not 'inactive': the first mic permission prompt sends it mid-take.
-      if (state === 'background') cancelShadow();
+      if (state === 'background') ladderRef.current?.stop();
     });
     return () => sub.remove();
-  }, [cancelShadow]);
+  }, []);
 
-  /** The line a take runs on: the pinned one while a take is in progress. */
-  const shadowLine = () => (stepRef.current !== 'idle' && pinRef.current ? pinRef.current.line : activeLine);
-  const lineBounds = (i = shadowLine()) => {
+  const lineBounds = (i = lineRef.current) => {
     const l = lines[i];
     const start = l?.offset ?? 0;
     // In review the next line is not the next saved line, so use the duration.
     const end = (!review && lines[i + 1]?.offset) || start + (l?.duration ?? 0);
     return { start, end, sec: end - start };
   };
-  const armStop = (i = shadowLine()) => {
+  const armStop = (i = lineRef.current) => {
     const { start, end } = lineBounds(i);
     const at = Math.max(start + 0.1, end - STOP_EARLY_S);
     // A line too short for the margin arms on any status near its start.
     stopAt.current = { at, armAt: Math.max(at - STOP_ARM_S, start + 0.05), armed: false };
   };
 
-  async function beginTake() {
-    const { sec } = lineBounds();
-    setShadowStep('recording');
-    // The watchdog wants wall-clock seconds: the line plays at `rate`.
-    const res = await take.startTake(sec / rate, rate, 'take', 0, null, 'auto');
-    if (stepRef.current !== 'recording') {
-      if (res) void takeRef.current.cancel();
-      return;
-    }
-    if (!res) {
-      setShadowStep('idle');
-      return;
-    }
-    if (!res.silent) {
-      seekToLine(shadowLine());
-      startPlayback(player);
-      armStop();
-    }
-  }
-  const beginRef = useRef(beginTake);
-  beginRef.current = beginTake;
-
-  function countBeat(n: number) {
-    setCountIn(n);
-    if (n < COUNT_IN_BEATS) void hapticSelection();
-    countTimer.current = setTimeout(() => {
-      countTimer.current = null;
-      if (n > 1) {
-        countBeat(n - 1);
-        return;
-      }
-      setCountIn(null);
-      void hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
-      void beginRef.current();
-    }, COUNT_IN_BEAT_MS);
-  }
-
-  function startShadow() {
-    take.stopTake();
-    pause();
-    ended.current = false;
-    seekToLine(activeLine);
-    setPin({ line: activeLine, gen: generation });
-    setShadowStep('count');
-    countBeat(COUNT_IN_BEATS);
-  }
-
   // lineRef leads activeLine, which lags one render behind a seek.
-  lineRef.current = activeLine;
+  // Frozen while a take runs, so the highlight cannot move the take's line.
+  if (!ladderRef.current?.active) lineRef.current = activeLine;
   const { ladder, helpOpen, setHelpOpen, helpPass, onPassHelp } = useLadderWiring({
     take, speedLive, lines, lineRef, ladderRef, island, activeLine, seekToLine, setRate, gradeOnce,
+    onRecordStart: review ? 'ladder' : 'once',
     playLine: (snapped) => {
       player.setPlaybackRate(snapped, 'high');
       const at = lineRef.current;
@@ -327,9 +231,41 @@ export default function PodcastScreen() {
       stopAt.current = null;
       stopPlayback(player);
     },
+    resume: () => {
+      // The single pass is over: play goes on from the next line.
+      setRate(speedLive);
+      player.setPlaybackRate(snapRate(speedLive), 'high');
+      const next = lineRef.current + 1;
+      if (next >= lines.length) return;
+      ended.current = false;
+      seekToLine(next);
+      startPlayback(player);
+    },
   });
   const openLadder = () => ladder.start();
   openLadderRef.current = openLadder;
+
+  // Outside review the red button first opens the ladder's Shadow pass sheet,
+  // so the learner sees what comes; its button then runs the single pass.
+  const [introOpen, setIntroOpen] = useState(false);
+  const introPending = useRef(false);
+  const onDockRecord = () => {
+    if (review || ladder.step !== 'idle' || ladder.once) {
+      ladder.dock.onRecord();
+      return;
+    }
+    pause();
+    introPending.current = true;
+    setIntroOpen(true);
+  };
+  const onHelpClose = () => {
+    setHelpOpen(false);
+    setIntroOpen(false);
+    if (!introPending.current) return;
+    introPending.current = false;
+    const l = ladderRef.current;
+    if (l && l.step === 'idle' && !l.once) l.dock.onRecord();
+  };
 
   async function startLineTake(speed: number): Promise<boolean> {
     take.stopTake();
@@ -348,56 +284,18 @@ export default function PodcastScreen() {
     return true;
   }
 
-  const onRecord = () => {
-    if (review) {
-      ladder.dock.onRecord();
-      return;
-    }
-    switch (shadowStep) {
-      case 'idle':
-        startShadow();
-        break;
-      case 'count':
-        cancelShadow();
-        break;
-      case 'recording':
-        void take.finishNow();
-        break;
-      case 'compare':
-        stopPlayback(player);
-        cancelShadow();
-        break;
-    }
-  };
-
-  // The recording ended: play the original line, then the take.
-  useEffect(() => {
-    if (take.phase !== 'ready' || stepRef.current !== 'recording') return;
-    setShadowStep('compare');
-    seekToLine(shadowLine());
-    startPlayback(player);
-    armStop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [take.phase]);
-
-  // The take finished playing: the track sits just before the next line.
-  const wasTakePlaying = useRef(false);
-  useEffect(() => {
-    if (wasTakePlaying.current && !take.takePlaying && stepRef.current === 'compare') setShadowStep('idle');
-    wasTakePlaying.current = take.takePlaying;
-  }, [take.takePlaying, setShadowStep]);
-
   /** Plays one line from its start; in review it stops at the line's end. */
   const playLine = (i: number) => {
-    cancelShadow();
+    if (ladder.active) ladder.stop();
     ended.current = false;
     seekToLine(i);
     startPlayback(player);
     if (review) armStop(i);
   };
   const toggle = () => {
-    if (ladder.active) ladder.stop();
-    if (shadowStep === 'idle' && playing) {
+    const wasActive = ladder.active;
+    if (wasActive) ladder.stop();
+    if (!wasActive && playing) {
       pause();
       return;
     }
@@ -405,7 +303,6 @@ export default function PodcastScreen() {
       playLine(activeLine);
       return;
     }
-    if (shadowStep !== 'idle') cancelShadow();
     if (ended.current) {
       ended.current = false;
       seekToLine(0);
@@ -417,11 +314,11 @@ export default function PodcastScreen() {
   const onLineTap = useCallback((i: number) => playLineRef.current(i), []);
   const onExplain = useCallback(
     (sel: ExplainSelection) => {
-      cancelShadow();
+      ladderRef.current?.stop();
       pause();
       openExplain(sel);
     },
-    [pause, cancelShadow, openExplain],
+    [pause, openExplain],
   );
   const onExplainClose = useCallback(() => setExplainOpen(false), []);
   const onExplainPlay = useCallback(() => onLineTap(activeLine), [onLineTap, activeLine]);
@@ -477,16 +374,6 @@ export default function PodcastScreen() {
     setBlindPopOpen(false);
     setSpeedPopOpen((v) => !v);
   };
-  function shadow(withLine: boolean) {
-    cancelShadow();
-    stopPlayback(player);
-    scheduleAudioSessionRelease();
-    router.push({
-      pathname: '/island/[id]',
-      params: withLine ? { id, line: String(activeLine) } : { id },
-    });
-  }
-
   const language = island?.language ?? 'ja';
 
   // The dock floats over the transcript's bottom, above the home indicator;
@@ -497,22 +384,11 @@ export default function PodcastScreen() {
       <Stack.Screen
         options={{
           title: island?.title ?? '',
-          headerRight: () =>
-            review ? null : (
-            <PressScale
-              onPress={() => shadow(true)}
-              accessibilityRole="button"
-              accessibilityLabel={t('podcast.shadowInstead')}
-              style={styles.headerBtn}>
-              <SymbolView name={{ ios: 'waveform', android: 'graphic_eq' }} size={22} tintColor={tide.text} />
-            </PressScale>
-          ),
         }}
       />
       {error || failed ? (
         <View style={styles.center}>
           <Text style={styles.hint}>{t('podcast.loadFailed')}</Text>
-          <PrismButton shape="pill" verb="speak" label={t('podcast.shadowInstead')} onPress={() => shadow(false)} />
         </View>
       ) : !island || !loaded || (review && !reviewSet) ? (
         <View style={styles.center}>
@@ -526,8 +402,8 @@ export default function PodcastScreen() {
               lineCount={lines.length}
               lines={sceneLines}
               blind={blind}
-              busy={playing || take.phase === 'recording' || countIn !== null}
-              countdown={countIn}
+              busy={playing || take.phase === 'recording' || ladder.dock.countIn !== null}
+              countdown={ladder.dock.countIn}
               sentence={
                 lines[activeLine] ? (
                   <View style={styles.slot}>
@@ -582,20 +458,12 @@ export default function PodcastScreen() {
                   nextDisabled={activeLine >= lines.length - 1}
                   recording={take.phase === 'recording'}
                   level={take.level}
-                  onRecord={onRecord}
+                  onRecord={onDockRecord}
                   face={ladder.dock.face}
                   countIn={ladder.dock.countIn}
                   ringDisabled={ladder.dock.ringDisabled}
                   locked={ladder.active}
-                  recordLabel={review ? ladder.dock.recordLabel : t(
-                    shadowStep === 'count'
-                      ? 'player.cancelCountIn'
-                      : shadowStep === 'recording'
-                        ? 'player.stopRecording'
-                        : shadowStep === 'compare'
-                          ? 'player.stop'
-                          : 'player.recordMyTake',
-                  )}
+                  recordLabel={ladder.dock.recordLabel}
                   speed={speedLive}
                   speedOn={Math.abs(speedLive - snapRate(getSettingsSync().defaultSpeed)) > 0.001}
                   onSpeed={onSpeedChip}
@@ -604,9 +472,9 @@ export default function PodcastScreen() {
                   onTrayToggle={() => setTrayOpen((v) => !v)}
                   onAnchor={onAnchor}
                   slot={
-                    ladder.step !== 'idle' || take.error || saveError || take.phase === 'ready' ? (
+                    (ladder.step !== 'idle' && !ladder.once) || take.error || saveError || take.phase === 'ready' ? (
                       <View style={styles.bottom} pointerEvents="box-none">
-                        {ladder.step !== 'idle' ? <PassStrip {...ladder.strip} onHelp={onPassHelp} /> : null}
+                        {ladder.step !== 'idle' && !ladder.once ? <PassStrip {...ladder.strip} onHelp={onPassHelp} /> : null}
                         {take.error ? <Text style={styles.error}>{take.error}</Text> : null}
                         {saveError ? <Text style={styles.hint}>{saveError}</Text> : null}
                         {take.phase === 'ready' && ladder.step === 'idle' ? (
@@ -661,13 +529,13 @@ export default function PodcastScreen() {
           ) : null}
         </>
       )}
-      {review && island ? (
+      {island ? (
         <PassHelpSheet
-          open={helpOpen}
-          pass={helpPass}
+          open={helpOpen || introOpen}
+          pass={introOpen ? 3 : helpPass}
           learning={island.language ?? 'ja'}
           understood={island.native}
-          onClose={() => setHelpOpen(false)}
+          onClose={onHelpClose}
         />
       ) : null}
       {island && lines.length > 0 ? (
@@ -710,7 +578,6 @@ const styles = StyleSheet.create({
   },
   slot: { position: 'relative' },
   bottom: { alignItems: 'center', gap: Spacing.sm },
-  headerBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   error: {
     fontSize: 14,
     lineHeight: 20,

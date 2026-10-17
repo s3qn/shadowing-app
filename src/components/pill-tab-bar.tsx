@@ -9,7 +9,6 @@ import Animated, {
   type SharedValue,
   useAnimatedReaction,
   useAnimatedStyle,
-  useReducedMotion,
   useSharedValue,
   withSpring,
   withTiming,
@@ -21,15 +20,16 @@ import { useDir } from '@/lib/i18n';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, prism } from '@/constants/theme';
 import {
-  LitPillFill,
-  LitPillRim,
   PILL_H,
   PILL_ICON_OFF,
   PILL_ICON_ON,
   PILL_ICON_SIZE,
   PILL_LABEL_SIZE,
   PILL_PAD_X,
+  PILL_SPRING,
   PillTrayShell,
+  SlidingLitPill,
+  useSlidingPill,
 } from '@/components/prism/pill-tray';
 
 const AnimatedView = Animated.createAnimatedComponent(View);
@@ -96,9 +96,6 @@ const TAB_ICON: Record<string, (props: TabIconProps) => React.ReactElement> = {
   settings: SettingsIcon,
 };
 
-/** Same spring used to slide the lit pill on a tap, and to spring it back to place after a cancelled scrub. */
-const PILL_SPRING = { damping: 18, overshootClamping: true };
-
 /** Which tab's `[x, x + width)` band contains `x`, or null if none (an empty layouts array, or a point past the last tab). Runs on the UI thread. */
 function hitTestIndex(x: number, tabs: Array<{ x: number; width: number }>): number | null {
   'worklet';
@@ -116,7 +113,6 @@ function hitTestIndex(x: number, tabs: Array<{ x: number; width: number }>): num
 export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const { rtl } = useDir();
-  const reducedMotion = useReducedMotion();
 
   const [tabLayouts, setTabLayouts] = useState<Array<{ x: number; width: number }>>([]);
   // The widest tab measured so far, which the lit fill's canvas is drawn at.
@@ -126,9 +122,6 @@ export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps
   // switch) therefore cannot leave it short.
   const [fillWidth, setFillWidth] = useState(0);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  const pillTranslateX = useSharedValue(0);
-  const pillWidth = useSharedValue(0);
-  const litOpacity = useSharedValue(1);
   const layoutsRef = useRef<Array<{ x: number; width: number }>>([]);
 
   // Scrub gesture state, all UI-thread only. `layouts` and `barWidth` mirror
@@ -163,28 +156,9 @@ export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps
     layouts.value = tabLayouts;
   }, [tabLayouts, layouts]);
 
-  // Slide the pill when the active tab or the measured layouts change. The
-  // first placement is instant so the pill does not fly in from x = 0. Also
-  // runs right after a scrub commits a tab switch, since that changes
-  // `state.index` the same way a tap does.
-  const placed = useRef(false);
-  const activeTab = tabLayouts[state.index];
-  useEffect(() => {
-    if (!activeTab) return;
-    if (reducedMotion || !placed.current) {
-      pillTranslateX.value = activeTab.x;
-      pillWidth.value = activeTab.width;
-      placed.current = true;
-      return;
-    }
-    pillTranslateX.value = withSpring(activeTab.x, PILL_SPRING);
-    pillWidth.value = withSpring(activeTab.width, PILL_SPRING);
-  }, [activeTab, reducedMotion, pillTranslateX, pillWidth]);
-
-  const pillAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: pillTranslateX.value }, { scale: 1 + held.value * 0.06 }],
-    width: pillWidth.value,
-  }));
+  // Slides when the active tab or the measured layouts change, including right
+  // after a scrub commits a tab switch (that changes `state.index` like a tap).
+  const { translateX: pillTranslateX, width: pillWidth } = useSlidingPill(tabLayouts[state.index]);
 
   // Fires a tab switch: same haptic and navigate call for a tap and for a
   // committed scrub. Also clears a scrub's hover highlight, since it drove
@@ -279,19 +253,7 @@ export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps
       <PillTrayShell style={styles.bar}>
         <GestureDetector gesture={rowGesture}>
           <View style={styles.barRow} onLayout={handleBarLayout}>
-            <AnimatedView style={[styles.slidingPill, pillAnimatedStyle]}>
-              {/* The fill's own Canvas is drawn at `fillWidth` and held there,
-                  so switching tabs never resizes it (a resize recreates the
-                  Skia canvas and the gradient gaps for a frame). The sliding
-                  container clips it down to the current width as it animates. */}
-              <View style={[styles.litFillBox, { width: fillWidth, height: PILL_H }]}>
-                <LitPillFill width={fillWidth} height={PILL_H} opacity={litOpacity} />
-              </View>
-              {/* Sized to this container's own (animated) width via absoluteFill,
-                  unlike the canvas above, so its right end stays round as the
-                  pill slides to a narrower or wider tab. */}
-              <LitPillRim radius={PILL_H / 2} opacity={litOpacity} held={held} />
-            </AnimatedView>
+            <SlidingLitPill translateX={pillTranslateX} width={pillWidth} fillWidth={fillWidth} held={held} />
             {(rtl ? [...state.routes].reverse() : state.routes).map((route) => {
               const index = state.routes.indexOf(route);
               const options = descriptors[route.key]?.options;
@@ -367,18 +329,6 @@ const styles = StyleSheet.create({
   // gap that used to sit on `bar` itself, since a flex gap only spaces
   // in-flow children and `bar` now wraps a single child (this row).
   barRow: { flexDirection: 'row', gap: Spacing.xs },
-  slidingPill: {
-    position: 'absolute',
-    // Flush with barRow's own edges: barRow has no padding of its own
-    // (unlike the capsule it sits inside), so this needs no inset. `left: 0`
-    // pins the origin that translateX (a tab's onLayout x) counts from.
-    left: 0,
-    top: 0,
-    bottom: 0,
-    borderRadius: PILL_H / 2,
-    overflow: 'hidden',
-  },
-  litFillBox: { position: 'absolute', left: 0, top: 0 },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -10,14 +10,14 @@ import { getSettings, getVoice, toIslandLanguage, toNativeLanguage } from '@/lib
 export default function PhrasesBuildScreen() {
   const { t } = useT();
   const router = useRouter();
-  const { topic, uri } = useLocalSearchParams<{ topic?: string; uri?: string }>();
+  const { topic, uri, point } = useLocalSearchParams<{ topic?: string; uri?: string; point?: string }>();
 
   const [error, setError] = useState('');
   const { stage, follow, stop } = useFollowBuild('/island/[id]', setError);
   const started = useRef(false);
 
   useEffect(() => {
-    if (started.current || (!topic && !uri)) return;
+    if (started.current || (!topic && !uri && !point)) return;
     started.current = true;
     setError('');
     getSettings().then(async (settings) => {
@@ -25,14 +25,18 @@ export default function PhrasesBuildScreen() {
       const voice = await getVoice(learningLanguage);
       const language = toIslandLanguage(learningLanguage);
       const native = toNativeLanguage(understoodLanguage);
-      (uri ? api.createTopicIsland(uri, voice, language, native) : api.importPhrases(topic!, voice, language, native))
+      (point
+        ? api.importGrammar(point, voice, native)
+        : uri
+          ? api.createTopicIsland(uri, voice, language, native)
+          : api.importPhrases(topic!, voice, language, native))
         .then(({ id }) => follow(id))
         .catch((e) => {
           setError(e instanceof Error ? e.message : t('home.phrasesError'));
         });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topic, uri]);
+  }, [topic, uri, point]);
 
   function cancel() {
     stop();

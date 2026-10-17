@@ -8,7 +8,7 @@ export const en = {
   'record.topic.title.idle': 'Say a topic',
   'record.topic.title.recording': 'Listening…',
   'record.topic.title.review': 'Your topic',
-  'record.topic.hint': "Say a topic, like 'phrases for the gym'",
+  'record.topic.hint': "Say a topic, like 'phrases for the gym', or a grammar point, like ながら",
   'record.topic.build': 'Build phrases',
   'record.promptHint':
     'Speak Hebrew or English, whichever comes naturally. What you say becomes {language} sentences about your own life, so use real names and real places.',

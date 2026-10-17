@@ -57,6 +57,12 @@ export type Register = (typeof REGISTER_OPTIONS)[number];
 export const DEFAULT_REGISTER: Register = 'polite';
 
 const DEFAULT_DEFAULT_SPEED = 1;
+export const GRAMMAR_LEVELS = ['N5', 'N4', 'N3', 'N2', 'N1'] as const;
+export type GrammarLevel = (typeof GRAMMAR_LEVELS)[number];
+export function isGrammarLevel(v: unknown): v is GrammarLevel {
+  return typeof v === 'string' && (GRAMMAR_LEVELS as readonly string[]).includes(v);
+}
+const DEFAULT_GRAMMAR_LEVEL: GrammarLevel | null = null;
 // Written with every settings file. A file without it predates the 1.0
 // default speed, so a stored 0.5 there is the old default, not a choice.
 const SETTINGS_VERSION = 1;
@@ -107,6 +113,8 @@ export type Settings = {
   programme: Programme;
   /** Playback speed a new island's player opens at, `SPEED_MIN`-`SPEED_MAX`. */
   defaultSpeed: number;
+  /** JLPT level the Phrases grammar rail last settled on. Null until the learner picks one. */
+  grammarLevel: GrammarLevel | null;
   /** Plays per line a new island's player opens with. */
   defaultTimes: number;
   /** Pause after each play a new island's player opens with. */
@@ -154,6 +162,7 @@ const DEFAULTS: Settings = {
   autoRecord: true,
   programme: 'ladder',
   defaultSpeed: DEFAULT_DEFAULT_SPEED,
+  grammarLevel: DEFAULT_GRAMMAR_LEVEL,
   defaultTimes: DEFAULT_DEFAULT_TIMES,
   defaultPauseMs: DEFAULT_DEFAULT_PAUSE,
   dailyGoalMinutes: DEFAULT_DAILY_GOAL,
@@ -268,6 +277,7 @@ async function read(): Promise<Settings> {
           ? DEFAULT_DEFAULT_SPEED
           : parsed.defaultSpeed
         : DEFAULT_DEFAULT_SPEED,
+    grammarLevel: isGrammarLevel(parsed.grammarLevel) ? parsed.grammarLevel : DEFAULT_GRAMMAR_LEVEL,
     defaultTimes: isTimes(parsed.defaultTimes)
       ? parsed.defaultTimes
       : typeof parsed.defaultTimes === 'number' && parsed.defaultTimes > TIMES_MAX
@@ -432,6 +442,10 @@ export async function setProgramme(programme: Programme): Promise<void> {
 
 export async function setDefaultSpeed(defaultSpeed: number): Promise<void> {
   await update({ defaultSpeed });
+}
+
+export async function setGrammarLevel(grammarLevel: GrammarLevel): Promise<void> {
+  await update({ grammarLevel });
 }
 
 export async function setDefaultTimes(defaultTimes: number): Promise<void> {

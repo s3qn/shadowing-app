@@ -81,6 +81,8 @@ const REVEAL_MS = 180;
 // line: the tide rises from WL_MAX to WL_MIN as lineIndex approaches the end.
 const WL_MAX = 0.62;
 const WL_MIN = 0.42;
+// The pinned slot's top as a share of the scene (GR2-B3: 131 of a 665 scene).
+const PIN_TOP = 0.2;
 
 type Props = {
   lineIndex: number;
@@ -98,6 +100,8 @@ type Props = {
   sentence: ReactNode;
   /** Just under the waterline: the PhraseBar. */
   below?: ReactNode;
+  /** Held still above the card while lines change (a grammar island's tag). */
+  pinned?: ReactNode;
   scrollRef: RefObject<ScrollView | null>;
   /** A dim line was tapped: the screen should jump to it and start playing. */
   onLineTap: (i: number) => void;
@@ -140,6 +144,7 @@ export const TideScene = memo(function TideScene({
   banner,
   sentence,
   below,
+  pinned,
   scrollRef,
   onLineTap,
   instantReveal,
@@ -611,6 +616,11 @@ export const TideScene = memo(function TideScene({
           style={sceneH > 0 ? { top: 0.4 * sceneH, bottom: 0.34 * sceneH + inset } : { top: '40%', bottom: '34%' }}
           onJump={tapLine}
         />
+        {pinned ? (
+          <View style={[styles.pinned, sceneH > 0 ? { top: PIN_TOP * sceneH } : { top: '20%' }]} pointerEvents="none">
+            {pinned}
+          </View>
+        ) : null}
       </Animated.View>
       {banner ? (
         <View style={[StyleSheet.absoluteFill, styles.bannerWrap, { paddingBottom: inset }]} pointerEvents="box-none">
@@ -834,6 +844,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,158,128,0.18)',
     fontVariant: ['tabular-nums'],
   },
+  pinned: { position: 'absolute', left: 16, right: 44, zIndex: 4 },
   bannerWrap: {
     zIndex: 5,
   },

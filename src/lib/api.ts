@@ -73,6 +73,8 @@ export type Line = {
   offset?: number;
   /** Tatoeba sentence id when the line came from the corpus (voice topics). */
   tatoeba_id?: number | null;
+  /** Grammar islands: the exact piece of `ja` that realises the point, '' when none. */
+  span?: string;
 };
 
 export type SpeakerStyle = { id: number; name: string; icon: string };
@@ -82,7 +84,7 @@ export type Speaker = { uuid: string; name: string; policy: string; styles: Spea
 export type NativeLanguage = 'he' | 'en';
 
 /** How an island was made. */ // youtube-shadowing
-export type IslandSource = 'voice' | 'phrases' | 'import' | 'podcast' | 'youtube';
+export type IslandSource = 'voice' | 'phrases' | 'import' | 'podcast' | 'youtube' | 'grammar';
 
 export type IslandSummary = {
   id: string;
@@ -124,6 +126,8 @@ export type Island = IslandSummary & {
    * re-voiced or regenerated. Absent in a local copy saved before the client
    * read it. */
   source?: IslandSource;
+  /** The grammar point id on a grammar island. */
+  source_name?: string;
 };
 
 /** Why an island failed, in the reader's language. Falls back to the English
@@ -219,6 +223,53 @@ export async function health(): Promise<boolean> {
     return false;
   }
 }
+
+export type ReviewVerdict = 'accept' | 'fix' | 'remove';
+export type ReviewStep = {
+  id: string;
+  title: string;
+  route: string;
+  params?: Record<string, string>;
+  checks: string[];
+  chips?: string[];
+  verdict: ReviewVerdict | null;
+  vchips: string[];
+};
+export type ReviewTour = { wave: string; steps: ReviewStep[] };
+
+/** Dev review tour: null on 404 or any error (prod, or no tour file). */
+export async function getReview(): Promise<ReviewTour | null> {
+  try {
+    const res = await fetch(`${BASE}/dev/review`, { headers: headers() });
+    return res.ok ? ((await res.json()) as ReviewTour) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function postVerdict(body: { wave: string; id: string; verdict: ReviewVerdict; chips: string[] }): Promise<void> {
+  await fetch(`${BASE}/dev/review/verdict`, {
+    method: 'POST',
+    headers: { ...headers(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).catch(() => undefined);
+}
+
+async function postReviewFile(kind: 'voice' | 'shot', wave: string, id: string, uri: string, name: string): Promise<boolean> {
+  try {
+    const form = new FormData();
+    form.append('wave', wave);
+    form.append('id', id);
+    form.append('file', new File(uri), name);
+    const res = await expoFetch(`${BASE}/dev/review/${kind}`, { method: 'POST', headers: headers(), body: form });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export const postVoiceNote = (wave: string, id: string, uri: string) => postReviewFile('voice', wave, id, uri, 'note.m4a');
+export const postShot = (wave: string, id: string, uri: string) => postReviewFile('shot', wave, id, uri, 'shot.jpg');
 
 export async function listIslands(): Promise<IslandSummary[]> {
   return json<IslandSummary[]>(await fetch(`${BASE}/islands`, { headers: headers() }));
@@ -749,6 +800,59 @@ export async function importPhrases(
 
   return json<{ id: string }>(
     await expoFetch(`${BASE}/phrases/import`, { method: 'POST', headers: headers(), body: form }),
+  );
+}
+
+// --- grammar-islands ---
+export type GrammarPoint = {
+  id: string;
+  pattern: string;
+  reading: string;
+  level: string;
+  level_guess: number;
+  meaning_short: string;
+  added?: boolean;
+};
+
+/** Levels the backend has grammar for. Empty (or a failure) when it has no grammar.db. */
+export async function grammarLevels(): Promise<{ level: string; count: number }[]> {
+  const res = await json<{ levels: { level: string; count: number }[] }>(
+    await fetch(`${BASE}/grammar/levels`, { headers: headers() }),
+  );
+  return res.levels;
+}
+
+export async function grammarPoints(level: string, q = ''): Promise<GrammarPoint[]> {
+  const res = await json<{ points: GrammarPoint[] }>(
+    await fetch(`${BASE}/grammar/points?level=${encodeURIComponent(level)}&q=${encodeURIComponent(q)}`, {
+      headers: headers(),
+    }),
+  );
+  return res.points;
+}
+
+/** One grammar point by id, or null when the backend has no such point. */
+export async function grammarPoint(id: string): Promise<GrammarPoint | null> {
+  const res = await json<{ points: GrammarPoint[] }>(
+    await fetch(`${BASE}/grammar/points?point=${encodeURIComponent(id)}`, { headers: headers() }),
+  );
+  return res.points[0] ?? null;
+}
+
+/** Add a grammar point as a build-up island. A repeat pick returns the existing island. Poll getIsland until ready. */
+export async function importGrammar(
+  point: string,
+  speaker: number,
+  native: NativeLanguage = 'en',
+  register: Register = 'polite',
+): Promise<{ id: string }> {
+  const form = new FormData();
+  form.append('point', point);
+  form.append('speaker', String(speaker));
+  form.append('register', register);
+  form.append('native', native);
+  return json<{ id: string }>(
+    await expoFetch(`${BASE}/grammar/import`, { method: 'POST', headers: headers(), body: form }),
   );
 }
 

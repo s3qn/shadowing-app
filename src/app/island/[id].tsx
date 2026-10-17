@@ -56,7 +56,7 @@ import { ExplainSheet } from '@/components/explain-sheet';
 import { PhraseBar } from '@/components/phrase-bar';
 import { Frost } from '@/components/frost';
 import { type RingMode } from '@/components/ring-button';
-import { RubyWord } from '@/components/ruby-word';
+import { GRAMMAR_LILAC, RubyWord } from '@/components/ruby-word';
 import { SELECTION_HANDLE_CLEARANCE, SelectionHandles } from '@/components/selection-handles';
 import { SELECTION_POPUP_WIDTH, SelectionPopup } from '@/components/selection-popup';
 import { useWordHighlight } from '@/components/word-highlight';
@@ -90,7 +90,7 @@ import { requestLoader } from '@/lib/loading-overlay';
 import { useIslandExport } from '@/hooks/use-island-export';
 import { getLastLine, peekLastLine, resumeLine, setLastLine } from '@/lib/last-line';
 import { useSkyStyle } from '@/lib/sky';
-import { usePhrase, type PhraseSpan } from '@/hooks/use-phrase';
+import { textSpanToWords, usePhrase, type PhraseSpan } from '@/hooks/use-phrase';
 import { useLineStatus } from '@/hooks/use-line-status';
 import { usePracticeClock } from '@/hooks/use-practice-clock';
 import { TAIL_MS, useTake, WATCHDOG_FALLBACK_MS, type TakeMode } from '@/hooks/use-take';
@@ -530,6 +530,43 @@ export default function IslandScreen() {
     onError: setError,
   });
   const phrase = usePhrase(lineKey, line, speed);
+  // Grammar island: the point's level for the tag above the card (GR2-B3).
+  const isGrammar = island?.source === 'grammar';
+  const grammarId = isGrammar ? island?.source_name : undefined;
+  const [grammarPoint, setGrammarPoint] = useState<api.GrammarPoint | null>(null);
+  useEffect(() => {
+    if (!grammarId) return;
+    let live = true;
+    api
+      .grammarPoint(grammarId)
+      .then((p) => {
+        if (live) setGrammarPoint(p);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [grammarId]);
+  const grammarLevel = grammarPoint?.level ? `${grammarPoint.level_guess ? '~' : ''}${grammarPoint.level}` : '';
+  const grammarMeaning = grammarPoint?.meaning_short ?? '';
+  const islandTitle = island?.title ?? '';
+  // Pinned above the card, outside `sentence`, so it stays put as lines change.
+  const grammarTag = useMemo(() => {
+    if (!isGrammar || !grammarId) return null;
+    const label = [`～${grammarId}`, grammarMeaning || islandTitle].filter(Boolean).join(' · ');
+    return (
+      <View style={styles.gTag} accessibilityLabel={[grammarLevel, label].filter(Boolean).join(' · ')}>
+        {grammarLevel ? (
+          <View style={styles.gChip}>
+            <Text style={styles.gChipText}>{grammarLevel}</Text>
+          </View>
+        ) : null}
+        <Text style={styles.gTagText} numberOfLines={1}>
+          {grammarLevel ? ` · ${label}` : label}
+        </Text>
+      </View>
+    );
+  }, [isGrammar, grammarId, grammarLevel, grammarMeaning, islandTitle]);
   // The line audio the player should hold. A string, so a new island object
   // with the same audio (a rename) is not a new source.
   // A pause change is a new pad and so a new URL, and a playing line restarts
@@ -3082,6 +3119,7 @@ export default function IslandScreen() {
     // Chunks for the wordless fallback's per-character reveal and the
     // English strip's per-word reveal.
     const jaChars = Array.from(line.ja);
+    const gSpan = isGrammar ? textSpanToWords(line, line.span) : null;
     const enWords = line.en ? line.en.split(' ') : [];
 
     // The sentence sits on the waterline: the tappable block when words are
@@ -3129,6 +3167,7 @@ export default function IslandScreen() {
                           highlight={highlight}
                           concealed={!sharp}
                           selected={false}
+                          grammar={!!gSpan && i >= gSpan.from && i <= gSpan.to}
                           dimmed={!!phrase.span && (i < phrase.span.from || i > phrase.span.to)}
                           mark={marks && marks[i] !== 'ok' && marks[i] !== 'none' ? marks[i] : null}
                           pitch={pitches?.[i]}
@@ -3150,6 +3189,7 @@ export default function IslandScreen() {
                             highlight={highlight}
                             concealed={hidden}
                             selected={i === selected || (!!dragSpan && i >= dragSpan.from && i <= dragSpan.to)}
+                            grammar={!!gSpan && i >= gSpan.from && i <= gSpan.to}
                             dimmed={!!phrase.span && (i < phrase.span.from || i > phrase.span.to)}
                             mark={marks && marks[i] !== 'ok' && marks[i] !== 'none' ? marks[i] : null}
                             pitch={pitches?.[i]}
@@ -3279,6 +3319,7 @@ export default function IslandScreen() {
     );
   }, [
     t,
+    isGrammar,
     line,
     blind,
     hidden,
@@ -3601,6 +3642,7 @@ export default function IslandScreen() {
           banner={banner}
           sentence={sentence}
           below={below}
+          pinned={grammarTag}
           scrollRef={scrollRef}
           onLineTap={onLineTap}
           instantReveal={coverUpNow}
@@ -3873,6 +3915,20 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: Spacing.xl, gap: Spacing.lg, flexGrow: 1, justifyContent: 'center' },
   ja: { fontFamily: fonts.serifJp, fontSize: 26, lineHeight: 38, textAlign: 'center', color: tide.text },
+  gTag: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 30,
+    paddingLeft: 5,
+    paddingRight: 12,
+    borderRadius: 15,
+    backgroundColor: 'rgba(185,166,255,0.16)',
+  },
+  gChip: { height: 20, paddingHorizontal: 7, borderRadius: 10, justifyContent: 'center', backgroundColor: 'rgba(185,166,255,0.28)' },
+  gChipText: { fontFamily: fonts.uiMedium, fontSize: 11, fontWeight: '700', color: GRAMMAR_LILAC },
+  gTagText: { fontFamily: fonts.uiMedium, fontSize: 12.5, fontWeight: '600', color: GRAMMAR_LILAC, flexShrink: 1 },
   activeCard: {
     borderRadius: Radius.lg,
     borderWidth: StyleSheet.hairlineWidth,

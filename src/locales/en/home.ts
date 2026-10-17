@@ -109,5 +109,11 @@ export const en = {
   'phrases.micLabel': 'Say a topic',
   'phrases.topicHint': 'Making phrases about what you said. Under a minute.',
   'phrases.added': 'Added',
+  'phrases.tabPhrases': 'Phrases',
+  'phrases.tabGrammar': 'Grammar',
+  'phrases.flipHint': '‹ drag sideways to flip ›',
+  'phrases.grammarSearch': 'Search grammar by pattern, reading or meaning',
+  'phrases.grammarSearchClear': 'Clear search',
+  'phrases.grammarNoMatch': 'No grammar point matches that',
   'home.phrasesBuildHint': 'This takes under a minute. You can close this screen, the island keeps building and appears in your list when it is ready.',
 };

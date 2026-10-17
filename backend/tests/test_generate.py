@@ -408,3 +408,29 @@ def test_src_maps_to_tatoeba_id(monkeypatch):
     monkeypatch.setattr(generate.subprocess, "run", _cli_ok(out))
     lines = generate.generate_lines("gym", seed=SEED)["lines"]
     assert [ln["tatoeba_id"] for ln in lines] == [902, None, None]
+
+
+def test_generate_grammar_prompt_parse_and_span(monkeypatch):
+    seen = {}
+    reply = json.dumps({"title": "ながら", "lines": [
+        {"ja": "歩きながら話す。", "kana": "", "romaji": "", "en": "a", "span": "ながら", "src": 1},
+        {"ja": "走る。", "kana": "", "romaji": "", "en": "b", "span": "ながら"},
+        {"ja": "", "en": "skipped"},
+    ]})
+
+    def fake(prompt, tag):
+        seen["prompt"] = prompt
+        return reply
+
+    monkeypatch.setattr(generate, "_run_cli", fake)
+    point = {"pattern": "AながらB", "reading": "ながら", "level": "N4", "connection": "Vます stem"}
+    out = generate.generate_grammar(point, [{"id": 9, "text": "座りながら食べる。", "en": "x"}])
+    assert "AながらB" in seen["prompt"] and "座りながら食べる。" in seen["prompt"]
+    assert [ln["span"] for ln in out["lines"]] == ["ながら", ""]
+    assert out["lines"][0]["tatoeba_id"] == 9
+    assert out["title"] == "ながら"
+
+
+def test_generate_grammar_cli_failure_is_empty(monkeypatch):
+    monkeypatch.setattr(generate, "_run_cli", lambda *a: None)
+    assert generate.generate_grammar({"pattern": "x"}) == {"title": "", "lines": []}

@@ -42,6 +42,8 @@ export type LadderIo = {
   stop: () => void;
   /** The line's ladder finished (after Compare played the take back). */
   onLineDone: () => void;
+  /** The single pass is over: let the track play on from the next line. */
+  resume?: () => void;
   /** Move to the next line; false when there is none. */
   advance: () => boolean;
 };
@@ -66,9 +68,12 @@ export function useLadder(
   base: number,
   lineSec: number,
   io: LadderIo,
+  opts?: { onRecordStart?: 'ladder' | 'once' },
 ): {
   step: PassStep;
   active: boolean;
+  /** True while a single in-place pass runs, not the full ladder. */
+  once: boolean;
   start: () => void;
   stop: () => void;
   lineFinished: () => void;
@@ -92,10 +97,16 @@ export function useLadder(
   const startedAt = useRef(0);
   const starting = useRef(false);
   const wasPlaying = useRef(false);
+  const once = useRef(false);
+  const [onceOn, setOnceOn] = useState(false);
   // Timers and effects read the latest render's values through this.
   const live = useRef({ take, base, lineSec, io, autoEcho, autoRecord });
   live.current = { take, base, lineSec, io, autoEcho, autoRecord };
 
+  const setOnce = (v: boolean) => {
+    once.current = v;
+    setOnceOn(v);
+  };
   const setStep = (next: PassStep) => {
     stepRef.current = next;
     setStepState(next);
@@ -115,6 +126,13 @@ export function useLadder(
     if (playTimer.current) clearTimeout(playTimer.current);
     playTimer.current = null;
     const l = live.current;
+    if (once.current) {
+      // A casual single pass earns nothing; the track plays on.
+      setOnce(false);
+      setStep('idle');
+      l.io.resume?.();
+      return;
+    }
     setResult({ id: Date.now(), tier: resultTier(null, l.take.takeDuration, l.lineSec) });
     l.io.onLineDone();
     if (l.autoEcho) {
@@ -145,6 +163,7 @@ export function useLadder(
 
   const start = () => {
     clearTimers();
+    setOnce(false);
     setResult(null);
     setStep('ladderListen');
     live.current.io.playLine(live.current.base);
@@ -152,6 +171,7 @@ export function useLadder(
 
   const stop = () => {
     clearTimers();
+    setOnce(false);
     starting.current = false;
     setStopping(false);
     setStep('idle');
@@ -223,6 +243,14 @@ export function useLadder(
     beat(COUNT_IN_BEATS);
   };
 
+  // One shadow pass on the current line: count in, record under the line, Compare.
+  const startShadowOnce = () => {
+    clearTimers();
+    setResult(null);
+    setOnce(true);
+    countInThenSpeak();
+  };
+
   // A tap on a mark: that pass on this line. A count or a take in progress is dropped first.
   const jumpTo = (i: number) => {
     const { take: tk, io: o, base: b } = live.current;
@@ -250,7 +278,13 @@ export function useLadder(
 
   const onRecord = () => {
     const cur = stepRef.current;
-    if (cur === 'idle') start();
+    if (once.current) {
+      if (isSpeakStep(cur)) {
+        setStopping(true);
+        void live.current.take.finishNow();
+      } else stop();
+    } else if (cur === 'idle' && opts?.onRecordStart === 'once') startShadowOnce();
+    else if (cur === 'idle') start();
     else if (cur === 'done') start();
     else if (isSpeakStep(cur)) {
       setStopping(true);
@@ -310,6 +344,7 @@ export function useLadder(
   return {
     step,
     active: step !== 'idle' && step !== 'done',
+    once: onceOn,
     start,
     stop,
     lineFinished,
@@ -330,14 +365,18 @@ export function useLadder(
         countIn !== null
           ? 'player.cancelCountIn'
           : step === 'idle'
-            ? 'player.startLadder'
+            ? opts?.onRecordStart === 'once'
+              ? 'player.recordMyTake'
+              : 'player.startLadder'
             : step === 'done'
               ? 'player.startAgain'
               : isSpeakStep(step)
                 ? 'player.stopRecording'
-                : isArmedStep(step)
-                  ? 'player.record'
-                  : 'player.recordNow',
+                : onceOn
+                  ? 'player.stop'
+                  : isArmedStep(step)
+                    ? 'player.record'
+                    : 'player.recordNow',
       ),
       ringDisabled: countIn !== null || isSpeakStep(step) || isPlayStep(step),
       onRecord,

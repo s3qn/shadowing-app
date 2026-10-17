@@ -11,7 +11,7 @@ export const he = {
   'record.topic.title.idle': 'להגיד נושא',
   'record.topic.title.recording': 'מקשיב…',
   'record.topic.title.review': 'הנושא שלך',
-  'record.topic.hint': "להגיד נושא, למשל 'ביטויים לחדר כושר'",
+  'record.topic.hint': "להגיד נושא, למשל 'ביטויים לחדר כושר', או נקודת דקדוק, למשל ながら",
   'record.topic.build': 'בניית ביטויים',
   'record.promptHint':
     'אפשר לדבר בעברית או באנגלית, איך שנוח. מה שאומרים הופך למשפטים ב{language} על החיים שלך, אז כדאי להשתמש בשמות ובמקומות אמיתיים.',

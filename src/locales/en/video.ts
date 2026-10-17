@@ -25,6 +25,7 @@ export const en = {
   'video.err.captions_failed': 'Could not read the captions for this video.',
   'api.no_captions': 'This video has no captions, so it cannot be built.',
   'api.captions_invalid': 'Could not read the captions for this video.',
+  'stage.correcting': 'Correcting…',
   'stage.aligning': 'Aligning…',
   'video.watch': 'Watch the video',
   'api.youtube_bad_link': 'That is not a YouTube link.',

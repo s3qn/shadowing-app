@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS lines (
   words       TEXT NOT NULL DEFAULT '[]',
   offset      REAL NOT NULL DEFAULT 0,
   tatoeba_id  INTEGER,
+  span        TEXT NOT NULL DEFAULT '',
   PRIMARY KEY (island_id, idx),
   FOREIGN KEY (island_id) REFERENCES islands(id) ON DELETE CASCADE
 );
@@ -137,6 +138,9 @@ def init() -> None:
         # Databases created before voice topics lack the Tatoeba sentence id.
         if "tatoeba_id" not in cols:
             conn.execute("ALTER TABLE lines ADD COLUMN tatoeba_id INTEGER")
+        # Databases created before grammar islands lack the drilled span.
+        if "span" not in cols:
+            conn.execute("ALTER TABLE lines ADD COLUMN span TEXT NOT NULL DEFAULT ''")
         # Databases created before the speech register choice existed lack it.
         island_cols = {row["name"] for row in conn.execute("PRAGMA table_info(islands)")}
         if "register" not in island_cols:
@@ -227,6 +231,15 @@ def set_ready(island_id: str, title: str) -> None:
         )
 
 
+def set_source(island_id: str, source: str, source_name: str) -> None:
+    """Re-label an island's origin (the mic found a grammar point)."""
+    with connect() as conn:
+        conn.execute(
+            "UPDATE islands SET source=?, source_name=? WHERE id=?",
+            (source, source_name, island_id),
+        )
+
+
 def set_title(island_id: str, title: str) -> None:
     with connect() as conn:
         conn.execute(
@@ -241,8 +254,8 @@ def add_line(island_id: str, idx: int, line: dict, duration: float, timeline: li
         conn.execute(
             "INSERT OR REPLACE INTO lines"
             " (island_id, idx, ja, kana, romaji, en, duration, timeline, words, offset,"
-            " tatoeba_id)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            " tatoeba_id, span)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 island_id,
                 idx,
@@ -255,6 +268,7 @@ def add_line(island_id: str, idx: int, line: dict, duration: float, timeline: li
                 json.dumps(words or [], ensure_ascii=False),
                 offset,
                 line.get("tatoeba_id"),
+                line.get("span", ""),
             ),
         )
 
@@ -526,6 +540,12 @@ def claim_align(island_id: str, max_attempts: int) -> bool:
             (island_id, max_attempts),
         )
     return cur.rowcount == 1
+
+
+def island_status(island_id: str) -> str | None:
+    with connect() as conn:
+        row = conn.execute("SELECT status FROM islands WHERE id=?", (island_id,)).fetchone()
+    return row["status"] if row else None
 
 
 def list_align_pending() -> list[str]:

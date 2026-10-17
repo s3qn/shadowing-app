@@ -261,6 +261,11 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - BL-40 declog sweep
 - ET-7 landscape sheet crash
 - BL-50 Beta Tester Hat
+- BL-43 grammar islands
+- BL-46 podcast shadow in place
+- BL-45 subtitle quality pipeline phase 1
+- BL-47 animations A1 A7 A10
+- Dev review tour
 
 ## Next (approved, in order)
 

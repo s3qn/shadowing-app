@@ -95,8 +95,8 @@ def test_build_from_captions_makes_a_ready_island_without_audio(monkeypatch):
     iid = store.create_island("simple", 3, source="youtube", source_name=VID, device=DEV)
     store.add_video(iid, VID, 0.0, "Clip", "")
     cues = [
-        {"start": 1.5, "end": 3.0, "text": "こんにちは", "words": []},
-        {"start": 4.0, "end": 6.5, "text": "さようなら", "words": []},
+        {"start": 1.5, "end": 3.0, "text": "こんにちは"},
+        {"start": 4.0, "end": 6.5, "text": "さようなら"},
     ]
     asyncio.run(main._build_from_captions(iid, cues, "Clip"))
     island = store.get_island(iid)
@@ -106,6 +106,14 @@ def test_build_from_captions_makes_a_ready_island_without_audio(monkeypatch):
     assert island["lines"][0]["en"] == "en こんにちは"
     assert not store.line_audio_path(iid, 0).exists()
     assert store.get_video(iid)["duration"] == 6.5
+
+
+def test_route_asr_only_when_an_event_has_tOffsetMs():
+    asr_ev = {"tStartMs": 0, "dDurationMs": 2000, "segs": [{"utf8": "こん", "tOffsetMs": 0}, {"utf8": "にちは", "tOffsetMs": 900}]}
+    _, bg = _post(_good(events=[asr_ev]))
+    assert bg.tasks[0].args[-1] is True
+    _, bg = _post(_good())
+    assert bg.tasks[0].args[-1] is False
 
 
 def _post(body, device=None, raw=None):

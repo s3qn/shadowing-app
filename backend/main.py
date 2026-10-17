@@ -44,6 +44,8 @@ from pydantic import BaseModel
 load_dotenv()
 
 import corpus  # voice-topic
+import dev_review
+import grammar
 import cues
 import explain
 import export
@@ -120,6 +122,8 @@ app.add_middleware(
 
 app.include_router(schedule.router)
 app.include_router(suggest.router)
+if dev_review.enabled():
+    app.include_router(dev_review.router)
 
 
 def require_token(authorization: str | None) -> None:
@@ -509,6 +513,31 @@ async def _synthesize_lines(island_id: str, lines: list[dict], speaker: int,
     return done
 
 
+async def _build_grammar(island_id: str, point: dict, speaker: int,
+                         register: str = "polite", native: str = "en") -> None:
+    """Build-up lines for one grammar point (picked or heard on the mic).
+    The caller owns the try/except and the island row."""
+    store.set_stage(island_id, "writing")
+    alts = [a for a in re.split(r"[・/／]", point["pattern"].replace("～", "").replace("〜", ""))
+            if a.strip()]
+    seed = await asyncio.to_thread(
+        corpus.search, "ja", [*alts, point["reading"]], "complex", 12)
+    generated = await asyncio.to_thread(
+        generate.generate_grammar, point, seed, register, native)
+    lines = generated.get("lines") or []
+    if not lines:
+        store.set_failed(island_id, "No lines could be generated.", "no_lines")
+        return
+    store.set_stage(island_id, "speaking")
+    made = await _synthesize_lines(island_id, lines, speaker, "ja")
+    if made == 0:
+        store.set_failed(island_id, "The voice engine produced no audio.", "voice_no_audio")
+        return
+    title = point["pattern"] + (f" · {point['meaning_short']}" if point.get("meaning_short") else "")
+    store.set_ready(island_id, title)
+    log.info("island %s ready: %d grammar lines", island_id, made)
+
+
 async def _build_island(island_id: str, audio_path: Path, complexity: str,
                         speaker: int, count: int, register: str = "polite",
                         learning: str = "ja", native: str = "en",
@@ -533,6 +562,13 @@ async def _build_island(island_id: str, audio_path: Path, complexity: str,
         # voice-topic: expand the spoken topic into keywords, pull real
         # Tatoeba sentences as seeds for the generator.
         seed = None
+        if topic and learning == "ja":
+            # A whole-string match on a grammar point switches modes.
+            point = await asyncio.to_thread(grammar.match, text)
+            if point:
+                store.set_source(island_id, "grammar", point["id"])
+                await _build_grammar(island_id, point, speaker, register, native)
+                return
         if topic:
             store.set_stage(island_id, "writing")
             keywords = await asyncio.to_thread(generate.expand_topic, text, learning)
@@ -2128,6 +2164,80 @@ async def import_phrases(
     return {"id": island_id, "status": "pending"}
 
 
+# --- grammar-islands ---
+@app.get("/shadow/grammar/levels")
+def grammar_levels(authorization: str | None = Header(None),
+                   x_shadow_device: str = Header("")) -> dict:
+    require_token(authorization)
+    _require_device(x_shadow_device)
+    return {"levels": grammar.levels()}
+
+
+@app.get("/shadow/grammar/points")
+def grammar_points(level: str = "", q: str = "",
+                   authorization: str | None = Header(None),
+                   x_shadow_device: str = Header(""), point: str = "") -> dict:
+    """Points for a level or a search; `point` reads that one id directly."""
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    if point:
+        row = grammar.get(point)
+        points = [row] if row else []
+    else:
+        points = grammar.search(q) if q.strip() else grammar.list_points(level)
+    if level and q.strip():
+        points = [p for p in points if p["level"] == level]
+    added = {
+        i["source_name"] for i in store.list_islands(device)
+        if i["source"] == "grammar" and i["status"] != "failed"
+    }
+    return {"points": [{**p, "added": p["id"] in added} for p in points]}
+
+
+@app.post("/shadow/grammar/import")
+async def import_grammar(
+    background: BackgroundTasks,
+    point: str = Form(...),
+    speaker: int = Form(voicevox.DEFAULT_SPEAKER),
+    register: str = Form("polite"),
+    native: str = Form("en"),
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    """Add a grammar point as an island; a repeat pick returns the existing one."""
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    if register not in generate.REGISTER_RULES:
+        raise HTTPException(400, "register must be 'polite' or 'casual'")
+    if native not in ("he", "en"):
+        raise HTTPException(400, "native must be 'he' or 'en'")
+    if voices.language_for(speaker) != "ja":
+        raise HTTPException(400, "that voice does not speak Japanese")
+    row = grammar.get(point)
+    if row is None:
+        raise HTTPException(404, f"no such grammar point: {point}")
+    for existing in store.list_islands(device):
+        if (existing["source"] == "grammar" and existing["status"] != "failed"
+                and existing["source_name"] == row["id"]):
+            return {"id": existing["id"], "status": existing["status"]}
+
+    _take_build_slot(device, "create")
+    island_id = store.create_island(
+        "simple", speaker, register, "ja", native=native, source="grammar",
+        source_name=row["id"], device=device,
+    )
+
+    async def run() -> None:
+        try:
+            await _build_grammar(island_id, row, speaker, register, native)
+        except Exception as exc:
+            log.exception("island %s failed", island_id)
+            store.set_failed(island_id, str(exc))
+
+    background.add_task(run)
+    return {"id": island_id, "status": "pending"}
+
+
 # --- offline-islands ---
 
 
@@ -2181,11 +2291,29 @@ async def youtube_info(url: str, authorization: str | None = Header(None),
     }
 
 
-async def _build_from_captions(island_id: str, cue_list: list[dict], title: str,
-                               language: str = "ja", native: str = "en") -> None:
+async def _build_from_captions(island_id: str, lines: list[dict], title: str,
+                               language: str = "ja", native: str = "en", asr: bool = False) -> None:
     """Build a video island from caption lines. No audio exists, so lines get
-    their reading and word times from the json3 seg onsets (an even pace when the track has none), with `offset` = the caption start."""
+    their reading and word times from the json3 seg onsets (an even pace when the track has none), with `offset` = the caption start.
+    ASR ja tracks are corrected first, ja lines are split at clause ends."""
     try:
+        if asr and language == "ja":
+            store.set_stage(island_id, "correcting")
+            try:
+                candidates = await asyncio.to_thread(generate.correct_lines, [ln["text"] for ln in lines])
+                fixed, qa = youtube.apply_corrections(lines, candidates)
+                done = sum(1 for q in qa if q["accepted"])
+                log.info("island %s corrections: %d accepted of %d candidates", island_id, done, len(qa))
+                path = store.AUDIO_DIR / island_id / "corrections.json"
+                blob = json.dumps({"island": island_id, "asr": asr, "lines": len(fixed), "entries": qa},
+                                  ensure_ascii=False, indent=1)
+                await asyncio.to_thread(lambda: (path.parent.mkdir(parents=True, exist_ok=True), path.write_text(blob)))
+                lines = fixed
+            except Exception:
+                log.exception("island %s corrections failed, keeping the caption text", island_id)
+        if language == "ja":
+            lines = youtube.split_lines(lines)
+        cue_list = youtube.cues_from_lines(lines)
         store.set_stage(island_id, "aligning")
         ja_texts: list[str] = []
         last_end = 0.0
@@ -2204,20 +2332,24 @@ async def _build_from_captions(island_id: str, cue_list: list[dict], title: str,
             last_end = max(last_end, cue["end"])
         store.set_video_duration(island_id, last_end)
         store.set_ready(island_id, title)
+        _align_resume(island_id)  # bl36-align: an upload that came in mid-build
         log.info("island %s ready from captions: %d lines", island_id, len(ja_texts))
     except Exception as exc:
         log.exception("captions build %s failed", island_id)
         store.set_failed(island_id, str(exc))
+        _align_resume(island_id)
         return
 
     # Ready already: a translation error only costs the English.
     try:
-        for batch_start in range(0, len(ja_texts), generate.TRANSLATE_BATCH):
-            batch = ja_texts[batch_start:batch_start + generate.TRANSLATE_BATCH]
-            translations = await asyncio.to_thread(generate.translate_lines, batch, language, native)
+        for b in range(0, len(ja_texts), generate.TRANSLATE_BATCH):
+            batch = ja_texts[b:b + generate.TRANSLATE_BATCH]
+            translations = await asyncio.to_thread(
+                generate.translate_lines, batch, language, native,
+                ja_texts[max(0, b - 2):b], ja_texts[b + len(batch):b + len(batch) + 2])
             for offset, en in enumerate(translations):
                 if en:
-                    store.set_en(island_id, batch_start + offset, en)
+                    store.set_en(island_id, b + offset, en)
     except Exception:
         log.exception("island %s: translation stopped early, the island stays ready", island_id)
 
@@ -2281,8 +2413,8 @@ async def import_youtube_captions(
     )
     store.add_video(island_id, video_id, 0.0, island_title, "")
     background.add_task(
-        _build_from_captions, island_id, youtube.cues_from_lines(lines), island_title,
-        language, native,
+        _build_from_captions, island_id, lines, island_title, language, native,
+        any(ln.get("pieces") for ln in lines),
     )
     return {"id": island_id, "status": "pending"}
 
@@ -2319,6 +2451,8 @@ import align  # noqa: E402
 import wave  # noqa: E402
 
 _align_queue: asyncio.Queue | None = None
+# Uploads that reached the consumer before their island finished building.
+_align_deferred: set[str] = set()
 
 
 def _get_align_queue() -> asyncio.Queue:
@@ -2377,20 +2511,40 @@ def _wav_seconds(path: Path) -> float:
         return w.getnframes() / float(w.getframerate())
 
 
+def _align_resume(island_id: str) -> None:
+    """The captions build has ended (ready or failed). An upload the consumer
+    parked while the lines were still being corrected and split goes back on
+    the queue, so the aligner reads the final lines. Called with no await
+    between it and set_ready/set_failed: see _align_one."""
+    if island_id in _align_deferred:
+        _align_deferred.discard(island_id)
+        _get_align_queue().put_nowait(island_id)
+
+
 async def _align_one(island_id: str) -> None:
     """Align one video island's captions to its uploaded audio. Any failure
-    leaves the step-1 words and offsets and records a code on the video row."""
+    leaves the step-1 words and offsets and records a code on the video row.
+
+    While the island is still building (BL-45 correction can outlast any fixed
+    wait) the job is parked in _align_deferred, still 'queued', upload kept, and
+    _align_resume requeues it when the build ends. The status read and the
+    park/run decision are synchronous, as are set_ready and _align_resume, so
+    exactly one of them runs it: no double run, no lost job."""
+    status = store.island_status(island_id)
+    if status is None:
+        _align_cleanup(island_id)
+        return
+    if status in ("pending", "working"):
+        _align_deferred.add(island_id)
+        log.info("island %s still building, alignment waits for it", island_id)
+        return
     try:
-        for _ in range(60):
-            island = await asyncio.to_thread(store.get_island, island_id)
-            if island is None:
-                return
-            if island["status"] == "ready":
-                break
-            await asyncio.sleep(1)
-        else:
+        if status != "ready":
             raise align.AlignError("align_not_ready")
         store.set_align_status(island_id, "running")
+        island = await asyncio.to_thread(store.get_island, island_id)
+        if island is None:
+            return
         lines = [
             {"idx": ln["idx"], "text": ln["ja"], "offset": ln["offset"],
              "duration": ln["duration"], "words": ln["words"]}

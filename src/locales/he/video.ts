@@ -25,6 +25,7 @@ export const he = {
   'video.err.captions_failed': 'לא ניתן היה לקרוא את הכתוביות של הסרטון.',
   'api.no_captions': 'לסרטון הזה אין כתוביות, ולכן אי אפשר לבנות ממנו.',
   'api.captions_invalid': 'לא ניתן היה לקרוא את הכתוביות של הסרטון.',
+  'stage.correcting': 'תיקון…',
   'stage.aligning': 'יישור…',
   'video.watch': 'צפייה בסרטון',
   'api.youtube_bad_link': 'זה לא קישור ל-YouTube.',

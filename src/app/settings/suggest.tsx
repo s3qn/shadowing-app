@@ -1,7 +1,9 @@
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { ScrollView, StyleSheet, Text } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { CatConstellation } from '@/components/cat-constellation';
 import { PrismButton } from '@/components/prism';
@@ -9,7 +11,10 @@ import { GlassInput } from '@/components/tide/glass-input';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
+import { hapticNotify } from '@/lib/haptics';
 import { useDir, useT } from '@/lib/i18n';
+
+const FADE_MS = 180;
 
 export default function SuggestFeatureScreen() {
   const { t } = useT();
@@ -22,6 +27,20 @@ export default function SuggestFeatureScreen() {
 
   const canSend = text.trim().length > 0 && !sending;
 
+  const buttonOpacity = useSharedValue(1);
+  const loaderOpacity = useSharedValue(0);
+  const sentOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    buttonOpacity.value = withTiming(!sending && !sent ? 1 : 0, { duration: FADE_MS });
+    loaderOpacity.value = withTiming(sending && !sent ? 1 : 0, { duration: FADE_MS });
+    sentOpacity.value = withTiming(sent ? 1 : 0, { duration: FADE_MS });
+  }, [sending, sent, buttonOpacity, loaderOpacity, sentOpacity]);
+
+  const buttonStyle = useAnimatedStyle(() => ({ opacity: buttonOpacity.value }));
+  const loaderStyle = useAnimatedStyle(() => ({ opacity: loaderOpacity.value }));
+  const sentStyle = useAnimatedStyle(() => ({ opacity: sentOpacity.value }));
+
   async function send() {
     setError('');
     setSending(true);
@@ -29,6 +48,7 @@ export default function SuggestFeatureScreen() {
       await api.suggestFeature(text.trim());
       setText('');
       setSent(true);
+      void hapticNotify(Haptics.NotificationFeedbackType.Success);
       setTimeout(() => router.back(), 900);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('settings.suggest.error'));
@@ -58,22 +78,26 @@ export default function SuggestFeatureScreen() {
 
         {error ? <Text style={[styles.error, { color: tide.record }, dir.text]}>{error}</Text> : null}
 
-        {sent ? (
-          <Text style={[styles.sent, { color: tide.text }]}>{t('settings.suggest.sent')}</Text>
-        ) : sending ? (
-          <CatConstellation size={90} label={t('settings.suggest.sending')} />
-        ) : (
-          <PrismButton
-            shape="pill"
-            verb="tools"
-            on
-            label={t('settings.suggest.send')}
-            disabled={!canSend}
-            onPress={send}
-            accessibilityRole="button"
-            containerStyle={styles.send}
-          />
-        )}
+        <View style={styles.stack}>
+          <Animated.View style={[styles.layer, buttonStyle]} pointerEvents={sending || sent ? 'none' : 'auto'}>
+            <PrismButton
+              shape="pill"
+              verb="tools"
+              on
+              label={t('settings.suggest.send')}
+              disabled={!canSend}
+              onPress={send}
+              accessibilityRole="button"
+              containerStyle={styles.send}
+            />
+          </Animated.View>
+          <Animated.View style={[styles.layer, loaderStyle]} pointerEvents={sending && !sent ? 'auto' : 'none'}>
+            <CatConstellation size={90} label={t('settings.suggest.sending')} />
+          </Animated.View>
+          <Animated.View style={[styles.layer, sentStyle]} pointerEvents={sent ? 'auto' : 'none'}>
+            <Text style={[styles.sent, { color: tide.text }]}>{t('settings.suggest.sent')}</Text>
+          </Animated.View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -85,6 +109,8 @@ const styles = StyleSheet.create({
   hint: { fontFamily: fonts.ui, fontSize: 14 },
   input: { minHeight: 140 },
   error: { fontFamily: fonts.ui, fontSize: 14 },
+  stack: { height: 90 },
+  layer: { ...StyleSheet.absoluteFill, justifyContent: 'center', alignItems: 'center' },
   send: { alignSelf: 'center' },
   sent: { fontFamily: fonts.ui, fontSize: 16, textAlign: 'center' },
 });

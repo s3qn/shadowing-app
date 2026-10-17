@@ -10,6 +10,7 @@ import { CardMorphOverlay } from '@/components/card-morph-overlay';
 import { LevelUpModal } from '@/components/level-up-modal';
 import { ConfirmSheetHost } from '@/components/confirm-sheet-host';
 import { LoadingOverlay } from '@/components/loading-overlay';
+import { ReviewTour } from '@/components/review-tour';
 import { tide } from '@/constants/theme';
 import { getUsername } from '@/lib/api';
 import { loadSession, onSessionLost } from '@/lib/auth';
@@ -234,6 +235,7 @@ export default function RootLayout() {
         <Stack.Screen name="prism-lab" options={{ title: 'Prism lab' }} />
         <Stack.Screen name="cat-lab" options={{ title: 'Cat lab' }} />
       </Stack>
+      {__DEV__ ? <ReviewTour /> : null}
       <CardMorphOverlay />
       <LevelUpHost />
       <LoadingOverlay />
