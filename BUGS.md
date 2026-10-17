@@ -47,6 +47,14 @@ inside the artboard, or widen the artboard/bounds. Low priority, cosmetic.
 
 ## Closed
 
+### ET-7 · crash · P0 · closed
+**TestFlight build 14 crashes when a sheet opens in landscape.**
+iOS abort in `__supportedInterfaceOrientations` while presenting the RN Modal of
+`bottom-sheet.tsx`. That Modal is portrait-only by default, and YouTube fullscreen
+locks the window to landscape, so any sheet opening there kills the app.
+Reported by Sean (crash log), 2026-10-16. Fixed in 93f251e: `supportedOrientations` on the Modal (bottom-sheet.tsx:146) and the video leaves fullscreen before a help or explain sheet opens. Ships in the next TestFlight build.
+
+
 ### ET-5 · feature · P3 · closed
 **A surface for the cat to stand on.**
 The cat currently floats over the faint mountains. Give it something to sit/stand
