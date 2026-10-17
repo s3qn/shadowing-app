@@ -3,9 +3,12 @@
 # build minutes. Needs the EXPO_TOKEN repository secret (an Expo access token
 # for the account that owns the project). Start it with:
 #   gh workflow run ios-build.yml -f ref=<commit or branch>
+# or by pushing a tag: git tag ios-<name> <commit> && git push origin ios-<name>
 name: iOS build
 
 on:
+  push:
+    tags: ['ios-*']
   workflow_dispatch:
     inputs:
       ref:
@@ -30,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ inputs.ref || github.ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -44,5 +47,5 @@ jobs:
         run: npx --yes eas-cli@latest build --platform ios --profile production --local --non-interactive --output "$RUNNER_TEMP/app.ipa"
 
       - name: Submit to TestFlight
-        if: ${{ inputs.submit }}
+        if: ${{ github.event_name == 'push' || inputs.submit }}
         run: npx --yes eas-cli@latest submit --platform ios --profile production --path "$RUNNER_TEMP/app.ipa" --non-interactive
