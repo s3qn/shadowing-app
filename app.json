@@ -4,11 +4,11 @@
     "slug": "echo-tail",
     "version": "0.1.0",
     "orientation": "default",
-    "icon": "./assets/images/cat_icon_app.png",
+    "icon": "./assets/images/app-icons/f01.png",
     "scheme": "echotail",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/images/cat_icon_app.png",
+      "icon": "./assets/images/app-icons/f01.png",
       "bundleIdentifier": "build.sean.echotail",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Echo Tail records your voice so it can build a language island from what you say.",
@@ -22,8 +22,8 @@
     "android": {
       "package": "build.sean.echotail",
       "adaptiveIcon": {
-        "backgroundColor": "#1A182F",
-        "foregroundImage": "./assets/images/android-icon-foreground.png"
+        "backgroundColor": "#201e28",
+        "foregroundImage": "./assets/images/app-icons/f01-fg.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [

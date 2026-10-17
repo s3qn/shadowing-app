@@ -271,6 +271,7 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - BL-51 Practice now sessions
 - BL-51 daily Review XP and session summary
 - Hebrew and RTL pass (The Translator)
+- New app icon F01
 
 ## Next (approved, in order)
 
