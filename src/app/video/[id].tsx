@@ -1,9 +1,8 @@
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BackHandler, Linking, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import type { LayoutChangeEvent } from 'react-native';
 import type { ScrollView } from 'react-native-gesture-handler';
 import { SymbolView } from 'expo-symbols';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,7 +13,7 @@ import { CatConstellation } from '@/components/cat-constellation';
 import { PrismButton } from '@/components/prism';
 import { ExplainSheet } from '@/components/explain-sheet';
 import { BlindPopover, blindValueLabel } from '@/components/tide/blind-popover';
-import { CompactDock, DOCK_GOLD_INK, type DockAnchor, type DockAnchorKey, type DockPill } from '@/components/tide/compact-dock';
+import { CompactDock, DOCK_GOLD_INK, type DockPill } from '@/components/tide/compact-dock';
 import { READING_LABEL_KEY, ReadingPopover } from '@/components/tide/reading-popover';
 import { RepeatPopover, repeatTileLabel } from '@/components/tide/repeat-popover';
 import { SpeedPopover } from '@/components/tide/speed-popover';
@@ -26,26 +25,19 @@ import { PassHelpSheet } from '@/components/tide/pass-help-sheet';
 import { PassStrip } from '@/components/tide/pass-strip';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
-import { snapRate, useLadder } from '@/hooks/use-ladder';
+import { snapRate, type useLadder } from '@/hooks/use-ladder';
+import { useDockPopovers } from '@/hooks/use-dock-popovers';
+import { useLadderWiring } from '@/hooks/use-ladder-wiring';
+import { useSavedCards } from '@/hooks/use-saved-cards';
 import { useTake } from '@/hooks/use-take';
 import { useWatchClock } from '@/hooks/use-watch-clock';
 import { playIntent, useVideoHighlight } from '@/hooks/use-video-highlight';
 import * as api from '@/lib/api';
+import { syncVideoAudio } from '@/lib/video-audio';
 import { useT } from '@/lib/i18n';
 import { getLastLine, resumeLine, setLastLine } from '@/lib/last-line';
-import { helpPassOf } from '@/lib/pass-programme';
-import { addLadder } from '@/lib/practice';
-import {
-  getSettingsSync,
-  setBlind as persistBlind,
-  setReading as persistReading,
-  TIMES_MAX,
-  type ReadingMode,
-} from '@/lib/settings';
+import { getSettingsSync, TIMES_MAX } from '@/lib/settings';
 import { CC_OFF_SCRIPT, PLAYER_BRIDGE_SCRIPT, fullscreenPlayerSize, watchUrl } from '@/lib/youtube';
-
-type TileBox = { x: number; y: number; width: number };
-/** YouTube only plays these rates: quarter steps from 0.25 to 2. */
 
 /** The video on top, the Tide scene under it: water, the current line on the waterline with tappable words, the other lines faded around it. */
 export default function VideoScreen() {
@@ -109,29 +101,20 @@ export default function VideoScreen() {
 
   const [island, setIsland] = useState<api.Island | null>(null);
   const [video, setVideo] = useState<api.IslandVideo | null>(null);
-  // review-deck: saved sentences of this island, line idx to card id.
-  const [savedCards, setSavedCards] = useState<Map<number, string>>(new Map());
-  // Line idx already graded 'got' this session: a line repeated in the ladder grades once.
-  const graded = useRef(new Set<number>());
   const [error, setError] = useState('');
-  const [saveError, setSaveError] = useState('');
+  // review-deck: saved sentences of this island, line idx to card id.
+  const { savedCards, saveError, reviewSet, loadReviewCards, toggleSaved, gradeOnce } = useSavedCards(island?.id, id, !!review);
   const [playing, setPlaying] = useState(false);
   const stateRef = useRef('unstarted');
   const [cannotPlay, setCannotPlay] = useState(false);
 
   const playerRef = useRef<YoutubeIframeRef>(null);
   const scrollRef = useRef<ScrollView>(null);
-  // Review mode: only the saved lines, frozen at load, due ones decide the start.
-  const [reviewSet, setReviewSet] = useState<{ idx: Set<number>; due: Set<number> } | null>(null);
   const lines = useMemo(() => {
     const all = island?.lines ?? [];
     return reviewSet ? all.filter((l) => reviewSet.idx.has(l.idx)) : all;
   }, [island, reviewSet]);
   const sceneLines = useMemo(() => lines.map((l) => l.ja), [lines]);
-  const [explainOpen, setExplainOpen] = useState(false);
-  const [explainSpan, setExplainSpan] = useState<ExplainSelection['span'] | null>(null);
-  const [explainMarked, setExplainMarked] = useState<string[]>([]);
-  const [explainWhole, setExplainWhole] = useState(false);
   const [generation, setGeneration] = useState(0);
 
   // Dock state, the same shape as the audio player's. Speed starts at the
@@ -141,34 +124,13 @@ export default function VideoScreen() {
   const [rate, setRate] = useState(() => snapRate(getSettingsSync().defaultSpeed));
   const [times, setTimes] = useState(() => getSettingsSync().defaultTimes);
   const [pauseMs, setPauseMs] = useState(() => getSettingsSync().defaultPauseMs);
-  const [readingMode, setReadingMode] = useState<ReadingMode>(() => getSettingsSync().reading);
-  const [blind, setBlind] = useState(() => getSettingsSync().blind);
-  const [englishShown, setEnglishShown] = useState(() => !getSettingsSync().hideEnglish);
-  const [speedPopOpen, setSpeedPopOpen] = useState(false);
-  const [repeatPopOpen, setRepeatPopOpen] = useState(false);
-  const [readingPopOpen, setReadingPopOpen] = useState(false);
-  const [blindPopOpen, setBlindPopOpen] = useState(false);
-  const [trayOpen, setTrayOpen] = useState(false);
-  const anchors = useRef<Partial<Record<DockAnchorKey, TileBox>>>({});
-  const dockY = useRef(0);
-  // The floating dock's height: the transcript scrolls its last line clear
-  // of it. State, set only on a real change.
-  const [dockH, setDockH] = useState(0);
+  const {
+    explainOpen, setExplainOpen, explainSpan, explainMarked, explainWhole, openExplain,
+    readingMode, blind, englishShown, pickReading, toggleBlind, toggleEnglish,
+    speedPopOpen, setSpeedPopOpen, repeatPopOpen, setRepeatPopOpen, readingPopOpen, setReadingPopOpen, blindPopOpen, setBlindPopOpen,
+    trayOpen, setTrayOpen, anchors, dockY, dockH, onAnchor, onDockLayout,
+  } = useDockPopovers();
   const insets = useSafeAreaInsets();
-  const popOpenRef = useRef(false);
-  popOpenRef.current = speedPopOpen || repeatPopOpen || readingPopOpen || blindPopOpen;
-  const [, bumpAnchors] = useState(0);
-  const anchorMoved = useCallback((moved: boolean) => {
-    if (moved && popOpenRef.current) bumpAnchors((n) => n + 1);
-  }, []);
-  const onAnchor = useCallback(
-    (key: DockAnchorKey, box: DockAnchor) => {
-      const old = anchors.current[key];
-      anchors.current[key] = box;
-      anchorMoved(!old || old.x !== box.x || old.y !== box.y || old.width !== box.width);
-    },
-    [anchorMoved],
-  );
 
   useEffect(() => {
     if (preview) return;
@@ -176,13 +138,13 @@ export default function VideoScreen() {
     Promise.all([api.getIsland(id), api.getIslandVideo(id), review ? api.listReviewCards(id) : null])
       .then(([i, v, cards]) => {
         if (!alive) return;
-        if (cards) {
-          const today = new Date().toISOString().slice(0, 10);
-          setSavedCards(new Map(cards.map((c) => [c.idx, c.id])));
-          setReviewSet({ idx: new Set(cards.map((c) => c.idx)), due: new Set(cards.filter((c) => c.due_on <= today).map((c) => c.idx)) });
-        }
+        if (cards) loadReviewCards(cards);
         setIsland(i);
         setVideo(v);
+        // bl36-align: kick off forced alignment once, then poll below.
+        if (v.align === '' || v.align === 'failed') {
+          void syncVideoAudio(id, v.video_id).then((ok) => ok && alive && setAlignWait(true));
+        } else if (v.align === 'queued' || v.align === 'running') setAlignWait(true);
       })
       .catch((e) => alive && setError(e instanceof Error ? e.message : t('video.loadFailed')));
     return () => {
@@ -190,6 +152,32 @@ export default function VideoScreen() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, preview]);
+
+  // --- bl36-align ---
+  // Poll while the server aligns the audio; reload the lines when it lands.
+  const [alignWait, setAlignWait] = useState(false);
+  useEffect(() => {
+    if (!alignWait) return;
+    let alive = true;
+    const t0 = Date.now();
+    const timer = setInterval(async () => {
+      if (Date.now() - t0 > 15 * 60 * 1000) return setAlignWait(false);
+      try {
+        const v = await api.getIslandVideo(id);
+        if (!alive) return;
+        if (v.align === 'done') {
+          setAlignWait(false);
+          const i = await api.getIsland(id);
+          if (alive) setIsland(i);
+        } else if (v.align === 'failed' || v.align === 'closed') setAlignWait(false);
+      } catch {}
+    }, 5000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [alignWait, id]);
+  // --- /bl36-align ---
 
   // Repeat. The highlight clock stops at the end of each line and calls
   // onLineEnd before the next line shows: a count left seeks back to the
@@ -267,58 +255,6 @@ export default function VideoScreen() {
   const releaseLineRef = useRef(releaseLine);
   releaseLineRef.current = releaseLine;
 
-  useEffect(() => {
-    if (!island || review) return;
-    let alive = true;
-    api
-      .listReviewCards(island.id)
-      .then((cards) => alive && setSavedCards(new Map(cards.map((c) => [c.idx, c.id]))))
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [island?.id]);
-
-  const toggleSaved = useCallback(
-    (idx: number) => {
-      const existing = savedCards.get(idx);
-      if (existing === 'pending') return;
-      const setCard = (card: string | null) =>
-        setSavedCards((m) => {
-          const next = new Map(m);
-          if (card) next.set(idx, card);
-          else next.delete(idx);
-          return next;
-        });
-      if (existing) {
-        setCard('pending');
-        api
-          .removeReviewCard(existing)
-          .then(() => {
-            setCard(null);
-            setSaveError('');
-          })
-          .catch((e) => {
-            setCard(existing);
-            setSaveError(e instanceof Error ? e.message : '');
-          });
-      } else {
-        setCard('pending');
-        api
-          .saveReviewCard(id, idx)
-          .then((c) => {
-            setCard(c.id);
-            setSaveError('');
-          })
-          .catch((e) => {
-            setCard(null);
-            setSaveError(e instanceof Error ? e.message : '');
-          });
-      }
-    },
-    [savedCards, id],
-  );
-
   // Captions-only videos have no reference audio on the server, so takes are
   // only saved and played back (the embed is the reference).
   const take = useTake(island?.id, lines[activeLine]?.idx ?? 0, generation, undefined, undefined, { localOnly: true });
@@ -338,68 +274,14 @@ export default function VideoScreen() {
     ),
   );
 
-  // Review mode runs the shadowing ladder on each saved line (the same passes
-  // as the island); a finished ladder marks the card reviewed on its own.
-  const [helpOpen, setHelpOpen] = useState(false);
-  // The pass whose help is open, frozen while it is read.
-  const [helpPass, setHelpPass] = useState<0 | 1 | 2 | 3 | 4>(0);
   const lineRef = useRef(activeLine);
   lineRef.current = activeLine;
-  const ladder = useLadder(take, speedLive, lines[activeLine]?.duration ?? 0, {
-    playLine: (speed) => {
-      // The pass rate lives in `rate` only: speedLive stays the dock speed
-      // the passes are taken from.
-      const snapped = snapRate(speed);
-      setRate(snapped);
-      jump(lineRef.current);
-    },
-    record: (speed) => {
-      const snapped = snapRate(speed);
-      setRate(snapped);
-      return startLineTake(snapped);
-    },
-    stop: () => {
-      setPlaying(false);
-      take.stopTake();
-      void take.cancel();
-      setRate(speedLive);
-    },
-    onLineDone: () => {
-      const idx = lines[lineRef.current]?.idx ?? -1;
-      const card = savedCards.get(idx);
-      if (card && card !== 'pending' && !graded.current.has(idx)) {
-        graded.current.add(idx);
-        api.gradeReviewCard(card, 'got').catch(() => {});
-      }
-      if (island) addLadder(island.id);
-    },
-    advance: () => {
-      const next = lineRef.current + 1;
-      if (next >= lines.length) {
-        router.back();
-        return false;
-      }
-      seekToLine(next);
-      lineRef.current = next;
-      return true;
-    },
+  const { ladder, helpOpen, setHelpOpen, helpPass, onPassHelp } = useLadderWiring({
+    take, speedLive, lines, lineRef, ladderRef, island, activeLine, seekToLine, setRate, gradeOnce,
+    playLine: () => jump(lineRef.current),
+    record: (snapped) => startLineTake(snapped),
+    stop: () => setPlaying(false),
   });
-  ladderRef.current = ladder;
-  // A finished ladder hands the player back at the dock speed.
-  // A stopped or finished run closes its help.
-  useEffect(() => {
-    if (ladder.step === 'done') setRate(speedLive);
-    if (ladder.step === 'idle' || ladder.step === 'done') setHelpOpen(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ladder.step]);
-  const livePass = helpPassOf(ladder.step, 'ladder');
-  const onPassHelp =
-    livePass === null
-      ? undefined
-      : () => {
-          setHelpPass(livePass);
-          setHelpOpen(true);
-        };
   const openLadder = () => ladder.start();
 
   // A take that ends stops the embed too.
@@ -445,14 +327,13 @@ export default function VideoScreen() {
   }, [activeLine]);
 
   const pauseVideo = useCallback(() => setPlaying(false), []);
-  const onLineTap = jump;
-  const onExplain = useCallback((sel: ExplainSelection) => {
-    setExplainMarked(sel.marked);
-    setExplainWhole(sel.whole);
-    setExplainSpan(sel.span);
-    setPlaying(false);
-    setExplainOpen(true);
-  }, []);
+  const onExplain = useCallback(
+    (sel: ExplainSelection) => {
+      setPlaying(false);
+      openExplain(sel);
+    },
+    [openExplain],
+  );
   const onExplainClose = useCallback(() => setExplainOpen(false), []);
   const onExplainPlay = useCallback(() => jump(activeLine), [jump, activeLine]);
 
@@ -488,6 +369,14 @@ export default function VideoScreen() {
     if (!review && resumed.current && lines.length > 0) setLastLine(id, activeLine);
   }, [id, activeLine, lines.length, review]);
 
+  const repeat = useMemo(
+    () =>
+      times > 1 || pauseMs > 0
+        ? { pass: Math.min(repeatPass, Math.max(1, times)), total: Math.max(1, times), progress: ringProgress, secsLeft }
+        : undefined,
+    [times, pauseMs, repeatPass, ringProgress, secsLeft],
+  );
+
   const onToggle = () => {
     if (ladder.active) ladder.stop();
     // A tap during a Repeat pause carries on from the held line.
@@ -518,16 +407,6 @@ export default function VideoScreen() {
     setSpeedLive(snapped);
     setRate(snapped);
   };
-  const pickReading = (mode: ReadingMode) => {
-    setReadingMode(mode);
-    persistReading(mode).catch(() => {});
-  };
-  const toggleBlind = () => {
-    const next = !blind;
-    setBlind(next);
-    persistBlind(next).catch(() => {});
-  };
-  const toggleEnglish = () => setEnglishShown((v) => !v);
   const pickTimes = (n: number) => setTimes(Math.min(TIMES_MAX, n));
 
   // Record: the embed is the reference. With earphones it plays under the
@@ -609,13 +488,6 @@ export default function VideoScreen() {
     setSpeedPopOpen((v) => !v);
   };
 
-  const onDockLayout = (e: LayoutChangeEvent) => {
-    const { y, height } = e.nativeEvent.layout;
-    anchorMoved(y !== dockY.current);
-    dockY.current = y;
-    if (Number.isFinite(height) && height > 0) setDockH((old) => (Math.abs(old - height) > 0.5 ? height : old));
-  };
-
   function shadow() {
     setPlaying(false);
     router.push({
@@ -627,25 +499,34 @@ export default function VideoScreen() {
   const language = island?.language ?? 'ja';
   const ja = language === 'ja';
 
+  /** The embed's slot: the player and the fullscreen button, or the open-in-YouTube fallback. */
+  const embedFrame = (videoId: string, player: ReactNode) =>
+    cannotPlay ? (
+      <View style={[styles.center, { width: playerSize.width, height: playerSize.height, flex: 0 }]}>
+        <Text style={styles.hint}>{t('video.cannotPlay')}</Text>
+        <PrismButton
+          shape="pill"
+          verb="tools"
+          flat
+          press="light"
+          label={t('video.openInYoutube')}
+          onPress={() => void Linking.openURL(watchUrl(videoId))}
+        />
+      </View>
+    ) : (
+      <View style={{ width: playerSize.width, height: playerSize.height }}>
+        {player}
+        {fullButton}
+      </View>
+    );
+
   if (preview) {
     return (
       <SafeAreaView edges={fs ? [] : ['bottom']} style={[styles.fill, fs && styles.row, { backgroundColor: tide.sky[0] }]}>
         <StatusBar style="light" hidden={fs} />
         <Stack.Screen options={{ title: '', headerShown: !fs }} />
-        {cannotPlay ? (
-          <View style={[styles.center, { width: playerSize.width, height: playerSize.height, flex: 0 }]}>
-            <Text style={styles.hint}>{t('video.cannotPlay')}</Text>
-            <PrismButton
-              shape="pill"
-              verb="tools"
-              flat
-              press="light"
-              label={t('video.openInYoutube')}
-              onPress={() => void Linking.openURL(watchUrl(preview))}
-            />
-          </View>
-        ) : (
-          <View style={{ width: playerSize.width, height: playerSize.height }}>
+        {embedFrame(
+          preview,
           <YoutubePlayer
             height={playerSize.height}
             width={playerSize.width}
@@ -662,9 +543,7 @@ export default function VideoScreen() {
               setPlaying((p) => playIntent(p, s));
             }}
             onError={() => setCannotPlay(true)}
-          />
-          {fullButton}
-          </View>
+          />,
         )}
         <View style={styles.center}>
           <Text style={styles.hint}>{t('video.noTranscript')}</Text>
@@ -676,6 +555,11 @@ export default function VideoScreen() {
   // The dock floats over the transcript's bottom, above the home indicator;
   // the transcript runs on under it to the screen's edge.
   const dockBottom = fs ? 0 : insets.bottom;
+  // Sheets are laid out for portrait, so leave fullscreen when one opens.
+  useEffect(() => {
+    if (helpOpen || explainOpen) setFull(false);
+  }, [helpOpen, explainOpen]);
+
   return (
     <View style={[styles.fill, { backgroundColor: tide.sky[0] }]}>
       <StatusBar style="light" hidden={fs} />
@@ -690,60 +574,47 @@ export default function VideoScreen() {
         </View>
       ) : (
         <View style={[styles.fill, fs && styles.row]}>
-          {cannotPlay ? (
-            <View style={[styles.center, { width: playerSize.width, height: playerSize.height, flex: 0 }]}>
-              <Text style={styles.hint}>{t('video.cannotPlay')}</Text>
-              <PrismButton
-                shape="pill"
-                verb="tools"
-                flat
-                press="light"
-                label={t('video.openInYoutube')}
-                onPress={() => void Linking.openURL(watchUrl(video.video_id))}
-              />
-            </View>
-          ) : (
-            <View style={{ width: playerSize.width, height: playerSize.height }}>
-            <View pointerEvents={lines.length === 0 ? 'auto' : 'none'}>
-              <YoutubePlayer
-                ref={playerRef}
-                height={playerSize.height}
-                width={playerSize.width}
-                videoId={video.video_id}
-                play={playing}
-                playbackRate={rate}
-                initialPlayerParams={{
-                  start: Math.floor(video.start_s),
-                  controls: lines.length === 0,
-                  rel: false,
-                  modestbranding: true,
-                  showClosedCaptions: false,
-                  iv_load_policy: 3,
-                }}
-                webViewProps={{ injectedJavaScript: PLAYER_BRIDGE_SCRIPT + CC_OFF_SCRIPT }}
-                onReady={onReady}
-                onChangeState={(s: string) => {
-                  stateRef.current = s;
-                  setPlaying((p) => playIntent(p, s));
-                  onChangeState(s);
-                }}
-                onPlaybackRateChange={onPlaybackRateChange}
-                onError={() => setCannotPlay(true)}
-              />
-            </View>
-            {lines.length > 0 ? (
-              // The embed takes no touches while the dock drives it, so a tap
-              // on the video goes through the same toggle as the dock's play.
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={playing ? t('player.stop') : t('player.play')}
-                onPress={onToggle}
-                style={StyleSheet.absoluteFill}
-              />
-            ) : null}
-            {fullButton}
-            </View>
-          )}
+          {embedFrame(video.video_id, (
+            <>
+          <View pointerEvents={lines.length === 0 ? 'auto' : 'none'}>
+            <YoutubePlayer
+              ref={playerRef}
+              height={playerSize.height}
+              width={playerSize.width}
+              videoId={video.video_id}
+              play={playing}
+              playbackRate={rate}
+              initialPlayerParams={{
+                start: Math.floor(video.start_s),
+                controls: lines.length === 0,
+                rel: false,
+                modestbranding: true,
+                showClosedCaptions: false,
+                iv_load_policy: 3,
+              }}
+              webViewProps={{ injectedJavaScript: PLAYER_BRIDGE_SCRIPT + CC_OFF_SCRIPT }}
+              onReady={onReady}
+              onChangeState={(s: string) => {
+                stateRef.current = s;
+                setPlaying((p) => playIntent(p, s));
+                onChangeState(s);
+              }}
+              onPlaybackRateChange={onPlaybackRateChange}
+              onError={() => setCannotPlay(true)}
+            />
+          </View>
+          {lines.length > 0 ? (
+            // The embed takes no touches while the dock drives it, so a tap
+            // on the video goes through the same toggle as the dock's play.
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={playing ? t('player.stop') : t('player.play')}
+              onPress={onToggle}
+              style={StyleSheet.absoluteFill}
+            />
+          ) : null}
+            </>
+          ))}
           <View style={styles.fill}>
             <View style={styles.fill}>
               <TideScene
@@ -770,18 +641,14 @@ export default function VideoScreen() {
                       blind={blind}
                       englishShown={englishShown}
                       variant="video"
-                      repeat={
-                        times > 1 || pauseMs > 0
-                          ? { pass: Math.min(repeatPass, Math.max(1, times)), total: Math.max(1, times), progress: ringProgress, secsLeft }
-                          : undefined
-                      }
+                      repeat={repeat}
                     />
                     <SaveStar saved={savedCards.has(lines[activeLine]!.idx)} onToggle={() => toggleSaved(lines[activeLine]!.idx)} />
                     </View>
                   ) : null
                 }
                 scrollRef={scrollRef}
-                onLineTap={onLineTap}
+                onLineTap={jump}
                 bottomInset={lines.length > 0 ? dockH + dockBottom : dockBottom}
               />
               {lines.length === 0 ? (

@@ -23,6 +23,7 @@ export const en = {
   'wardrobe.failed': 'Could not load the wardrobe.',
   'wardrobe.lv': 'Lv {n}',
   'wardrobe.owned': 'Owned',
+  'wardrobe.beta': 'Beta',
   'wardrobe.worn': 'Worn',
   'wardrobe.retry': 'Retry',
 };

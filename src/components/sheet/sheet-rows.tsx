@@ -1,75 +1,14 @@
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import { type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { TideToggle } from '@/components/tide/tide-toggle';
 import { fonts } from '@/constants/fonts';
 import { tide, withAlpha } from '@/constants/theme';
 import { useDir } from '@/lib/i18n';
 
-/** The rows every sheet is built from: an option to pick, a toggle, a menu
- * action (with an optional leading icon), and a plain note. */
+/** The row every sheet is built from: a menu action with an optional leading icon. */
 
 /** Per-platform symbol names for a sheet row: SF Symbol on iOS, Material Symbol on Android. */
 export type SheetIcon = Exclude<SymbolViewProps['name'], string>;
-
-type SheetOptionProps = {
-  label: string;
-  hint?: string;
-  selected: boolean;
-  onPress: () => void;
-};
-
-export function SheetOption({ label, hint, selected, onPress }: SheetOptionProps) {
-  const dir = useDir();
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      style={({ pressed }) => [
-        styles.row,
-        dir.row,
-        styles.option,
-        selected ? styles.optionSelected : styles.optionDivider,
-        pressed && !selected && styles.rowPressed,
-      ]}>
-      <View style={styles.text}>
-        <Text style={[styles.label, dir.text, selected && styles.labelSelected]}>{label}</Text>
-        {hint ? <Text style={[styles.hint, dir.text]}>{hint}</Text> : null}
-      </View>
-    </Pressable>
-  );
-}
-
-type SheetToggleProps = {
-  label: string;
-  hint?: string;
-  value: boolean;
-  onValueChange: (value: boolean) => void;
-  /** Leading symbol, never destructive or disabled so it always uses `tide.text`. */
-  icon?: SheetIcon;
-};
-
-export function SheetToggle({ label, hint, value, onValueChange, icon }: SheetToggleProps) {
-  const dir = useDir();
-  return (
-    <View style={[styles.row, dir.row]}>
-      <View style={[styles.lead, dir.row]}>
-        {icon ? (
-          <View style={styles.iconSlot}>
-            <SymbolView name={icon} size={20} weight="regular" tintColor={tide.text} />
-          </View>
-        ) : null}
-        <View style={styles.text}>
-          <Text style={[styles.label, dir.text]}>{label}</Text>
-          {hint ? <Text style={[styles.hint, dir.text]}>{hint}</Text> : null}
-        </View>
-      </View>
-      <TideToggle value={value} onValueChange={onValueChange} />
-    </View>
-  );
-}
 
 type SheetActionProps = {
   label: string;
@@ -121,11 +60,6 @@ export function SheetAction({ label, hint, destructive, disabled, icon, discColo
   );
 }
 
-export function SheetNote({ children }: { children: ReactNode }) {
-  const dir = useDir();
-  return <Text style={[styles.note, dir.text]}>{children}</Text>;
-}
-
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
@@ -136,9 +70,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   rowPressed: { backgroundColor: 'rgba(255,255,255,0.06)' },
-  option: { borderWidth: 1, borderColor: 'transparent', marginVertical: 2 },
-  optionDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.06)' },
-  optionSelected: { backgroundColor: 'rgba(255,158,128,0.12)', borderColor: tide.lang.ja },
   lead: { flexDirection: 'row', alignItems: 'center', gap: 12, flexShrink: 1 },
   iconSlot: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   iconDisc: {
@@ -151,9 +82,7 @@ const styles = StyleSheet.create({
   },
   text: { flexShrink: 1, gap: 2 },
   label: { fontFamily: fonts.ui, fontSize: 16, color: tide.text },
-  labelSelected: { color: tide.lang.ja },
   hint: { fontFamily: fonts.ui, fontSize: 12, color: tide.textDim },
   destructive: { color: tide.record },
   disabled: { color: tide.textDim },
-  note: { fontFamily: fonts.ui, fontSize: 12, color: tide.textDim },
 });

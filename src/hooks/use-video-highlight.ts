@@ -4,7 +4,7 @@ import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } fro
 import { type FrameInfo, useFrameCallback, useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { type Highlight, type HighlightState, IDLE } from '@/components/word-highlight';
+import { type Highlight, type HighlightState, IDLE, levelAt } from '@/components/word-highlight';
 import type { Line } from '@/lib/api';
 
 /**
@@ -299,21 +299,7 @@ export function useVideoHighlight(
       const t = line === shownLine.value ? (tables.value[line] ?? null) : null;
       let next: HighlightState = IDLE;
       if (t) {
-        // Each boundary adds a short eased ramp centred on it, so level holds
-        // at exactly j + 1 while word j is spoken (and through a gap after it)
-        // and the whole word lights at once at its start.
-        let level = t.from;
-        for (let j = 0; j < t.c.length; j += 1) {
-          const cj = t.c[j]!;
-          const wj = t.w[j]!;
-          if (pos < cj - wj / 2) break;
-          if (!(wj > 0)) {
-            level += 1;
-            continue;
-          }
-          const x = Math.min(1, Math.max(0, (pos - cj) / wj + 0.5));
-          level += x * x * (3 - 2 * x);
-        }
+        const level = levelAt(t, pos);
         next = { level, on: g, from: t.from, to: t.to };
       }
       const h = highlight.value;

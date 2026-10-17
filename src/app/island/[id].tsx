@@ -11,7 +11,6 @@ import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { memo, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   AppState,
   type LayoutChangeEvent,
   Platform,
@@ -84,6 +83,7 @@ import {
   startBack,
   useMorphHidesTitle,
 } from '@/lib/card-morph';
+import { alertSheet, confirmSheet } from '@/lib/confirm-sheet';
 import { hapticImpact, hapticSelection } from '@/lib/haptics';
 import { invalidateCachedIsland, peekCachedIsland, readCachedIsland, writeCachedIsland } from '@/lib/island-cache';
 import { requestLoader } from '@/lib/loading-overlay';
@@ -1133,21 +1133,22 @@ export default function IslandScreen() {
       // stale if a build or revoice updated it in the meantime.
       setIsland((cur) => cur && { ...cur, title: finalTitle });
     } catch (e) {
-      Alert.alert(t('player.couldNotRename'), e instanceof Error ? e.message : t('player.serverDidNotAnswer'));
+      void alertSheet(t('player.couldNotRename'), e instanceof Error ? e.message : t('player.serverDidNotAnswer'));
     }
   }
 
-  function confirmRegenerate() {
+  async function confirmRegenerate() {
     if (!island || revoicing || regenerating) return;
     const target: api.Complexity = island.complexity === 'simple' ? 'complex' : 'simple';
-    Alert.alert(
-      target === 'complex' ? t('player.regenerateComplexTitle') : t('player.regenerateSimpleTitle'),
-      t('player.regenerateBody'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        { text: t('player.regenerateLabel'), onPress: () => void doRegenerate(target) },
+    const pick = await confirmSheet({
+      title: target === 'complex' ? t('player.regenerateComplexTitle') : t('player.regenerateSimpleTitle'),
+      message: t('player.regenerateBody'),
+      actions: [
+        { label: t('common.cancel'), verb: 'tools' },
+        { label: t('player.regenerateLabel'), verb: 'tools' },
       ],
-    );
+    });
+    if (pick === 1) void doRegenerate(target);
   }
 
   // The backend drops the old lines as soon as the route runs and rebuilds
@@ -2702,16 +2703,17 @@ export default function IslandScreen() {
     setSheet('island');
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (!island) return;
-    Alert.alert(
-      t('player.deleteIslandTitle', { title: island.title || t('player.untitledIsland') }),
-      t('player.deleteIslandBody'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        { text: t('common.delete'), style: 'destructive', onPress: () => void removeIsland() },
+    const pick = await confirmSheet({
+      title: t('player.deleteIslandTitle', { title: island.title || t('player.untitledIsland') }),
+      message: t('player.deleteIslandBody'),
+      actions: [
+        { label: t('common.cancel'), verb: 'tools' },
+        { label: t('common.delete'), verb: 'speak', destructive: true },
       ],
-    );
+    });
+    if (pick === 1) void removeIsland();
   }
 
   async function removeIsland() {
@@ -2728,7 +2730,7 @@ export default function IslandScreen() {
       void releaseAudioSession();
       plainBack();
     } catch (e) {
-      Alert.alert(t('player.couldNotDelete'), e instanceof Error ? e.message : t('player.serverDidNotAnswer'));
+      void alertSheet(t('player.couldNotDelete'), e instanceof Error ? e.message : t('player.serverDidNotAnswer'));
     }
   }
 

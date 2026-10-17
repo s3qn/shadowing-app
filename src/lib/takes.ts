@@ -99,19 +99,15 @@ export type LineTier = ResultTier | 'none';
 const TIER_ORDER: LineTier[] = ['none', 'retry', 'good', 'great'];
 
 /**
- * Tier for every line of an island, read from the newest base take per
- * index. A line with no take is `'none'`. A take with a scoreable score
- * uses `scoredTier`; a take without one (or with zero scoreable words) is
- * practiced but unscored, so it counts as `'good'` (the take's duration is
- * not kept here, so the duration fallback in `resultTier` cannot run).
- * Always returns exactly `lineCount` entries; an index past the last file
- * is `'none'`. Reads the folder once; never throws.
+ * Newest base take per line index with its `.score.json` (null when none or
+ * unreadable). One folder read shared by `lineTiers` and `keptUpTotal`, so a
+ * change to the take file naming scheme is made here only. Never throws.
  */
-export function lineTiers(islandId: string, lineCount: number): LineTier[] {
-  const tiers: LineTier[] = new Array(lineCount).fill('none');
+function scanBase(islandId: string, lineCount: number): Map<number, TakeScore | null> {
+  const out = new Map<number, TakeScore | null>();
   try {
     const dir = takeDir(islandId);
-    if (!dir.exists) return tiers;
+    if (!dir.exists) return out;
     const newestByIdx = new Map<number, { ms: string; recordedAt: number }>();
     const scoreByKey = new Map<string, TakeScore>();
     for (const entry of dir.list()) {
@@ -140,67 +136,39 @@ export function lineTiers(islandId: string, lineCount: number): LineTier[] {
       const prev = newestByIdx.get(idx);
       if (!prev || recordedAt > prev.recordedAt) newestByIdx.set(idx, { ms, recordedAt });
     }
-    for (const [idx, base] of newestByIdx) {
-      const score = scoreByKey.get(`${idx}-${base.ms}`) ?? null;
-      tiers[idx] = scoredTier(score) ?? 'good';
-    }
-    return tiers;
+    for (const [idx, base] of newestByIdx) out.set(idx, scoreByKey.get(`${idx}-${base.ms}`) ?? null);
   } catch {
-    return tiers;
+    // Unreadable folder: report what was gathered.
   }
+  return out;
 }
 
 /**
- * Island total for the "kept up with X of Y words" count: same newest
- * base take per line index and same `.score.json` lookup as `lineTiers`
- * above (a future change to the take file naming scheme has to be made in
- * both places), but sums `wordsKeptUp` per line instead of tiering it.
- * Lines with no scoreable take are skipped. Never throws.
+ * Tier for every line of an island, read from the newest base take per
+ * index. A line with no take is `'none'`. A take with a scoreable score
+ * uses `scoredTier`; a take without one is practiced but unscored, so it
+ * counts as `'good'`. Always returns exactly `lineCount` entries. Never throws.
+ */
+export function lineTiers(islandId: string, lineCount: number): LineTier[] {
+  const tiers: LineTier[] = new Array(lineCount).fill('none');
+  for (const [idx, score] of scanBase(islandId, lineCount)) tiers[idx] = scoredTier(score) ?? 'good';
+  return tiers;
+}
+
+/**
+ * Island total for the "kept up with X of Y words" count: sums `wordsKeptUp`
+ * over the same newest base takes as `lineTiers`. Lines with no scoreable
+ * take are skipped. Never throws.
  */
 export function keptUpTotal(islandId: string, lineCount: number): { kept: number; total: number } {
   const total = { kept: 0, total: 0 };
-  try {
-    const dir = takeDir(islandId);
-    if (!dir.exists) return total;
-    const newestByIdx = new Map<number, { ms: string; recordedAt: number }>();
-    const scoreByKey = new Map<string, TakeScore>();
-    for (const entry of dir.list()) {
-      const name = entry.name;
-      const dash = name.indexOf('-');
-      if (dash < 0) continue;
-      const idx = Number(name.slice(0, dash));
-      if (!Number.isInteger(idx) || idx < 0 || idx >= lineCount) continue;
-      const rest = name.slice(dash + 1);
-      if (rest.endsWith('.clean.wav')) continue;
-      if (rest.endsWith('.score.json')) {
-        const ms = rest.slice(0, -'.score.json'.length);
-        try {
-          scoreByKey.set(`${idx}-${ms}`, JSON.parse(new File(entry.uri).textSync()) as TakeScore);
-        } catch {
-          // Bad or half-written JSON: treat as no score for this take.
-        }
-        continue;
-      }
-      let ms: string | null = null;
-      if (rest.endsWith('.wav')) ms = rest.slice(0, -'.wav'.length);
-      else if (rest.endsWith('.m4a')) ms = rest.slice(0, -'.m4a'.length);
-      if (ms === null) continue;
-      const recordedAt = Number(ms);
-      if (!Number.isFinite(recordedAt)) continue;
-      const prev = newestByIdx.get(idx);
-      if (!prev || recordedAt > prev.recordedAt) newestByIdx.set(idx, { ms, recordedAt });
-    }
-    for (const [idx, base] of newestByIdx) {
-      const score = scoreByKey.get(`${idx}-${base.ms}`) ?? null;
-      const line = wordsKeptUp(score);
-      if (line === null) continue;
-      total.kept += line.kept;
-      total.total += line.total;
-    }
-    return total;
-  } catch {
-    return total;
+  for (const score of scanBase(islandId, lineCount).values()) {
+    const line = wordsKeptUp(score);
+    if (line === null) continue;
+    total.kept += line.kept;
+    total.total += line.total;
   }
+  return total;
 }
 
 /**

@@ -24,6 +24,7 @@ export const he = {
   'wardrobe.failed': 'לא הצלחנו לטעון את הארון.',
   'wardrobe.lv': 'רמה {n}',
   'wardrobe.owned': 'ברשותכם',
+  'wardrobe.beta': 'בטא',
   'wardrobe.worn': 'לבוש',
   'wardrobe.retry': 'נסו שוב',
 } satisfies Record<keyof typeof enWardrobe, string>;

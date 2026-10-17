@@ -19,6 +19,7 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
+import dbconn
 import spacing
 
 log = logging.getLogger("shadow.progression")
@@ -120,17 +121,10 @@ _local = threading.local()
 
 
 def connect() -> sqlite3.Connection:
-    conn = getattr(_local, "conn", None)
-    if conn is None or getattr(_local, "path", None) != DB_PATH:
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode = WAL")
-        conn.execute("PRAGMA busy_timeout = 5000")
-        conn.executescript(SCHEMA)
-        _local.conn = conn
-        _local.path = DB_PATH
-    return conn
+    return dbconn.thread_conn(
+        _local, DB_PATH, "journal_mode = WAL", "busy_timeout = 5000",
+        setup=lambda conn: conn.executescript(SCHEMA), mkdir=True,
+    )
 
 
 def init() -> None:
@@ -191,6 +185,7 @@ def catalog(ui: str = "en") -> dict:
                 "level_req": item["level_req"],
                 "price": item["price"],
                 "art": item["art"],
+                **({"grant_only": True} if item.get("grant_only") else {}),
             }
         )
     return {
@@ -243,8 +238,25 @@ def _read(conn: sqlite3.Connection, owner: str) -> dict:
     }
 
 
+BETA_HAT = "head.beta_tester_hat"
+
+
+def _grant_beta(conn: sqlite3.Connection, owner: str) -> None:
+    """While SHADOW_BETA_GRANT=1, every account owns the beta hat. The row is
+    permanent: turning the flag off stops new grants, it never revokes."""
+    if os.environ.get("SHADOW_BETA_GRANT") != "1" or BETA_HAT not in _ITEMS:
+        return
+    conn.execute(
+        "INSERT OR IGNORE INTO owned (owner, item_id, bought_at) VALUES (?, ?, ?)",
+        (owner, BETA_HAT, _now()),
+    )
+    conn.commit()
+
+
 def snapshot(owner: str) -> dict:
-    return _read(connect(), owner)
+    conn = connect()
+    _grant_beta(conn, owner)
+    return _read(conn, owner)
 
 
 def stats(owner: str) -> dict:
@@ -601,6 +613,8 @@ def buy(owner: str, item_id: str) -> dict:
     item = _ITEMS.get(item_id)
     if item is None:
         raise _err(404, code="unknown_item")
+    if item.get("grant_only"):
+        raise _err(400, code="not_for_sale")
     conn = connect()
     conn.execute("BEGIN IMMEDIATE")
     try:

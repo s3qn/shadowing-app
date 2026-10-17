@@ -120,6 +120,32 @@ def test_line_audio_on_another_devices_id_is_404():
     assert exc_info.value.status_code == 404
 
 
+
+def test_line_audio_checks_ownership_without_loading_the_lines(monkeypatch):
+    iid = _ready_island()
+    store.line_audio_path(iid, 0).write_bytes(b"RIFF")
+
+    def no_full_load(_):
+        raise AssertionError("line audio at speed 1 loaded the whole island")
+
+    monkeypatch.setattr(main.store, "get_island", no_full_load)
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(main.line_audio(iid, 0, authorization=AUTH, x_shadow_device=DEV_B))
+    assert exc_info.value.status_code == 404
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(main.line_audio("nosuchisland", 0, authorization=AUTH, x_shadow_device=DEV_A))
+    assert exc_info.value.status_code == 404
+    served = asyncio.run(main.line_audio(iid, 0, authorization=AUTH, x_shadow_device=DEV_A))
+    assert str(served.path) == str(store.line_audio_path(iid, 0))
+
+
+def test_require_owner_never_matches_an_empty_device_on_an_unclaimed_island():
+    iid = store.create_island("simple", 3)
+    with pytest.raises(HTTPException) as exc_info:
+        main._require_owner(iid, "")
+    assert exc_info.value.status_code == 404
+
+
 # --- TestClient (through the ASGI app, exercises the DeviceGuard middleware) ---
 
 client = TestClient(main.app)

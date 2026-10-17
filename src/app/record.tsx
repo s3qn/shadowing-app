@@ -21,6 +21,7 @@ import { Segmented, type SegmentOption } from '@/components/segmented';
 
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, prism, tide, verb as verbTokens } from '@/constants/theme'; // icon-buttons: discard
+import { useFollowBuild } from '@/hooks/use-follow-build';
 import * as api from '@/lib/api';
 import { useDir, useT } from '@/lib/i18n';
 import {
@@ -55,10 +56,6 @@ const WAVE_MIN_H = 3;
 const WAVE_MAX_H = 32;
 
 type Phase = 'idle' | 'recording' | 'review' | 'building';
-
-/** How long the finished island sits on screen, glowing, before the
- * screen navigates away. */
-const READY_HOLD_MS = 900;
 
 function clock(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
@@ -113,7 +110,10 @@ export default function RecordScreen() {
   const [complexity, setComplexity] = useState<api.Complexity>('simple');
   const [register, setRegister] = useState<api.Register>(DEFAULT_REGISTER);
   const [uri, setUri] = useState<string | null>(null);
-  const [stage, setStage] = useState('queued');
+  const { stage, follow, stop: stopFollow } = useFollowBuild('/island/[id]', (message) => {
+    setError(message);
+    setPhase('review');
+  });
   const [error, setError] = useState('');
   // The recorder's clock resets once it stops, so the length of the last take
   // is kept separately for the review screen.
@@ -126,8 +126,6 @@ export default function RecordScreen() {
   // Every meter reading of the take in progress, squeezed into bars on stop.
   const samplesRef = useRef<number[]>([]);
   const [bars, setBars] = useState<number[]>([]);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const readyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Listening back to the take. Only loaded on the review screen, so the file
   // is never open while the microphone is.
@@ -198,8 +196,7 @@ export default function RecordScreen() {
   // dropped; an island already building keeps building on the server and
   // shows up in the list when it is done.
   async function cancel() {
-    if (pollRef.current) clearInterval(pollRef.current);
-    if (readyTimerRef.current) clearTimeout(readyTimerRef.current);
+    stopFollow();
     stopPlayback(player);
     if (phase === 'recording') {
       try {
@@ -222,11 +219,6 @@ export default function RecordScreen() {
     }
     router.back();
   }
-
-  useEffect(() => () => {
-    if (pollRef.current) clearInterval(pollRef.current);
-    if (readyTimerRef.current) clearTimeout(readyTimerRef.current);
-  }, []);
 
   // Stop on our own once the cap is hit, so an island never runs long enough to
   // make transcription slow.
@@ -316,27 +308,7 @@ export default function RecordScreen() {
         language,
         native,
       );
-      pollRef.current = setInterval(async () => {
-        try {
-          const island = await api.getIsland(id);
-          setStage(island.stage || island.status);
-          if (island.status === 'ready') {
-            if (pollRef.current) clearInterval(pollRef.current);
-            // Hold the finished island on screen a moment, glowing, before
-            // moving on: the build scene's last piece needs a beat to read.
-            setStage('ready');
-            readyTimerRef.current = setTimeout(() => {
-              router.replace({ pathname: '/island/[id]', params: { id } });
-            }, READY_HOLD_MS);
-          } else if (island.status === 'failed') {
-            if (pollRef.current) clearInterval(pollRef.current);
-            setError(api.islandErrorText(island));
-            setPhase('review');
-          }
-        } catch {
-          // A dropped poll is not fatal, the next tick retries.
-        }
-      }, 2000);
+      follow(id);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('record.uploadFailed'));
       setPhase('review');

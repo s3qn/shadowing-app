@@ -20,6 +20,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Form, Header, HTTPException
 
+import dbconn
 import progression
 import spacing
 import store
@@ -77,9 +78,7 @@ def _as_date(value: str, fallback: date) -> date:
         return fallback
 
 
-# Same reasoning as store.py's _local: routes hop onto asyncio.to_thread's
-# reused worker threads, so one connection per thread is a real cache, not a
-# one-shot open-and-close.
+# One connection per thread, see dbconn.
 _local = threading.local()
 
 
@@ -88,14 +87,7 @@ def _make_dirs() -> None:
 
 
 def connect() -> sqlite3.Connection:
-    conn = getattr(_local, "conn", None)
-    if conn is None:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON")
-        conn.execute("PRAGMA journal_mode = WAL")
-        _local.conn = conn
-    return conn
+    return dbconn.thread_conn(_local, DB_PATH, "foreign_keys = ON", "journal_mode = WAL")
 
 
 def init() -> None:

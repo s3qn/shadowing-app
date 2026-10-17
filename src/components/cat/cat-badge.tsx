@@ -32,7 +32,7 @@ function nameSize(len: number) {
 }
 
 /** The Home entry row: the cat, level, XP bar and coins as one control. */
-export function CatBadgeView({ level, xpIntoLevel, xpToNext, coins, equipped, username, serial, onPress }: CatBadgeViewProps) {
+function CatBadgeView({ level, xpIntoLevel, xpToNext, coins, equipped, username, serial, onPress }: CatBadgeViewProps) {
   const { t } = useT();
   const dir = useDir();
   const name = username || 'you';

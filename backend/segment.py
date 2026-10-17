@@ -21,6 +21,7 @@ import logging
 import re
 import threading
 
+from latin import fill_spans
 from voicevox import to_hiragana
 
 log = logging.getLogger(__name__)
@@ -434,37 +435,7 @@ def align_pieces(text: str, pieces: list[dict], duration: float) -> list[dict]:
             None if starts[i] is None else [starts[i], ends[i]] for i in range(len(chunks))
         ]
 
-        # Fill each run of unanchored chunks proportionally to weight,
-        # between whichever anchors (or the line's own edges) bound it.
-        i = 0
-        n = len(chunks)
-        while i < n:
-            if spans[i] is not None:
-                i += 1
-                continue
-            j = i
-            while j < n and spans[j] is None:
-                j += 1
-            lo = spans[i - 1][1] if i > 0 else 0.0
-            hi = spans[j][0] if j < n else duration
-            run_weight = sum(weights[i:j])
-            t = lo
-            for k in range(i, j):
-                share = (hi - lo) * (weights[k] / run_weight) if run_weight else 0.0
-                spans[k] = [t, t + share]
-                t += share
-            i = j
-
-        # Make monotonic, then contiguous, then pin the edges.
-        prev_end = 0.0
-        for span in spans:
-            span[0] = max(span[0], prev_end)
-            span[1] = max(span[1], span[0])
-            prev_end = span[1]
-        for a, b in zip(spans, spans[1:]):
-            a[1] = b[0]
-        spans[0][0] = 0.0
-        spans[-1][1] = duration
+        fill_spans(spans, weights, duration)
 
         return [
             {

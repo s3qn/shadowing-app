@@ -13,18 +13,17 @@
  * 0.5, or from a default raised since) reads as absent.
  */
 
-import { documentDirectory, getInfoAsync, readAsStringAsync, writeAsStringAsync } from 'expo-file-system/legacy';
-
 import { SPEED_MAX, SPEED_MIN } from '@/constants/theme';
+import { persistedMap } from '@/lib/persisted-map';
 import { getSettings, getSettingsSync } from '@/lib/settings';
 
-export const LADDER_MIN = 0.5;
-export const LADDER_MAX = 1.2;
-export const LADDER_STEP = 0.05;
-export const LADDER_UP = 0.9;
-export const LADDER_DOWN = 0.85;
-export const LADDER_TAKES = 3;
-export const LADDER_MIN_WORDS = 10;
+const LADDER_MIN = 0.5;
+const LADDER_MAX = 1.2;
+const LADDER_STEP = 0.05;
+const LADDER_UP = 0.9;
+const LADDER_DOWN = 0.85;
+const LADDER_TAKES = 3;
+const LADDER_MIN_WORDS = 10;
 
 /** An island's rung on the speed ladder: its current speed, the takes pooled
  * toward the next decision, and whether the speed was set by hand. */
@@ -44,7 +43,7 @@ function round2(speed: number): number {
  * Settings default speed); a manual one keeps its flag and steps down to
  * `LADDER_MIN`.
  */
-export function stepRung(
+function stepRung(
   rung: Rung,
   take: { kept: number; total: number },
   floor: number = LADDER_MIN,
@@ -69,11 +68,6 @@ export function stepRung(
   return { rung: { ...rung, takes: 0, kept: 0, total: 0 }, moved: null };
 }
 
-const FILE = `${documentDirectory ?? ''}speed-ladder.json`;
-
-let cache: Record<string, Rung> | null = null;
-let loading: Promise<Record<string, Rung>> | null = null;
-
 function validRung(v: unknown): Rung | null {
   if (typeof v !== 'object' || v === null) return null;
   const r = v as Record<string, unknown>;
@@ -96,68 +90,40 @@ function live(rung: Rung | undefined, defaultSpeed: number): Rung | undefined {
   return rung;
 }
 
-async function load(): Promise<Record<string, Rung>> {
-  if (cache) return cache;
-  if (!loading) {
-    loading = (async () => {
-      // Reads settings first so `peekRung`'s synchronous default is the saved
-      // one by the time the cache is warm.
-      const defaultSpeed = await getSettings()
-        .then((s) => s.defaultSpeed)
-        .catch(() => getSettingsSync().defaultSpeed);
-      try {
-        if (!(await getInfoAsync(FILE)).exists) return (cache = {});
-        const raw = await readAsStringAsync(FILE);
-        const parsed = JSON.parse(raw) as unknown;
-        if (typeof parsed !== 'object' || parsed === null) return (cache = {});
-        const next: Record<string, Rung> = {};
-        for (const [id, v] of Object.entries(parsed as Record<string, unknown>)) {
-          const rung = live(validRung(v) ?? undefined, defaultSpeed);
-          if (rung) next[id] = rung;
-        }
-        return (cache = next);
-      } catch {
-        return (cache = {});
-      }
-    })();
-  }
-  return loading;
-}
-
-let writeTimer: ReturnType<typeof setTimeout> | null = null;
-
-function scheduleWrite(): void {
-  if (writeTimer) return;
-  writeTimer = setTimeout(() => {
-    writeTimer = null;
-    void writeAsStringAsync(FILE, JSON.stringify(cache ?? {})).catch(() => {});
-  }, 1000);
-}
+// Reads settings first so `peekRung`'s synchronous default is the saved one
+// by the time the cache is warm.
+const store = persistedMap<Rung, number>(
+  'speed-ladder.json',
+  (v, defaultSpeed) => live(validRung(v) ?? undefined, defaultSpeed),
+  () =>
+    getSettings()
+      .then((s) => s.defaultSpeed)
+      .catch(() => getSettingsSync().defaultSpeed),
+);
 
 /** Warms the cache so `peekRung` has something to read before the player mounts. */
 export async function loadLadder(): Promise<void> {
-  await load();
+  await store.load();
 }
 
 /** An island's rung, creating `{ speed: start, takes: 0, kept: 0, total: 0 }` in memory (not written) when absent. */
 export async function getRung(islandId: string, start: number): Promise<Rung> {
-  const all = await load();
+  const all = await store.load();
   return live(all[islandId], getSettingsSync().defaultSpeed) ?? { speed: start, takes: 0, kept: 0, total: 0 };
 }
 
 /** The rung if the file has already been read, else undefined. Call `getRung` or `loadLadder` earlier to have it read by then. */
 export function peekRung(islandId: string): Rung | undefined {
-  return live(cache?.[islandId], getSettingsSync().defaultSpeed);
+  return live(store.peek()?.[islandId], getSettingsSync().defaultSpeed);
 }
 
 /** Manual override: sets the island's speed, marks it manual so it outranks
  * the default speed, and zeroes its pooled counters, discarding any pending
  * ladder decision. */
 export function setRungSpeed(islandId: string, speed: number): void {
-  void load().then((all) => {
+  void store.load().then((all) => {
     all[islandId] = { speed, takes: 0, kept: 0, total: 0, manual: true };
-    cache = all;
-    scheduleWrite();
+    store.save(all);
   });
 }
 
@@ -167,22 +133,20 @@ export async function recordTake(
   start: number,
   take: { kept: number; total: number },
 ): Promise<{ moved: 'up' | 'down' | null; speed: number }> {
-  const all = await load();
+  const all = await store.load();
   const floor = getSettingsSync().defaultSpeed;
   const current = live(all[islandId], floor) ?? { speed: start, takes: 0, kept: 0, total: 0 };
   const { rung, moved } = stepRung(current, take, floor);
   all[islandId] = rung;
-  cache = all;
-  scheduleWrite();
+  store.save(all);
   return { moved, speed: rung.speed };
 }
 
 /** Forgets a deleted island's rung. */
 export function forgetRung(islandId: string): void {
-  void load().then((all) => {
+  void store.load().then((all) => {
     if (!(islandId in all)) return;
     delete all[islandId];
-    cache = all;
-    scheduleWrite();
+    store.save(all);
   });
 }

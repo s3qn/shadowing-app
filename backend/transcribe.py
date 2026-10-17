@@ -15,6 +15,7 @@ duration of the transcription.
 
 import logging
 import os
+import threading
 import time
 from pathlib import Path
 
@@ -27,12 +28,18 @@ WHISPER_DEVICE = "cpu"
 WHISPER_COMPUTE_TYPE = "int8"
 
 _MODEL = None
+# Two first transcriptions at once would otherwise both load the ~8s model.
+_LOCK = threading.Lock()
 
 
 def _get_model():
     """Lazy singleton. The model load happens once, on first transcription."""
     global _MODEL
-    if _MODEL is None:
+    if _MODEL is not None:
+        return _MODEL
+    with _LOCK:
+        if _MODEL is not None:
+            return _MODEL
         from faster_whisper import WhisperModel
 
         start = time.monotonic()

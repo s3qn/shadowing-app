@@ -1,7 +1,7 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -12,6 +12,7 @@ import { PressScale } from '@/components/press-scale';
 import { HeaderClosePill } from '@/components/header-close-pill';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
+import { useFollowBuild } from '@/hooks/use-follow-build';
 import * as api from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { getSettings, getVoice, toIslandLanguage, toNativeLanguage } from '@/lib/settings';
@@ -19,10 +20,6 @@ import { getSettings, getVoice, toIslandLanguage, toNativeLanguage } from '@/lib
 const SIDE = 16;
 
 type Phase = 'pick' | 'building';
-
-/** How long the finished island sits on screen, glowing, before the screen
- * navigates away. Matches record.tsx. */
-const READY_HOLD_MS = 900;
 
 /** The stem of a file name, the same default title the backend applies. */
 function stem(name: string): string {
@@ -37,15 +34,11 @@ export default function ImportScreen() {
   const [phase, setPhase] = useState<Phase>('pick');
   const [audio, setAudio] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [srt, setSrt] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
-  const [stage, setStage] = useState('queued');
   const [error, setError] = useState('');
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const readyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => () => {
-    if (pollRef.current) clearInterval(pollRef.current);
-    if (readyTimerRef.current) clearTimeout(readyTimerRef.current);
-  }, []);
+  const { stage, follow, stop } = useFollowBuild('/island/[id]', (message) => {
+    setError(message);
+    setPhase('pick');
+  });
 
   async function pickAudio() {
     setError('');
@@ -67,8 +60,7 @@ export default function ImportScreen() {
   }
 
   function cancel() {
-    if (pollRef.current) clearInterval(pollRef.current);
-    if (readyTimerRef.current) clearTimeout(readyTimerRef.current);
+    stop();
     router.back();
   }
 
@@ -88,25 +80,7 @@ export default function ImportScreen() {
         toIslandLanguage(learningLanguage),
         toNativeLanguage(understoodLanguage),
       );
-      pollRef.current = setInterval(async () => {
-        try {
-          const island = await api.getIsland(id);
-          setStage(island.stage || island.status);
-          if (island.status === 'ready') {
-            if (pollRef.current) clearInterval(pollRef.current);
-            setStage('ready');
-            readyTimerRef.current = setTimeout(() => {
-              router.replace({ pathname: '/island/[id]', params: { id } });
-            }, READY_HOLD_MS);
-          } else if (island.status === 'failed') {
-            if (pollRef.current) clearInterval(pollRef.current);
-            setError(api.islandErrorText(island));
-            setPhase('pick');
-          }
-        } catch {
-          // A dropped poll is not fatal, the next tick retries.
-        }
-      }, 2000);
+      follow(id);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('import.uploadFailed'));
       setPhase('pick');

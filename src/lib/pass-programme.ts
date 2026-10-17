@@ -323,16 +323,6 @@ export function isActive(step: PassStep): boolean {
 }
 
 /**
- * Which programme a step belongs to, read from its own name: every ladder
- * step is prefixed `ladder`. `idle` and `done`, shared by both programmes,
- * read as `'echo'`; a caller that needs the true programme for those two
- * (the player is not mid-pass then) tracks it separately.
- */
-export function programmeOf(step: PassStep): Programme {
-  return step.startsWith('ladder') ? 'ladder' : 'echo';
-}
-
-/**
  * The step a line's finish (its pad included) moves to. Listen and Echo
  * (Auto Echo) and Read along (the ladder) hand off to Speak/Shadow, armed
  * if Auto Record is off or straight into the recording if it is on;

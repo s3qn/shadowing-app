@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
-import type { SharedValue } from 'react-native-reanimated';
+import { useEffect } from 'react';
+import { StyleSheet, View } from 'react-native';
+import Animated, { type SharedValue, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { Radius, tide } from '@/constants/theme';
 import { useT } from '@/lib/i18n';
@@ -35,49 +35,41 @@ type Props = {
  * Scrolling level history, voice-memo style. Every PUSH_MS the latest reading
  * enters on the right and the rest shift left, so the picture is made only of
  * real microphone levels: silence is a flat line, speech is what moves it.
- * Nothing here is synthetic. Animated only smooths each bar's height change.
+ * Nothing here is synthetic. Reanimated smooths each bar's height change on the UI thread.
  */
 export function LevelBars({ level, live }: Props) {
   const { t } = useT();
-  const heights = useRef(
-    Array.from({ length: BARS }, () => new Animated.Value(MIN_H)),
-  ).current;
-  const history = useRef<number[]>(new Array<number>(BARS).fill(0));
+  const history = useSharedValue<number[]>(new Array<number>(BARS).fill(0));
 
   useEffect(() => {
-    const paint = () => {
-      history.current.forEach((v, i) => {
-        Animated.timing(heights[i]!, {
-          toValue: MIN_H + (MAX_H - MIN_H) * v,
-          duration: PUSH_MS,
-          useNativeDriver: false,
-        }).start();
-      });
-    };
-
     if (!live) {
-      history.current = new Array<number>(BARS).fill(0);
-      paint();
+      history.value = new Array<number>(BARS).fill(0);
       return;
     }
     const timer = setInterval(() => {
       const v = level.value;
-      history.current = [...history.current.slice(1), Number.isFinite(v) ? v : 0];
-      paint();
+      history.value = [...history.value.slice(1), Number.isFinite(v) ? v : 0];
     }, PUSH_MS);
     return () => clearInterval(timer);
-  }, [live, heights, level]);
+  }, [live, history, level]);
 
   return (
     <View style={styles.row} accessibilityLabel={t('player.microphoneLevel')}>
-      {heights.map((h, i) => (
-        <Animated.View
-          key={i}
-          style={[styles.bar, { height: h, backgroundColor: live ? tide.record : tide.waterline }]}
-        />
+      {Array.from({ length: BARS }, (_, i) => (
+        <Bar key={i} index={i} history={history} color={live ? tide.record : tide.waterline} />
       ))}
     </View>
   );
+}
+
+/** One bar: its height follows its slot in the shared history on the UI thread. */
+function Bar({ index, history, color }: { index: number; history: SharedValue<number[]>; color: string }) {
+  const style = useAnimatedStyle(() => {
+    const raw = history.value[index];
+    const v = typeof raw === 'number' && Number.isFinite(raw) ? Math.min(1, Math.max(0, raw)) : 0;
+    return { height: withTiming(MIN_H + (MAX_H - MIN_H) * v, { duration: PUSH_MS }) };
+  });
+  return <Animated.View style={[styles.bar, style, { backgroundColor: color }]} />;
 }
 
 const styles = StyleSheet.create({

@@ -256,6 +256,11 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Default speed 1.0 on islands
 - BL-42 voice topic phrases (P-A screen, topic mode in Record, Tatoeba corpus)
 - BL-18 practice run in the dock (pass strip, count-in, sheet trimmed)
+- BL-36 step 2 offline forced alignment
+- BL-39 own confirm sheets on island
+- BL-40 declog sweep
+- ET-7 landscape sheet crash
+- BL-50 Beta Tester Hat
 
 ## Next (approved, in order)
 

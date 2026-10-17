@@ -118,6 +118,22 @@ export function TickRuler({
     [last, reportStep],
   );
 
+  // Reports the step and glides the strip onto it (or jumps, with reduced motion).
+  const settleTo = (target: number) => {
+    'worklet';
+    scheduleOnRN(settle, target);
+    busy.value = true;
+    if (reducedMotion) {
+      offset.value = -target * STEP;
+      busy.value = false;
+      return;
+    }
+    offset.value = withTiming(-target * STEP, { duration: SETTLE_MS, easing: Easing.out(Easing.cubic) }, (finished) => {
+      // A new drag cancelling this one keeps the ruler busy.
+      if (finished) busy.value = false;
+    });
+  };
+
   const pan = Gesture.Pan()
     .activeOffsetX([-4, 4])
     .onStart(() => {
@@ -134,33 +150,14 @@ export function TickRuler({
       panning.value = false;
       const projected = reducedMotion ? offset.value : offset.value + e.velocityX * FLING_S;
       const target = Math.min(last, Math.max(0, Math.round(-projected / STEP)));
-      scheduleOnRN(settle, target);
-      if (reducedMotion) {
-        offset.value = -target * STEP;
-        busy.value = false;
-        return;
-      }
-      offset.value = withTiming(-target * STEP, { duration: SETTLE_MS, easing: Easing.out(Easing.cubic) }, (finished) => {
-        // A new drag cancelling this one keeps the ruler busy.
-        if (finished) busy.value = false;
-      });
+      settleTo(target);
     });
   const tap = Gesture.Tap()
     .maxDistance(8)
     .onEnd((e, success) => {
       if (!success) return;
       const target = Math.min(last, Math.max(0, Math.round((e.x - width / 2 - offset.value) / STEP)));
-      scheduleOnRN(settle, target);
-      busy.value = true;
-      if (reducedMotion) {
-        offset.value = -target * STEP;
-        busy.value = false;
-        return;
-      }
-      offset.value = withTiming(-target * STEP, { duration: SETTLE_MS, easing: Easing.out(Easing.cubic) }, (finished) => {
-        // A new drag cancelling this one keeps the ruler busy.
-        if (finished) busy.value = false;
-      });
+      settleTo(target);
     });
   const gesture = Gesture.Race(pan, tap);
 

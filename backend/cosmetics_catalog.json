@@ -222,6 +222,20 @@
    }
   },
   {
+   "id": "head.beta_tester_hat",
+   "slot": "head",
+   "name": "Beta Tester Hat",
+   "nameHe": "כובע בודק בטא",
+   "level_req": 1,
+   "price": 0,
+   "grant_only": true,
+   "art": {
+    "shape": "crown",
+    "color": "#2B3A8C",
+    "accent": "#E0B040"
+   }
+  },
+  {
    "id": "face.blush_pink",
    "slot": "face",
    "name": "Pink Blush",

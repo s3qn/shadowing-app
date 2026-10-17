@@ -4,7 +4,6 @@
  * light or dark scheme to pick between.
  */
 
-import { Platform } from 'react-native';
 
 export const Spacing = {
   xs: 4,
@@ -180,11 +179,6 @@ export const tide = {
     other: '#B7B1C6',
   },
 } as const;
-
-export const Fonts = Platform.select({
-  ios: { sans: 'system-ui', rounded: 'ui-rounded', mono: 'ui-monospace' },
-  default: { sans: 'normal', rounded: 'normal', mono: 'monospace' },
-}) as { sans: string; rounded: string; mono: string };
 
 /** Playback speed range for the player slider. Shadowing lives in the slow end. */
 export const SPEED_MIN = 0.5;

@@ -59,7 +59,7 @@ export default function WardrobeScreen() {
     noticeTimer.current = setTimeout(() => setNotice(null), 3500);
   }, [t]);
 
-  const items = useMemo(() => (catalog ? catalog.filter((i) => i.slot === slot) : []), [catalog, slot]);
+  const items = useMemo(() => (catalog ? catalog.filter((i) => i.slot === slot && (!i.grant_only || progress?.owned.includes(i.id))) : []), [catalog, slot, progress?.owned]);
   const equipped = useMemo(() => (progress && catalog ? equippedArt(progress, catalog) : {}), [progress, catalog]);
   const selected = useMemo(() => catalog?.find((i) => i.id === selectedId) ?? null, [catalog, selectedId]);
   const selectedState = selected && progress ? itemState(selected, progress) : null;

@@ -579,19 +579,17 @@ export default function IslandsScreen() {
     if (pick === 1) void remove(item.id);
   }
 
-  // Re-poll whenever the screen comes back into focus, and keep polling while
-  // anything is still building so the row flips to ready on its own. The
-  // practice log only reloads once per focus: it changes on a shadowing
-  // screen, never while sitting on this one.
+  // Reload once whenever the screen comes back into focus. The practice log
+  // reloads only then too: it changes on a shadowing screen, never while
+  // sitting on this one. Polling is a separate effect below, and runs only
+  // while something is still building.
+  const [focused, setFocused] = useState(false);
   useFocusEffect(
     useCallback(() => {
       let alive = true;
+      setFocused(true);
       setTakesEpoch((n) => n + 1);
-      const tick = async () => {
-        if (!alive) return;
-        await load();
-      };
-      tick();
+      void load();
       void getPracticeLog().then((next) => {
         if (alive) setLog(next);
       });
@@ -601,13 +599,21 @@ export default function IslandsScreen() {
       void api.getDueToday().then((rows) => {
         if (alive) setFetchedDueIds(new Set(rows.map((r) => r.island_id)));
       }).catch(() => {});
-      const timer = setInterval(tick, 3000);
       return () => {
         alive = false;
-        clearInterval(timer);
+        setFocused(false);
       };
     }, [load]),
   );
+
+  // Keep polling only while some island is neither ready nor failed, so the
+  // row flips to ready on its own and an idle Home makes no requests.
+  const anyBuilding = islands.some((i) => i.status !== 'ready' && i.status !== 'failed');
+  useEffect(() => {
+    if (!focused || !anyBuilding) return;
+    const timer = setInterval(() => void load(), 3000);
+    return () => clearInterval(timer);
+  }, [focused, anyBuilding, load]);
 
   // The card count on the UI thread, so the centre reaction can clamp to it
   // straight after a delete or a search that shrinks the list, without

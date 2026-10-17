@@ -1,23 +1,21 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react';
 import { type NativeScrollEvent, type NativeSyntheticEvent, useWindowDimensions } from 'react-native';
 
-// An island this long draws bucketed tide marks instead of one per line.
-export const LONG_ISLAND = 120;
 // An island with more lines than this mounts only a window of transcript
 // rows, and opens on the narrow window under the card morph. Fewer: every row.
-export const WINDOWED_ISLAND = 30;
-export const PAST_ROWS = 24; // mounted rows above the active line
-export const NEXT_ROWS = 40; // mounted rows below it
-export const EDGE = 8; // recentre when the active line gets this close to an edge
-export const EXTEND = 40; // rows added when a hand scroll reaches a spacer
+const WINDOWED_ISLAND = 30;
+const PAST_ROWS = 24; // mounted rows above the active line
+const NEXT_ROWS = 40; // mounted rows below it
+const EDGE = 8; // recentre when the active line gets this close to an edge
+const EXTEND = 40; // rows added when a hand scroll reaches a spacer
 // Opened under the card morph, the window starts this narrow and widens to
 // PAST_ROWS/NEXT_ROWS once the cover is gone.
-export const NARROW_PAST_ROWS = 6;
-export const NARROW_NEXT_ROWS = 10;
+const NARROW_PAST_ROWS = 6;
+const NARROW_NEXT_ROWS = 10;
 // How long the widening waits for the rows it measures before it goes ahead.
 const MEASURE_FALLBACK_MS = 600;
 /** Most rows the window may span before it is recentred on the active line. */
-export const MAX_SPAN = PAST_ROWS + NEXT_ROWS + 1 + 2 * EXTEND;
+const MAX_SPAN = PAST_ROWS + NEXT_ROWS + 1 + 2 * EXTEND;
 
 // Height estimate for rows never measured, from TranscriptLine's styles: text
 // is 18px with a 28px line height. A past row is dimLine (5+5 vertical, 16+16
@@ -35,7 +33,7 @@ export function isWindowed(lineCount: number): boolean {
 }
 
 /** Mounted rows are `start..end-1`. The active line is always inside it. */
-export type Window = { start: number; end: number };
+type Window = { start: number; end: number };
 
 /** A safe line index: finite, and inside `0..lineCount-1`. `lineCount <= 0`
  * (an island still loading) reads as line 0 so nothing downstream divides by
@@ -59,7 +57,7 @@ function centredWindow(lineIndex: number, lineCount: number, narrow = false): Wi
   return clampWindow({ start: i - past, end: i + next + 1 }, lineCount);
 }
 
-export function initialWindow(lineIndex: number, lineCount: number, narrow = false): Window {
+function initialWindow(lineIndex: number, lineCount: number, narrow = false): Window {
   if (!isWindowed(lineCount)) return { start: 0, end: Math.max(0, lineCount) };
   return centredWindow(lineIndex, lineCount, narrow);
 }
@@ -72,7 +70,7 @@ export function initialWindow(lineIndex: number, lineCount: number, narrow = fal
  * user stretched by scrolling stays as it is while it holds the centred one.
  * `keep=false`: recentre on the active line, unless it is already more than
  * `EDGE` rows inside a window no wider than `MAX_SPAN`. */
-export function followWindow(
+function followWindow(
   w: Window,
   lineIndex: number,
   lineCount: number,
@@ -93,7 +91,7 @@ export function followWindow(
   return wellInside && w.end - w.start <= MAX_SPAN ? clampWindow(w, lineCount) : centred;
 }
 
-export function extendWindow(w: Window, dir: 'up' | 'down', lineCount: number): Window {
+function extendWindow(w: Window, dir: 'up' | 'down', lineCount: number): Window {
   if (dir === 'up') return clampWindow({ start: w.start - EXTEND, end: w.end }, lineCount);
   return clampWindow({ start: w.start, end: w.end + EXTEND }, lineCount);
 }
@@ -113,7 +111,7 @@ function estimatePastRow(text: string | undefined, width: number): number {
 
 /** Sum of measured heights for rows `from..to-1`, an estimate from the text
  * for rows never mounted. */
-export function spacerHeight(
+function spacerHeight(
   from: number,
   to: number,
   heights: Map<number, number>,

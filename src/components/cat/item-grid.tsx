@@ -152,6 +152,11 @@ function Cell({ item, state, selected, index, size, animate, onPress }: CellProp
               ) : null}
             </View>
           </View>
+          {item.grant_only ? (
+            <View pointerEvents="none" style={[styles.betaTag, dir.rtl ? { right: 0 } : { left: 0 }]}>
+              <Text style={styles.betaText}>{t('wardrobe.beta')}</Text>
+            </View>
+          ) : null}
           <Text numberOfLines={1} style={[styles.name, locked && { opacity: 0.55 }, unaffordable && { opacity: 0.7 }]}>
             {item.name}
           </Text>
@@ -296,5 +301,7 @@ const styles = StyleSheet.create({
     boxShadow: 'inset 0 2px 0 #FFD98F',
   },
   bandNo: { opacity: 0.55, borderTopWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(255,200,87,0.55)' },
+  betaTag: { position: 'absolute', top: 0, backgroundColor: GOLD, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 8 },
+  betaText: { color: INK, fontSize: 10, fontWeight: '700' },
   coin: { width: 9, height: 9, borderRadius: 5, backgroundColor: GOLD, borderWidth: 2, borderColor: '#E8A92E' },
 });

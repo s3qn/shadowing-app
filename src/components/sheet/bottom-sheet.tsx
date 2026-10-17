@@ -143,6 +143,7 @@ export function BottomSheet({ open, onClose, onDismissed, title, contentTitle, h
       visible
       transparent
       animationType="none"
+      supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
       statusBarTranslucent
       navigationBarTranslucent
       onRequestClose={onClose}>

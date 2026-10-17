@@ -80,6 +80,29 @@ export function wordIntensity(h: HighlightState, i: number): number {
   return (a - b) * h.on;
 }
 
+/**
+ * Fractional highlight level at `pos` for a word table. Each boundary adds a
+ * short eased ramp centred on it, so level holds at exactly j + 1 while word j
+ * is spoken (and through a gap after it) and the whole word lights at once at
+ * its start.
+ */
+export function levelAt(t: Table, pos: number): number {
+  'worklet';
+  let level = t.from;
+  for (let j = 0; j < t.c.length; j += 1) {
+    const cj = t.c[j]!;
+    const wj = t.w[j]!;
+    if (pos < cj - wj / 2) break;
+    if (!(wj > 0)) {
+      level += 1;
+      continue;
+    }
+    const x = Math.min(1, Math.max(0, (pos - cj) / wj + 0.5));
+    level += x * x * (3 - 2 * x);
+  }
+  return level;
+}
+
 /** The boundaries (entry, each handoff, exit) of words from..to, as times in
  * the player's own audio, and each boundary's ramp width. */
 export function buildTable(words: Word[], speed: number, offsetSec: number, from: number, to: number): Table | null {

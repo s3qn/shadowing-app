@@ -55,6 +55,33 @@ const PLAYER_CLIENTS = [
   },
 ] as const;
 
+// --- bl36-align ---
+const ANDROID_VR_UA =
+  'com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip';
+
+/** Stream clients for the audio download, best first. android_vr serves plain
+ * urls without a PO token; ios and android are cheap fallbacks. */
+export const AUDIO_CLIENTS = [
+  {
+    name: 'android_vr',
+    ua: ANDROID_VR_UA,
+    client: {
+      clientName: 'ANDROID_VR',
+      clientVersion: '1.65.10',
+      deviceMake: 'Oculus',
+      deviceModel: 'Quest 3',
+      androidSdkVersion: 32,
+      osName: 'Android',
+      osVersion: '12L',
+      hl: 'en',
+      gl: 'US',
+    },
+  },
+  { name: 'ios', ua: PLAYER_CLIENTS[0].ua, client: PLAYER_CLIENTS[0].client },
+  { name: 'android', ua: PLAYER_CLIENTS[1].ua, client: PLAYER_CLIENTS[1].client },
+] as const;
+// --- /bl36-align ---
+
 /** The ytInitialPlayerResponse object out of a watch page, or null. Braces
  * inside JSON strings do not count toward the match. */
 export function extractPlayerResponse(html: string): any | null {
@@ -172,20 +199,30 @@ async function fetchEvents(track: Track): Promise<Json3Event[] | null> {
   return null;
 }
 
-async function clientTracks(
+/** The raw innertube player response for one client, or null. Serves captions
+ * (clientTracks) and the audio stream list (video-audio.ts). */
+export async function clientPlayer(
   videoId: string,
   cfg: { ua: string; client: Record<string, unknown> },
-): Promise<Track[]> {
+): Promise<any | null> {
   try {
     const res = await fetch('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
       method: 'POST',
       headers: { 'User-Agent': cfg.ua, 'Content-Type': 'application/json' },
       body: JSON.stringify({ context: { client: cfg.client }, videoId, contentCheckOk: true, racyCheckOk: true }),
     });
-    return tracksOf(await res.json());
+    return await res.json();
   } catch {
-    return [];
+    return null;
   }
+}
+
+async function clientTracks(
+  videoId: string,
+  cfg: { ua: string; client: Record<string, unknown> },
+): Promise<Track[]> {
+  const pr = await clientPlayer(videoId, cfg);
+  return pr ? tracksOf(pr) : [];
 }
 
 export async function fetchCaptions(

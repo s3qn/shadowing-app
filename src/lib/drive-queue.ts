@@ -2,10 +2,10 @@ import type { IslandSummary } from '@/lib/api';
 import { toIslandLanguage, type LearningLanguage } from '@/lib/settings';
 
 /** The silent gap after a line is this many times the line's own duration. */
-export const DRIVE_GAP_FACTOR = 1.2;
+const DRIVE_GAP_FACTOR = 1.2;
 /** Shortest and longest gap the backend is asked to append (its pad cap is 20 s). */
-export const DRIVE_PAD_MIN_MS = 1500;
-export const DRIVE_PAD_MAX_MS = 20000;
+const DRIVE_PAD_MIN_MS = 1500;
+const DRIVE_PAD_MAX_MS = 20000;
 
 /** Where the radio is: an index into the queue and a line index in that island. */
 export type DrivePos = { island: number; line: number };

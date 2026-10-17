@@ -20,7 +20,7 @@ const WHITESPACE = /\s+/g;
 
 /** Mirrors the backend's `file_name` so the client and the server agree on
  * what the shared file is called. */
-export function exportFileName(title: string, speed: number): string {
+function exportFileName(title: string, speed: number): string {
   let safe = title.replace(UNSAFE_CHARS, ' ').replace(WHITESPACE, ' ').trim();
   safe = safe.slice(0, 60).trim();
   if (!safe) safe = t('player.island');
@@ -34,12 +34,12 @@ function sharingUnavailable(): string {
 /** The native download error carries only the HTTP status, worded per
  * platform ("response has status: 409" on Android, "response has status 409"
  * or "server returned HTTP 409" on iOS). Returns null when there is none. */
-export function statusFromError(message: string): number | null {
+function statusFromError(message: string): number | null {
   const match = /(?:status|HTTP)\s*:?\s*(\d{3})\b/i.exec(message);
   return match ? Number(match[1]) : null;
 }
 
-export function exportErrorText(e: unknown): string {
+function exportErrorText(e: unknown): string {
   const message = e instanceof Error ? e.message : '';
   if (message === sharingUnavailable()) return message;
   switch (statusFromError(message)) {

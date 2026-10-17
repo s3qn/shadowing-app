@@ -13,7 +13,7 @@ export const MIN_PHRASE_MS = 250;
  * Milliseconds of the render at `speed` covered by `span`, or null when the
  * span is empty or shorter than MIN_PHRASE_MS.
  */
-export function spanToAudio(line: Line, span: PhraseSpan, speed: number): AudioSpan | null {
+function spanToAudio(line: Line, span: PhraseSpan, speed: number): AudioSpan | null {
   const { words } = line;
   if (span.from < 0 || span.to >= words.length || span.from > span.to) return null;
   const startMs = span.from === 0 ? 0 : Math.round((words[span.from].start / speed) * 1000);

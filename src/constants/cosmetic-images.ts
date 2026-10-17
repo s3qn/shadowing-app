@@ -1,7 +1,7 @@
 /**
  * Item PNGs for the Rive cat, keyed by catalog item id. Files live in
  * assets/cosmetics/, drawn by the Rive session and fitted to Kageneko.
- * All 52 items. Tail bows (accessory.tailbow_*) inject into the v3 tail slot;
+ * All 53 items. Tail bows (accessory.tailbow_*) inject into the v3 tail slot;
  * see kageneko-view.tsx for the accessory->tail routing.
  */
 export const ITEM_IMAGES: Readonly<Partial<Record<string, number>>> = {
@@ -18,6 +18,7 @@ export const ITEM_IMAGES: Readonly<Partial<Record<string, number>>> = {
   'head.crown_orange': require('../../assets/cosmetics/head.crown_orange.png'),
   'head.tophat_white': require('../../assets/cosmetics/head.tophat_white.png'),
   'head.crown_silver': require('../../assets/cosmetics/head.crown_silver.png'),
+  'head.beta_tester_hat': require('../../assets/cosmetics/head.beta_tester_hat.png'),
   'head.crown_purple': require('../../assets/cosmetics/head.crown_purple.png'),
   'face.blush_pink': require('../../assets/cosmetics/face.blush_pink.png'),
   'face.glasses_black': require('../../assets/cosmetics/face.glasses_black.png'),

@@ -28,16 +28,16 @@ export type PracticeLog = {
 // many seconds of playback. A day that does have a `passes` entry counts by
 // STREAK_THRESHOLD_PASSES instead. This keeps a streak built before this
 // change intact instead of resetting it to 0.
-export const STREAK_THRESHOLD_SECONDS = 60;
+const STREAK_THRESHOLD_SECONDS = 60;
 
 // A day with a `passes` entry counts toward the streak once it holds at
 // least this many full plays and takes.
-export const STREAK_THRESHOLD_PASSES = 10;
+const STREAK_THRESHOLD_PASSES = 10;
 
 // A day counts toward the streak once it holds this many finished five-pass
 // ladders, regardless of the passes count: the onboarding's "a day counts
 // once you finish one full sentence ladder".
-export const STREAK_THRESHOLD_LADDERS = 1;
+const STREAK_THRESHOLD_LADDERS = 1;
 
 // A stretch of playback under 15s of buffered seconds waits for the next
 // natural flush point (a pause); past that it flushes on its own, so a

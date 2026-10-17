@@ -97,6 +97,12 @@ SHADOW_TOKEN = os.getenv("SHADOW_TOKEN", "")
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 IMPORT_MAX_BYTES = 300 * 1024 * 1024
 IMPORT_MAX_SECONDS = 1800  # 30 minutes: how much of an import an island keeps
+# --- bl36-align ---
+VIDEO_AUDIO_MAX_BYTES = 40 * 1024 * 1024
+ALIGN_MAX_SECONDS = 1800
+ALIGN_TIMEOUT_S = 1800
+ALIGN_MAX_ATTEMPTS = 3
+# --- end bl36-align ---
 SRT_MAX_BYTES = 2 * 1024 * 1024
 SLICE_RATE = 24000  # aec.SR: VOICEVOX's rate, which the take cleaner and slicer assume
 
@@ -254,11 +260,12 @@ async def voice_preview(style_id: int, token: str = "",
     return FileResponse(path, media_type="audio/wav")
 
 
-def _to_wav(src: Path, dst: Path) -> bool:
+def _to_wav(src: Path, dst: Path, max_seconds: float | None = None) -> bool:
     """Normalise whatever the phone recorded to 16kHz mono wav for whisper."""
+    limit = ["-t", str(max_seconds)] if max_seconds else []
     try:
         subprocess.run(
-            ["ffmpeg", "-y", "-i", str(src), "-ac", "1", "-ar", "16000", str(dst)],
+            ["ffmpeg", "-y", "-i", str(src), *limit, "-ac", "1", "-ar", "16000", str(dst)],
             capture_output=True,
             check=True,
             timeout=120,
@@ -1087,6 +1094,11 @@ async def _resolve_line_audio(island: dict, idx: int, speed: float,
     if speed != 1.0:
         path = path.with_name(f"{idx}@{speed:.2f}.wav")
         if not await asyncio.to_thread(path.exists):
+            if "lines" not in island:
+                # The line route passes only the id; load the lines for a render.
+                island = await asyncio.to_thread(store.get_island, island["id"])
+                if island is None:
+                    raise HTTPException(404, "no such island")
             line = next((l for l in island.get("lines", []) if l["idx"] == idx), None)
             if line is None:
                 raise HTTPException(404, "no such line")
@@ -1144,9 +1156,9 @@ async def line_audio(island_id: str, idx: int, token: str = "", speed: float = 1
     # token query parameter is accepted here as well as the usual header.
     _token_or_header(token, authorization)
     dev = _require_device(x_shadow_device, device)
-    island = await asyncio.to_thread(_own_island, island_id, dev)
+    await asyncio.to_thread(_require_owner, island_id, dev)
     span = _span(start, end)
-    path = await _resolve_line_audio(island, idx, speed, span)
+    path = await _resolve_line_audio({"id": island_id}, idx, speed, span)
     if not await asyncio.to_thread(path.exists):
         raise HTTPException(404, "no audio for that line")
     pad = _clamp_pad(pad)
@@ -1455,7 +1467,7 @@ async def take_clean(island_id: str, idx: int, token: str = "", v: str = "", dev
     take between calls."""
     _token_or_header(token, authorization)
     dev = _require_device(x_shadow_device, device)
-    _own_island(island_id, dev)
+    await asyncio.to_thread(_require_owner, island_id, dev)
     _, clean_path = store.take_paths(island_id, idx)
     if not clean_path.exists():
         raise HTTPException(404, "no cleaned take for that line")
@@ -1529,7 +1541,7 @@ async def revoice(
     so there is no transcription or generation: a few seconds of synthesis."""
     require_token(authorization)
     device = _require_device(x_shadow_device)
-    island = _own_island(island_id, device)
+    island = await asyncio.to_thread(_own_island, island_id, device)
     if island["status"] != "ready":
         raise HTTPException(409, "the island is still being built")
     if island["source"] != "voice":
@@ -1668,7 +1680,7 @@ def delete_island(island_id: str, authorization: str | None = Header(None),
                    x_shadow_device: str = Header("")) -> dict:
     require_token(authorization)
     device = _require_device(x_shadow_device)
-    _own_island(island_id, device)
+    _require_owner(island_id, device)
     store.delete_island(island_id)
     return {"ok": True}
 
@@ -1682,7 +1694,7 @@ def rename_island(
 ) -> dict:
     require_token(authorization)
     device = _require_device(x_shadow_device)
-    _own_island(island_id, device)
+    _require_owner(island_id, device)
     title = title.strip() or "Untitled island"
     store.set_title(island_id, title)
     return {"id": island_id, "title": title}
@@ -1775,10 +1787,18 @@ def _require_device(x_shadow_device: str, device_q: str = "") -> str:
     return device
 
 
+def _require_owner(island_id: str, device: str) -> None:
+    """404 unless `device` owns the island. Reads one column, no lines, for
+    routes that only need the check. `device == ''` never matches, even
+    against an unclaimed island (also device=''): an empty id must never be
+    treated as a valid owner."""
+    owner = store.island_device(island_id)
+    if owner is None or not device or owner != device:
+        raise HTTPException(404, "no such island")
+
+
 def _own_island(island_id: str, device: str) -> dict:
-    """The island, only if `device` owns it. `device == ''` never matches,
-    even against an unclaimed island (also device=''): an empty id must
-    never be treated as a valid owner."""
+    """The island with its lines, only if `device` owns it (see `_require_owner`)."""
     island = store.get_island(island_id)
     if island is None or not device or island["device"] != device:
         raise HTTPException(404, "no such island")
@@ -2004,7 +2024,7 @@ def _added_phrase_topics(device: str, language: str) -> set[str]:
     if not isinstance(device, str) or not device:
         return set()
     return {
-        store.get_island(i["id"])["source_name"]
+        i["source_name"]
         for i in store.list_islands(device)
         if i["source"] == "phrases" and i["language"] == language and i["status"] != "failed"
     }
@@ -2091,7 +2111,7 @@ async def import_phrases(
             existing["source"] == "phrases"
             and existing["language"] == language
             and existing["status"] != "failed"
-            and store.get_island(existing["id"])["source_name"] == topic
+            and existing["source_name"] == topic
         ):
             return {"id": existing["id"], "status": existing["status"]}
 
@@ -2272,11 +2292,17 @@ async def island_video(island_id: str, authorization: str | None = Header(None),
                        x_shadow_device: str = Header("")) -> dict:
     require_token(authorization)
     device = _require_device(x_shadow_device)
-    await asyncio.to_thread(_own_island, island_id, device)
+    await asyncio.to_thread(_require_owner, island_id, device)
     video = await asyncio.to_thread(store.get_video, island_id)
     if video is None:
         raise HTTPException(404, "no video for this island")
     video["captions_only"] = not store.line_audio_path(island_id, 0).exists()
+    # bl36-align: 'closed' once the last allowed attempt failed, so clients stop uploading.
+    status = video.pop("align_status", "")
+    if status == "failed" and video.pop("align_attempts", 0) >= ALIGN_MAX_ATTEMPTS:
+        status = "closed"
+    video.pop("align_attempts", None)
+    video["align"] = status
     return video
 
 
@@ -2286,6 +2312,167 @@ async def list_videos(authorization: str | None = Header(None),
     require_token(authorization)
     device = _require_device(x_shadow_device)
     return await asyncio.to_thread(store.list_videos, device)
+
+
+# --- bl36-align ---
+import align  # noqa: E402
+import wave  # noqa: E402
+
+_align_queue: asyncio.Queue | None = None
+
+
+def _get_align_queue() -> asyncio.Queue:
+    global _align_queue
+    if _align_queue is None:
+        _align_queue = asyncio.Queue()
+    return _align_queue
+
+
+@app.post("/shadow/islands/{island_id}/video-audio")
+async def upload_video_audio(
+    island_id: str,
+    audio: UploadFile = File(...),
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    """The phone's audio for a video island. Queues forced alignment of the
+    captions against it; the island is already playable and stays so."""
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    island = await asyncio.to_thread(_own_island, island_id, device)
+    if island["source"] != "youtube":
+        raise HTTPException(400, {"code": "not_video"})
+    video = await asyncio.to_thread(store.get_video, island_id)
+    if video is None:
+        raise HTTPException(400, {"code": "not_video"})
+    if video["align_status"] in ("queued", "running"):
+        raise HTTPException(409, {"code": "align_busy"})
+    if video["align_status"] == "done" or video["align_attempts"] >= ALIGN_MAX_ATTEMPTS:
+        raise HTTPException(409, {"code": "align_closed"})
+    # Claim the row before streaming, so a second upload racing this one gets
+    # align_busy instead of overwriting the file.
+    if not await asyncio.to_thread(store.claim_align, island_id, ALIGN_MAX_ATTEMPTS):
+        raise HTTPException(409, {"code": "align_busy"})
+    src = store.video_audio_path(island_id, "src")
+    try:
+        size = await asyncio.to_thread(_stream_upload, audio, src, VIDEO_AUDIO_MAX_BYTES)
+        if size == 0:
+            raise HTTPException(400, "empty upload")
+    except BaseException:
+        src.unlink(missing_ok=True)
+        store.set_align_status(island_id, video["align_status"], video["align_error"])
+        raise
+    store.set_align_status(island_id, "queued", count_attempt=True)
+    _get_align_queue().put_nowait(island_id)
+    return {"align": "queued"}
+
+
+def _align_cleanup(island_id: str) -> None:
+    for kind in ("src", "wav", "job.json", "out.json"):
+        store.video_audio_path(island_id, kind).unlink(missing_ok=True)
+
+
+def _wav_seconds(path: Path) -> float:
+    with wave.open(str(path), "rb") as w:
+        return w.getnframes() / float(w.getframerate())
+
+
+async def _align_one(island_id: str) -> None:
+    """Align one video island's captions to its uploaded audio. Any failure
+    leaves the step-1 words and offsets and records a code on the video row."""
+    try:
+        for _ in range(60):
+            island = await asyncio.to_thread(store.get_island, island_id)
+            if island is None:
+                return
+            if island["status"] == "ready":
+                break
+            await asyncio.sleep(1)
+        else:
+            raise align.AlignError("align_not_ready")
+        store.set_align_status(island_id, "running")
+        lines = [
+            {"idx": ln["idx"], "text": ln["ja"], "offset": ln["offset"],
+             "duration": ln["duration"], "words": ln["words"]}
+            for ln in island["lines"]
+        ]
+        src = store.video_audio_path(island_id, "src")
+        wav = store.video_audio_path(island_id, "wav")
+        if not src.exists() or not await asyncio.to_thread(_to_wav, src, wav, ALIGN_MAX_SECONDS):
+            raise align.AlignError("align_decode")
+        try:
+            audio_len = await asyncio.to_thread(_wav_seconds, wav)
+        except Exception as exc:
+            raise align.AlignError("align_decode") from exc
+        windows = align.windows_from_lines(lines, audio_len)
+        if windows:
+            job = store.video_audio_path(island_id, "job.json")
+            job.write_text(json.dumps({
+                "wav": str(wav),
+                "language": align.LANGUAGE_NAMES.get(island["language"], "Japanese"),
+                "windows": [{k: w[k] for k in ("id", "start", "end", "text")} for w in windows],
+            }, ensure_ascii=False), encoding="utf-8")
+            result = await asyncio.to_thread(
+                align.run_job, job, store.video_audio_path(island_id, "out.json"),
+                timeout=ALIGN_TIMEOUT_S, unit=island_id,
+            )
+            by_idx = {ln["idx"]: ln for ln in lines}
+            updates = align.apply(windows, lines, result)
+            for upd in updates:
+                line = by_idx[upd["idx"]]
+                if island["language"] == "ja":
+                    words = await asyncio.to_thread(
+                        segment.align_pieces, line["text"], upd["pieces"], upd["duration"])
+                else:
+                    words = await asyncio.to_thread(
+                        latin.align, line["text"], upd["pieces"], upd["duration"])
+                wrote = await asyncio.to_thread(
+                    store.set_words, island_id, upd["idx"], words, line["words"])
+                if wrote:
+                    store.set_line_span(island_id, upd["idx"], upd["offset"], upd["duration"])
+            log.info("island %s aligned: %d lines retimed, peak_rss_mb=%s", island_id,
+                     len(updates), result.get("peak_rss_mb"))
+        store.set_align_status(island_id, "done")
+    except align.AlignError as exc:
+        log.warning("island %s alignment failed: %s", island_id, exc)
+        store.set_align_status(island_id, "failed", exc.code)
+    except Exception:
+        log.exception("island %s alignment crashed", island_id)
+        store.set_align_status(island_id, "failed", "align_error")
+    finally:
+        _align_cleanup(island_id)
+
+
+async def _align_consumer() -> None:
+    queue = _get_align_queue()
+    while True:
+        island_id = await queue.get()
+        try:
+            await _align_one(island_id)
+        except Exception:
+            log.exception("align consumer: island %s", island_id)
+        finally:
+            queue.task_done()
+
+
+def _align_recover() -> None:
+    """Rows still queued or running died with the old process: requeue those
+    whose upload survived, fail the rest."""
+    for island_id in store.list_align_pending():
+        if store.video_audio_path(island_id, "src").exists():
+            store.set_align_status(island_id, "queued")
+            _get_align_queue().put_nowait(island_id)
+        else:
+            store.set_align_status(island_id, "failed", "align_interrupted")
+
+
+@app.on_event("startup")
+async def _align_startup() -> None:
+    # A worker from the previous process may still hold 3G: stop it before requeueing.
+    await asyncio.to_thread(align.stop_leftover_scopes)
+    _align_recover()
+    asyncio.create_task(_align_consumer())
+# --- end bl36-align ---
 
 
 # --- progression ---

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type FrameInfo, useFrameCallback, useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { buildTable, type Highlight, type HighlightState, IDLE, type Table } from '@/components/word-highlight';
+import { buildTable, type Highlight, type HighlightState, IDLE, levelAt, type Table } from '@/components/word-highlight';
 import type { Line } from '@/lib/api';
 
 /**
@@ -105,18 +105,7 @@ export function useTrackHighlight(
       const t = tables.value[line] ?? null;
       let next: HighlightState = IDLE;
       if (t) {
-        let level = t.from;
-        for (let j = 0; j < t.c.length; j += 1) {
-          const cj = t.c[j]!;
-          const wj = t.w[j]!;
-          if (pos < cj - wj / 2) break;
-          if (wj <= 0) {
-            level += 1;
-            continue;
-          }
-          const x = Math.min(1, Math.max(0, (pos - cj) / wj + 0.5));
-          level += x * x * (3 - 2 * x);
-        }
+        const level = levelAt(t, pos);
         next = { level, on: g, from: t.from, to: t.to };
       }
       const h = highlight.value;

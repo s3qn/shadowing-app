@@ -1,4 +1,3 @@
-import { verb } from '@/constants/theme';
 
 /** The slot contract: the placeholder cat and a later Rive cat both bind to it. */
 export const SLOTS = ['head', 'face', 'body', 'accessory'] as const;
@@ -33,19 +32,3 @@ export const KAGENEKO_MODES = ['idle', 'listening', 'your_turn', 'recording'] as
 export type KagenekoMode = (typeof KAGENEKO_MODES)[number];
 
 export type Equipped = Partial<Record<Slot, ArtSpec | null>>;
-
-/** The shape vocabulary, mirrored in the server catalog `shapes`. */
-export const SHAPES: Record<Slot, readonly string[]> = {
-  head: ['cap', 'beanie', 'tophat', 'crown', 'bow'],
-  face: ['glasses', 'shades', 'monocle', 'mask', 'blush'],
-  body: ['scarf', 'shirt', 'cape', 'kimono', 'hoodie'],
-  accessory: ['collar', 'bell', 'bowtie', 'tailbow', 'badge'],
-};
-
-/** Colour tint of an item's price, by rarity. */
-export function rarityTint(price: number): string {
-  if (price <= 0) return verb.read.c1;
-  if (price < 100) return verb.tools.c1;
-  if (price < 400) return verb.listen.c1;
-  return verb.speak.c1;
-}

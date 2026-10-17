@@ -15,7 +15,7 @@ import { PrismButton } from '@/components/prism';
 import { BlindPopover, blindValueLabel } from '@/components/tide/blind-popover';
 import { PassHelpSheet } from '@/components/tide/pass-help-sheet';
 import { PassStrip } from '@/components/tide/pass-strip';
-import { CompactDock, DOCK_GOLD_INK, type DockAnchor, type DockAnchorKey, type DockPill } from '@/components/tide/compact-dock';
+import { CompactDock, DOCK_GOLD_INK, type DockPill } from '@/components/tide/compact-dock';
 import { READING_LABEL_KEY, ReadingPopover } from '@/components/tide/reading-popover';
 import { SpeedPopover } from '@/components/tide/speed-popover';
 import { BlindIcon, ReadingIcon } from '@/components/tide/toolbar-icons';
@@ -24,7 +24,10 @@ import { TideScene } from '@/components/tide/tide-scene';
 import { SaveStar } from '@/components/save-star';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
-import { snapRate, useLadder } from '@/hooks/use-ladder';
+import { snapRate, type useLadder } from '@/hooks/use-ladder';
+import { useDockPopovers } from '@/hooks/use-dock-popovers';
+import { useLadderWiring } from '@/hooks/use-ladder-wiring';
+import { useSavedCards } from '@/hooks/use-saved-cards';
 import { useTake } from '@/hooks/use-take';
 import { usePracticeClock } from '@/hooks/use-practice-clock';
 import { useTrackHighlight } from '@/hooks/use-track-highlight';
@@ -33,11 +36,9 @@ import { scheduleAudioSessionRelease, startPlayback, stopPlayback, useSessionPla
 import { useT } from '@/lib/i18n';
 import { hapticImpact, hapticSelection } from '@/lib/haptics';
 import { getLastLine, resumeLine, setLastLine } from '@/lib/last-line';
-import { COUNT_IN_BEATS, COUNT_IN_BEAT_MS, helpPassOf } from '@/lib/pass-programme';
-import { addLadder } from '@/lib/practice';
-import { getSettingsSync, setBlind as persistBlind, setReading as persistReading, type ReadingMode } from '@/lib/settings';
+import { COUNT_IN_BEATS, COUNT_IN_BEAT_MS } from '@/lib/pass-programme';
+import { getSettingsSync } from '@/lib/settings';
 
-type TileBox = { x: number; y: number; width: number };
 type ShadowStep = 'idle' | 'count' | 'recording' | 'compare';
 
 /** The track stops this far before a line's end. It has to stay above the
@@ -47,7 +48,6 @@ const STOP_EARLY_S = 0.35;
 /** A stop point arms only after a status this far before it, so a late status
  * still carrying the pre-seek position cannot fire it. */
 const STOP_ARM_S = 0.3;
-
 
 type StopAt = { at: number; armAt: number; armed: boolean };
 
@@ -59,11 +59,8 @@ export default function PodcastScreen() {
 
   const [island, setIsland] = useState<api.Island | null>(null);
   const [error, setError] = useState(false);
-  const [saveError, setSaveError] = useState('');
   // review-deck: saved sentences of this island, line idx to card id.
-  const [savedCards, setSavedCards] = useState<Map<number, string>>(new Map());
-  // Line idx already graded 'got' this session: a line repeated in the ladder grades once.
-  const graded = useRef(new Set<number>());
+  const { savedCards, saveError, reviewSet, loadReviewCards, toggleSaved, gradeOnce } = useSavedCards(island?.id, id, !!review);
   const [loaded, setLoaded] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -77,8 +74,6 @@ export default function PodcastScreen() {
   usePracticeClock(island?.id, player);
 
   const scrollRef = useRef<ScrollView>(null);
-  // Review mode: only the saved lines, frozen at load, due ones decide the start.
-  const [reviewSet, setReviewSet] = useState<{ idx: Set<number>; due: Set<number> } | null>(null);
   const lines = useMemo(() => {
     const all = island?.lines ?? [];
     return reviewSet ? all.filter((l) => reviewSet.idx.has(l.idx)) : all;
@@ -86,91 +81,14 @@ export default function PodcastScreen() {
   const sceneLines = useMemo(() => lines.map((l) => l.ja), [lines]);
   const { highlight, activeLine, seekToLine } = useTrackHighlight(player, lines);
 
-  useEffect(() => {
-    // Review mode loads the cards with the island.
-    if (!island || review) return;
-    let alive = true;
-    api
-      .listReviewCards(island.id)
-      .then((cards) => alive && setSavedCards(new Map(cards.map((c) => [c.idx, c.id]))))
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [island?.id, review]);
-
-  const toggleSaved = useCallback(
-    (idx: number) => {
-      const existing = savedCards.get(idx);
-      if (existing === 'pending') return;
-      const setCard = (card: string | null) =>
-        setSavedCards((m) => {
-          const next = new Map(m);
-          if (card) next.set(idx, card);
-          else next.delete(idx);
-          return next;
-        });
-      if (existing) {
-        setCard('pending');
-        api
-          .removeReviewCard(existing)
-          .then(() => {
-            setCard(null);
-            setSaveError('');
-          })
-          .catch((e) => {
-            setCard(existing);
-            setSaveError(e instanceof Error ? e.message : '');
-          });
-      } else {
-        setCard('pending');
-        api
-          .saveReviewCard(id, idx)
-          .then((c) => {
-            setCard(c.id);
-            setSaveError('');
-          })
-          .catch((e) => {
-            setCard(null);
-            setSaveError(e instanceof Error ? e.message : '');
-          });
-      }
-    },
-    [savedCards, id],
-  );
-
-  const [explainOpen, setExplainOpen] = useState(false);
-  const [explainSpan, setExplainSpan] = useState<ExplainSelection['span'] | null>(null);
-  const [explainMarked, setExplainMarked] = useState<string[]>([]);
-  const [explainWhole, setExplainWhole] = useState(false);
   const [generation, setGeneration] = useState(0);
-  const [readingMode, setReadingMode] = useState<ReadingMode>(() => getSettingsSync().reading);
-  const [blind, setBlind] = useState(() => getSettingsSync().blind);
-  const [englishShown, setEnglishShown] = useState(() => !getSettingsSync().hideEnglish);
-  const [speedPopOpen, setSpeedPopOpen] = useState(false);
-  const [readingPopOpen, setReadingPopOpen] = useState(false);
-  const [blindPopOpen, setBlindPopOpen] = useState(false);
-  const [trayOpen, setTrayOpen] = useState(false);
-  const anchors = useRef<Partial<Record<DockAnchorKey, TileBox>>>({});
-  const dockY = useRef(0);
-  // The floating dock's height: the transcript scrolls its last line clear
-  // of it. State, set only on a real change.
-  const [dockH, setDockH] = useState(0);
+  const {
+    explainOpen, setExplainOpen, explainSpan, explainMarked, explainWhole, openExplain,
+    readingMode, blind, englishShown, pickReading, toggleBlind, toggleEnglish,
+    speedPopOpen, setSpeedPopOpen, readingPopOpen, setReadingPopOpen, blindPopOpen, setBlindPopOpen,
+    trayOpen, setTrayOpen, anchors, dockY, dockH, onAnchor, onDockLayout,
+  } = useDockPopovers();
   const insets = useSafeAreaInsets();
-  const popOpenRef = useRef(false);
-  popOpenRef.current = speedPopOpen || readingPopOpen || blindPopOpen;
-  const [, bumpAnchors] = useState(0);
-  const anchorMoved = useCallback((moved: boolean) => {
-    if (moved && popOpenRef.current) bumpAnchors((n) => n + 1);
-  }, []);
-  const onAnchor = useCallback(
-    (key: DockAnchorKey, box: DockAnchor) => {
-      const old = anchors.current[key];
-      anchors.current[key] = box;
-      anchorMoved(!old || old.x !== box.x || old.y !== box.y || old.width !== box.width);
-    },
-    [anchorMoved],
-  );
 
   // In-place take: pause, count in, record the line, play it next to the original.
   // The line and generation are pinned while a take runs, so the highlight
@@ -207,11 +125,7 @@ export default function PodcastScreen() {
     Promise.all([api.getIsland(id), review ? api.listReviewCards(id) : null])
       .then(([i, cards]) => {
         if (!alive) return;
-        if (cards) {
-          const today = new Date().toISOString().slice(0, 10);
-          setSavedCards(new Map(cards.map((c) => [c.idx, c.id])));
-          setReviewSet({ idx: new Set(cards.map((c) => c.idx)), due: new Set(cards.filter((c) => c.due_on <= today).map((c) => c.idx)) });
-        }
+        if (cards) loadReviewCards(cards);
         setIsland(i);
         player.replace({ uri: api.withUser(api.episodeAudioUrl(id)) });
       })
@@ -257,9 +171,6 @@ export default function PodcastScreen() {
   const started = useRef(false);
   const ladderOpened = useRef(false);
   const openLadderRef = useRef(() => {});
-  const [helpOpen, setHelpOpen] = useState(false);
-  // The pass whose help is open, frozen while it is read.
-  const [helpPass, setHelpPass] = useState<0 | 1 | 2 | 3 | 4>(0);
   const lineRef = useRef(0);
   const resuming = useRef(false);
   useEffect(() => {
@@ -399,16 +310,11 @@ export default function PodcastScreen() {
     countBeat(COUNT_IN_BEATS);
   }
 
-  // Review mode runs the shadowing ladder on each saved line (the same passes
-  // as the island); a finished ladder marks the card reviewed on its own.
   // lineRef leads activeLine, which lags one render behind a seek.
   lineRef.current = activeLine;
-  const ladder = useLadder(take, speedLive, lines[activeLine]?.duration ?? 0, {
-    playLine: (speed) => {
-      // The pass rate lives in `rate` only: speedLive stays the dock speed
-      // the passes are taken from.
-      const snapped = snapRate(speed);
-      setRate(snapped);
+  const { ladder, helpOpen, setHelpOpen, helpPass, onPassHelp } = useLadderWiring({
+    take, speedLive, lines, lineRef, ladderRef, island, activeLine, seekToLine, setRate, gradeOnce,
+    playLine: (snapped) => {
       player.setPlaybackRate(snapped, 'high');
       const at = lineRef.current;
       ended.current = false;
@@ -416,50 +322,12 @@ export default function PodcastScreen() {
       startPlayback(player);
       armStop(at);
     },
-    record: (speed) => startLineTake(speed),
+    record: (snapped) => startLineTake(snapped),
     stop: () => {
       stopAt.current = null;
       stopPlayback(player);
-      take.stopTake();
-      void take.cancel();
-      setRate(speedLive);
-    },
-    onLineDone: () => {
-      const idx = lines[lineRef.current]?.idx ?? -1;
-      const card = savedCards.get(idx);
-      if (card && card !== 'pending' && !graded.current.has(idx)) {
-        graded.current.add(idx);
-        api.gradeReviewCard(card, 'got').catch(() => {});
-      }
-      if (island) addLadder(island.id);
-    },
-    advance: () => {
-      const next = lineRef.current + 1;
-      if (next >= lines.length) {
-        router.back();
-        return false;
-      }
-      seekToLine(next);
-      lineRef.current = next;
-      return true;
     },
   });
-  ladderRef.current = ladder;
-  // A finished ladder hands the player back at the dock speed.
-  // A stopped or finished run closes its help.
-  useEffect(() => {
-    if (ladder.step === 'done') setRate(speedLive);
-    if (ladder.step === 'idle' || ladder.step === 'done') setHelpOpen(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ladder.step]);
-  const livePass = helpPassOf(ladder.step, 'ladder');
-  const onPassHelp =
-    livePass === null
-      ? undefined
-      : () => {
-          setHelpPass(livePass);
-          setHelpOpen(true);
-        };
   const openLadder = () => ladder.start();
   openLadderRef.current = openLadder;
 
@@ -549,14 +417,11 @@ export default function PodcastScreen() {
   const onLineTap = useCallback((i: number) => playLineRef.current(i), []);
   const onExplain = useCallback(
     (sel: ExplainSelection) => {
-      setExplainMarked(sel.marked);
-      setExplainWhole(sel.whole);
-      setExplainSpan(sel.span);
       cancelShadow();
       pause();
-      setExplainOpen(true);
+      openExplain(sel);
     },
-    [pause, cancelShadow],
+    [pause, cancelShadow, openExplain],
   );
   const onExplainClose = useCallback(() => setExplainOpen(false), []);
   const onExplainPlay = useCallback(() => onLineTap(activeLine), [onLineTap, activeLine]);
@@ -573,17 +438,6 @@ export default function PodcastScreen() {
     setSpeedLive(v);
     setRate(v);
   };
-  const pickReading = (mode: ReadingMode) => {
-    setReadingMode(mode);
-    persistReading(mode).catch(() => {});
-  };
-  const toggleBlind = () => {
-    const next = !blind;
-    setBlind(next);
-    persistBlind(next).catch(() => {});
-  };
-  const toggleEnglish = () => setEnglishShown((v) => !v);
-
   const trayPills = useMemo((): DockPill[] => {
     const ink = (on: boolean) => (on ? DOCK_GOLD_INK : tide.textDim);
     const readingOn = readingMode !== 'off';
@@ -718,14 +572,7 @@ export default function PodcastScreen() {
               <View
                 style={[styles.dock, { bottom: insets.bottom }]}
                 pointerEvents="box-none"
-                onLayout={(e) => {
-                  const { y, height } = e.nativeEvent.layout;
-                  anchorMoved(y !== dockY.current);
-                  dockY.current = y;
-                  if (Number.isFinite(height) && height > 0) {
-                    setDockH((old) => (Math.abs(old - height) > 0.5 ? height : old));
-                  }
-                }}>
+                onLayout={onDockLayout}>
                 <CompactDock
                   playMode={playing ? 'playing' : 'idle'}
                   onToggle={toggle}

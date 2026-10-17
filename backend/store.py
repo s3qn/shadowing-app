@@ -16,11 +16,14 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+import dbconn
+
 DATA_DIR = Path(os.getenv("SHADOW_DATA_DIR", Path(__file__).parent / "data"))
 DB_PATH = DATA_DIR / "islands.db"
 AUDIO_DIR = DATA_DIR / "audio"
 TAKES_DIR = DATA_DIR / "takes"
 AEC_DIR = DATA_DIR / "aec"
+VIDEO_AUDIO_DIR = DATA_DIR / "video-audio"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS islands (
@@ -84,7 +87,10 @@ CREATE TABLE IF NOT EXISTS videos (
   duration    REAL NOT NULL DEFAULT 0,
   title       TEXT NOT NULL DEFAULT '',
   author      TEXT NOT NULL DEFAULT '',
-  created_at  TEXT NOT NULL
+  created_at  TEXT NOT NULL,
+  align_status   TEXT NOT NULL DEFAULT '',
+  align_error    TEXT NOT NULL DEFAULT '',
+  align_attempts INTEGER NOT NULL DEFAULT 0
 );
 """
 
@@ -93,13 +99,7 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-# One sqlite3 connection per thread, kept for the thread's life rather than
-# opened fresh on every call. store.* is hit from route handlers that hop
-# onto asyncio.to_thread's worker pool, whose threads are reused across
-# requests, so this is a real cache, not a one-shot. sqlite3's default
-# check_same_thread=True is exactly the safety this needs: a connection is
-# only ever touched by the thread that opened it, the same guarantee
-# threading.local already gives its contents.
+# One connection per thread, see dbconn.
 _local = threading.local()
 
 
@@ -108,20 +108,14 @@ def _make_dirs() -> None:
     AUDIO_DIR.mkdir(parents=True, exist_ok=True)
     TAKES_DIR.mkdir(parents=True, exist_ok=True)
     AEC_DIR.mkdir(parents=True, exist_ok=True)
+    VIDEO_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def connect() -> sqlite3.Connection:
-    conn = getattr(_local, "conn", None)
-    if conn is None:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON")
-        # WAL lets a read proceed while another thread holds a write
-        # transaction, which matters now that connections (and so
-        # transactions) live as long as the thread does.
-        conn.execute("PRAGMA journal_mode = WAL")
-        _local.conn = conn
-    return conn
+    # WAL lets a read proceed while another thread holds a write
+    # transaction, which matters now that connections (and so
+    # transactions) live as long as the thread does.
+    return dbconn.thread_conn(_local, DB_PATH, "foreign_keys = ON", "journal_mode = WAL")
 
 
 def init() -> None:
@@ -167,6 +161,20 @@ def init() -> None:
         # Rows without it (device='') belong to nobody until claimed.
         if "device" not in island_cols:
             conn.execute("ALTER TABLE islands ADD COLUMN device TEXT NOT NULL DEFAULT ''")
+        # After the ALTER above, since old databases only now have `device`.
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_islands_device_created ON islands(device, created_at)"
+        )
+        # bl36-align: video islands from before forced alignment lack its state.
+        # Additive and idempotent: each column is added only when missing.
+        video_cols = {row["name"] for row in conn.execute("PRAGMA table_info(videos)")}
+        for col, ddl in (
+            ("align_status", "TEXT NOT NULL DEFAULT ''"),
+            ("align_error", "TEXT NOT NULL DEFAULT ''"),
+            ("align_attempts", "INTEGER NOT NULL DEFAULT 0"),
+        ):
+            if col not in video_cols:
+                conn.execute(f"ALTER TABLE videos ADD COLUMN {col} {ddl}")
 
 
 def create_island(
@@ -405,7 +413,7 @@ def list_islands(device: str | None = None) -> list[dict]:
     healing relies on. A string filters to that device's own islands."""
     query = (
         "SELECT i.id, i.title, i.status, i.stage, i.complexity, i.language, i.native,"
-        " i.source, i.created_at, i.device, COUNT(l.idx) AS line_count"
+        " i.source, i.source_name, i.created_at, i.device, COUNT(l.idx) AS line_count"
         " FROM islands i LEFT JOIN lines l ON l.island_id = i.id"
     )
     params: tuple = ()
@@ -487,6 +495,56 @@ def add_video(island_id: str, video_id: str, start_s: float, title: str, author:
 def set_video_duration(island_id: str, duration: float) -> None:
     with connect() as conn:
         conn.execute("UPDATE videos SET duration=? WHERE island_id=?", (duration, island_id))
+
+
+# --- bl36-align ---
+def video_audio_path(island_id: str, kind: str = "src") -> Path:
+    """Scratch audio for the aligner: the phone's upload ("src"), the 16 kHz wav
+    ("wav") and the job files. The per-island folder is made on first use."""
+    folder = VIDEO_AUDIO_DIR / island_id
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder / kind
+
+
+def set_align_status(island_id: str, status: str, error: str = "",
+                     count_attempt: bool = False) -> None:
+    with connect() as conn:
+        conn.execute(
+            "UPDATE videos SET align_status=?, align_error=?,"
+            " align_attempts=align_attempts+? WHERE island_id=?",
+            (status, error, 1 if count_attempt else 0, island_id),
+        )
+
+
+def claim_align(island_id: str, max_attempts: int) -> bool:
+    """Mark the video queued if it is idle ('' or failed) and has attempts left.
+    One UPDATE, so of two racing uploads only one wins."""
+    with connect() as conn:
+        cur = conn.execute(
+            "UPDATE videos SET align_status='queued', align_error=''"
+            " WHERE island_id=? AND align_status IN ('','failed') AND align_attempts<?",
+            (island_id, max_attempts),
+        )
+    return cur.rowcount == 1
+
+
+def list_align_pending() -> list[str]:
+    """Island ids whose alignment was queued or running when the process died."""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT island_id FROM videos WHERE align_status IN ('queued','running')"
+            " ORDER BY created_at"
+        ).fetchall()
+    return [r["island_id"] for r in rows]
+
+
+def set_line_span(island_id: str, idx: int, offset: float, duration: float) -> None:
+    with connect() as conn:
+        conn.execute(
+            "UPDATE lines SET offset=?, duration=? WHERE island_id=? AND idx=?",
+            (offset, duration, island_id, idx),
+        )
+# --- end bl36-align ---
 
 
 def get_video(island_id: str) -> dict | None:

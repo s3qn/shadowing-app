@@ -6,7 +6,7 @@ import { tideSkies } from '@/constants/theme';
 import { getSettingsSync, subscribeSettings } from '@/lib/settings';
 
 // Allow testing different times of day without waiting. Set to null to use real time.
-export let DEV_TIME_OVERRIDE: number | null = null;
+let DEV_TIME_OVERRIDE: number | null = null;
 
 export type Period = keyof typeof tideSkies;
 
@@ -19,7 +19,7 @@ function periodFor(date: Date): Period {
 }
 
 /** Returns gradient stops [top, middle, bottom] for the current or overridden time. */
-export function getSkyPalette(date: Date): (typeof tideSkies)[Period] {
+function getSkyPalette(date: Date): (typeof tideSkies)[Period] {
   return tideSkies[periodFor(date)];
 }
 

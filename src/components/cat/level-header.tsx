@@ -18,8 +18,8 @@ import { tide, verb } from '@/constants/theme';
 import { hapticImpact } from '@/lib/haptics';
 import { useDir, useT } from '@/lib/i18n';
 
-export const XP_TRACK = 'rgba(255,255,255,0.10)';
-export const XP_HIGHLIGHT = 'rgba(255,255,255,0.25)';
+const XP_TRACK = 'rgba(255,255,255,0.10)';
+const XP_HIGHLIGHT = 'rgba(255,255,255,0.25)';
 const GOLD = verb.read.c1;
 const OUT_CUBIC = Easing.out(Easing.cubic);
 
@@ -65,7 +65,7 @@ export function XpBar({ fraction, height = 10, levelUps = 0 }: XpBarProps) {
 const AnimatedInput = Animated.createAnimatedComponent(TextInput);
 
 /** A coin count that counts to its new value on the UI thread (350ms out-cubic), no setState per frame. */
-export function CoinCount({ value, style }: { value: number; style?: object }) {
+function CoinCount({ value, style }: { value: number; style?: object }) {
   const reduced = useReducedMotion();
   const v = useSharedValue(value);
   useEffect(() => {

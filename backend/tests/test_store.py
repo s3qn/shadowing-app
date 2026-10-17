@@ -359,6 +359,21 @@ def test_delete_island_cascades_lines_and_hides_from_list(island_id):
     assert rows == []
 
 
+def test_init_indexes_islands_by_device_and_created_at():
+    store.init()  # twice in a row: the index creation is idempotent
+    cols = [r["name"] for r in store.connect().execute(
+        "PRAGMA index_info(idx_islands_device_created)"
+    )]
+    assert cols == ["device", "created_at"]
+
+
+def test_list_islands_carries_source_name():
+    iid = store.create_island("simple", 3, source="phrases", source_name="greetings")
+    found = next(i for i in store.list_islands() if i["id"] == iid)
+    assert found["source_name"] == "greetings"
+    store.delete_island(iid)
+
+
 def test_list_islands_includes_created_island_with_line_count(island_id):
     store.add_line(island_id, 0, {"ja": "a"}, 1.0, [], [])
     store.add_line(island_id, 1, {"ja": "b"}, 1.0, [], [])

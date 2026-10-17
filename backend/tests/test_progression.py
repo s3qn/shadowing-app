@@ -588,3 +588,47 @@ def test_level_milestone_pays_coins_only(owner, day):
     got = progression.award_take(owner, "a", 0)
     assert "level_5" in got["milestones"]
     assert _row_xp(owner, "ms:level_5") == 0
+
+
+# --- beta tester hat (grant only) ---
+
+HAT = "head.beta_tester_hat"
+
+
+def test_beta_grant_on_owns_hat_unequipped(owner, monkeypatch):
+    monkeypatch.setenv("SHADOW_BETA_GRANT", "1")
+    snap = progression.snapshot(owner)
+    assert HAT in snap["owned"] and snap["equipped"]["head"] is None
+
+
+def test_beta_grant_off_grants_nothing(owner, monkeypatch):
+    monkeypatch.delenv("SHADOW_BETA_GRANT", raising=False)
+    assert progression.snapshot(owner)["owned"] == []
+
+
+def test_beta_grant_survives_flag_off_and_never_duplicates(owner, monkeypatch):
+    monkeypatch.setenv("SHADOW_BETA_GRANT", "1")
+    progression.snapshot(owner)
+    progression.snapshot(owner)
+    monkeypatch.delenv("SHADOW_BETA_GRANT")
+    assert progression.snapshot(owner)["owned"] == [HAT]
+
+
+def test_buy_beta_hat_is_not_for_sale(owner):
+    _give(owner, coins=500)
+    with pytest.raises(HTTPException) as e:
+        progression.buy(owner, HAT)
+    assert e.value.status_code == 400 and _code(e.value) == "not_for_sale"
+    snap = progression.snapshot(owner)
+    assert snap["coins"] == 500 and snap["owned"] == []
+
+
+def test_equip_unowned_beta_hat_is_refused(owner):
+    with pytest.raises(HTTPException) as e:
+        progression.equip(owner, "head", HAT)
+    assert _code(e.value) == "not_owned"
+
+
+def test_catalog_lists_beta_hat_as_grant_only():
+    item = next(i for i in progression.catalog()["items"] if i["id"] == HAT)
+    assert item["grant_only"] is True and item["price"] == 0

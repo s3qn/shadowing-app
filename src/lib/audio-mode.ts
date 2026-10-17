@@ -153,7 +153,7 @@ export function scheduleAudioSessionRelease(delayMs = RELEASE_DELAY_MS): void {
 }
 
 /** Drops a release scheduled by scheduleAudioSessionRelease(), if any. */
-export function cancelAudioSessionRelease(): void {
+function cancelAudioSessionRelease(): void {
   if (releaseTimer === null) return;
   clearTimeout(releaseTimer);
   releaseTimer = null;

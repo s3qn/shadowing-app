@@ -71,7 +71,7 @@ const DEFAULT_KEEP_AWAKE = true;
 export const LEARNING_LANGUAGE_OPTIONS = ['ja', 'es', 'en'] as const;
 // A plain string, not a union of `LEARNING_LANGUAGE_OPTIONS`: a "coming soon"
 // pick from the catalogue is stored here as-is, so it can hold any catalogue
-// id. Use `getLearningLanguageForIslands()` wherever the value has to be one
+// id. Use `toIslandLanguage()` wherever the value has to be one
 // the backend can actually generate.
 export type LearningLanguage = string;
 const DEFAULT_LEARNING_LANGUAGE: LearningLanguage = 'ja';
@@ -375,7 +375,7 @@ export function getSettingsSync(): Settings {
 /** Voice used for new islands in `language` (the current learning language by
  * default): a VOICEVOX style id for `ja`, a Kokoro voice id for `es`/`en`. A
  * "coming soon" language (see `src/lib/languages.ts`) narrows to `'ja'` here
- * too, the same fallback `getLearningLanguageForIslands` uses, so a learner
+ * too, the same fallback `toIslandLanguage` uses, so a learner
  * who picked one still gets a voice list instead of `undefined`. */
 export async function getVoice(language?: LearningLanguage): Promise<number> {
   const settings = await pending.then(readOrDefaults);
@@ -478,16 +478,8 @@ export async function setLearningLanguage(learningLanguage: LearningLanguage): P
  * in: the stored pick if the backend can generate it, `'ja'` otherwise. A
  * "coming soon" pick (see `src/lib/languages.ts`) stays in `learningLanguage`
  * as-is, so it still counts as demand, but `backend/main.py` only accepts
- * `ja`/`es`/`en` for `language` (see its check near line 481). */
-export async function getLearningLanguageForIslands(): Promise<'ja' | 'es' | 'en'> {
-  const { learningLanguage } = await pending.then(readOrDefaults);
-  return toIslandLanguage(learningLanguage);
-}
-
-/** The synchronous half of `getLearningLanguageForIslands`, for a caller that
- * already has a `LearningLanguage` value in hand (from a hook's state, or a
- * `Settings` object already read) instead of needing to read settings itself.
- * Also narrows the type back to what the backend's request functions expect,
+ * `ja`/`es`/`en` for `language`. Takes a `LearningLanguage` already in hand
+ * (from a hook's state, or a `Settings` object). Also narrows the type back to what the backend's request functions expect,
  * since a widened catalogue id otherwise only typechecks as `string`. */
 export function toIslandLanguage(id: LearningLanguage): 'ja' | 'es' | 'en' {
   return (LEARNING_LANGUAGE_OPTIONS as readonly string[]).includes(id) ? (id as 'ja' | 'es' | 'en') : 'ja';

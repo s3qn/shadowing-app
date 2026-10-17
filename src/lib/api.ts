@@ -725,17 +725,6 @@ export type PhraseTopic = {
 export type PhraseCategory = { id: string; title: string; titleHe?: string; count: number };
 export type PhraseCatalog = { topics: PhraseTopic[]; categories?: PhraseCategory[] };
 
-/** Topics filtered by a search word and/or a category; marks the ones this device already added. */
-export async function phraseSearch(
-  language: Language,
-  ui: string,
-  q: string,
-  category: string,
-): Promise<PhraseCatalog> {
-  const qs = `language=${encodeURIComponent(language)}&ui=${encodeURIComponent(ui)}&q=${encodeURIComponent(q)}&category=${encodeURIComponent(category)}`;
-  return json<PhraseCatalog>(await fetch(`${BASE}/phrases/search?${qs}`, { headers: headers() }));
-}
-
 /** The ready-made phrase topics for a learning language, titled in `ui`. */
 export async function phraseCatalog(language: Language, ui: string): Promise<PhraseCatalog> {
   return json<PhraseCatalog>(
@@ -809,7 +798,7 @@ export async function importIsland(
 // --- youtube-shadowing ---
 
 export type YouTubeInfo = { video_id: string; url: string; title: string; author: string; thumbnail: string };
-export type IslandVideo = { island_id: string; video_id: string; start_s: number; duration: number; title: string; author: string; /** True when the island has no audio, only captions. */ captions_only?: boolean };
+export type IslandVideo = { island_id: string; video_id: string; start_s: number; duration: number; title: string; author: string; /** True when the island has no audio, only captions. */ captions_only?: boolean; /** Forced-alignment job: '' | queued | running | done | failed | closed (no attempts left). */ align?: string; align_error?: string };
 export type VideoListItem = {
   island_id: string;
   video_id: string;
@@ -849,6 +838,17 @@ export async function getIslandVideo(id: string): Promise<IslandVideo> {
   return json<IslandVideo>(await fetch(`${BASE}/islands/${id}/video`, { headers: headers() }));
 }
 
+// --- bl36-align ---
+/** Raw audio stream of a video island, for server-side forced alignment. */
+export async function uploadVideoAudio(islandId: string, uri: string): Promise<{ align: string }> {
+  const form = new FormData();
+  form.append('audio', new File(uri), 'audio');
+  return json<{ align: string }>(
+    await expoFetch(`${BASE}/islands/${islandId}/video-audio`, { method: 'POST', headers: headers(), body: form }),
+  );
+}
+// --- /bl36-align ---
+
 /** Every video island on this device, newest first. */
 export async function listVideos(): Promise<VideoListItem[]> {
   return json<VideoListItem[]>(await fetch(`${BASE}/videos`, { headers: headers() }));
@@ -881,6 +881,8 @@ export type CosmeticItem = {
   level_req: number;
   price: number;
   art: ArtSpec;
+  /** Granted by the server only (beta hat). Never for sale. */
+  grant_only?: boolean;
 };
 
 export type CosmeticsCatalog = { version: number; slots: Slot[]; shapes: Record<string, string[]>; items: CosmeticItem[] };
@@ -1049,9 +1051,4 @@ export function reviewProjects(cards: ReviewCard[]): ReviewProject[] {
     by.set(c.island_id, p);
   }
   return [...by.values()].sort((a, b) => b.due - a.due || (a.latest < b.latest ? 1 : -1));
-}
-
-/** Stored clip of a `clip` card, built like episodeAudioUrl (pass it through withUser). */
-export function reviewClipUrl(id: string): string {
-  return `${BASE}/review/cards/${id}/audio?token=${encodeURIComponent(TOKEN)}&device=${encodeURIComponent(deviceIdSync())}`;
 }

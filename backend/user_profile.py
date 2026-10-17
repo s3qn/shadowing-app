@@ -12,6 +12,8 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
+import dbconn
+
 DATA_DIR = Path(os.getenv("SHADOW_DATA_DIR", Path(__file__).parent / "data"))
 DB_PATH = DATA_DIR / "profile.db"
 
@@ -84,19 +86,15 @@ class UsernameTaken(ValueError):
     pass
 
 
+def _setup(conn: sqlite3.Connection) -> None:
+    conn.executescript(SCHEMA)
+    _migrate(conn)
+
+
 def connect() -> sqlite3.Connection:
-    conn = getattr(_local, "conn", None)
-    if conn is None or getattr(_local, "path", None) != DB_PATH:
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode = WAL")
-        conn.execute("PRAGMA busy_timeout = 5000")
-        conn.executescript(SCHEMA)
-        _migrate(conn)
-        _local.conn = conn
-        _local.path = DB_PATH
-    return conn
+    return dbconn.thread_conn(
+        _local, DB_PATH, "journal_mode = WAL", "busy_timeout = 5000", setup=_setup, mkdir=True,
+    )
 
 
 def init() -> None:
