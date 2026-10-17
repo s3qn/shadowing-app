@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 90
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
@@ -40,11 +40,15 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Use the newest Xcode on the runner
+      # Expo SDK 57 builds with Xcode 26.6 on EAS (image sdk-57); newer or older
+      # Xcode breaks expo-modules-jsi's Swift/C++ annotations.
+      - name: Use Xcode 26.6
         run: |
-          ls -d /Applications/Xcode*.app
-          NEWEST=$(ls -d /Applications/Xcode_*.app | sort -V | tail -n 1)
-          sudo xcode-select -s "$NEWEST/Contents/Developer"
+          AVAILABLE=$(ls -d /Applications/Xcode*.app | tr '\n' ' ')
+          echo "Available: $AVAILABLE"
+          XC=$(ls -d /Applications/Xcode_26.6*.app 2>/dev/null | sort -V | tail -n 1)
+          if [ -z "$XC" ]; then echo "::error title=Xcode 26.6 missing::Available: $AVAILABLE"; exit 1; fi
+          sudo xcode-select -s "$XC/Contents/Developer"
           xcodebuild -version
           pod --version || true
           fastlane --version || true
