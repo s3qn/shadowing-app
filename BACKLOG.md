@@ -75,3 +75,5 @@ New entries go at the bottom with the next BL number.
 - **BL-lb · Leaderboard shows the viewer at their real rank**: 8f9263a.
 - **BL-social (earlier) · Leaderboard with 0-XP users, visual fixes, default
   speed = 1.0.**
+
+- **BL-52 · Gate for external TestFlight: a how-to intro and a token limiter (2026-10-17, Sean).** Sean holds the external TestFlight group (public link, Beta App Review) until two things exist: (1) a good intro on how to use the app, which is BL-49's guided tour built from the friend session; (2) a token limiter in the app. Today the backend only counts actions per device per UTC day (main.py `_take_build_slot`: 5 creates, 3 reworks; `DAILY_CAPS`: explain 100, word_audio 400, podcast_search 60, take 200), invisible until a 429. Open questions for Sean before planning: a visible allowance in the app (a token or energy meter per user that refills daily) or only a hidden server cap; a global daily budget across all users so testers cannot exhaust Sean's Claude CLI and whisper capacity; what a tester sees at zero. The App Store Connect review text is ready (in chat 2026-10-17). todo, WAIT for Sean's answers.
