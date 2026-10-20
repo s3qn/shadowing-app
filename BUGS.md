@@ -10,74 +10,6 @@ practice), **P2** (hurts practice), **P3** (nice to have).
 
 ## Open
 
-### ET-12 · bug · P2 · open
-**Settings > Language, Asia filter: the "Coming soon" list is cut and runs into the footer.**
-Found by verify-monkey on wave-1017c (2026-10-20) and reproduced by hand: with
-the Asia filter on, the Coming soon list is clipped and the Chinese row
-collides with the "I UNDERSTAND" section. language-picker.tsx is not in the
-wave diff, so main has it too. Evidence:
-~/verify-evidence/monkey/wave-1017c-full2/pairs/074-settings_languages.png.
-
-### ET-9 · bug · P2 · open
-**Practice now: the Loading constellation draws on top of the first sentence.**
-Tapping Practice now on Home crossfades into the session with both screens
-visible (the session text over the Home cards), then the cat-constellation
-loader and "Loading" stay drawn over the Japanese line for about a second
-after the line is already shown. Screen recording from Sean, 2026-10-20.
-Expected: the loader replaces the content until it is ready, never overlaps it.
-
-### ET-10 · bug · P2 · open
-**Video player, Listen: the sentence card is too short, so a long line is cut.**
-On a YouTube video in Listen, a wrapped two-line sentence plus its English does
-not fit the small caption card above the step strip. The second line and the
-translation are clipped, so Sean has to scroll the card up and down to read
-it (the jumps in the recording are his own scrolling, not the app). The card
-also overlaps the step strip. Screen recording from Sean, 2026-10-20.
-Expected: the card grows to fit the whole line and its translation (or the
-text scales down), with no scrolling and no overlap.
-
-### ET-11 · bug · P2 · open
-**Memorise 3-2-1 countdown flickers at every step and at both ends.**
-Frame by frame (Sean's recording, 2026-10-20): at each tick the whole gold
-disc dips dark and the old and new digits show on top of each other ("3"
-over "2", "2" over "1") for 2 or 3 frames; the "Starts after N" caption
-switches instantly, a frame ahead of the digit. At the start the disc fades
-in over the 1/2 dots and the Again / I'm ready buttons (both visible), and at
-the end the "1" ghosts over the restored dots and buttons. Suspect: the disc
-remounts per digit (key on the number) with an enter/exit fade, and the
-countdown and the step content crossfade instead of one replacing the other.
-Expected: the disc stays put, only the digit changes (a quick swap or a
-number roll), caption in step, and no overlap with the step content.
-
-### ET-8 · bug · P2 · open
-**Wardrobe: fast tab taps flicker (two lit tabs, vanishing label, grid dips).**
-Tapping Head, Face, Body, Extras quickly on the wardrobe shows, for a few
-frames: two tab pills lit at once (ghosting), the new tab's label invisible
-(its ink turns dark at once while its pill is still fading in), and the item
-grid dimming to about a third before the new items appear. Screen recording
-from Sean, 2026-10-20. Cause:
-- `src/components/cat/slot-tabs.tsx` SlotPill: every pill fades its own light
-  fill over 200ms, so the old and new pill overlap; the label colour switches
-  instantly instead of following `lit`.
-- `src/components/cat/item-grid.tsx` ItemGrid: a fade-through (out 100ms, swap,
-  in) restarts on each tap, so rapid taps keep the grid dimmed.
-Fix direction: one sliding indicator shared by the tray (translate, not four
-crossfades), label colour interpolated from the same value, and a grid swap
-that does not dip to dark when interrupted.
-### ET-13 · bug · P2 · in progress
-**The intro can start on the wrong screen; a finished intro must never show again.**
-A returning user (an account and a username already) could land on another
-screen at launch (a deep link, a tab other than Home, a dev reload on a pushed
-route) and the intro or a guide step would open over it, with its back-outs
-and anchors pointing at the wrong screen. Reported by Sean, 2026-10-20.
-Rule: guide not done (onboarding pending or `guideStep` before `done`) puts
-the app on Home first, then starts; guide done shows no intro and no guide
-step on any route. The server keeps no "intro done" flag per account, so a
-fresh install of a returning user still sees onboarding (the mic and level
-picks are per device); only `settings.json` on the device says the intro ran.
-Fix on wave-1017c: `guideStartHome` in src/lib/guide.ts, called from the launch
-effect in src/app/_layout.tsx and the resume effect in guide-host.tsx.
-
 ### ET-1 · bug · P1 · open
 **Spanish islands: the words that light up do not match what is spoken.**
 On a Spanish island the highlighted words and the audio drift apart, so what
@@ -113,7 +45,105 @@ the body/tail outside the artboard bounds (or a layer separates), so Rive clips
 it. Fix belongs in the `.riv` (the Rive MCP session): keep every idle pose
 inside the artboard, or widen the artboard/bounds. Low priority, cosmetic.
 
+### ET-14 · bug · P1 · open · next build
+**Hebrew: the guide's ring and lit area sit mid-screen, not on the + button.**
+On the guide's 'home' step in Hebrew the + is bottom left (RTL mirror,
+styles.fabRtl in (tabs)/index.tsx) but the dashed tap ring and the lit band
+are drawn in the middle. Sean's phone, 2026-10-20 (screenshot in chat). A web
+tester saw the same on Hebrew Home. Check every guide hole in RTL, not only
+the +. Same pass: a full Hebrew-UI Tester run (RTL mismatches, bidi order,
+untranslated or awkward Hebrew).
+
+### ET-15 · bug · P3 · open · next build
+**Dev warning: "The action 'POP_TO_TOP' was not handled by any navigator".**
+Fires from a focus listener when the guide calls router.dismissAll() with
+nothing to dismiss (GuideHost tour() / home(), maybe others). Dev-only, no
+crash. Fix: guard each dismissAll() with router.canDismiss().
+
+### ET-16 · ux · P3 · open · next build
+**Small leftovers from the 2026-10-20 testers.**
+- On the guide's 'cat' step the bubble covers the daily stats numbers.
+- The wardrobe page is wider than the screen on web (455px in 390px); check
+  on the phone, suspect the cat stage canvas in cat-stage.tsx.
+- iPhone SE (375x667): the video player has no room for the line card at all.
+
 ## Closed
+
+### ET-8 · bug · P2 · closed
+**Wardrobe: fast tab taps flicker (two lit tabs, vanishing label, grid dips).**
+Tapping Head, Face, Body, Extras quickly on the wardrobe shows, for a few
+frames: two tab pills lit at once (ghosting), the new tab's label invisible
+(its ink turns dark at once while its pill is still fading in), and the item
+grid dimming to about a third before the new items appear. Screen recording
+from Sean, 2026-10-20. Cause:
+- `src/components/cat/slot-tabs.tsx` SlotPill: every pill fades its own light
+  fill over 200ms, so the old and new pill overlap; the label colour switches
+  instantly instead of following `lit`.
+- `src/components/cat/item-grid.tsx` ItemGrid: a fade-through (out 100ms, swap,
+  in) restarts on each tap, so rapid taps keep the grid dimmed.
+Fix direction: one sliding indicator shared by the tray (translate, not four
+crossfades), label colour interpolated from the same value, and a grid swap
+that does not dip to dark when interrupted.
+Fixed in 711d34b: SlotPill uses the shared SlidingLitPill (prism/pill-tray), one sliding indicator with the label colour on the same value, and the grid swaps at once when a tap interrupts it, so it never dips to dark. Not re-tested on device.
+
+### ET-9 · bug · P2 · closed
+**Practice now: the Loading constellation draws on top of the first sentence.**
+Tapping Practice now on Home crossfades into the session with both screens
+visible (the session text over the Home cards), then the cat-constellation
+loader and "Loading" stay drawn over the Japanese line for about a second
+after the line is already shown. Screen recording from Sean, 2026-10-20.
+Expected: the loader replaces the content until it is ready, never overlaps it.
+Fixed in 711d34b: `loaderShown` (lib/loading-overlay.ts) makes content-reveal.ts and ladder-stage.tsx wait LOADER_OUT_MS while the loader is still drawn, so the two never show at once. Not re-tested on device.
+
+### ET-10 · bug · P2 · closed
+**Video player, Listen: the sentence card is too short, so a long line is cut.**
+On a YouTube video in Listen, a wrapped two-line sentence plus its English does
+not fit the small caption card above the step strip. The second line and the
+translation are clipped, so Sean has to scroll the card up and down to read
+it (the jumps in the recording are his own scrolling, not the app). The card
+also overlaps the step strip. Screen recording from Sean, 2026-10-20.
+Expected: the card grows to fit the whole line and its translation (or the
+text scales down), with no scrolling and no overlap.
+Fixed in 711d34b: the ladder-stage card runs a fit pass that sizes the Japanese to leave room for the English under it (`fit.room`). Not re-tested on device. Open note: the iPhone SE caption fit is not confirmed and stays open.
+
+### ET-11 · bug · P2 · closed
+**Memorise 3-2-1 countdown flickers at every step and at both ends.**
+Frame by frame (Sean's recording, 2026-10-20): at each tick the whole gold
+disc dips dark and the old and new digits show on top of each other ("3"
+over "2", "2" over "1") for 2 or 3 frames; the "Starts after N" caption
+switches instantly, a frame ahead of the digit. At the start the disc fades
+in over the 1/2 dots and the Again / I'm ready buttons (both visible), and at
+the end the "1" ghosts over the restored dots and buttons. Suspect: the disc
+remounts per digit (key on the number) with an enter/exit fade, and the
+countdown and the step content crossfade instead of one replacing the other.
+Expected: the disc stays put, only the digit changes (a quick swap or a
+number roll), caption in step, and no overlap with the step content.
+Fixed in 711d34b: the countdown disc is keyed by the visible index, so it stays mounted and only the digit changes; the caption follows the step. Not re-tested on device.
+
+### ET-12 · bug · P2 · closed
+**Settings > Language, Asia filter: the "Coming soon" list is cut and runs into the footer.**
+Found by verify-monkey on wave-1017c (2026-10-20) and reproduced by hand: with
+the Asia filter on, the Coming soon list is clipped and the Chinese row
+collides with the "I UNDERSTAND" section. language-picker.tsx is not in the
+wave diff, so main has it too. Evidence:
+~/verify-evidence/monkey/wave-1017c-full2/pairs/074-settings_languages.png.
+Fixed in 711d34b: settings/languages.tsx puts both pickers in one ScrollView with `inline` plain rows, instead of two fixed halves. language-picker.tsx is in the wave diff (the earlier note saying it was not is wrong). Not re-tested on device.
+
+### ET-13 · bug · P2 · closed
+**The intro can start on the wrong screen; a finished intro must never show again.**
+A returning user (an account and a username already) could land on another
+screen at launch (a deep link, a tab other than Home, a dev reload on a pushed
+route) and the intro or a guide step would open over it, with its back-outs
+and anchors pointing at the wrong screen. Reported by Sean, 2026-10-20.
+Rule: guide not done (onboarding pending or `guideStep` before `done`) puts
+the app on Home first, then starts; guide done shows no intro and no guide
+step on any route. The server keeps no "intro done" flag per account, so a
+fresh install of a returning user still sees onboarding (the mic and level
+picks are per device); only `settings.json` on the device says the intro ran.
+Fix on wave-1017c: `guideStartHome` in src/lib/guide.ts, called from the launch
+effect in src/app/_layout.tsx and the resume effect in guide-host.tsx.
+Fixed in 711d34b: `guideStartHome` (lib/guide.ts) is called from the launch effect in _layout.tsx and the resume effect in guide-host.tsx, so a finished intro never shows and an unfinished one starts on Home.
+
 
 ### ET-7 · crash · P0 · closed
 **TestFlight build 14 crashes when a sheet opens in landscape.**
