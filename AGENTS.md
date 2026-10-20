@@ -37,6 +37,20 @@ Run it before finishing any change under `backend/`, next to
 proven otherwise: fix the code, do not loosen the test. Test dependencies live
 in `backend/requirements-dev.txt`.
 
+# Rules and what enforces them
+
+`npm run check:rules` runs locally and in CI (`.github/workflows/check-rules.yml`).
+`npm run test:rules` proves each check fails on its real past mistake. Old
+violations sit in `tools/rules/baseline.json`; a change may not add more.
+
+| Rule | Enforced by |
+|---|---|
+| A worklet (useAnimatedStyle, useDerivedValue, UI-thread gesture) reads only SharedValues and primitives, never `props.x`, `ref.current` or JSX | lint `repo/worklet-captures` |
+| A touch blocker around several holes uses `guideBlockers()`, not one min/max box | lint `repo/no-union-box-blocker` |
+| A style used with `dir.row` sets its own `flexDirection: 'row'` | lint `repo/dir-row-needs-flex-direction` |
+| `DEFAULT_DEFAULT_SPEED` is 1, never 0.5 | `tools/rules/check.js` |
+| EAS builds come from committed git, never "without VCS" | `eas.json` `requireCommit`, `tools/rules/check.js` |
+
 # Reuse existing code (Sean's rule)
 
 Always build from the code we already have. New code makes the app heavier and

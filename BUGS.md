@@ -10,6 +10,61 @@ practice), **P2** (hurts practice), **P3** (nice to have).
 
 ## Open
 
+### ET-12 · bug · P2 · open
+**Settings > Language, Asia filter: the "Coming soon" list is cut and runs into the footer.**
+Found by verify-monkey on wave-1017c (2026-10-20) and reproduced by hand: with
+the Asia filter on, the Coming soon list is clipped and the Chinese row
+collides with the "I UNDERSTAND" section. language-picker.tsx is not in the
+wave diff, so main has it too. Evidence:
+~/verify-evidence/monkey/wave-1017c-full2/pairs/074-settings_languages.png.
+
+### ET-9 · bug · P2 · open
+**Practice now: the Loading constellation draws on top of the first sentence.**
+Tapping Practice now on Home crossfades into the session with both screens
+visible (the session text over the Home cards), then the cat-constellation
+loader and "Loading" stay drawn over the Japanese line for about a second
+after the line is already shown. Screen recording from Sean, 2026-10-20.
+Expected: the loader replaces the content until it is ready, never overlaps it.
+
+### ET-10 · bug · P2 · open
+**Video player, Listen: the sentence card is too short, so a long line is cut.**
+On a YouTube video in Listen, a wrapped two-line sentence plus its English does
+not fit the small caption card above the step strip. The second line and the
+translation are clipped, so Sean has to scroll the card up and down to read
+it (the jumps in the recording are his own scrolling, not the app). The card
+also overlaps the step strip. Screen recording from Sean, 2026-10-20.
+Expected: the card grows to fit the whole line and its translation (or the
+text scales down), with no scrolling and no overlap.
+
+### ET-11 · bug · P2 · open
+**Memorise 3-2-1 countdown flickers at every step and at both ends.**
+Frame by frame (Sean's recording, 2026-10-20): at each tick the whole gold
+disc dips dark and the old and new digits show on top of each other ("3"
+over "2", "2" over "1") for 2 or 3 frames; the "Starts after N" caption
+switches instantly, a frame ahead of the digit. At the start the disc fades
+in over the 1/2 dots and the Again / I'm ready buttons (both visible), and at
+the end the "1" ghosts over the restored dots and buttons. Suspect: the disc
+remounts per digit (key on the number) with an enter/exit fade, and the
+countdown and the step content crossfade instead of one replacing the other.
+Expected: the disc stays put, only the digit changes (a quick swap or a
+number roll), caption in step, and no overlap with the step content.
+
+### ET-8 · bug · P2 · open
+**Wardrobe: fast tab taps flicker (two lit tabs, vanishing label, grid dips).**
+Tapping Head, Face, Body, Extras quickly on the wardrobe shows, for a few
+frames: two tab pills lit at once (ghosting), the new tab's label invisible
+(its ink turns dark at once while its pill is still fading in), and the item
+grid dimming to about a third before the new items appear. Screen recording
+from Sean, 2026-10-20. Cause:
+- `src/components/cat/slot-tabs.tsx` SlotPill: every pill fades its own light
+  fill over 200ms, so the old and new pill overlap; the label colour switches
+  instantly instead of following `lit`.
+- `src/components/cat/item-grid.tsx` ItemGrid: a fade-through (out 100ms, swap,
+  in) restarts on each tap, so rapid taps keep the grid dimmed.
+Fix direction: one sliding indicator shared by the tray (translate, not four
+crossfades), label colour interpolated from the same value, and a grid swap
+that does not dip to dark when interrupted.
+
 ### ET-1 · bug · P1 · open
 **Spanish islands: the words that light up do not match what is spoken.**
 On a Spanish island the highlighted words and the audio drift apart, so what

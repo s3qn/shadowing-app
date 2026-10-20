@@ -1,0 +1,25 @@
+# Repo rules from AGENTS.md (worklet captures, touch blockers, default speed,
+# EAS from committed git). Separate from ios-build.yml, which only runs on
+# ios-* tags and manual dispatch, so this never touches the iOS build.
+name: Check rules
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the proofs read old commits with git show
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run check:rules
+      - run: npm run test:rules

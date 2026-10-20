@@ -68,7 +68,9 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "check:rules": "node tools/rules/check.js",
+    "test:rules": "node --test tools/rules/"
   },
   "private": true
 }

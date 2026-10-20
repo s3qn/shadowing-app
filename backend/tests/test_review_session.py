@@ -144,7 +144,7 @@ def test_seconds_per_sentence_default_and_clamp():
 
 def _finish_route(session_id, sentences=3, seconds=120.0, lines=()):
     body = main.ReviewFinishedBody(session_id=session_id, sentences=sentences, seconds=seconds,
-                                   local_day="2026-10-17", lines=list(lines))
+                                   local_day=progression._today(), lines=list(lines))
     return asyncio.run(main.review_session_finished(
         body=body, authorization=AUTH, x_shadow_device=DEV))
 
