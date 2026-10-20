@@ -1,9 +1,9 @@
 [
-  {"text": "Excuse me, could you help me?"},
-  {"text": "I lost my wallet."},
-  {"text": "I don't feel well."},
-  {"text": "Where is the nearest hospital?"},
-  {"text": "Could I borrow your phone?"},
-  {"text": "Does anyone here speak Hebrew?"},
-  {"text": "Just a moment, please."}
+  {"text": "Excuse me, could you help me?", "he": "סליחה, אפשר עזרה?"},
+  {"text": "I lost my wallet.", "he": "איבדתי את הארנק."},
+  {"text": "I don't feel well.", "he": "אני לא מרגיש טוב."},
+  {"text": "Where is the nearest hospital?", "he": "איפה בית החולים הקרוב?"},
+  {"text": "Could I borrow your phone?", "he": "אפשר לשאול את הטלפון שלך?"},
+  {"text": "Does anyone here speak Hebrew?", "he": "יש כאן מישהו שמדבר עברית?"},
+  {"text": "Just a moment, please.", "he": "רגע אחד, בבקשה."}
 ]

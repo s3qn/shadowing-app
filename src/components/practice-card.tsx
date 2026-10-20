@@ -194,7 +194,7 @@ function DayCell({ letter, minutes, isToday, reducedMotion }: {
   );
 }
 
-export function PracticeCard({ log, dueCount, onPractice, onDrive }: { log: PracticeLog; dueCount: number; onPractice: () => void; onDrive: () => void }) {
+export function PracticeCard({ log, dueCount, onPractice, onDrive }: { log: PracticeLog; dueCount: number | null; onPractice: () => void; onDrive: () => void }) {
   const { t } = useT();
   const dir = useDir();
   const reducedMotion = useReducedMotion();
@@ -233,7 +233,11 @@ export function PracticeCard({ log, dueCount, onPractice, onDrive }: { log: Prac
           <Text style={[styles.label, { color: tide.textDim }]}>{t('home.practiceStreak')}</Text>
         </View>
         <View style={styles.stat}>
-          <Odometer value={dueCount} reducedMotion={reducedMotion} textStyle={[styles.value, { color: tide.text }]} />
+          {dueCount == null ? (
+            <Text style={[styles.value, styles.digitText, { color: tide.textDim }]}>·</Text>
+          ) : (
+            <Odometer value={dueCount} reducedMotion={reducedMotion} textStyle={[styles.value, { color: tide.text }]} />
+          )}
           <Text style={[styles.label, { color: tide.textDim }]}>{t('home.dueToday')}</Text>
         </View>
       </View>

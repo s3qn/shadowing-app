@@ -146,6 +146,12 @@ def phrases(language: str, topic_id: str) -> list[dict]:
     return _CATALOG["phrases"][language][topic_id]
 
 
+def gloss(entry: dict, native: str) -> str:
+    """A phrase's gloss in the learner's understood language (`he` or `en`),
+    falling back to the English one, then to an empty string."""
+    return (entry.get(native) if native != "en" else None) or entry.get("en") or ""
+
+
 def title(topic_id: str, native: str) -> str:
     """The island title for a topic, in the native language."""
     suffix = _UI_SUFFIX.get(native, "")

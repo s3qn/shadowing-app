@@ -1,6 +1,8 @@
+import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { Easing, cancelAnimation, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
 
+import type { Highlight } from '@/components/word-highlight';
 import type { Line } from '@/lib/api';
 import { TAIL_MS, type useTake } from '@/hooks/use-take';
 import {
@@ -72,6 +74,8 @@ export type DockProps = {
   /** One count beat in ms, for the red button's beat ring. */
   beatMs: number;
   recordLabel: string;
+  /** 0..4 while the five stages run, -1 otherwise. */
+  stageIndex: number;
   ringDisabled: boolean;
   onRecord: () => void;
 };
@@ -93,6 +97,8 @@ export type LadderStageProps = {
   line?: Line | null;
   /** Live mic level, 0..1, for the recording meter. */
   level?: SharedValue<number>;
+  /** The playing line's word highlight, so the stage's line lights up with the audio. */
+  highlight?: Highlight;
   fill: SharedValue<number>;
   hint: string;
   colour: string;
@@ -107,6 +113,10 @@ export type LadderStageProps = {
   round?: 1 | 2;
   /** Whether this run ends on the blind take (the blindTake setting). */
   finalOn?: boolean;
+  /** False drops the Memorise and Say passes from the rail (the guide's first line). */
+  prep?: boolean;
+  /** bl58-easy-for-me: the Easy chip at the card's top-right, so a run can be left with a mark. */
+  chip?: ReactNode;
   onJump: (i: number) => void;
   onEnd: () => void;
   /** The mic has closed on this take (Stop tapped, or the take ended and is saving). */
@@ -561,9 +571,7 @@ export function useLadder(
         countIn !== null
           ? 'player.cancelCountIn'
           : step === 'idle'
-            ? opts?.onRecordStart === 'line'
-              ? 'player.recordMyTake'
-              : 'player.startLadder'
+            ? 'player.shadow'
             : step === 'done'
               ? 'player.startAgain'
               : isSpeakStep(step)
@@ -572,6 +580,7 @@ export function useLadder(
                   ? 'player.record'
                   : 'player.recordNow',
       ),
+      stageIndex,
       ringDisabled: countIn !== null || isSpeakStep(step) || isPlayStep(step),
       onRecord,
     },

@@ -153,9 +153,12 @@ def score(
     anchor_ms: float | None,
     lag_ms: int,
     anchor: str | None,
+    lenient: bool = False,
 ) -> dict:
     """Classify every word window against the take envelope. Pure: takes
     envelopes and windows in, returns the score dict of the Design."""
+    tolerance_ms = TOLERANCE_MS * 2 if lenient else TOLERANCE_MS
+    dropped_fraction = DROPPED_FRACTION / 2 if lenient else DROPPED_FRACTION
     n = len(windows)
     if anchor_ms is None:
         return _unscorable(n, None, "No timing anchor")
@@ -211,7 +214,7 @@ def score(
         voiced = float(np.mean([take_slice[j] > VOICED for j in js]))
         mapped_span = max(js) - min(js) + 1
         ref_len = fb - fa + 1
-        is_dropped = voiced < DROPPED_FRACTION or (ref_len >= 5 and mapped_span < 3)
+        is_dropped = voiced < dropped_fraction or (ref_len >= 5 and mapped_span < 3)
         dropped_flags.append(is_dropped)
         offsets.append(offset_ms)
         words.append("dropped" if is_dropped else "ok")
@@ -230,9 +233,9 @@ def score(
             if dropped_flags[i] or offsets[i] is None:
                 continue
             delta = offsets[i] - med
-            if delta < -TOLERANCE_MS:
+            if delta < -tolerance_ms:
                 words[i] = "early"
-            elif delta > TOLERANCE_MS:
+            elif delta > tolerance_ms:
                 words[i] = "late"
             else:
                 words[i] = "ok"
@@ -258,9 +261,10 @@ def score_take(
     anchor_ms: float | None,
     lag_ms: int,
     anchor: str | None,
+    lenient: bool = False,
 ) -> dict:
     """Envelope both signals and score the take against the line's words."""
     ref_env = envelope(ref, sr)
     take_env = envelope(take, sr)
     windows = word_windows(words, speed, span)
-    return score(ref_env, take_env, windows, anchor_ms, lag_ms, anchor)
+    return score(ref_env, take_env, windows, anchor_ms, lag_ms, anchor, lenient)

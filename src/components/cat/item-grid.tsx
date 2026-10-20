@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type ViewStyle } from 'react-native';
-import Animated, { cancelAnimation, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
+import Animated, { cancelAnimation, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
 
 import { CosmeticArt, SHAPE_BOX } from '@/components/cat/cosmetic-layer';
 import { fonts } from '@/constants/fonts';
@@ -24,7 +24,7 @@ export type ItemGridProps = {
   items: CosmeticItem[];
   progress: Progress;
   selectedId: string | null;
-  /** Changes with the slot: cells of the old key fade out, the new ones stagger in. */
+  /** Changes with the slot: the old list fades out, then the new cells stagger in. */
   slotKey: string;
   onSelect: (item: CosmeticItem) => void;
   /** Extra room under the last row, for the floating action bar. */
@@ -184,72 +184,106 @@ function LockGlyph({ color, style }: { color: string; style?: StyleProp<ViewStyl
   );
 }
 
+/** How long the old slot's list takes to fade out before the new one comes in. */
+const LEAVE_MS = 80;
+/** After a swap the new cells stagger in for about this long; a tap inside it swaps at once. */
+const ENTER_WINDOW_MS = STAGGER_CELLS * STAGGER_MS + 200;
+
+type Shown = { key: string; items: CosmeticItem[]; animate: boolean };
+
 /**
  * The item grid: three columns of square cells. The first on-screen cells of a
  * slot stagger in (a per-cell delay, not a layout animation); cells scrolled in
- * later appear flat. A slot change fades the old cells out over 100ms first.
+ * later appear flat. A slot change fades the old list out in 80ms, then the new
+ * cells stagger in, so two slots never show at once. A tap while that is under
+ * way swaps straight to the latest slot with its cells flat, so the grid never
+ * dips to the bare page and always lands on the lit tab.
  */
 export function ItemGrid({ items, progress, selectedId, slotKey, onSelect, bottomPad = 0 }: ItemGridProps) {
   const { width } = useWindowDimensions();
   const size = Math.floor((width - 2 * Spacing.lg - GAP * (COLUMNS - 1)) / COLUMNS);
   const reduced = useReducedMotion();
-  const [shown, setShown] = useState({ key: slotKey, items });
-  const fade = useSharedValue(1);
-  const swap = useCallback(
-    (key: string, next: CosmeticItem[]) => {
-      setShown({ key, items: next });
-      fade.value = 1;
+  const [shown, setShown] = useState<Shown>({ key: slotKey, items, animate: true });
+  const [leaving, setLeaving] = useState(false);
+  const latest = useRef({ key: slotKey, items });
+  latest.current = { key: slotKey, items };
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const swappedAt = useRef(0);
+
+  useEffect(() => {
+    const busy = leaveTimer.current !== null || Date.now() - swappedAt.current < ENTER_WINDOW_MS;
+    if (leaveTimer.current) clearTimeout(leaveTimer.current);
+    leaveTimer.current = null;
+    if (shown.key === slotKey) {
+      // Same slot (a catalog refresh, or the shown slot picked again while it was leaving): stay, in place.
+      setLeaving(false);
+      if (shown.items !== items) setShown({ ...shown, items });
+      return;
+    }
+    if (reduced || busy) {
+      // Mid-transition or reduced motion: swap at once, no fade, no stagger.
+      setLeaving(false);
+      swappedAt.current = reduced ? 0 : Date.now();
+      setShown({ key: slotKey, items, animate: false });
+      return;
+    }
+    setLeaving(true);
+    leaveTimer.current = setTimeout(() => {
+      leaveTimer.current = null;
+      swappedAt.current = Date.now();
+      setLeaving(false);
+      setShown({ ...latest.current, animate: true });
+    }, LEAVE_MS);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slotKey, items, reduced]);
+  useEffect(
+    () => () => {
+      if (leaveTimer.current) clearTimeout(leaveTimer.current);
     },
-    [fade],
+    [],
   );
 
-  // Same slot: new items (a catalog refresh) replace in place. New slot: fade out, then swap.
-  useEffect(() => {
-    if (slotKey === shown.key) {
-      if (items !== shown.items) setShown({ key: slotKey, items });
-      return;
-    }
-    cancelAnimation(fade);
-    if (reduced) {
-      fade.value = 1;
-      setShown({ key: slotKey, items });
-      return;
-    }
-    fade.value = withTiming(0, { duration: 100 }, (done) => {
-      'worklet';
-      if (done) {
-        runOnJS(swap)(slotKey, items);
-      }
-    });
-  }, [slotKey, items, shown, fade, reduced, swap]);
-
-  const fadeStyle = useAnimatedStyle(() => ({ opacity: fade.value }));
-
   return (
-    <Animated.View style={[styles.fill, fadeStyle]}>
-      <FlatList
-        key={shown.key}
-        data={shown.items}
-        keyExtractor={(i) => i.id}
-        numColumns={COLUMNS}
-        columnWrapperStyle={styles.columns}
-        contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
-        showsVerticalScrollIndicator={false}
-        initialNumToRender={STAGGER_CELLS}
-        maxToRenderPerBatch={6}
-        windowSize={3}
-        renderItem={({ item, index }) => (
-          <Cell
-            item={item}
-            state={itemState(item, progress)}
-            selected={selectedId === item.id}
-            index={index}
-            size={size}
-            animate={index < STAGGER_CELLS}
-            onPress={() => onSelect(item)}
-          />
-        )}
-      />
+    <View style={styles.fill}>
+      <GridLayer key={shown.key} leaving={leaving}>
+        <FlatList
+          data={shown.items}
+          keyExtractor={(i) => i.id}
+          numColumns={COLUMNS}
+          columnWrapperStyle={styles.columns}
+          contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
+          showsVerticalScrollIndicator={false}
+          initialNumToRender={STAGGER_CELLS}
+          maxToRenderPerBatch={6}
+          windowSize={3}
+          renderItem={({ item, index }) => (
+            <Cell
+              item={item}
+              state={itemState(item, progress)}
+              selected={selectedId === item.id}
+              index={index}
+              size={size}
+              animate={shown.animate && index < STAGGER_CELLS}
+              onPress={() => onSelect(item)}
+            />
+          )}
+        />
+      </GridLayer>
+    </View>
+  );
+}
+
+/** One slot's list, keyed by slot so a swap mounts a fresh layer at full opacity. While `leaving` it fades out in LEAVE_MS. */
+function GridLayer({ leaving, children }: { leaving: boolean; children: ReactNode }) {
+  const opacity = useSharedValue(1);
+  useEffect(() => {
+    cancelAnimation(opacity);
+    opacity.value = leaving ? withTiming(0, { duration: LEAVE_MS }) : 1;
+  }, [leaving, opacity]);
+  const style = useAnimatedStyle(() => ({ opacity: Number.isFinite(opacity.value) ? opacity.value : 1 }));
+  return (
+    <Animated.View pointerEvents={leaving ? 'none' : 'auto'} style={[StyleSheet.absoluteFill, style]}>
+      {children}
     </Animated.View>
   );
 }
@@ -287,6 +321,7 @@ const styles = StyleSheet.create({
   discRingWorn: { boxShadow: `0 0 0 2px ${CYAN}, 0 0 18px rgba(124,200,255,0.55)` },
   disc: { width: DISC, height: DISC, borderRadius: DISC / 2, backgroundColor: '#232b5e', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   veil: {
+    borderRadius: DISC / 2,
     position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,
     alignItems: 'center', justifyContent: 'center',
     experimental_backgroundImage: 'linear-gradient(160deg, rgba(190,200,255,0.22), rgba(120,130,200,0.08))',
@@ -294,7 +329,7 @@ const styles = StyleSheet.create({
   },
   name: { fontFamily: fonts.ui, fontSize: 12.5, lineHeight: 16, fontWeight: '500', color: tide.text, maxWidth: '100%' },
   bandClip: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 28, borderBottomLeftRadius: 20, borderBottomRightRadius: 20, overflow: 'hidden' },
-  band: { height: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  band: { height: 28, borderBottomLeftRadius: 20, borderBottomRightRadius: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   bandText: { fontFamily: fonts.ui, fontSize: 11.5, fontWeight: '600', letterSpacing: 0.1, lineHeight: 14 },
   bandBuy: {
     experimental_backgroundImage: 'linear-gradient(180deg, rgba(255,200,87,0.40), rgba(255,200,87,0.04))',

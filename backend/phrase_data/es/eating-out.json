@@ -1,9 +1,9 @@
 [
-  {"text": "Una mesa para dos, por favor.", "en": "A table for two, please."},
-  {"text": "¿Me trae la carta, por favor?", "en": "Could you bring me the menu, please?"},
-  {"text": "¿Qué me recomienda?", "en": "What do you recommend?"},
-  {"text": "Quisiera esto, por favor.", "en": "I'd like this, please."},
-  {"text": "Un vaso de agua, por favor.", "en": "A glass of water, please."},
-  {"text": "Está muy rico.", "en": "It's very tasty."},
-  {"text": "La cuenta, por favor.", "en": "The check, please."}
+  {"text": "Una mesa para dos, por favor.", "en": "A table for two, please.", "he": "שולחן לשניים, בבקשה."},
+  {"text": "¿Me trae la carta, por favor?", "en": "Could you bring me the menu, please?", "he": "אפשר לקבל תפריט, בבקשה?"},
+  {"text": "¿Qué me recomienda?", "en": "What do you recommend?", "he": "מה אתם ממליצים?"},
+  {"text": "Quisiera esto, por favor.", "en": "I'd like this, please.", "he": "אני רוצה את זה, בבקשה."},
+  {"text": "Un vaso de agua, por favor.", "en": "A glass of water, please.", "he": "כוס מים, בבקשה."},
+  {"text": "Está muy rico.", "en": "It's very tasty.", "he": "זה טעים מאוד."},
+  {"text": "La cuenta, por favor.", "en": "The check, please.", "he": "החשבון, בבקשה."}
 ]

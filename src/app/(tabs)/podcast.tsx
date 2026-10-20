@@ -81,16 +81,19 @@ export default function PodcastScreen() {
 
   const [catalog, setCatalog] = useState<api.PodcastCatalog | null>(null);
   const [catalogError, setCatalogError] = useState('');
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<api.PodcastShow[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
+  const [searchAttempt, setSearchAttempt] = useState(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sectionListRef = useRef<SectionList<api.PodcastShow, SectionData>>(null);
   const [activeChip, setActiveChip] = useState<string | null>(null);
+  const chipListRef = useRef<FlatList<api.PodcastSection>>(null);
 
   const [learningLanguage, setLearningLanguage] = useState(() => getSettingsSync().learningLanguage);
   useEffect(() => subscribeSettings(() => setLearningLanguage(getSettingsSync().learningLanguage)), []);
@@ -104,7 +107,7 @@ export default function PodcastScreen() {
       .podcastCatalog(toIslandLanguage(learningLanguage), lang)
       .then(setCatalog)
       .catch((e) => setCatalogError(e instanceof Error ? e.message : t('home.podcastCatalogError')));
-  }, [learningLanguage, lang, t]);
+  }, [learningLanguage, lang, t, catalogAttempt]);
 
   useEffect(() => () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -128,7 +131,7 @@ export default function PodcastScreen() {
         .catch((e) => setSearchError(e instanceof Error ? e.message : t('home.podcastSearchError')))
         .finally(() => setSearching(false));
     }, SEARCH_DEBOUNCE_MS);
-  }, [query, learningLanguage, t]);
+  }, [query, learningLanguage, t, searchAttempt]);
 
   const sections: SectionData[] = useMemo(
     () =>
@@ -177,6 +180,7 @@ export default function PodcastScreen() {
         ) : searchError ? (
           <View style={styles.center}>
             <Text style={[styles.hint, styles.centerText]}>{searchError}</Text>
+            <PrismButton shape="pill" verb="tools" label={t('common.retry')} accessibilityLabel={t('common.retry')} onPress={() => setSearchAttempt((n) => n + 1)} />
           </View>
         ) : (
           <FlatList
@@ -191,6 +195,7 @@ export default function PodcastScreen() {
       ) : catalogError ? (
         <View style={styles.center}>
           <Text style={[styles.hint, styles.centerText]}>{catalogError}</Text>
+          <PrismButton shape="pill" verb="tools" label={t('common.retry')} accessibilityLabel={t('common.retry')} onPress={() => setCatalogAttempt((n) => n + 1)} />
         </View>
       ) : !catalog ? (
         <View style={styles.center}>
@@ -201,9 +206,14 @@ export default function PodcastScreen() {
           {/* prism: chip row shares one blur pane, each chip a flat pill */}
           <GlassPanel radius={Radius.pill} style={styles.chipRow}>
             <FlatList
+              ref={chipListRef}
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.chipRowContent}
+              // Hebrew mirrors by row-reverse, so offset 0 shows the far end; start at the right edge.
+              onContentSizeChange={() => {
+                if (dir.rtl) chipListRef.current?.scrollToEnd({ animated: false });
+              }}
+              contentContainerStyle={[styles.chipRowContent, dir.row]}
               data={catalog.sections}
               keyExtractor={(s) => s.id}
               renderItem={({ item }) => (
@@ -275,7 +285,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   chipRow: { flexGrow: 0, marginHorizontal: SIDE, marginBottom: Spacing.sm },
-  chipRowContent: { paddingHorizontal: SIDE, paddingVertical: Spacing.xs, gap: Spacing.xs },
+  chipRowContent: { flexDirection: 'row', paddingHorizontal: SIDE, paddingVertical: Spacing.xs, gap: Spacing.xs },
   // paddingBottom leaves room for the floating pill tab bar and the offset
   // pane that peeks out past its bottom edge, so the last row never hides
   // under it.

@@ -1,0 +1,493 @@
+{
+ "language": "en",
+ "topic": "help",
+ "lines": [
+  {
+   "ja": "Excuse me, could you help me?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "סליחה, תוכל לעזור לי?"
+   },
+   "duration": 1.7493333333333334,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Excuse",
+     "start": 0.091,
+     "end": 0.566,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Excuse",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "me,",
+     "start": 0.566,
+     "end": 0.941,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "me,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "could",
+     "start": 0.941,
+     "end": 1.041,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "could",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "you",
+     "start": 1.041,
+     "end": 1.141,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "you",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "help",
+     "start": 1.141,
+     "end": 1.366,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "help",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "me?",
+     "start": 1.366,
+     "end": 1.749,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "me?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "I lost my wallet.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "איבדתי את הארנק שלי."
+   },
+   "duration": 1.2586666666666666,
+   "timeline": [],
+   "words": [
+    {
+     "text": "I",
+     "start": 0.07,
+     "end": 0.22,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "lost",
+     "start": 0.22,
+     "end": 0.495,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "lost",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "my",
+     "start": 0.495,
+     "end": 0.695,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "my",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "wallet.",
+     "start": 0.695,
+     "end": 1.259,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "wallet.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "I don't feel well.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "אני לא מרגיש טוב."
+   },
+   "duration": 1.088,
+   "timeline": [],
+   "words": [
+    {
+     "text": "I",
+     "start": 0.066,
+     "end": 0.166,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "don't",
+     "start": 0.166,
+     "end": 0.366,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "don't",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "feel",
+     "start": 0.366,
+     "end": 0.616,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "feel",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "well.",
+     "start": 0.616,
+     "end": 1.088,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "well.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Where is the nearest hospital?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "איפה בית החולים הקרוב?"
+   },
+   "duration": 1.5786666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Where",
+     "start": 0.066,
+     "end": 0.266,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Where",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "is",
+     "start": 0.266,
+     "end": 0.391,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "is",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "the",
+     "start": 0.391,
+     "end": 0.491,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "the",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "nearest",
+     "start": 0.491,
+     "end": 0.841,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "nearest",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "hospital?",
+     "start": 0.841,
+     "end": 1.579,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "hospital?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Could I borrow your phone?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "אפשר לשאול את הטלפון שלך?"
+   },
+   "duration": 1.3866666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Could",
+     "start": 0.062,
+     "end": 0.212,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Could",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "I",
+     "start": 0.212,
+     "end": 0.362,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "borrow",
+     "start": 0.362,
+     "end": 0.662,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "borrow",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "your",
+     "start": 0.662,
+     "end": 0.837,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "your",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "phone?",
+     "start": 0.837,
+     "end": 1.387,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "phone?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Does anyone here speak Hebrew?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "יש כאן מישהו שמדבר עברית?"
+   },
+   "duration": 1.6853333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Does",
+     "start": 0.062,
+     "end": 0.237,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Does",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "anyone",
+     "start": 0.237,
+     "end": 0.537,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "anyone",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "here",
+     "start": 0.537,
+     "end": 0.762,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "here",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "speak",
+     "start": 0.762,
+     "end": 1.037,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "speak",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "Hebrew?",
+     "start": 1.037,
+     "end": 1.685,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Hebrew?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Just a moment, please.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "רגע אחד, בבקשה."
+   },
+   "duration": 1.3226666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Just",
+     "start": 0.062,
+     "end": 0.312,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Just",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "a",
+     "start": 0.312,
+     "end": 0.387,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "a",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "moment,",
+     "start": 0.387,
+     "end": 0.737,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "moment,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "please.",
+     "start": 0.737,
+     "end": 1.323,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "please.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -18,6 +18,7 @@ import { hapticImpact } from '@/lib/haptics';
 
 /** Default distance between two ticks, one step apart. */
 const DEFAULT_STEP = 12;
+const LABEL_MIN_W = 36;
 export const TICK_RULER_H = 56;
 const GROOVE_TOP = 4;
 const GROOVE_H = 36;
@@ -71,6 +72,9 @@ export function TickRuler({
   fadeColor,
 }: Props) {
   const STEP = stepProp ?? DEFAULT_STEP;
+  // Centred on its tick and wide enough for "0.75" at a 12pt step. The
+  // maxWidth undoes react-native-web's Text default of 100% of the cell.
+  const labelW = Math.max(2 * STEP, LABEL_MIN_W);
   const grooveH = Math.round((GROOVE_H * height) / TICK_RULER_H);
   const grooveTop = noLabels ? Math.round((height - grooveH) / 2) : Math.round((GROOVE_TOP * height) / TICK_RULER_H);
   const scale = height / TICK_RULER_H;
@@ -199,7 +203,7 @@ export function TickRuler({
                   <View style={[styles.tick, major ? { height: Math.round(20 * scale), backgroundColor: POP.tickMajor } : { height: Math.round(11 * scale) }]} />
                 </View>
                 {noLabels ? null : (
-                  <Text style={[styles.tickLabel, { width: 2 * STEP, left: -STEP / 2 }]} numberOfLines={1}>
+                  <Text style={[styles.tickLabel, { width: labelW, maxWidth: labelW, left: (STEP - labelW) / 2 }]} numberOfLines={1}>
                     {major ? tickLabel(i) : ''}
                   </Text>
                 )}
@@ -252,7 +256,7 @@ const styles = StyleSheet.create({
   tickArea: { position: 'absolute', left: 0, right: 0, alignItems: 'center', justifyContent: 'center' },
   tick: { width: 2, borderRadius: 1, backgroundColor: POP.tickMinor },
   fade: { position: 'absolute', top: 0, bottom: 0 },
-  // Wider than the cell and centred on it, so "10" is not clipped.
+  // Wider than the cell and centred on it, so "10" and "0.75" are not clipped.
   tickLabel: {
     position: 'absolute',
     bottom: 1,

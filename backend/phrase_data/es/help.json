@@ -1,9 +1,9 @@
 [
-  {"text": "Perdone, ¿me puede ayudar?", "en": "Excuse me, can you help me?"},
-  {"text": "He perdido mi cartera.", "en": "I've lost my wallet."},
-  {"text": "No me siento bien.", "en": "I don't feel well."},
-  {"text": "¿Dónde está el hospital?", "en": "Where is the hospital?"},
-  {"text": "¿Me puede prestar su teléfono?", "en": "Could you lend me your phone?"},
-  {"text": "¿Hay alguien que hable inglés?", "en": "Is there anyone who speaks English?"},
-  {"text": "Un momento, por favor.", "en": "One moment, please."}
+  {"text": "Perdone, ¿me puede ayudar?", "en": "Excuse me, can you help me?", "he": "סליחה, אפשר עזרה?"},
+  {"text": "He perdido mi cartera.", "en": "I've lost my wallet.", "he": "איבדתי את הארנק."},
+  {"text": "No me siento bien.", "en": "I don't feel well.", "he": "אני לא מרגיש טוב."},
+  {"text": "¿Dónde está el hospital?", "en": "Where is the hospital?", "he": "איפה בית החולים?"},
+  {"text": "¿Me puede prestar su teléfono?", "en": "Could you lend me your phone?", "he": "אפשר לשאול את הטלפון שלך?"},
+  {"text": "¿Hay alguien que hable inglés?", "en": "Is there anyone who speaks English?", "he": "יש כאן מישהו שמדבר אנגלית?"},
+  {"text": "Un momento, por favor.", "en": "One moment, please.", "he": "רגע אחד, בבקשה."}
 ]

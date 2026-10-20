@@ -64,6 +64,19 @@ from Sean, 2026-10-20. Cause:
 Fix direction: one sliding indicator shared by the tray (translate, not four
 crossfades), label colour interpolated from the same value, and a grid swap
 that does not dip to dark when interrupted.
+### ET-13 · bug · P2 · in progress
+**The intro can start on the wrong screen; a finished intro must never show again.**
+A returning user (an account and a username already) could land on another
+screen at launch (a deep link, a tab other than Home, a dev reload on a pushed
+route) and the intro or a guide step would open over it, with its back-outs
+and anchors pointing at the wrong screen. Reported by Sean, 2026-10-20.
+Rule: guide not done (onboarding pending or `guideStep` before `done`) puts
+the app on Home first, then starts; guide done shows no intro and no guide
+step on any route. The server keeps no "intro done" flag per account, so a
+fresh install of a returning user still sees onboarding (the mic and level
+picks are per device); only `settings.json` on the device says the intro ran.
+Fix on wave-1017c: `guideStartHome` in src/lib/guide.ts, called from the launch
+effect in src/app/_layout.tsx and the resume effect in guide-host.tsx.
 
 ### ET-1 · bug · P1 · open
 **Spanish islands: the words that light up do not match what is spoken.**

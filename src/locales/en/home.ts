@@ -88,6 +88,9 @@ export const en = {
 
   // Podcast episodes
   'home.episodesTitle': 'Episodes',
+  'home.episodeConfirmTitle': 'Make an island from this episode?',
+  'home.episodeConfirmBody': 'It downloads the audio and builds the lines, which takes a few minutes.',
+  'home.episodeConfirmAction': 'Make island',
   'home.episodesFeedError': 'The feed could not be loaded.',
   'home.episodeFallbackTitle': 'Podcast episode',
   'home.untitledEpisode': 'Untitled episode',

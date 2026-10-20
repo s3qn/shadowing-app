@@ -1,10 +1,20 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { type SharedValue, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 
 import { fonts } from '@/constants/fonts';
 import { Spacing, prism, tide } from '@/constants/theme';
-import { LitPillCover, LitPillRim, PILL_H, PILL_ICON_OFF, PILL_LABEL_SIZE, PillTrayShell } from '@/components/prism/pill-tray';
+import {
+  PILL_CHROME_BORDER,
+  PILL_H,
+  PILL_LABEL_SIZE,
+  type PillItemBox,
+  PillTrayShell,
+  SlidingLitPill,
+  usePillChromeStyle,
+  usePillLabelStyle,
+  useSlidingPill,
+} from '@/components/prism/pill-tray';
 import { useDir } from '@/lib/i18n';
 
 export type SegmentOption<T extends string> = {
@@ -28,15 +38,15 @@ type Props<T extends string> = {
 };
 
 const SEGMENT_BORDER = 1;
-/** The box inside a segment's border, which the lit fill and rim fill. */
-const SEGMENT_INNER_H = PILL_H - 2 * SEGMENT_BORDER;
+/** The pill is 36 pt tall; 4 pt above and below makes the 44 pt touch target. The sides stay inside the 8 pt gap between pills. */
+const TAB_SLOP = { top: 4, bottom: 4, left: 2, right: 2 } as const;
 
 /**
- * One option in a `Segmented` row: a pill that crossfades its own lit fill,
- * the same chrome `SortPill` draws for the Home sort row (`LitPillCover` plus
- * `LitPillRim`, both taking the pill's real size from their own absolute
- * fill). Sized with `flex: 1` so it shares the row evenly with its siblings,
- * unlike the sort row's pills, which hug their own label.
+ * One option in a `Segmented` row. The lit fill is the row's one
+ * `SlidingLitPill`, as on the Home sort row; this pill's own chip and label
+ * colour follow how much of it sits under this option. Sized with `flex: 1`
+ * so it shares the row evenly with its siblings, unlike the sort row's
+ * pills, which hug their own label.
  */
 function SegmentPill({
   on,
@@ -44,19 +54,24 @@ function SegmentPill({
   onPress,
   fit,
   onLayoutX,
+  box,
+  pillX,
+  pillW,
 }: {
   on: boolean;
   label: string;
   onPress: () => void;
   fit?: boolean;
-  onLayoutX?: (x: number, w: number) => void;
+  onLayoutX: (x: number, w: number) => void;
+  box: PillItemBox | undefined;
+  pillX: SharedValue<number>;
+  pillW: SharedValue<number>;
 }) {
-  const litOpacity = useSharedValue(on ? 1 : 0);
   const scale = useSharedValue(1);
-  useEffect(() => {
-    litOpacity.value = withTiming(on ? 1 : 0, { duration: 200 });
-  }, [on, litOpacity]);
   const scaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const cover = { translateX: pillX, width: pillW, item: box };
+  const chromeStyle = usePillChromeStyle(cover);
+  const labelStyle = usePillLabelStyle(cover);
 
   return (
     <Pressable
@@ -67,16 +82,15 @@ function SegmentPill({
       onPressOut={() => {
         scale.value = withSpring(1, prism.press.spring);
       }}
+      hitSlop={TAB_SLOP}
       accessibilityRole="tab"
       accessibilityState={{ selected: on }}
-      onLayout={onLayoutX ? (e) => onLayoutX(e.nativeEvent.layout.x, e.nativeEvent.layout.width) : undefined}
-      style={fit ? undefined : styles.segment}>
-      <Animated.View style={[styles.pill, fit && styles.pillFit, scaleStyle]}>
-        <LitPillCover height={SEGMENT_INNER_H} opacity={litOpacity} />
-        <LitPillRim radius={SEGMENT_INNER_H / 2} opacity={litOpacity} />
-        <Text numberOfLines={1} style={[styles.pillText, { color: on ? prism.tray.lit.label : PILL_ICON_OFF }]}>
+      onLayout={(e) => onLayoutX(e.nativeEvent.layout.x, e.nativeEvent.layout.width)}
+      style={fit ? styles.segmentFit : styles.segment}>
+      <Animated.View style={[styles.pill, fit && styles.pillFit, chromeStyle, scaleStyle]}>
+        <Animated.Text numberOfLines={1} style={[styles.pillText, labelStyle]}>
           {label}
-        </Text>
+        </Animated.Text>
       </Animated.View>
     </Pressable>
   );
@@ -84,9 +98,9 @@ function SegmentPill({
 
 /**
  * A labelled segmented control on one line, with the selected option's
- * description under it: a `PillTrayShell` whose pills split the row evenly
- * and cross-fade a deep blue lit fill when selected, the same look as the
- * Home sort row.
+ * description under it: a `PillTrayShell` whose pills split the row evenly,
+ * with one deep blue lit pill that slides to the selected option, the same
+ * look as the Home sort row.
  */
 export function Segmented<T extends string>({ label, options, value, onChange, scrollable }: Props<T>) {
   const index = Math.max(0, options.findIndex((o) => o.value === value));
@@ -94,6 +108,22 @@ export function Segmented<T extends string>({ label, options, value, onChange, s
   const scroller = useRef<ScrollView>(null);
   const spans = useRef<Record<string, { x: number; w: number }>>({});
   const viewW = useRef(0);
+  // Each option's box in the row, for the sliding lit pill.
+  const boxesRef = useRef<PillItemBox[]>([]);
+  const [boxes, setBoxes] = useState<PillItemBox[]>([]);
+  const [fillWidth, setFillWidth] = useState(0);
+  const { translateX, width } = useSlidingPill(boxes[index]);
+  const count = options.length;
+  const measured = useCallback(
+    (i: number, x: number, w: number) => {
+      const cur = boxesRef.current[i];
+      if (cur && cur.x === x && cur.width === w) return;
+      boxesRef.current[i] = { x, width: w };
+      setFillWidth((widest) => Math.max(widest, w));
+      if (boxesRef.current.slice(0, count).filter((b) => b).length === count) setBoxes(boxesRef.current.slice(0, count));
+    },
+    [count],
+  );
 
   function reveal(animated: boolean) {
     const span = spans.current[value];
@@ -102,26 +132,29 @@ export function Segmented<T extends string>({ label, options, value, onChange, s
   }
   useEffect(() => reveal(true));
 
-  const pills = options.map((o) => (
+  const pills = options.map((o, i) => (
     <SegmentPill
       key={o.value}
       on={o.value === value}
       label={o.label}
       fit={scrollable}
-      onLayoutX={
-        scrollable
-          ? (x, w) => {
-              spans.current[o.value] = { x, w };
-              if (o.value === value) reveal(false);
-            }
-          : undefined
-      }
+      box={boxes[i]}
+      pillX={translateX}
+      pillW={width}
+      onLayoutX={(x, w) => {
+        measured(i, x, w);
+        if (!scrollable) return;
+        spans.current[o.value] = { x, w };
+        if (o.value === value) reveal(false);
+      }}
       onPress={() => {
         if (o.value !== value) onChange(o.value);
       }}
     />
   ));
   const description = options[index]?.description;
+  // Rendered first in the row so its x counts from the row's own edge.
+  const slider = <SlidingLitPill translateX={translateX} width={width} fillWidth={fillWidth} />;
 
   return (
     <View style={styles.section}>
@@ -139,11 +172,17 @@ export function Segmented<T extends string>({ label, options, value, onChange, s
                   reveal(false);
                 }}
                 contentContainerStyle={[styles.scrollContent, dir.row]}>
+                {slider}
                 {pills}
               </ScrollView>
             </PillTrayShell>
           ) : (
-            <PillTrayShell style={[styles.tray, dir.row]}>{pills}</PillTrayShell>
+            <PillTrayShell>
+              <View style={[styles.tray, dir.row]}>
+                {slider}
+                {pills}
+              </View>
+            </PillTrayShell>
           )}
         </View>
       </View>
@@ -157,24 +196,22 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   label: { width: 84, fontSize: 15, color: tide.text, fontFamily: fonts.uiMedium, fontWeight: '500' },
   trayWrap: { flex: 1 },
-  tray: { flexDirection: 'row', gap: Spacing.sm },
+  // The row inside the capsule, unpadded, so the slider and each option's onLayout share one origin.
+  tray: { flex: 1, flexDirection: 'row', gap: Spacing.sm },
   scrollTray: { overflow: 'hidden' },
   scrollContent: { flexDirection: 'row', gap: Spacing.sm },
   segment: { flex: 1 },
+  segmentFit: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto' },
+  // No `flex: 1`: in the Pressable's column a zero flex basis collapsed the pill to its label's 17 pt line on the web.
   pill: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     height: PILL_H,
-    // Clips the lit fill and LitPillRim's straight top highlight to the
-    // rounded shape, like the sort row's pill.
     borderRadius: PILL_H / 2,
-    overflow: 'hidden',
     borderWidth: SEGMENT_BORDER,
-    borderColor: 'rgba(255,255,255,0.05)',
-    backgroundColor: prism.tray.pillFill,
+    borderColor: PILL_CHROME_BORDER,
   },
-  pillFit: { flex: 0, paddingHorizontal: Spacing.md },
+  pillFit: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', paddingHorizontal: Spacing.md },
   pillText: { fontSize: PILL_LABEL_SIZE, fontWeight: '600', fontFamily: fonts.ui },
   description: { fontSize: 13, lineHeight: 18, color: tide.textDim, fontFamily: fonts.ui },
 });

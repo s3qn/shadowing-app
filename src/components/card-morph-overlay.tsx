@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PlayerTitle } from '@/components/tide/player-title';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
+import { useDir } from '@/lib/i18n';
 import {
   covered,
   finish,
@@ -109,6 +110,7 @@ function MorphRun({ state }: { state: MorphState }) {
   const { width: winW, height: winH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const sky = useSkyStyle();
+  const dir = useDir();
   const { phase, stage, rect, title, chrome } = state;
 
   // Fresh values per morph (this component is keyed by the morph's serial),
@@ -361,8 +363,11 @@ function MorphRun({ state }: { state: MorphState }) {
   const bar = headerBox ?? { x: 0, y: 0, width: toW, height: finite(insets.top) + PLAYER_HEADER_ROW_H };
   const rowTop = bar.y + bar.height - PLAYER_HEADER_ROW_H;
   const buttonTop = rowTop + (PLAYER_HEADER_ROW_H - PLAYER_HEADER_BUTTON) / 2;
-  const backLeft = bar.x + Spacing.sm;
-  const menuLeft = bar.x + bar.width - Spacing.sm - PLAYER_HEADER_BUTTON;
+  // The player's header row is reversed in Hebrew: back on the right, the menu on the left.
+  const leadLeft = bar.x + Spacing.sm;
+  const trailLeft = bar.x + bar.width - Spacing.sm - PLAYER_HEADER_BUTTON;
+  const backLeft = dir.rtl ? trailLeft : leadLeft;
+  const menuLeft = dir.rtl ? leadLeft : trailLeft;
   const slotLeft = bar.x + Spacing.sm + PLAYER_HEADER_BUTTON;
   const slotWidth = Math.max(0, bar.width - 2 * (Spacing.sm + PLAYER_HEADER_BUTTON));
   const showMenu = phase === 'open' || chrome?.menu !== false;
@@ -403,7 +408,7 @@ function MorphRun({ state }: { state: MorphState }) {
       {phase === 'open' || stage === 'fly' ? (
         <>
           <Animated.View style={[styles.button, { left: backLeft, top: buttonTop }, buttonStyle]}>
-            <Text style={styles.backGlyph}>‹</Text>
+            <Text style={styles.backGlyph}>{dir.rtl ? '›' : '‹'}</Text>
           </Animated.View>
           {showMenu ? (
             <Animated.View style={[styles.button, { left: menuLeft, top: buttonTop }, buttonStyle]}>

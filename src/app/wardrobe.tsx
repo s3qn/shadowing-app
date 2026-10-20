@@ -16,17 +16,21 @@ import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
 import { useGaze } from '@/hooks/use-gaze';
 import { buyCosmetic, equipCosmetic } from '@/lib/api';
+import { useGuideAnchor, useGuideStep } from '@/lib/guide';
 import { resetBlink } from '@/lib/cat-blink';
 import { hapticNotify, hapticSelection } from '@/lib/haptics';
-import { useT } from '@/lib/i18n';
+import { useDir, useT } from '@/lib/i18n';
 import { requestLoader } from '@/lib/loading-overlay';
 import { equippedArt, itemArt, itemState, useProgress, type CosmeticItem, type Progress } from '@/lib/progression';
 
 const PAGE = '#0B1020';
 const BAR_GAP = 24;
+// One line of hint text plus its 6 pt lift above the action bar.
+const HINT_H = 28;
 
 export default function WardrobeScreen() {
   const { t } = useT();
+  const dir = useDir();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { progress, catalog, error, reload, apply } = useProgress();
@@ -124,6 +128,10 @@ export default function WardrobeScreen() {
   };
 
   const gaze = useGaze();
+  // BL-64: the guide's wardrobe step lights the trophy and keeps the level header and the cat in full light.
+  const guideOn = useGuideStep() === 'wardrobe';
+  const trophy = useGuideAnchor('wardrobeTrophy', guideOn);
+  const stage = useGuideAnchor('wardrobeStage', guideOn);
 
   if (error && loading) {
     return (
@@ -162,8 +170,11 @@ export default function WardrobeScreen() {
     <View style={styles.fill} {...gaze.handlers}>
       <Stack.Screen
         options={{
+          ...dir.headerSides,
           headerRight: () => (
             <Pressable
+              ref={trophy.ref}
+              onLayout={trophy.onLayout}
               accessibilityRole="button"
               accessibilityLabel={t('leaderboard.open')}
               hitSlop={10}
@@ -180,6 +191,7 @@ export default function WardrobeScreen() {
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
         <CatStage equipped={equipped} preview={preview} dipKey={dipKey} gaze onCatRect={gaze.setCatRect} />
       </View>
+      <View ref={stage.ref} onLayout={stage.onLayout} collapsable={false} pointerEvents="none" style={styles.stageBox} />
       <View style={[styles.header, { top: Spacing.md }]}>
         <LevelHeader level={progress.level} xpIntoLevel={progress.xp_into_level} xpToNext={progress.xp_to_next} coins={progress.coins} xpToday={progress.xp_today} xpTodayCap={progress.xp_today_cap} />
       </View>
@@ -194,8 +206,9 @@ export default function WardrobeScreen() {
             }}
           />
         </View>
-        <View style={[styles.grid, { paddingHorizontal: Spacing.lg }]}>
-          <ItemGrid items={items} progress={progress} selectedId={selectedId} slotKey={slot} onSelect={onSelect} bottomPad={ACTION_H + BAR_GAP + barBottom} />
+        {/* With a hint the grid ends above it, so the hint has its own line and never draws over a row. */}
+        <View style={[styles.grid, { paddingHorizontal: Spacing.lg }, hint ? { marginBottom: barBottom + ACTION_H + HINT_H } : null]}>
+          <ItemGrid items={items} progress={progress} selectedId={selectedId} slotKey={slot} onSelect={onSelect} bottomPad={hint ? Spacing.sm : ACTION_H + BAR_GAP + barBottom} />
         </View>
       </View>
       <View
@@ -221,6 +234,7 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center', gap: Spacing.lg },
   failed: { fontFamily: fonts.ui, fontSize: 15, color: tide.text },
   header: { position: 'absolute', left: Spacing.lg, right: Spacing.lg, zIndex: 5 },
+  stageBox: { position: 'absolute', top: 0, left: 0, right: 0, height: STAGE_H + WATER_H },
   body: { flex: 1 },
   gutter: { paddingHorizontal: Spacing.lg },
   grid: { flex: 1, marginTop: Spacing.sm },

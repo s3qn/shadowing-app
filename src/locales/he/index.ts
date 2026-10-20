@@ -4,6 +4,7 @@ import { he as common } from './common';
 import { he as drive } from './drive';
 import { he as home } from './home';
 import { he as importFile } from './import';
+import { he as intro } from './intro';
 import { he as leaderboard } from './leaderboard';
 import { he as player } from './player';
 import { he as playerIsland } from './player-island';
@@ -17,4 +18,4 @@ import { he as profile } from './profile';
 import { he as video } from './video';
 import { he as wardrobe } from './wardrobe';
 
-export const he = { ...beforeAfter, ...common, ...drive, ...home, ...importFile, ...leaderboard, ...player, ...playerIsland, ...playerTide, ...playerSheets, ...podcast, ...profile, ...record, ...review, ...settings, ...video, ...wardrobe } satisfies Record<Key, string>;
+export const he = { ...beforeAfter, ...common, ...drive, ...home, ...importFile, ...intro, ...leaderboard, ...player, ...playerIsland, ...playerTide, ...playerSheets, ...podcast, ...profile, ...record, ...review, ...settings, ...video, ...wardrobe } satisfies Record<Key, string>;

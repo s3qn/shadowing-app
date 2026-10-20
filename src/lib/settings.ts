@@ -46,6 +46,12 @@ export type ReadingMode = (typeof READING_OPTIONS)[number];
 const DEFAULT_READING: ReadingMode = 'furigana';
 const DEFAULT_PITCH = true;
 
+export const GUIDE_STEPS = ['home', 'add', 'listen', 'shadow', 'prep', 'solo', 'topics', 'size', 'practice', 'levelup', 'tour', 'cat', 'wardrobe', 'ranks', 'free', 'beta', 'done'] as const;
+export type GuideStep = (typeof GUIDE_STEPS)[number];
+/** BL-58 level pick on Let's start: which "First steps" island POST /shadow/starter seeds. */
+export const STARTER_LEVELS = ['new', 'some'] as const;
+export type StarterLevel = (typeof STARTER_LEVELS)[number];
+
 /** Sentences a practice session can hold, smallest first. */
 export const SESSION_SIZES = [5, 10, 20, 30] as const;
 export type SessionSize = (typeof SESSION_SIZES)[number];
@@ -149,6 +155,14 @@ export type Settings = {
    * truly fresh install; an existing settings file from before this key
    * existed is treated as already onboarded. */
   onboarded: boolean;
+  /** BL-56 first-run guide moment ('done' for any file from before it). */
+  guideStep: GuideStep;
+  /** The beta note (guide step 'beta') has been heard once; false for a file from before it. */
+  betaNoteSeen: boolean;
+  /** The guide's first island, so a cold start resumes on it. */
+  guideIslandId: string;
+  /** The level picked on Let's start ('new' for any file from before it). */
+  starterLevel: StarterLevel;
   /** Home and Practice show every language mixed together (Home with a
    * language pill), instead of only `learningLanguage`. Off by default. */
   showAllLanguages: boolean;
@@ -186,6 +200,10 @@ const DEFAULTS: Settings = {
   // see the `onboarded: true` overrides below for a file that exists but
   // predates this key.
   onboarded: false,
+  guideStep: 'done',
+  betaNoteSeen: false,
+  guideIslandId: '',
+  starterLevel: 'new',
   showAllLanguages: DEFAULT_SHOW_ALL_LANGUAGES,
   version: SETTINGS_VERSION,
 };
@@ -330,6 +348,10 @@ async function read(): Promise<Settings> {
     // that is Sean's phone and every install so far, so it counts as already
     // onboarded. Only a missing file (handled above) defaults to false.
     onboarded: typeof parsed.onboarded === 'boolean' ? parsed.onboarded : true,
+    guideStep: GUIDE_STEPS.includes(parsed.guideStep as GuideStep) ? (parsed.guideStep as GuideStep) : 'done',
+    betaNoteSeen: parsed.betaNoteSeen === true,
+    guideIslandId: typeof parsed.guideIslandId === 'string' ? parsed.guideIslandId : '',
+    starterLevel: STARTER_LEVELS.includes(parsed.starterLevel as StarterLevel) ? (parsed.starterLevel as StarterLevel) : 'new',
     showAllLanguages: parsed.showAllLanguages === true,
     version: SETTINGS_VERSION,
   });
@@ -550,6 +572,22 @@ export async function setAppLanguage(appLanguage: AppLanguage): Promise<void> {
 
 export async function setOnboarded(onboarded: boolean): Promise<void> {
   await update({ onboarded });
+}
+
+export async function setBetaNoteSeen(betaNoteSeen: boolean): Promise<void> {
+  await update({ betaNoteSeen });
+}
+
+export async function setGuideStep(guideStep: GuideStep): Promise<void> {
+  await update({ guideStep });
+}
+
+export async function setGuideIslandId(guideIslandId: string): Promise<void> {
+  await update({ guideIslandId });
+}
+
+export async function setStarterLevel(starterLevel: StarterLevel): Promise<void> {
+  await update({ starterLevel });
 }
 
 export async function setShowAllLanguages(showAllLanguages: boolean): Promise<void> {

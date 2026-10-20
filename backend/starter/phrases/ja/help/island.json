@@ -1,0 +1,1052 @@
+{
+ "language": "ja",
+ "topic": "help",
+ "lines": [
+  {
+   "ja": "すみません、助けてください。",
+   "kana": "すみません、たすけてください。",
+   "romaji": "",
+   "gloss": {
+    "en": "Excuse me, please help me.",
+    "he": "סליחה, תעזרו לי בבקשה."
+   },
+   "duration": 2.568,
+   "timeline": [
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 0.1,
+     "end": 0.2813,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ミ",
+     "kana": "み",
+     "start": 0.2813,
+     "end": 0.4297,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 0.4297,
+     "end": 0.5779,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "セ",
+     "kana": "せ",
+     "start": 0.5779,
+     "end": 0.7789,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 0.7789,
+     "end": 0.8779,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "タ",
+     "kana": "た",
+     "start": 1.2664,
+     "end": 1.4738,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.4738,
+     "end": 1.5845,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ケ",
+     "kana": "け",
+     "start": 1.5845,
+     "end": 1.7206,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "テ",
+     "kana": "て",
+     "start": 1.7206,
+     "end": 1.8483,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ク",
+     "kana": "く",
+     "start": 1.8483,
+     "end": 1.9493,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "ダ",
+     "kana": "だ",
+     "start": 1.9493,
+     "end": 2.0954,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "サ",
+     "kana": "さ",
+     "start": 2.0954,
+     "end": 2.3233,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 2.3233,
+     "end": 2.468,
+     "phrase": 2,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "すみません、",
+     "start": 0.0,
+     "end": 0.8779,
+     "ruby": [
+      {
+       "text": "すみません、",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "助けてください。",
+     "start": 1.2664,
+     "end": 2.468,
+     "ruby": [
+      {
+       "text": "助",
+       "rt": "たす"
+      },
+      {
+       "text": "けてください。",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    }
+   ]
+  },
+  {
+   "ja": "財布をなくしました。",
+   "kana": "さいふをなくしました。",
+   "romaji": "",
+   "gloss": {
+    "en": "I lost my wallet.",
+    "he": "איבדתי את הארנק שלי."
+   },
+   "duration": 1.6825,
+   "timeline": [
+    {
+     "text": "サ",
+     "kana": "さ",
+     "start": 0.1,
+     "end": 0.3633,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 0.3633,
+     "end": 0.4522,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "フ",
+     "kana": "ふ",
+     "start": 0.4522,
+     "end": 0.5946,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.5946,
+     "end": 0.6954,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ナ",
+     "kana": "な",
+     "start": 0.6954,
+     "end": 0.8552,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ク",
+     "kana": "く",
+     "start": 0.8552,
+     "end": 0.9669,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 0.9669,
+     "end": 1.0932,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 1.0932,
+     "end": 1.244,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 1.244,
+     "end": 1.3336,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "タ",
+     "kana": "た",
+     "start": 1.3336,
+     "end": 1.5825,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "財布",
+     "start": 0.0,
+     "end": 0.5946,
+     "ruby": [
+      {
+       "text": "財布",
+       "rt": "さいふ"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "を",
+     "start": 0.5946,
+     "end": 0.6954,
+     "ruby": [
+      {
+       "text": "を",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "なくしました。",
+     "start": 0.6954,
+     "end": 1.5825,
+     "ruby": [
+      {
+       "text": "なくしました。",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    }
+   ]
+  },
+  {
+   "ja": "気分が悪いです。",
+   "kana": "きぶんがわるいです。",
+   "romaji": "",
+   "gloss": {
+    "en": "I don't feel well.",
+    "he": "אני מרגיש לא טוב."
+   },
+   "duration": 1.4976,
+   "timeline": [
+    {
+     "text": "キ",
+     "kana": "き",
+     "start": 0.1,
+     "end": 0.2762,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ブ",
+     "kana": "ぶ",
+     "start": 0.2762,
+     "end": 0.4626,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 0.4626,
+     "end": 0.5389,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ガ",
+     "kana": "が",
+     "start": 0.5389,
+     "end": 0.6664,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ワ",
+     "kana": "わ",
+     "start": 0.6664,
+     "end": 0.8226,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ル",
+     "kana": "る",
+     "start": 0.8226,
+     "end": 0.9588,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 0.9588,
+     "end": 1.0396,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 1.0396,
+     "end": 1.2174,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.2174,
+     "end": 1.3976,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "気分",
+     "start": 0.0,
+     "end": 0.5389,
+     "ruby": [
+      {
+       "text": "気分",
+       "rt": "きぶん"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "が",
+     "start": 0.5389,
+     "end": 0.6664,
+     "ruby": [
+      {
+       "text": "が",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "悪いです。",
+     "start": 0.6664,
+     "end": 1.3976,
+     "ruby": [
+      {
+       "text": "悪",
+       "rt": "わる"
+      },
+      {
+       "text": "いです。",
+       "rt": ""
+      }
+     ],
+     "pos": "adjective"
+    }
+   ]
+  },
+  {
+   "ja": "病院はどこですか。",
+   "kana": "びょういんはどこですか。",
+   "romaji": "",
+   "gloss": {
+    "en": "Where is the hospital?",
+    "he": "איפה בית החולים?"
+   },
+   "duration": 1.7436,
+   "timeline": [
+    {
+     "text": "ビョ",
+     "kana": "びょ",
+     "start": 0.1,
+     "end": 0.3389,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.3389,
+     "end": 0.4667,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 0.4667,
+     "end": 0.6139,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 0.6139,
+     "end": 0.7013,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ワ",
+     "kana": "わ",
+     "start": 0.7013,
+     "end": 0.8144,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ド",
+     "kana": "ど",
+     "start": 0.8144,
+     "end": 0.9731,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "コ",
+     "kana": "こ",
+     "start": 0.9731,
+     "end": 1.1074,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 1.1074,
+     "end": 1.255,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.255,
+     "end": 1.3718,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 1.3718,
+     "end": 1.6436,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "病院",
+     "start": 0.0,
+     "end": 0.7013,
+     "ruby": [
+      {
+       "text": "病院",
+       "rt": "びょういん"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "は",
+     "start": 0.7013,
+     "end": 0.8144,
+     "ruby": [
+      {
+       "text": "は",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "どこです",
+     "start": 0.8144,
+     "end": 1.3718,
+     "ruby": [
+      {
+       "text": "どこです",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "か。",
+     "start": 1.3718,
+     "end": 1.6436,
+     "ruby": [
+      {
+       "text": "か。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "電話を貸してもらえますか。",
+   "kana": "でんわをかしてもらえますか。",
+   "romaji": "",
+   "gloss": {
+    "en": "Could I borrow a phone?",
+    "he": "אפשר לבקש ממך טלפון?"
+   },
+   "duration": 2.1207,
+   "timeline": [
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 0.1,
+     "end": 0.3357,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 0.3357,
+     "end": 0.432,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ワ",
+     "kana": "わ",
+     "start": 0.432,
+     "end": 0.5824,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.5824,
+     "end": 0.7043,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 0.7043,
+     "end": 0.8852,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 0.8852,
+     "end": 0.966,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "テ",
+     "kana": "て",
+     "start": 0.966,
+     "end": 1.1014,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "モ",
+     "kana": "も",
+     "start": 1.1014,
+     "end": 1.247,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "ラ",
+     "kana": "ら",
+     "start": 1.247,
+     "end": 1.3971,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "エ",
+     "kana": "え",
+     "start": 1.3971,
+     "end": 1.4798,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 1.4798,
+     "end": 1.6378,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.6378,
+     "end": 1.7541,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 1.7541,
+     "end": 2.0207,
+     "phrase": 2,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "電話",
+     "start": 0.0,
+     "end": 0.5824,
+     "ruby": [
+      {
+       "text": "電話",
+       "rt": "でんわ"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "を",
+     "start": 0.5824,
+     "end": 0.7043,
+     "ruby": [
+      {
+       "text": "を",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "貸してもらえます",
+     "start": 0.7043,
+     "end": 1.7541,
+     "ruby": [
+      {
+       "text": "貸",
+       "rt": "か"
+      },
+      {
+       "text": "してもらえます",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    },
+    {
+     "text": "か。",
+     "start": 1.7541,
+     "end": 2.0207,
+     "ruby": [
+      {
+       "text": "か。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "英語がわかる人はいますか。",
+   "kana": "えいごがわかるひとはいますか。",
+   "romaji": "",
+   "gloss": {
+    "en": "Is there anyone who understands English?",
+    "he": "יש מישהו שמבין אנגלית?"
+   },
+   "duration": 2.2181,
+   "timeline": [
+    {
+     "text": "エ",
+     "kana": "え",
+     "start": 0.1,
+     "end": 0.2666,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "エ",
+     "kana": "え",
+     "start": 0.2666,
+     "end": 0.3768,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ゴ",
+     "kana": "ご",
+     "start": 0.3768,
+     "end": 0.5365,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ガ",
+     "kana": "が",
+     "start": 0.5365,
+     "end": 0.6763,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ワ",
+     "kana": "わ",
+     "start": 0.6763,
+     "end": 0.8168,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 0.8168,
+     "end": 0.9741,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ル",
+     "kana": "る",
+     "start": 0.9741,
+     "end": 1.0964,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ヒ",
+     "kana": "ひ",
+     "start": 1.0964,
+     "end": 1.1819,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "ト",
+     "kana": "と",
+     "start": 1.1819,
+     "end": 1.3451,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "ワ",
+     "kana": "わ",
+     "start": 1.3451,
+     "end": 1.505,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 1.505,
+     "end": 1.5732,
+     "phrase": 3,
+     "high": false
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 1.5732,
+     "end": 1.7402,
+     "phrase": 3,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.7402,
+     "end": 1.8517,
+     "phrase": 3,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 1.8517,
+     "end": 2.1181,
+     "phrase": 3,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "英語",
+     "start": 0.0,
+     "end": 0.5365,
+     "ruby": [
+      {
+       "text": "英語",
+       "rt": "えいご"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "が",
+     "start": 0.5365,
+     "end": 0.6763,
+     "ruby": [
+      {
+       "text": "が",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "わかる",
+     "start": 0.6763,
+     "end": 1.0964,
+     "ruby": [
+      {
+       "text": "わかる",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    },
+    {
+     "text": "人",
+     "start": 1.0964,
+     "end": 1.3451,
+     "ruby": [
+      {
+       "text": "人",
+       "rt": "ひと"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "は",
+     "start": 1.3451,
+     "end": 1.505,
+     "ruby": [
+      {
+       "text": "は",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "います",
+     "start": 1.505,
+     "end": 1.8517,
+     "ruby": [
+      {
+       "text": "います",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    },
+    {
+     "text": "か。",
+     "start": 1.8517,
+     "end": 2.1181,
+     "ruby": [
+      {
+       "text": "か。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "ちょっと待ってください。",
+   "kana": "ちょっとまってください。",
+   "romaji": "",
+   "gloss": {
+    "en": "Please wait a moment.",
+    "he": "רגע אחד, בבקשה."
+   },
+   "duration": 1.6098,
+   "timeline": [
+    {
+     "text": "チョ",
+     "kana": "ちょ",
+     "start": 0.1,
+     "end": 0.3147,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ッ",
+     "kana": "っ",
+     "start": 0.3147,
+     "end": 0.3808,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ト",
+     "kana": "と",
+     "start": 0.3808,
+     "end": 0.5201,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 0.5201,
+     "end": 0.7078,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ッ",
+     "kana": "っ",
+     "start": 0.7078,
+     "end": 0.7574,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "テ",
+     "kana": "て",
+     "start": 0.7574,
+     "end": 0.8928,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ク",
+     "kana": "く",
+     "start": 0.8928,
+     "end": 0.9905,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "ダ",
+     "kana": "だ",
+     "start": 0.9905,
+     "end": 1.1373,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "サ",
+     "kana": "さ",
+     "start": 1.1373,
+     "end": 1.3652,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 1.3652,
+     "end": 1.5098,
+     "phrase": 2,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "ちょっと",
+     "start": 0.0,
+     "end": 0.5201,
+     "ruby": [
+      {
+       "text": "ちょっと",
+       "rt": ""
+      }
+     ],
+     "pos": "other"
+    },
+    {
+     "text": "待ってください。",
+     "start": 0.5201,
+     "end": 1.5098,
+     "ruby": [
+      {
+       "text": "待",
+       "rt": "ま"
+      },
+      {
+       "text": "ってください。",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    }
+   ]
+  }
+ ]
+}

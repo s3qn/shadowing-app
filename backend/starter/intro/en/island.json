@@ -1,0 +1,228 @@
+{
+ "language": "en",
+ "title": {
+  "en": "First steps",
+  "he": "צעדים ראשונים"
+ },
+ "lines": [
+  {
+   "ja": "Good morning.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Good morning.",
+    "he": "בוקר טוב."
+   },
+   "duration": 0.8746666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Good",
+     "start": 0.066,
+     "end": 0.291,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Good",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "morning.",
+     "start": 0.291,
+     "end": 0.875,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "morning.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Where are you from?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Where are you from?",
+    "he": "מאיפה אתה?"
+   },
+   "duration": 1.0026666666666666,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Where",
+     "start": 0.091,
+     "end": 0.291,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Where",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "are",
+     "start": 0.291,
+     "end": 0.416,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "are",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "you",
+     "start": 0.416,
+     "end": 0.591,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "you",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "from?",
+     "start": 0.591,
+     "end": 1.003,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "from?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Tomorrow I'm going to study English with a friend.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Tomorrow I'm going to study English with a friend.",
+    "he": "מחר אלמד אנגלית עם חבר."
+   },
+   "duration": 2.688,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Tomorrow",
+     "start": 0.062,
+     "end": 0.837,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Tomorrow",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "I'm",
+     "start": 0.837,
+     "end": 1.012,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I'm",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "going",
+     "start": 1.012,
+     "end": 1.187,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "going",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "to",
+     "start": 1.187,
+     "end": 1.287,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "to",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "study",
+     "start": 1.287,
+     "end": 1.637,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "study",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "English",
+     "start": 1.637,
+     "end": 2.037,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "English",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "with",
+     "start": 2.037,
+     "end": 2.162,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "with",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "a",
+     "start": 2.162,
+     "end": 2.262,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "a",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "friend.",
+     "start": 2.262,
+     "end": 2.688,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "friend.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

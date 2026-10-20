@@ -1,9 +1,9 @@
 [
-  {"text": "¿Cuánto cuesta?", "en": "How much does it cost?"},
-  {"text": "Es un poco caro.", "en": "It's a bit expensive."},
-  {"text": "¿Puedo probármelo?", "en": "May I try it on?"},
-  {"text": "¿Tiene algo más barato?", "en": "Do you have anything cheaper?"},
-  {"text": "¿Puedo pagar con tarjeta?", "en": "Can I pay by card?"},
-  {"text": "No necesito bolsa.", "en": "I don't need a bag."},
-  {"text": "Me lo llevo.", "en": "I'll take it."}
+  {"text": "¿Cuánto cuesta?", "en": "How much does it cost?", "he": "כמה זה עולה?"},
+  {"text": "Es un poco caro.", "en": "It's a bit expensive.", "he": "זה קצת יקר."},
+  {"text": "¿Puedo probármelo?", "en": "May I try it on?", "he": "אפשר למדוד?"},
+  {"text": "¿Tiene algo más barato?", "en": "Do you have anything cheaper?", "he": "יש לכם משהו זול יותר?"},
+  {"text": "¿Puedo pagar con tarjeta?", "en": "Can I pay by card?", "he": "אפשר לשלם בכרטיס?"},
+  {"text": "No necesito bolsa.", "en": "I don't need a bag.", "he": "אני לא צריך שקית."},
+  {"text": "Me lo llevo.", "en": "I'll take it.", "he": "אני לוקח את זה."}
 ]

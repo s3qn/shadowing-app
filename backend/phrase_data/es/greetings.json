@@ -1,10 +1,10 @@
 [
-  {"text": "Buenos días.", "en": "Good morning."},
-  {"text": "Buenas tardes.", "en": "Good afternoon."},
-  {"text": "Buenas noches.", "en": "Good evening."},
-  {"text": "Hola, ¿cómo estás?", "en": "Hi, how are you?"},
-  {"text": "Muy bien, gracias. ¿Y tú?", "en": "Very well, thank you. And you?"},
-  {"text": "Hace mucho que no te veo.", "en": "I haven't seen you in a long time."},
-  {"text": "Hasta mañana.", "en": "See you tomorrow."},
-  {"text": "Que tengas un buen día.", "en": "Have a nice day."}
+  {"text": "Buenos días.", "en": "Good morning.", "he": "בוקר טוב."},
+  {"text": "Buenas tardes.", "en": "Good afternoon.", "he": "צהריים טובים."},
+  {"text": "Buenas noches.", "en": "Good evening.", "he": "ערב טוב."},
+  {"text": "Hola, ¿cómo estás?", "en": "Hi, how are you?", "he": "היי, מה שלומך?"},
+  {"text": "Muy bien, gracias. ¿Y tú?", "en": "Very well, thank you. And you?", "he": "טוב מאוד, תודה. ומה איתך?"},
+  {"text": "Hace mucho que no te veo.", "en": "I haven't seen you in a long time.", "he": "לא ראיתי אותך המון זמן."},
+  {"text": "Hasta mañana.", "en": "See you tomorrow.", "he": "נתראה מחר."},
+  {"text": "Que tengas un buen día.", "en": "Have a nice day.", "he": "שיהיה לך יום טוב."}
 ]

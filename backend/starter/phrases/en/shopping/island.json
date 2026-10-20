@@ -1,0 +1,481 @@
+{
+ "language": "en",
+ "topic": "shopping",
+ "lines": [
+  {
+   "ja": "How much is this?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "כמה זה עולה?"
+   },
+   "duration": 1.0453333333333332,
+   "timeline": [],
+   "words": [
+    {
+     "text": "How",
+     "start": 0.062,
+     "end": 0.212,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "How",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "much",
+     "start": 0.212,
+     "end": 0.437,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "much",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "is",
+     "start": 0.437,
+     "end": 0.587,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "is",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "this?",
+     "start": 0.587,
+     "end": 1.045,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "this?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "That's a little expensive.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "זה קצת יקר."
+   },
+   "duration": 1.408,
+   "timeline": [],
+   "words": [
+    {
+     "text": "That's",
+     "start": 0.041,
+     "end": 0.266,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "That's",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "a",
+     "start": 0.266,
+     "end": 0.316,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "a",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "little",
+     "start": 0.316,
+     "end": 0.516,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "little",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "expensive.",
+     "start": 0.516,
+     "end": 1.408,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "expensive.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Can I try this on?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "אפשר למדוד את זה?"
+   },
+   "duration": 1.1946666666666668,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Can",
+     "start": 0.062,
+     "end": 0.237,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Can",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "I",
+     "start": 0.237,
+     "end": 0.387,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "try",
+     "start": 0.387,
+     "end": 0.612,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "try",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "this",
+     "start": 0.612,
+     "end": 0.787,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "this",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "on?",
+     "start": 0.787,
+     "end": 1.195,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "on?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Do you have anything cheaper?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "יש לכם משהו יותר זול?"
+   },
+   "duration": 1.5146666666666666,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Do",
+     "start": 0.037,
+     "end": 0.162,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Do",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "you",
+     "start": 0.162,
+     "end": 0.287,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "you",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "have",
+     "start": 0.287,
+     "end": 0.512,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "have",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "anything",
+     "start": 0.512,
+     "end": 0.887,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "anything",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "cheaper?",
+     "start": 0.887,
+     "end": 1.515,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "cheaper?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Can I pay by card?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "אפשר לשלם בכרטיס?"
+   },
+   "duration": 1.3013333333333332,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Can",
+     "start": 0.062,
+     "end": 0.212,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Can",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "I",
+     "start": 0.212,
+     "end": 0.362,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "pay",
+     "start": 0.362,
+     "end": 0.587,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "pay",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "by",
+     "start": 0.587,
+     "end": 0.787,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "by",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "card?",
+     "start": 0.787,
+     "end": 1.301,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "card?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "I don't need a bag, thanks.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "אני לא צריך/ה שקית, תודה."
+   },
+   "duration": 1.6,
+   "timeline": [],
+   "words": [
+    {
+     "text": "I",
+     "start": 0.066,
+     "end": 0.141,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "don't",
+     "start": 0.141,
+     "end": 0.316,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "don't",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "need",
+     "start": 0.316,
+     "end": 0.466,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "need",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "a",
+     "start": 0.466,
+     "end": 0.541,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "a",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "bag,",
+     "start": 0.541,
+     "end": 1.041,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "bag,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "thanks.",
+     "start": 1.041,
+     "end": 1.6,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "thanks.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "I'll take it.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "אני אקח את זה."
+   },
+   "duration": 0.8746666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "I'll",
+     "start": 0.091,
+     "end": 0.291,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I'll",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "take",
+     "start": 0.291,
+     "end": 0.591,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "take",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "it.",
+     "start": 0.591,
+     "end": 0.875,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "it.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

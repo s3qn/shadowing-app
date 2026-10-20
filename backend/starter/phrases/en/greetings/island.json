@@ -1,0 +1,434 @@
+{
+ "language": "en",
+ "topic": "greetings",
+ "lines": [
+  {
+   "ja": "Good morning.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "בוקר טוב."
+   },
+   "duration": 0.8746666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Good",
+     "start": 0.066,
+     "end": 0.291,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Good",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "morning.",
+     "start": 0.291,
+     "end": 0.875,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "morning.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Hi, how's it going?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "היי, מה קורה?"
+   },
+   "duration": 1.3013333333333332,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Hi,",
+     "start": 0.091,
+     "end": 0.416,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Hi,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "how's",
+     "start": 0.416,
+     "end": 0.641,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "how's",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "it",
+     "start": 0.641,
+     "end": 0.741,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "it",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "going?",
+     "start": 0.741,
+     "end": 1.301,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "going?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Good evening.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "ערב טוב."
+   },
+   "duration": 0.8746666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Good",
+     "start": 0.066,
+     "end": 0.291,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Good",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "evening.",
+     "start": 0.291,
+     "end": 0.875,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "evening.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Long time no see.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "מזמן לא התראינו."
+   },
+   "duration": 1.2586666666666666,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Long",
+     "start": 0.091,
+     "end": 0.366,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Long",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "time",
+     "start": 0.366,
+     "end": 0.616,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "time",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "no",
+     "start": 0.616,
+     "end": 0.841,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "no",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "see.",
+     "start": 0.841,
+     "end": 1.259,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "see.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "How have you been?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "מה שלומך?"
+   },
+   "duration": 1.1306666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "How",
+     "start": 0.087,
+     "end": 0.312,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "How",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "have",
+     "start": 0.312,
+     "end": 0.512,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "have",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "you",
+     "start": 0.512,
+     "end": 0.637,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "you",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "been?",
+     "start": 0.637,
+     "end": 1.131,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "been?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "I'm doing well, thanks.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "אני בסדר, תודה."
+   },
+   "duration": 1.3653333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "I'm",
+     "start": 0.07,
+     "end": 0.245,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I'm",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "doing",
+     "start": 0.245,
+     "end": 0.52,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "doing",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "well,",
+     "start": 0.52,
+     "end": 0.845,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "well,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "thanks.",
+     "start": 0.845,
+     "end": 1.365,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "thanks.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "See you tomorrow.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "נתראה מחר."
+   },
+   "duration": 1.0453333333333332,
+   "timeline": [],
+   "words": [
+    {
+     "text": "See",
+     "start": 0.112,
+     "end": 0.287,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "See",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "you",
+     "start": 0.287,
+     "end": 0.412,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "you",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "tomorrow.",
+     "start": 0.412,
+     "end": 1.045,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "tomorrow.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Have a good night.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "לילה טוב."
+   },
+   "duration": 1.088,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Have",
+     "start": 0.087,
+     "end": 0.262,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Have",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "a",
+     "start": 0.262,
+     "end": 0.337,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "a",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "good",
+     "start": 0.337,
+     "end": 0.537,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "good",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "night.",
+     "start": 0.537,
+     "end": 1.088,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "night.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

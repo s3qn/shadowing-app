@@ -11,6 +11,11 @@ export const loaderRequest = makeMutable(0);
  * is left to wait for under the cover. `startOpen` resets it to 0. */
 export const loaderCoverSkip = makeMutable(0);
 
+/** The loader layer's drawn opacity, 0 to 1, written by the root
+ * `LoadingOverlay`. Content that arrives while it is above 0 waits
+ * LOADER_OUT_MS for it to fade, so the two never show at once. */
+export const loaderShown = makeMutable(0);
+
 /** How long a wait must last before the loader appears. The overlay applies
  * it to every request, so no caller adds a delay of its own. */
 export const LOADER_GRACE_MS = 120;

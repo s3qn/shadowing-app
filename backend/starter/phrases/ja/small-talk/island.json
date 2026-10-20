@@ -1,0 +1,972 @@
+{
+ "language": "ja",
+ "topic": "small-talk",
+ "lines": [
+  {
+   "ja": "今日は暑いですね。",
+   "kana": "きょうはあついですね。",
+   "romaji": "",
+   "gloss": {
+    "en": "It's hot today, isn't it?",
+    "he": "היום חם, נכון?"
+   },
+   "duration": 1.5876,
+   "timeline": [
+    {
+     "text": "キョ",
+     "kana": "きょ",
+     "start": 0.1,
+     "end": 0.3252,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.3252,
+     "end": 0.4175,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ワ",
+     "kana": "わ",
+     "start": 0.4175,
+     "end": 0.5731,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ア",
+     "kana": "あ",
+     "start": 0.5731,
+     "end": 0.6913,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ツ",
+     "kana": "つ",
+     "start": 0.6913,
+     "end": 0.8727,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 0.8727,
+     "end": 0.9459,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 0.9459,
+     "end": 1.0927,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.0927,
+     "end": 1.1999,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ネ",
+     "kana": "ね",
+     "start": 1.1999,
+     "end": 1.4876,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "今日",
+     "start": 0.0,
+     "end": 0.4175,
+     "ruby": [
+      {
+       "text": "今日",
+       "rt": "きょう"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "は",
+     "start": 0.4175,
+     "end": 0.5731,
+     "ruby": [
+      {
+       "text": "は",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "暑いです",
+     "start": 0.5731,
+     "end": 1.1999,
+     "ruby": [
+      {
+       "text": "暑",
+       "rt": "あつ"
+      },
+      {
+       "text": "いです",
+       "rt": ""
+      }
+     ],
+     "pos": "adjective"
+    },
+    {
+     "text": "ね。",
+     "start": 1.1999,
+     "end": 1.4876,
+     "ruby": [
+      {
+       "text": "ね。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "週末は何をしましたか。",
+   "kana": "しゅうまつはなにをしましたか。",
+   "romaji": "",
+   "gloss": {
+    "en": "What did you do over the weekend?",
+    "he": "מה עשית בסוף השבוע?"
+   },
+   "duration": 2.2043,
+   "timeline": [
+    {
+     "text": "シュ",
+     "kana": "しゅ",
+     "start": 0.1,
+     "end": 0.3492,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ウ",
+     "kana": "う",
+     "start": 0.3492,
+     "end": 0.4302,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 0.4302,
+     "end": 0.6031,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ツ",
+     "kana": "つ",
+     "start": 0.6031,
+     "end": 0.7524,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ワ",
+     "kana": "わ",
+     "start": 0.7524,
+     "end": 0.8914,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ナ",
+     "kana": "な",
+     "start": 0.8914,
+     "end": 1.0517,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ニ",
+     "kana": "に",
+     "start": 1.0517,
+     "end": 1.1908,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 1.1908,
+     "end": 1.308,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 1.308,
+     "end": 1.44,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 1.44,
+     "end": 1.5986,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 1.5986,
+     "end": 1.6724,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "タ",
+     "kana": "た",
+     "start": 1.6724,
+     "end": 1.8349,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 1.8349,
+     "end": 2.1043,
+     "phrase": 2,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "週末",
+     "start": 0.0,
+     "end": 0.7524,
+     "ruby": [
+      {
+       "text": "週末",
+       "rt": "しゅうまつ"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "は",
+     "start": 0.7524,
+     "end": 0.8914,
+     "ruby": [
+      {
+       "text": "は",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "何",
+     "start": 0.8914,
+     "end": 1.1908,
+     "ruby": [
+      {
+       "text": "何",
+       "rt": "なに"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "を",
+     "start": 1.1908,
+     "end": 1.308,
+     "ruby": [
+      {
+       "text": "を",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "しました",
+     "start": 1.308,
+     "end": 1.8349,
+     "ruby": [
+      {
+       "text": "しました",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    },
+    {
+     "text": "か。",
+     "start": 1.8349,
+     "end": 2.1043,
+     "ruby": [
+      {
+       "text": "か。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "趣味は何ですか。",
+   "kana": "しゅみはなにですか。",
+   "romaji": "",
+   "gloss": {
+    "en": "What are your hobbies?",
+    "he": "מה התחביבים שלך?"
+   },
+   "duration": 1.5201,
+   "timeline": [
+    {
+     "text": "シュ",
+     "kana": "しゅ",
+     "start": 0.1,
+     "end": 0.2995,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ミ",
+     "kana": "み",
+     "start": 0.2995,
+     "end": 0.4659,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ワ",
+     "kana": "わ",
+     "start": 0.4659,
+     "end": 0.6051,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ナ",
+     "kana": "な",
+     "start": 0.6051,
+     "end": 0.7608,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ニ",
+     "kana": "に",
+     "start": 0.7608,
+     "end": 0.8791,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 0.8791,
+     "end": 1.0315,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.0315,
+     "end": 1.1483,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 1.1483,
+     "end": 1.4201,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "趣味",
+     "start": 0.0,
+     "end": 0.4659,
+     "ruby": [
+      {
+       "text": "趣味",
+       "rt": "しゅみ"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "は",
+     "start": 0.4659,
+     "end": 0.6051,
+     "ruby": [
+      {
+       "text": "は",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "何です",
+     "start": 0.6051,
+     "end": 1.1483,
+     "ruby": [
+      {
+       "text": "何",
+       "rt": "なに"
+      },
+      {
+       "text": "です",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "か。",
+     "start": 1.1483,
+     "end": 1.4201,
+     "ruby": [
+      {
+       "text": "か。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "映画が好きです。",
+   "kana": "えいががすきです。",
+   "romaji": "",
+   "gloss": {
+    "en": "I like movies.",
+    "he": "אני אוהב סרטים."
+   },
+   "duration": 1.4032,
+   "timeline": [
+    {
+     "text": "エ",
+     "kana": "え",
+     "start": 0.1,
+     "end": 0.2537,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "エ",
+     "kana": "え",
+     "start": 0.2537,
+     "end": 0.3633,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ガ",
+     "kana": "が",
+     "start": 0.3633,
+     "end": 0.5261,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ガ",
+     "kana": "が",
+     "start": 0.5261,
+     "end": 0.695,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 0.695,
+     "end": 0.7939,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "キ",
+     "kana": "き",
+     "start": 0.7939,
+     "end": 0.9377,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 0.9377,
+     "end": 1.1222,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.1222,
+     "end": 1.3032,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "映画",
+     "start": 0.0,
+     "end": 0.5261,
+     "ruby": [
+      {
+       "text": "映画",
+       "rt": "えいが"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "が",
+     "start": 0.5261,
+     "end": 0.695,
+     "ruby": [
+      {
+       "text": "が",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "好きです。",
+     "start": 0.695,
+     "end": 1.3032,
+     "ruby": [
+      {
+       "text": "好",
+       "rt": "す"
+      },
+      {
+       "text": "きです。",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    }
+   ]
+  },
+  {
+   "ja": "最近忙しいですか。",
+   "kana": "さいきんいそがしいですか。",
+   "romaji": "",
+   "gloss": {
+    "en": "Have you been busy lately?",
+    "he": "אתה עסוק לאחרונה?"
+   },
+   "duration": 1.9956,
+   "timeline": [
+    {
+     "text": "サ",
+     "kana": "さ",
+     "start": 0.1,
+     "end": 0.3531,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 0.3531,
+     "end": 0.4471,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "キ",
+     "kana": "き",
+     "start": 0.4471,
+     "end": 0.6608,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 0.6608,
+     "end": 0.7417,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 0.7417,
+     "end": 0.8153,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ソ",
+     "kana": "そ",
+     "start": 0.8153,
+     "end": 0.9664,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ガ",
+     "kana": "が",
+     "start": 0.9664,
+     "end": 1.1009,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 1.1009,
+     "end": 1.2818,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 1.2818,
+     "end": 1.3594,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 1.3594,
+     "end": 1.5084,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.5084,
+     "end": 1.6238,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 1.6238,
+     "end": 1.8956,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "最近",
+     "start": 0.0,
+     "end": 0.7417,
+     "ruby": [
+      {
+       "text": "最近",
+       "rt": "さいきん"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "忙しいです",
+     "start": 0.7417,
+     "end": 1.6238,
+     "ruby": [
+      {
+       "text": "忙",
+       "rt": "いそが"
+      },
+      {
+       "text": "しいです",
+       "rt": ""
+      }
+     ],
+     "pos": "adjective"
+    },
+    {
+     "text": "か。",
+     "start": 1.6238,
+     "end": 1.8956,
+     "ruby": [
+      {
+       "text": "か。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "それはいいですね。",
+   "kana": "それはいいですね。",
+   "romaji": "",
+   "gloss": {
+    "en": "That sounds nice.",
+    "he": "זה נחמד."
+   },
+   "duration": 1.4591,
+   "timeline": [
+    {
+     "text": "ソ",
+     "kana": "そ",
+     "start": 0.1,
+     "end": 0.2878,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "レ",
+     "kana": "れ",
+     "start": 0.2878,
+     "end": 0.4391,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ワ",
+     "kana": "わ",
+     "start": 0.4391,
+     "end": 0.627,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 0.627,
+     "end": 0.7302,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 0.7302,
+     "end": 0.8168,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 0.8168,
+     "end": 0.9685,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 0.9685,
+     "end": 1.0712,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ネ",
+     "kana": "ね",
+     "start": 1.0712,
+     "end": 1.3591,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "それ",
+     "start": 0.0,
+     "end": 0.4391,
+     "ruby": [
+      {
+       "text": "それ",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "は",
+     "start": 0.4391,
+     "end": 0.627,
+     "ruby": [
+      {
+       "text": "は",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "いいです",
+     "start": 0.627,
+     "end": 1.0712,
+     "ruby": [
+      {
+       "text": "いいです",
+       "rt": ""
+      }
+     ],
+     "pos": "adjective"
+    },
+    {
+     "text": "ね。",
+     "start": 1.0712,
+     "end": 1.3591,
+     "ruby": [
+      {
+       "text": "ね。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "ちょっと疲れました。",
+   "kana": "ちょっとつかれました。",
+   "romaji": "",
+   "gloss": {
+    "en": "I'm a bit tired.",
+    "he": "אני קצת עייף."
+   },
+   "duration": 1.5255,
+   "timeline": [
+    {
+     "text": "チョ",
+     "kana": "ちょ",
+     "start": 0.1,
+     "end": 0.3119,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ッ",
+     "kana": "っ",
+     "start": 0.3119,
+     "end": 0.3814,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ト",
+     "kana": "と",
+     "start": 0.3814,
+     "end": 0.5433,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ツ",
+     "kana": "つ",
+     "start": 0.5433,
+     "end": 0.6584,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 0.6584,
+     "end": 0.8264,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "レ",
+     "kana": "れ",
+     "start": 0.8264,
+     "end": 0.9284,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 0.9284,
+     "end": 1.078,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 1.078,
+     "end": 1.1766,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "タ",
+     "kana": "た",
+     "start": 1.1766,
+     "end": 1.4255,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "ちょっと",
+     "start": 0.0,
+     "end": 0.5433,
+     "ruby": [
+      {
+       "text": "ちょっと",
+       "rt": ""
+      }
+     ],
+     "pos": "other"
+    },
+    {
+     "text": "疲れました。",
+     "start": 0.5433,
+     "end": 1.4255,
+     "ruby": [
+      {
+       "text": "疲",
+       "rt": "つか"
+      },
+      {
+       "text": "れました。",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    }
+   ]
+  }
+ ]
+}

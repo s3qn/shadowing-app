@@ -12,6 +12,7 @@ import { SLOTS, type Equipped } from '@/constants/cosmetics';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, prism, tide } from '@/constants/theme';
 import { getLeaderboard, type Leaderboard } from '@/lib/api';
+import { useGuideAnchor, useGuideStep } from '@/lib/guide';
 import { useDir, useT } from '@/lib/i18n';
 import { requestLoader } from '@/lib/loading-overlay';
 import { itemArt, useProgress } from '@/lib/progression';
@@ -61,6 +62,10 @@ export default function LeaderboardScreen() {
   // The viewer sits inside the list at their real rank (rank 1 shows in the spotlight).
   const meInList = myRank !== null && myRank >= 2 && !!me?.username;
   const mineEquipped: EquippedIds = progress?.equipped ?? {};
+  // BL-64: the guide's ranks step keeps the spotlight and the viewer's row in full light.
+  const ranks = useGuideStep() === 'ranks';
+  const topAnchor = useGuideAnchor('ranksTop', ranks);
+  const meAnchor = useGuideAnchor('ranksMe', ranks);
 
   // Pin a copy of the viewer's row to the bottom only while their real row is
   // scrolled off-screen. Start assuming it is visible (true) so a viewer near the
@@ -97,7 +102,7 @@ export default function LeaderboardScreen() {
   const rows = useMemo(() => entries.map((e, i) => ({ ...e, rank: i + 1 })).slice(1), [entries]);
 
   const header = top ? (
-    <Pressable accessibilityRole="button" onPress={() => openProfile(top.username)} style={({ pressed }) => [styles.spot, dir.row, pressed && { opacity: 0.8 }]}>
+    <Pressable ref={topAnchor.ref} onLayout={topAnchor.onLayout} accessibilityRole="button" onPress={() => openProfile(top.username)} style={({ pressed }) => [styles.spot, dir.row, pressed && { opacity: 0.8 }]}>
       <View style={styles.spotCat} pointerEvents="none">
         <CatAvatar size={SPOT_CAT} equipped={spotEquipped} />
       </View>
@@ -174,8 +179,9 @@ export default function LeaderboardScreen() {
       <View style={[StyleSheet.absoluteFill, sky.from]} />
       <Animated.View style={[StyleSheet.absoluteFill, sky.to, sky.fadeStyle]} />
       {body}
-      {meInList && me && me.username && !meVisible ? (
-        <View style={[styles.pin, { bottom: insets.bottom + Spacing.sm }]}>
+      {/* During the guide's ranks step the pin stays up so the cat can point at "you". */}
+      {meInList && me && me.username && (!meVisible || ranks) ? (
+        <View ref={meAnchor.ref} onLayout={meAnchor.onLayout} collapsable={false} style={[styles.pin, { bottom: insets.bottom + Spacing.sm }]}>
           <LeaderboardRow rank={myRank as number} username={me.username} level={me.level} equipped={mineEquipped} mine pinned nextLine={nextLine} onOpen={openProfile} />
         </View>
       ) : null}

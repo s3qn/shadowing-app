@@ -2,6 +2,8 @@ import { useRouter } from 'expo-router';
 
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
 import { SheetAction, type SheetIcon } from '@/components/sheet/sheet-rows';
+import { GuideLayer } from '@/components/onboarding/guide-layer';
+import { setGuideStep, useGuideAnchor, useGuideAnchors, useGuideStep } from '@/lib/guide';
 import { useT } from '@/lib/i18n';
 
 type Row = {
@@ -19,6 +21,9 @@ type Row = {
 export function AddIslandSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useT();
   const router = useRouter();
+  const guide = useGuideStep() === 'add' && open;
+  const phrases = useGuideAnchor('addPhrases', guide);
+  const box = useGuideAnchors().addPhrases;
 
   const rows: Row[] = [
     { key: 'record', label: t('home.add.record'), icon: { ios: 'mic.fill', android: 'mic' }, href: '/record' },
@@ -28,13 +33,42 @@ export function AddIslandSheet({ open, onClose }: { open: boolean; onClose: () =
   ];
 
   return (
-    <BottomSheet open={open} onClose={onClose} title={t('home.addTitle')}>
+    <BottomSheet
+      open={open}
+      onClose={() => {
+        if (guide) setGuideStep('home');
+        onClose();
+      }}
+      onOpened={phrases.onLayout}
+      title={t('home.addTitle')}
+      overlay={
+        guide && box ? (
+          <GuideLayer
+            holes={[{ ...box, radius: 16 }]}
+            hint={{ x: box.x + box.width / 2, y: box.y + box.height / 2 }}
+            bubble={{ kind: 'record', text: [t('guide.add'), t('guide.add.b2')], top: 300 }}
+            chip={{ text: t('guide.chip.island'), place: 'below' }}
+            onTapOutside={() => {
+              setGuideStep('home');
+              onClose();
+            }}
+          />
+        ) : null
+      }>
       {rows.map((row) => (
         <SheetAction
           key={row.key}
           label={row.label}
           icon={row.icon}
+          anchor={row.key === 'phrases' ? phrases : undefined}
           onPress={() => {
+            if (guide && row.key === 'phrases') {
+              setGuideStep('listen');
+              onClose();
+              router.push({ pathname: '/phrases/build', params: { starter: '1', guide: 'listen' } });
+              return;
+            }
+            if (guide) setGuideStep('home');
             onClose();
             router.push(row.href);
           }}

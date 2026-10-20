@@ -4,7 +4,7 @@ import Animated, { cancelAnimation, useAnimatedStyle, useReducedMotion, useShare
 
 import { CatBase } from '@/components/cat/cat-base';
 import { CosmeticLayer } from '@/components/cat/cosmetic-layer';
-import { ANCHORS, CAT_BOX, SLOTS, Z_ORDER, type ArtSpec, type Equipped, type KagenekoMode, type Slot } from '@/constants/cosmetics';
+import { ANCHORS, CAT_BOX, SLOTS, Z_ORDER, type ArtSpec, type Equipped, type KagenekoEmotion, type KagenekoMode, type Slot } from '@/constants/cosmetics';
 import { RIVE_AVAILABLE } from '@/lib/rive-available';
 
 // The only door to Rive. kageneko-view is required, never imported, and only
@@ -26,6 +26,8 @@ export type CatAvatarProps = {
   preview?: { slot: Slot; art: ArtSpec } | null;
   /** Rive cat only: what the cat is doing. Defaults to idle. */
   mode?: KagenekoMode;
+  /** Rive cat only: a looping emotion. */
+  emotion?: KagenekoEmotion;
   /** Rive cat only: bump to play the pet reaction. */
   petKey?: number;
   /** Rive cat only: cap the frame rate. */
@@ -45,15 +47,18 @@ const keyOf = (a: ArtSpec | null) => (a ? `${a.shape}|${a.color}|${a.accent}|${a
  * 0.6 to 1 about the slot anchor, opacity 0 to 1 over 160ms), a try-on only
  * fades in over 120ms, and the replaced art fades out over 120ms before it
  * unmounts. A second change mid-spring retargets the same shared values.
+ * The replaced art leaves from the opacity and scale it had at that moment,
+ * so an item swapped out mid fade-in never flashes to full, and several
+ * quick swaps each fade out on their own instead of cutting the last one.
  */
 function SlotLayer({ slot, art, tryOn }: { slot: Slot; art: ArtSpec | null; tryOn: boolean }) {
   const reduced = useReducedMotion();
   const [cur, setCur] = useState(art);
-  const [leaving, setLeaving] = useState<ArtSpec | null>(null);
+  const [leaving, setLeaving] = useState<Leaving[]>([]);
   const scale = useSharedValue(1);
   const opacity = useSharedValue(art ? 1 : 0);
-  const outOpacity = useSharedValue(0);
   const prev = useRef({ key: keyOf(art), tryOn, art });
+  const nextId = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(
@@ -68,12 +73,18 @@ function SlotLayer({ slot, art, tryOn }: { slot: Slot; art: ArtSpec | null; tryO
     const key = keyOf(art);
     if (p.key === key && p.tryOn === tryOn) return;
     const target = tryOn ? PREVIEW_OPACITY : 1;
-    if (p.key !== key && p.art) {
-      setLeaving(p.art);
-      outOpacity.value = p.tryOn ? PREVIEW_OPACITY : 1;
-      outOpacity.value = reduced ? 0 : withTiming(0, { duration: OUT_MS });
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => setLeaving(null), reduced ? 0 : OUT_MS + 20);
+    if (p.key !== key && p.art && !reduced) {
+      // Read where the outgoing art is right now, before the values retarget.
+      const from = Number.isFinite(opacity.value) ? opacity.value : 0;
+      const fromScale = Number.isFinite(scale.value) ? scale.value : 1;
+      const out = p.art;
+      if (from > 0.01) {
+        setLeaving((cur) => [...cur, { id: ++nextId.current, art: out, from, scale: fromScale }]);
+        // Every leaving layer is faded by OUT_MS. They are dropped together once the burst is over, not one by
+        // one: a re-render while the new art is still fading in rewrote its opacity from a stale value on the web.
+        if (timer.current) clearTimeout(timer.current);
+        timer.current = setTimeout(() => setLeaving([]), OUT_MS + 60);
+      }
     }
     setCur(art);
     if (art) {
@@ -95,22 +106,19 @@ function SlotLayer({ slot, art, tryOn }: { slot: Slot; art: ArtSpec | null; tryO
       }
     }
     prev.current = { key, tryOn, art };
-  }, [art, tryOn, reduced, scale, opacity, outOpacity]);
+  }, [art, tryOn, reduced, scale, opacity]);
 
   const style = useAnimatedStyle(() => ({
     opacity: Number.isFinite(opacity.value) ? opacity.value : 1,
     transform: [{ scale: Number.isFinite(scale.value) ? scale.value : 1 }],
   }));
-  const outStyle = useAnimatedStyle(() => ({ opacity: Number.isFinite(outOpacity.value) ? outOpacity.value : 0 }));
   const a = ANCHORS[slot];
   const origin = `${a.x}px ${a.y}px` as const;
   return (
     <>
-      {leaving ? (
-        <Animated.View pointerEvents="none" style={[styles.fill, outStyle]}>
-          <CosmeticLayer slot={slot} art={leaving} />
-        </Animated.View>
-      ) : null}
+      {leaving.map((l) => (
+        <LeavingLayer key={l.id} slot={slot} leave={l} origin={origin} />
+      ))}
       {cur ? (
         <Animated.View pointerEvents="none" style={[styles.fill, { transformOrigin: origin }, style]}>
           <CosmeticLayer slot={slot} art={cur} />
@@ -120,11 +128,32 @@ function SlotLayer({ slot, art, tryOn }: { slot: Slot; art: ArtSpec | null; tryO
   );
 }
 
+type Leaving = { id: number; art: ArtSpec; from: number; scale: number };
+
+/** Replaced art fading out from where it was (opacity and scale), over OUT_MS scaled by how visible it still was. */
+function LeavingLayer({ slot, leave, origin }: { slot: Slot; leave: Leaving; origin: string }) {
+  const opacity = useSharedValue(leave.from);
+  const { from } = leave;
+  const fromScale = Number.isFinite(leave.scale) ? leave.scale : 1;
+  useEffect(() => {
+    opacity.value = withTiming(0, { duration: Math.max(40, OUT_MS * from) });
+  }, [opacity, from]);
+  const style = useAnimatedStyle(() => ({
+    opacity: Number.isFinite(opacity.value) ? opacity.value : 0,
+    transform: [{ scale: fromScale }],
+  }));
+  return (
+    <Animated.View pointerEvents="none" style={[styles.fill, { transformOrigin: origin }, style]}>
+      <CosmeticLayer slot={slot} art={leave.art} />
+    </Animated.View>
+  );
+}
+
 /**
  * The only prop surface of the cat. A later Rive cat takes the same props.
  * Layers draw in Z_ORDER inside a CAT_BOX that is scaled to `size`.
  */
-export function CatAvatar({ size, equipped, preview, mode, petKey, frameRate, gaze }: CatAvatarProps) {
+export function CatAvatar({ size, equipped, preview, mode, emotion, petKey, frameRate, gaze }: CatAvatarProps) {
   const [riveFailed, setRiveFailed] = useState(false);
   const scale = size / CAT_BOX.w;
   const h = CAT_BOX.h * scale;
@@ -135,6 +164,7 @@ export function CatAvatar({ size, equipped, preview, mode, petKey, frameRate, ga
           size={size}
           equipped={preview ? { ...equipped, [preview.slot]: preview.art } : equipped}
           mode={mode ?? 'idle'}
+          emotion={emotion}
           petKey={petKey}
           frameRate={frameRate}
           gaze={gaze}

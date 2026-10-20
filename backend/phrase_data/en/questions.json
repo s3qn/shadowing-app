@@ -1,9 +1,9 @@
 [
-  {"text": "What is this?"},
-  {"text": "Where is the restroom?"},
-  {"text": "What time is it?"},
-  {"text": "Could you say that again?"},
-  {"text": "Could you speak a bit slower?"},
-  {"text": "Do you speak Hebrew?"},
-  {"text": "What does this word mean?"}
+  {"text": "What is this?", "he": "מה זה?"},
+  {"text": "Where is the restroom?", "he": "איפה השירותים?"},
+  {"text": "What time is it?", "he": "מה השעה?"},
+  {"text": "Could you say that again?", "he": "אפשר לחזור על זה?"},
+  {"text": "Could you speak a bit slower?", "he": "אפשר לדבר קצת יותר לאט?"},
+  {"text": "Do you speak Hebrew?", "he": "אתה מדבר עברית?"},
+  {"text": "What does this word mean?", "he": "מה המילה הזאת אומרת?"}
 ]

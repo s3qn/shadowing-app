@@ -30,6 +30,8 @@ type BottomSheetProps = {
    * animation finishes. Alerts and share sheets belong here, not in a row's
    * onPress, so they never race the Modal dismissing. */
   onDismissed?: () => void;
+  /** Runs once the open slide has settled, so a control can be measured where it rests. */
+  onOpened?: () => void;
   title?: string;
   /** The title is content (an island's own name), not interface copy: it
    * keeps its own writing direction whatever language the app is in. */
@@ -39,6 +41,8 @@ type BottomSheetProps = {
   hint?: string;
   /** Wraps the content in KeyboardAvoidingView (padding). Rename needs it. */
   avoidKeyboard?: boolean;
+  /** Drawn over the content inside the Modal's own window (the first-run guide). */
+  overlay?: ReactNode;
   children: ReactNode;
 };
 
@@ -47,7 +51,7 @@ type BottomSheetProps = {
  * dismiss. An internal `mounted` state keeps the Modal on screen through the
  * exit animation instead of yanking it away the instant `open` goes false.
  */
-export function BottomSheet({ open, onClose, onDismissed, title, contentTitle, hint, avoidKeyboard, children }: BottomSheetProps) {
+export function BottomSheet({ open, onClose, onDismissed, onOpened, title, contentTitle, hint, avoidKeyboard, overlay, children }: BottomSheetProps) {
   const insets = useSafeAreaInsets();
   const { t } = useT();
   const dir = useDir();
@@ -56,6 +60,12 @@ export function BottomSheet({ open, onClose, onDismissed, title, contentTitle, h
   const progress = useSharedValue(open ? 1 : 0);
   const drag = useSharedValue(0);
   const panelHeight = useSharedValue(0);
+  // The latest onOpened, read when the slide (started renders earlier) ends.
+  const openedRef = useRef(onOpened);
+  useEffect(() => {
+    openedRef.current = onOpened;
+  }, [onOpened]);
+  const fireOpened = () => openedRef.current?.();
 
   useEffect(() => {
     if (open) {
@@ -63,11 +73,18 @@ export function BottomSheet({ open, onClose, onDismissed, title, contentTitle, h
       // there for the animation that starts right below.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setMounted(true);
-      drag.value = 0;
-      progress.value = withTiming(1, {
-        duration: reducedMotion ? 0 : OPEN_MS,
-        easing: Easing.out(Easing.cubic),
-      });
+      // Reopened mid-close with the panel still on screen: ease a leftover drag back instead of snapping it.
+      drag.value = progress.value > 0 && !reducedMotion ? withTiming(0, { duration: OPEN_MS, easing: Easing.out(Easing.cubic) }) : 0;
+      progress.value = withTiming(
+        1,
+        {
+          duration: reducedMotion ? 0 : OPEN_MS,
+          easing: Easing.out(Easing.cubic),
+        },
+        (finished) => {
+          if (finished) runOnJS(fireOpened)();
+        },
+      );
     } else if (mounted) {
       progress.value = withTiming(0, { duration: reducedMotion ? 0 : CLOSE_MS }, (finished) => {
         if (!finished) return;
@@ -155,6 +172,7 @@ export function BottomSheet({ open, onClose, onDismissed, title, contentTitle, h
         ) : (
           content
         )}
+        {overlay}
       </GestureHandlerRootView>
     </Modal>
   );

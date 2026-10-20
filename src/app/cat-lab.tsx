@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatAvatar } from '@/components/cat/cat-avatar';
 import { PrismButton } from '@/components/prism';
-import { KAGENEKO_MODES, SLOTS, type ArtSpec, type Equipped, type KagenekoMode, type Slot } from '@/constants/cosmetics';
+import { KAGENEKO_EMOTIONS, KAGENEKO_MODES, SLOTS, type ArtSpec, type Equipped, type KagenekoEmotion, type KagenekoMode, type Slot } from '@/constants/cosmetics';
 import { fonts } from '@/constants/fonts';
 import { Spacing } from '@/constants/theme';
 import { RIVE_AVAILABLE } from '@/lib/rive-available';
@@ -28,6 +28,7 @@ export default function CatLabScreen() {
   const [equipped, setEquipped] = useState<Equipped>({});
   const [headImage, setHeadImage] = useState(false);
   const [mode, setMode] = useState<KagenekoMode>('idle');
+  const [emotion, setEmotion] = useState<KagenekoEmotion>('none');
   const [petKey, setPetKey] = useState(0);
 
   const toggleSlot = (slot: Slot) => setEquipped((e) => ({ ...e, [slot]: e[slot] ? null : TEST_ART }));
@@ -41,10 +42,10 @@ export default function CatLabScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.stage}>
           {KagenekoView ? (
-            <KagenekoView key={instanceName} size={184} equipped={shown} mode={mode} petKey={petKey} instanceName={instanceName} />
+            <KagenekoView key={instanceName} size={184} equipped={shown} mode={mode} emotion={emotion} petKey={petKey} instanceName={instanceName} />
           ) : (
             <>
-              <CatAvatar size={184} equipped={shown} mode={mode} petKey={petKey} />
+              <CatAvatar size={184} equipped={shown} mode={mode} emotion={emotion} petKey={petKey} />
               <Text style={styles.note}>Rive needs a dev build. Expo Go shows the placeholder cat.</Text>
             </>
           )}
@@ -69,6 +70,13 @@ export default function CatLabScreen() {
         <View style={styles.row}>
           {KAGENEKO_MODES.map((m) => (
             <PrismButton key={m} shape="pill" verb="tools" label={m} on={mode === m} onPress={() => setMode(m)} />
+          ))}
+        </View>
+
+        <Text style={styles.title}>Emotion</Text>
+        <View style={styles.row}>
+          {KAGENEKO_EMOTIONS.map((e) => (
+            <PrismButton key={e} shape="pill" verb="tools" label={e} on={emotion === e} onPress={() => setEmotion(e)} />
           ))}
         </View>
 

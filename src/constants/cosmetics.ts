@@ -30,5 +30,7 @@ export type ArtSpec = {
 /** The Rive cat's `mode` enum, in the order the .riv defines it. */
 export const KAGENEKO_MODES = ['idle', 'listening', 'your_turn', 'recording'] as const;
 export type KagenekoMode = (typeof KAGENEKO_MODES)[number];
+export const KAGENEKO_EMOTIONS = ['none', 'proud', 'excited', 'encouraging', 'sad', 'sleepy', 'love', 'curious', 'shy'] as const;
+export type KagenekoEmotion = (typeof KAGENEKO_EMOTIONS)[number];
 
 export type Equipped = Partial<Record<Slot, ArtSpec | null>>;

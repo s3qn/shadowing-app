@@ -125,5 +125,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     color: tide.text,
   },
-  tagline: { fontFamily: fonts.ui, fontSize: 17, lineHeight: 24, color: tide.textDim, textAlign: 'center', maxWidth: 300 },
+  // 300 pt of text plus 2 pt a side: a line's hanging trailing space is wider than the text box and was cut at its edge on the web.
+  tagline: { fontFamily: fonts.ui, fontSize: 17, lineHeight: 24, color: tide.textDim, textAlign: 'center', maxWidth: 304, paddingHorizontal: 2 },
 });

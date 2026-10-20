@@ -6,7 +6,7 @@ export const he = {
   'wardrobe.level': 'רמה {n}',
   'wardrobe.maxLevel': 'רמה מקסימלית',
   'wardrobe.xp': '{into} / {total} XP',
-  'wardrobe.today': '{used} / {cap} XP היום',
+  'wardrobe.today': '\u2066{used} / {cap} XP\u2069 היום',
   'wardrobe.todayFull': 'תקרת ה-XP היומית הושגה. מטבעות עדיין נספרים.',
   'wardrobe.coins': '{n} מטבעות',
   'wardrobe.coins_one': 'מטבע אחד',

@@ -1,0 +1,361 @@
+{
+ "language": "es",
+ "topic": "shopping",
+ "lines": [
+  {
+   "ja": "¿Cuánto cuesta?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "How much does it cost?",
+    "he": "כמה זה עולה?"
+   },
+   "duration": 1.088,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Cuánto",
+     "start": 0.076,
+     "end": 0.501,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Cuánto",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "cuesta?",
+     "start": 0.501,
+     "end": 1.088,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "cuesta?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Es un poco caro.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "It's a bit expensive.",
+    "he": "זה קצת יקר."
+   },
+   "duration": 1.1733333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Es",
+     "start": 0.097,
+     "end": 0.297,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Es",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "un",
+     "start": 0.297,
+     "end": 0.472,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "un",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "poco",
+     "start": 0.472,
+     "end": 0.772,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "poco",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "caro.",
+     "start": 0.772,
+     "end": 1.173,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "caro.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "¿Puedo probármelo?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "May I try it on?",
+    "he": "אפשר למדוד את זה?"
+   },
+   "duration": 1.1733333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Puedo",
+     "start": 0.076,
+     "end": 0.426,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Puedo",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "probármelo?",
+     "start": 0.426,
+     "end": 1.173,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "probármelo?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "¿Tiene algo más barato?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Do you have anything cheaper?",
+    "he": "יש לך משהו יותר זול?"
+   },
+   "duration": 1.5573333333333332,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Tiene",
+     "start": 0.076,
+     "end": 0.401,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Tiene",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "algo",
+     "start": 0.401,
+     "end": 0.776,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "algo",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "más",
+     "start": 0.776,
+     "end": 1.026,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "más",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "barato?",
+     "start": 1.026,
+     "end": 1.557,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "barato?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "¿Puedo pagar con tarjeta?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Can I pay by card?",
+    "he": "אפשר לשלם בכרטיס?"
+   },
+   "duration": 1.5573333333333332,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Puedo",
+     "start": 0.076,
+     "end": 0.426,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Puedo",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "pagar",
+     "start": 0.426,
+     "end": 0.776,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "pagar",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "con",
+     "start": 0.776,
+     "end": 0.976,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "con",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "tarjeta?",
+     "start": 0.976,
+     "end": 1.557,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "tarjeta?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "No necesito bolsa.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "I don't need a bag.",
+    "he": "אני לא צריך שקית."
+   },
+   "duration": 1.3653333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "No",
+     "start": 0.076,
+     "end": 0.251,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "No",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "necesito",
+     "start": 0.251,
+     "end": 0.851,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "necesito",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "bolsa.",
+     "start": 0.851,
+     "end": 1.365,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "bolsa.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Me lo llevo.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "I'll take it.",
+    "he": "אני אקח את זה."
+   },
+   "duration": 0.9173333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Me",
+     "start": 0.161,
+     "end": 0.311,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Me",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "lo",
+     "start": 0.311,
+     "end": 0.461,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "lo",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "llevo.",
+     "start": 0.461,
+     "end": 0.917,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "llevo.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

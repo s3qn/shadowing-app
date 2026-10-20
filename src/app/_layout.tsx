@@ -1,21 +1,25 @@
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useReducedMotion } from 'react-native-reanimated';
 
 import { CardMorphOverlay } from '@/components/card-morph-overlay';
 import { SessionCelebration, XpToast } from '@/components/session-celebration';
 import { ConfirmSheetHost } from '@/components/confirm-sheet-host';
+import { GuideHost } from '@/components/onboarding/guide-host';
 import { LoadingOverlay } from '@/components/loading-overlay';
 import { ReviewTour } from '@/components/review-tour';
 import { tide } from '@/constants/theme';
 import { getUsername } from '@/lib/api';
 import { loadSession, onSessionLost } from '@/lib/auth';
 import { loadDeviceId } from '@/lib/device';
+import { noteRoute, useFeedbackFlush } from '@/lib/feedback';
 import { loadOfflineIndex } from '@/lib/offline-islands'; // offline-islands
+import { type GuideStep, guideStartHome, useGuideStep } from '@/lib/guide';
 import { useT } from '@/lib/i18n';
 import { useCelebration, usePendingLevelUp } from '@/lib/level-up-store';
 import { getSettings } from '@/lib/settings';
@@ -24,6 +28,8 @@ SplashScreen.preventAutoHideAsync();
 
 // Routes that are a practice session: a level-up waits until none is focused.
 const PRACTICE_ROUTES = new Set(['island/[id]', 'record', 'drive', 'video', 'podcast']);
+// The first-run guide's own moments: no summary or XP pop over them (moment 6 is its own level-up).
+const GUIDE_QUIET = new Set<GuideStep>(['listen', 'shadow', 'topics', 'size', 'practice', 'levelup']);
 
 /** The session summary as soon as a session ends; a level-up from anywhere else once the user has left every practice screen; else the XP toast. */
 const celebrationKeys = new WeakMap<object, number>();
@@ -33,6 +39,8 @@ function LevelUpHost() {
   const pending = usePendingLevelUp();
   const celebration = useCelebration();
   const segments = useSegments() as string[];
+  const guideStep = useGuideStep();
+  if (GUIDE_QUIET.has(guideStep)) return null;
   if (celebration) {
     let key = celebrationKeys.get(celebration);
     if (key === undefined) celebrationKeys.set(celebration, (key = ++nextCelebrationKey));
@@ -53,6 +61,10 @@ export default function RootLayout() {
   const [hasSession, setHasSession] = useState(true);
   const launched = useRef(false);
   const router = useRouter();
+  const pathname = usePathname();
+  noteRoute(pathname);
+  useFeedbackFlush();
+  const segments = useSegments() as string[];
   // No bundled fonts to load anymore (the app uses the platform's system
   // fonts), so the app waits only on two small file reads: the device id,
   // so every request has the header, then the settings, so the first render
@@ -95,8 +107,11 @@ export default function RootLayout() {
   useEffect(() => {
     if (!ready || launched.current) return;
     launched.current = true;
-    if (needsOnboarding) router.push({ pathname: '/onboarding', params: { first: '1' } });
-    else if (!hasSession) router.push({ pathname: '/sign-in', params: { first: '1' } });
+    if (needsOnboarding) {
+      // ET-13: the intro opens over Home and closes back to it, never over a deep-linked screen.
+      guideStartHome(segments[0] === '(tabs)', pathname);
+      router.push({ pathname: '/onboarding', params: { first: '1' } });
+    } else if (!hasSession) router.push({ pathname: '/sign-in', params: { first: '1' } });
     else {
       // Hard gate: a signed-in account with no handle must pick one. A failed
       // request opens the app anyway and the check runs again next launch.
@@ -109,6 +124,7 @@ export default function RootLayout() {
     requestAnimationFrame(() => {
       void SplashScreen.hideAsync();
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, needsOnboarding, hasSession, router]);
 
   // A session that ends on its own (a revoked or expired refresh token)
@@ -125,10 +141,15 @@ export default function RootLayout() {
     void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => undefined);
   }, []);
 
+  // Overscroll past a screen's end shows the page behind the root, white on web.
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') document.documentElement.style.backgroundColor = tide.sky[0];
+  }, []);
+
   if (!ready) return null;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: tide.sky[0] }}>
       <StatusBar style="light" />
       <Stack
         screenOptions={{
@@ -229,6 +250,8 @@ export default function RootLayout() {
         <Stack.Screen name="settings/voice" options={{ title: t('title.voice') }} />
         <Stack.Screen name="settings/playback" options={{ title: t('title.playback') }} />
         <Stack.Screen name="settings/practice" options={{ title: t('title.practice') }} />
+        <Stack.Screen name="settings/feedback" options={{ title: t('settings.row.feedback') }} />
+        <Stack.Screen name="podcast/build" options={{ title: t('tab.podcast') }} />
         <Stack.Screen name="settings/data" options={{ title: t('title.data') }} />
         <Stack.Screen name="settings/about" options={{ title: t('title.about') }} />
         <Stack.Screen name="settings/languages" options={{ title: t('title.language') }} />
@@ -236,8 +259,9 @@ export default function RootLayout() {
         <Stack.Screen name="before-after" options={{ title: t('beforeAfter.title') }} />
         <Stack.Screen name="review" options={{ title: t('review.title') }} />
         <Stack.Screen name="leaderboard" options={{ title: t('leaderboard.title'), headerStyle: { backgroundColor: tide.sky[0] } }} />
-        <Stack.Screen name="drive" options={{ headerShown: false, animation: 'fade' }} />
-        <Stack.Screen name="wardrobe" options={{ title: t('wardrobe.title'), headerStyle: { backgroundColor: tide.sky[0] } }} />
+        {/* animationDuration matches SCREEN_FADE_MS in app/drive.tsx, which holds its content until the fade is done. */}
+        <Stack.Screen name="drive" options={{ headerShown: false, animation: 'fade', animationDuration: 250 }} />
+        <Stack.Screen name="wardrobe" options={{ title: t('wardrobe.title'), headerStyle: { backgroundColor: tide.sky[0] }, contentStyle: { backgroundColor: '#0B1020' } /* the wardrobe PAGE colour, so overscroll shows navy, not black */ }} />
         <Stack.Screen name="profile/[username]" options={{ headerStyle: { backgroundColor: tide.sky[0] } }} />
         {/* Dev-only screen, excluded from the app-language inventory. */}
         <Stack.Screen name="prism-lab" options={{ title: t('title.prismLab') }} />
@@ -246,6 +270,7 @@ export default function RootLayout() {
       {__DEV__ ? <ReviewTour /> : null}
       <CardMorphOverlay />
       <LevelUpHost />
+      <GuideHost />
       <LoadingOverlay />
       <ConfirmSheetHost />
     </GestureHandlerRootView>

@@ -16,13 +16,16 @@ import store
 
 AUTH = f"Bearer {main.SHADOW_TOKEN}"
 DEV = "dddddddd-0000-4000-8000-000000000004"
-JA_VOICE = 3
+JA_VOICE = 2  # not the default voice, so the live build path runs
 ES_VOICE = 10011
 
 
 @pytest.fixture(autouse=True)
-def _init_db():
+def _init_db(monkeypatch, tmp_path):
     # A fresh device per test: a repeat pick on one device returns the old island.
+    # A fresh data dir too: _post runs the real build, which saves a shared
+    # phrase render that would turn a later test's build into a copy.
+    monkeypatch.setattr(store, "DATA_DIR", tmp_path)
     global DEV
     DEV = f"dddddddd-0000-4000-8000-{uuid.uuid4().hex[:12]}"
     store.init()
@@ -193,7 +196,34 @@ def test_good_post_builds_ready_island(fakes):
     assert store.count_builds_today(DEV, "create") == 1
 
 
-def test_native_he_translates_and_failure_stays_ready(fakes, monkeypatch):
+def test_native_he_uses_catalogue_gloss_en_uses_english(fakes):
+    he = _post(topic="greetings", native="he")
+    entries = phrase_catalog.phrases("ja", "greetings")
+    assert fakes == []
+    assert [l["en"] for l in store.get_island(he["id"])["lines"]] == [e["he"] for e in entries]
+    en = _post(topic="shopping", native="en")
+    entries = phrase_catalog.phrases("ja", "shopping")
+    assert [l["en"] for l in store.get_island(en["id"])["lines"]] == [e["en"] for e in entries]
+
+
+@pytest.mark.parametrize("lang", ["ja", "es", "en"])
+def test_every_phrase_has_hebrew_gloss(lang):
+    for topic in phrase_catalog.catalog(lang)["topics"]:
+        for e in phrase_catalog.phrases(lang, topic["id"]):
+            assert e.get("he", "").strip()
+
+
+def test_gloss_follows_native_and_falls_back_to_en():
+    entry = {"text": "x", "en": "hello", "he": "שלום"}
+    assert phrase_catalog.gloss(entry, "he") == "שלום"
+    assert phrase_catalog.gloss(entry, "en") == "hello"
+    assert phrase_catalog.gloss({"text": "x", "en": "hello"}, "he") == "hello"
+
+
+def test_native_he_translates_missing_gloss_and_failure_stays_ready(fakes, monkeypatch):
+    real = phrase_catalog.phrases
+    monkeypatch.setattr(phrase_catalog, "phrases", lambda lang, topic: [
+        {k: v for k, v in e.items() if k != "he"} for e in real(lang, topic)])
     out = _post(topic="greetings", native="he")
     assert fakes and fakes[0][2] == "he"
     assert store.get_island(out["id"])["lines"][0]["en"] == "he0"

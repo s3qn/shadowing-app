@@ -1,9 +1,9 @@
 [
-  {"text": "It's really hot today, isn't it?"},
-  {"text": "What did you do over the weekend?"},
-  {"text": "What do you like to do in your free time?"},
-  {"text": "I love going to the movies."},
-  {"text": "Have you been busy lately?"},
-  {"text": "That sounds great."},
-  {"text": "I'm a little tired today."}
+  {"text": "It's really hot today, isn't it?", "he": "ממש חם היום, נכון?"},
+  {"text": "What did you do over the weekend?", "he": "מה עשית בסוף השבוע?"},
+  {"text": "What do you like to do in your free time?", "he": "מה אתה אוהב לעשות בזמן הפנוי?"},
+  {"text": "I love going to the movies.", "he": "אני אוהב ללכת לקולנוע."},
+  {"text": "Have you been busy lately?", "he": "היית עסוק לאחרונה?"},
+  {"text": "That sounds great.", "he": "נשמע נהדר."},
+  {"text": "I'm a little tired today.", "he": "אני קצת עייף היום."}
 ]

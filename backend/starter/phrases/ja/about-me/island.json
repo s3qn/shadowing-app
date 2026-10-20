@@ -1,0 +1,999 @@
+{
+ "language": "ja",
+ "topic": "about-me",
+ "lines": [
+  {
+   "ja": "はじめまして。",
+   "kana": "はじめまして。",
+   "romaji": "",
+   "gloss": {
+    "en": "Nice to meet you.",
+    "he": "נעים להכיר."
+   },
+   "duration": 1.2012,
+   "timeline": [
+    {
+     "text": "ハ",
+     "kana": "は",
+     "start": 0.1,
+     "end": 0.2909,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ジ",
+     "kana": "じ",
+     "start": 0.2909,
+     "end": 0.4476,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "メ",
+     "kana": "め",
+     "start": 0.4476,
+     "end": 0.5831,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 0.5831,
+     "end": 0.7374,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 0.7374,
+     "end": 0.8302,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "テ",
+     "kana": "て",
+     "start": 0.8302,
+     "end": 1.1012,
+     "phrase": 0,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "はじめまして。",
+     "start": 0.0,
+     "end": 1.1012,
+     "ruby": [
+      {
+       "text": "はじめまして。",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "ジョンといいます。",
+   "kana": "じょんといいます。",
+   "romaji": "",
+   "gloss": {
+    "en": "My name is John.",
+    "he": "קוראים לי ג'ון."
+   },
+   "duration": 1.2283,
+   "timeline": [
+    {
+     "text": "ジョ",
+     "kana": "じょ",
+     "start": 0.1,
+     "end": 0.3097,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 0.3097,
+     "end": 0.398,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ト",
+     "kana": "と",
+     "start": 0.398,
+     "end": 0.5825,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 0.5825,
+     "end": 0.6878,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 0.6878,
+     "end": 0.7684,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 0.7684,
+     "end": 0.9591,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 0.9591,
+     "end": 1.1283,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "ジョン",
+     "start": 0.0,
+     "end": 0.398,
+     "ruby": [
+      {
+       "text": "ジョン",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "と",
+     "start": 0.398,
+     "end": 0.5825,
+     "ruby": [
+      {
+       "text": "と",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "いいます。",
+     "start": 0.5825,
+     "end": 1.1283,
+     "ruby": [
+      {
+       "text": "いいます。",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    }
+   ]
+  },
+  {
+   "ja": "イスラエルから来ました。",
+   "kana": "いすらえるからきました。",
+   "romaji": "",
+   "gloss": {
+    "en": "I'm from Israel.",
+    "he": "אני מישראל."
+   },
+   "duration": 1.7376,
+   "timeline": [
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 0.1,
+     "end": 0.204,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 0.204,
+     "end": 0.3662,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ラ",
+     "kana": "ら",
+     "start": 0.3662,
+     "end": 0.5277,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "エ",
+     "kana": "え",
+     "start": 0.5277,
+     "end": 0.6217,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ル",
+     "kana": "る",
+     "start": 0.6217,
+     "end": 0.7415,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 0.7415,
+     "end": 0.8819,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ラ",
+     "kana": "ら",
+     "start": 0.8819,
+     "end": 1.0203,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "キ",
+     "kana": "き",
+     "start": 1.0203,
+     "end": 1.1397,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 1.1397,
+     "end": 1.296,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 1.296,
+     "end": 1.3888,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "タ",
+     "kana": "た",
+     "start": 1.3888,
+     "end": 1.6376,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "イスラエル",
+     "start": 0.0,
+     "end": 0.7415,
+     "ruby": [
+      {
+       "text": "イスラエル",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "から",
+     "start": 0.7415,
+     "end": 1.0203,
+     "ruby": [
+      {
+       "text": "から",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "来ました。",
+     "start": 1.0203,
+     "end": 1.6376,
+     "ruby": [
+      {
+       "text": "来",
+       "rt": "き"
+      },
+      {
+       "text": "ました。",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    }
+   ]
+  },
+  {
+   "ja": "日本語を勉強しています。",
+   "kana": "にほんごをべんきょうしています。",
+   "romaji": "",
+   "gloss": {
+    "en": "I'm studying Japanese.",
+    "he": "אני לומד יפנית."
+   },
+   "duration": 2.1288,
+   "timeline": [
+    {
+     "text": "ニ",
+     "kana": "に",
+     "start": 0.1,
+     "end": 0.2564,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ホ",
+     "kana": "ほ",
+     "start": 0.2564,
+     "end": 0.4765,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 0.4765,
+     "end": 0.5546,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ゴ",
+     "kana": "ご",
+     "start": 0.5546,
+     "end": 0.6994,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.6994,
+     "end": 0.796,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ベ",
+     "kana": "べ",
+     "start": 0.796,
+     "end": 0.9871,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 0.9871,
+     "end": 1.0805,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "キョ",
+     "kana": "きょ",
+     "start": 1.0805,
+     "end": 1.2404,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 1.2404,
+     "end": 1.3366,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 1.3366,
+     "end": 1.4222,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "テ",
+     "kana": "て",
+     "start": 1.4222,
+     "end": 1.5976,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 1.5976,
+     "end": 1.6694,
+     "phrase": 3,
+     "high": false
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 1.6694,
+     "end": 1.8602,
+     "phrase": 3,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.8602,
+     "end": 2.0288,
+     "phrase": 3,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "日本語",
+     "start": 0.0,
+     "end": 0.6994,
+     "ruby": [
+      {
+       "text": "日本語",
+       "rt": "にほんご"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "を",
+     "start": 0.6994,
+     "end": 0.796,
+     "ruby": [
+      {
+       "text": "を",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "勉強",
+     "start": 0.796,
+     "end": 1.3366,
+     "ruby": [
+      {
+       "text": "勉強",
+       "rt": "べんきょう"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "しています。",
+     "start": 1.3366,
+     "end": 2.0288,
+     "ruby": [
+      {
+       "text": "しています。",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    }
+   ]
+  },
+  {
+   "ja": "まだ少ししか話せません。",
+   "kana": "まだすこししかはなせません。",
+   "romaji": "",
+   "gloss": {
+    "en": "I can only speak a little so far.",
+    "he": "אני עדיין יודע לדבר רק קצת."
+   },
+   "duration": 2.0803,
+   "timeline": [
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 0.1,
+     "end": 0.2608,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ダ",
+     "kana": "だ",
+     "start": 0.2608,
+     "end": 0.4426,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 0.4426,
+     "end": 0.5477,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "コ",
+     "kana": "こ",
+     "start": 0.5477,
+     "end": 0.71,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 0.71,
+     "end": 0.8227,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 0.8227,
+     "end": 0.9509,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 0.9509,
+     "end": 1.0944,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ハ",
+     "kana": "は",
+     "start": 1.0944,
+     "end": 1.2244,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "ナ",
+     "kana": "な",
+     "start": 1.2244,
+     "end": 1.365,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "セ",
+     "kana": "せ",
+     "start": 1.365,
+     "end": 1.4932,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 1.4932,
+     "end": 1.642,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "セ",
+     "kana": "せ",
+     "start": 1.642,
+     "end": 1.8648,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 1.8648,
+     "end": 1.9803,
+     "phrase": 2,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "まだ",
+     "start": 0.0,
+     "end": 0.4426,
+     "ruby": [
+      {
+       "text": "まだ",
+       "rt": ""
+      }
+     ],
+     "pos": "other"
+    },
+    {
+     "text": "少し",
+     "start": 0.4426,
+     "end": 0.8227,
+     "ruby": [
+      {
+       "text": "少",
+       "rt": "すこ"
+      },
+      {
+       "text": "し",
+       "rt": ""
+      }
+     ],
+     "pos": "other"
+    },
+    {
+     "text": "しか",
+     "start": 0.8227,
+     "end": 1.0944,
+     "ruby": [
+      {
+       "text": "しか",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "話せません。",
+     "start": 1.0944,
+     "end": 1.9803,
+     "ruby": [
+      {
+       "text": "話",
+       "rt": "はな"
+      },
+      {
+       "text": "せません。",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    }
+   ]
+  },
+  {
+   "ja": "東京に住んでいます。",
+   "kana": "とうきょうにすんでいます。",
+   "romaji": "",
+   "gloss": {
+    "en": "I live in Tokyo.",
+    "he": "אני גר בטוקיו."
+   },
+   "duration": 1.7843,
+   "timeline": [
+    {
+     "text": "ト",
+     "kana": "と",
+     "start": 0.1,
+     "end": 0.3006,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.3006,
+     "end": 0.4155,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "キョ",
+     "kana": "きょ",
+     "start": 0.4155,
+     "end": 0.5991,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.5991,
+     "end": 0.6812,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ニ",
+     "kana": "に",
+     "start": 0.6812,
+     "end": 0.8125,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 0.8125,
+     "end": 1.0187,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 1.0187,
+     "end": 1.1022,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 1.1022,
+     "end": 1.2441,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 1.2441,
+     "end": 1.3188,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 1.3188,
+     "end": 1.5141,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.5141,
+     "end": 1.6843,
+     "phrase": 2,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "東京",
+     "start": 0.0,
+     "end": 0.6812,
+     "ruby": [
+      {
+       "text": "東京",
+       "rt": "とうきょう"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "に",
+     "start": 0.6812,
+     "end": 0.8125,
+     "ruby": [
+      {
+       "text": "に",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "住んでいます。",
+     "start": 0.8125,
+     "end": 1.6843,
+     "ruby": [
+      {
+       "text": "住",
+       "rt": "す"
+      },
+      {
+       "text": "んでいます。",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    }
+   ]
+  },
+  {
+   "ja": "どうぞよろしくお願いします。",
+   "kana": "どうぞよろしくおねがいします。",
+   "romaji": "",
+   "gloss": {
+    "en": "Pleased to meet you.",
+    "he": "נעים מאוד."
+   },
+   "duration": 2.1658,
+   "timeline": [
+    {
+     "text": "ド",
+     "kana": "ど",
+     "start": 0.1,
+     "end": 0.2787,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.2787,
+     "end": 0.3888,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ゾ",
+     "kana": "ぞ",
+     "start": 0.3888,
+     "end": 0.5559,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ヨ",
+     "kana": "よ",
+     "start": 0.5559,
+     "end": 0.6871,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ロ",
+     "kana": "ろ",
+     "start": 0.6871,
+     "end": 0.8284,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 0.8284,
+     "end": 0.928,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ク",
+     "kana": "く",
+     "start": 0.928,
+     "end": 1.083,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 1.083,
+     "end": 1.1909,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ネ",
+     "kana": "ね",
+     "start": 1.1909,
+     "end": 1.3336,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ガ",
+     "kana": "が",
+     "start": 1.3336,
+     "end": 1.5081,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 1.5081,
+     "end": 1.5773,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 1.5773,
+     "end": 1.7108,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 1.7108,
+     "end": 1.8918,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.8918,
+     "end": 2.0658,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "どうぞ",
+     "start": 0.0,
+     "end": 0.5559,
+     "ruby": [
+      {
+       "text": "どうぞ",
+       "rt": ""
+      }
+     ],
+     "pos": "other"
+    },
+    {
+     "text": "よろしく",
+     "start": 0.5559,
+     "end": 1.083,
+     "ruby": [
+      {
+       "text": "よろしく",
+       "rt": ""
+      }
+     ],
+     "pos": "other"
+    },
+    {
+     "text": "お願い",
+     "start": 1.083,
+     "end": 1.5773,
+     "ruby": [
+      {
+       "text": "お",
+       "rt": ""
+      },
+      {
+       "text": "願",
+       "rt": "ねが"
+      },
+      {
+       "text": "い",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "します。",
+     "start": 1.5773,
+     "end": 2.0658,
+     "ruby": [
+      {
+       "text": "します。",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    }
+   ]
+  }
+ ]
+}

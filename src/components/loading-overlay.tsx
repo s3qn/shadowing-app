@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
 import { PLAYER_HEADER_ROW_H } from '@/lib/card-morph';
-import { CLOCK_MS, LOADER_GRACE_MS, LOADER_IN_MS, LOADER_OUT_MS, loaderRequest } from '@/lib/loading-overlay';
+import { CLOCK_MS, LOADER_GRACE_MS, LOADER_IN_MS, LOADER_OUT_MS, loaderRequest, loaderShown } from '@/lib/loading-overlay';
 
 /** How much of the screen's bottom the dock takes, so the cat centres in the
  * space above it. The measured dock height from the timing marks; a
@@ -34,7 +34,8 @@ const DOCK_H = 190;
 export function LoadingOverlay() {
   const insets = useSafeAreaInsets();
   const clock = useSharedValue(0);
-  const shown = useSharedValue(0);
+  // Module-level, so content that lands can tell whether the loader is still drawn.
+  const shown = loaderShown;
   // Mirrors the request on the JS side for screen readers only: idle, the
   // layer and its progressbar are hidden from them.
   const [active, setActive] = useState(false);

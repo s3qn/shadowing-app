@@ -10,12 +10,14 @@ import { alertSheet, confirmSheet } from '@/lib/confirm-sheet';
 import * as api from '@/lib/api';
 import { provider, signOut, signOutLocal, usingDevBypass } from '@/lib/auth';
 import { LOCALES, type Lang, useT } from '@/lib/i18n';
+import { voiceRowLabel } from '@/lib/voice-label';
 import { type AppLanguage, getSettings, getVoice, setHaptics, setShowAllLanguages, setSkyAlwaysNight, toIslandLanguage } from '@/lib/settings';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { t } = useT();
   const [voiceName, setVoiceName] = useState('');
+  const [isJapanese, setIsJapanese] = useState(true);
   const [haptics, setHapticsState] = useState(true);
   const [skyAlwaysNight, setSkyAlwaysNightState] = useState(false);
   // languages: Home's show-all toggle, default off.
@@ -65,6 +67,7 @@ export default function SettingsScreen() {
         setSkyAlwaysNightState(settings.skyAlwaysNight);
         setShowAllLanguagesState(settings.showAllLanguages);
         setAppLanguageState(settings.appLanguage);
+        setIsJapanese(toIslandLanguage(settings.learningLanguage) === 'ja');
 
         try {
           const name = await api.getUsername();
@@ -81,7 +84,7 @@ export default function SettingsScreen() {
           if (!alive) return;
           const speaker = speakers.find((sp) => sp.styles.some((st) => st.id === voiceId));
           const style = speaker?.styles.find((st) => st.id === voiceId);
-          setVoiceName(speaker && style ? `${speaker.name} ${style.name}` : '');
+          setVoiceName(speaker && style ? voiceRowLabel(t, speaker.name, style.name) : '');
         } catch {
           // Voice list needs the backend; the row still works without a name shown.
         }
@@ -89,7 +92,7 @@ export default function SettingsScreen() {
       return () => {
         alive = false;
       };
-    }, []),
+    }, [t]),
   );
 
   return (
@@ -97,7 +100,7 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={styles.list}>
         <SettingsSection title={t('settings.section.practice')}>
           <SettingsRow
-            label={t('settings.row.practice')}
+            label={t(isJapanese ? 'settings.row.practice' : 'settings.row.practiceOther')}
             last
             icon={{ ios: 'book.closed', android: 'menu_book' }}
             onPress={() => router.push('/settings/practice')}
@@ -211,10 +214,10 @@ export default function SettingsScreen() {
 
         <SettingsSection title={t('settings.section.feedback')}>
           <SettingsRow
-            label={t('settings.row.suggest')}
+            label={t('settings.row.feedback')}
             last
-            icon={{ ios: 'lightbulb', android: 'lightbulb' }}
-            onPress={() => router.push('/settings/suggest')}
+            icon={{ ios: 'ladybug', android: 'bug_report' }}
+            onPress={() => router.push('/settings/feedback')}
           />
         </SettingsSection>
 

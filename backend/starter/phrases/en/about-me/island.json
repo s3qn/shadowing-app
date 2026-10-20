@@ -1,0 +1,457 @@
+{
+ "language": "en",
+ "topic": "about-me",
+ "lines": [
+  {
+   "ja": "Nice to meet you.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "נעים להכיר."
+   },
+   "duration": 1.1093333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Nice",
+     "start": 0.116,
+     "end": 0.416,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Nice",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "to",
+     "start": 0.416,
+     "end": 0.516,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "to",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "meet",
+     "start": 0.516,
+     "end": 0.766,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "meet",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "you.",
+     "start": 0.766,
+     "end": 1.109,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "you.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "My name is Dana.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "קוראים לי דנה."
+   },
+   "duration": 1.1946666666666668,
+   "timeline": [],
+   "words": [
+    {
+     "text": "My",
+     "start": 0.091,
+     "end": 0.241,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "My",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "name",
+     "start": 0.241,
+     "end": 0.491,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "name",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "is",
+     "start": 0.491,
+     "end": 0.641,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "is",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "Dana.",
+     "start": 0.641,
+     "end": 1.195,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Dana.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "I'm from Israel.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "אני מישראל."
+   },
+   "duration": 1.088,
+   "timeline": [],
+   "words": [
+    {
+     "text": "I'm",
+     "start": 0.091,
+     "end": 0.291,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I'm",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "from",
+     "start": 0.291,
+     "end": 0.466,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "from",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "Israel.",
+     "start": 0.466,
+     "end": 1.088,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Israel.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "I'm learning English.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "אני לומדת אנגלית."
+   },
+   "duration": 1.1733333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "I'm",
+     "start": 0.07,
+     "end": 0.27,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I'm",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "learning",
+     "start": 0.27,
+     "end": 0.595,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "learning",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "English.",
+     "start": 0.595,
+     "end": 1.173,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "English.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "I only speak a little so far.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "אני מדברת רק קצת בינתיים."
+   },
+   "duration": 1.8133333333333332,
+   "timeline": [],
+   "words": [
+    {
+     "text": "I",
+     "start": 0.07,
+     "end": 0.22,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "only",
+     "start": 0.22,
+     "end": 0.52,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "only",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "speak",
+     "start": 0.52,
+     "end": 0.795,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "speak",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "a",
+     "start": 0.795,
+     "end": 0.845,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "a",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "little",
+     "start": 0.845,
+     "end": 1.07,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "little",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "so",
+     "start": 1.07,
+     "end": 1.345,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "so",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "far.",
+     "start": 1.345,
+     "end": 1.813,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "far.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "I live in Tel Aviv.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "אני גרה בתל אביב."
+   },
+   "duration": 1.3013333333333332,
+   "timeline": [],
+   "words": [
+    {
+     "text": "I",
+     "start": 0.07,
+     "end": 0.22,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "live",
+     "start": 0.22,
+     "end": 0.395,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "live",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "in",
+     "start": 0.395,
+     "end": 0.52,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "in",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "Tel",
+     "start": 0.52,
+     "end": 0.72,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Tel",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "Aviv.",
+     "start": 0.72,
+     "end": 1.301,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Aviv.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Pleased to meet you.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "נעים מאוד."
+   },
+   "duration": 1.152,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Pleased",
+     "start": 0.062,
+     "end": 0.412,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Pleased",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "to",
+     "start": 0.412,
+     "end": 0.512,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "to",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "meet",
+     "start": 0.512,
+     "end": 0.762,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "meet",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "you.",
+     "start": 0.762,
+     "end": 1.152,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "you.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

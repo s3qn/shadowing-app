@@ -1,10 +1,10 @@
 [
-  {"text": "Good morning."},
-  {"text": "Hi, how's it going?"},
-  {"text": "Good evening."},
-  {"text": "Long time no see."},
-  {"text": "How have you been?"},
-  {"text": "I'm doing well, thanks."},
-  {"text": "See you tomorrow."},
-  {"text": "Have a good night."}
+  {"text": "Good morning.", "he": "בוקר טוב."},
+  {"text": "Hi, how's it going?", "he": "היי, מה קורה?"},
+  {"text": "Good evening.", "he": "ערב טוב."},
+  {"text": "Long time no see.", "he": "מזמן לא התראינו."},
+  {"text": "How have you been?", "he": "מה שלומך?"},
+  {"text": "I'm doing well, thanks.", "he": "אני בסדר, תודה."},
+  {"text": "See you tomorrow.", "he": "נתראה מחר."},
+  {"text": "Have a good night.", "he": "לילה טוב."}
 ]

@@ -31,6 +31,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
+from typing import Literal
 from urllib.parse import parse_qs
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
@@ -46,6 +47,7 @@ load_dotenv()
 
 import corpus  # voice-topic
 import dev_review
+import energy
 import grammar
 import cues
 import explain
@@ -62,9 +64,11 @@ import review_session
 import user_profile
 import schedule
 import segment
+import starter
 import stats
 import store
 import suggest
+import feedback
 import transcribe
 import voicevox
 import voices
@@ -124,6 +128,7 @@ app.add_middleware(
 
 app.include_router(schedule.router)
 app.include_router(suggest.router)
+app.include_router(feedback.router)
 if dev_review.enabled():
     app.include_router(dev_review.router)
 
@@ -551,26 +556,43 @@ async def _build_grammar(island_id: str, point: dict, speaker: int,
     log.info("island %s ready: %d grammar lines", island_id, made)
 
 
+def _script_language(text: str) -> str:
+    """A stored transcript's language from its script, standing in for
+    whisper's guess on a regenerate. Latin script cannot tell English from
+    Spanish, so it stays "" and the prompt says so."""
+    if re.search(r"[\u0590-\u05FF]", text):
+        return "he"
+    if re.search(r"[\u3040-\u30FF\u4E00-\u9FFF]", text):
+        return "ja"
+    return ""
+
+
 async def _build_island(island_id: str, audio_path: Path, complexity: str,
                         speaker: int, count: int, register: str = "polite",
                         learning: str = "ja", native: str = "en",
-                        topic: bool = False) -> None:
+                        topic: bool = False, transcript: str = "") -> None:
     """The whole pipeline, run in the background so the upload returns at
     once. `learning` is the island's own language (what the lines are
     written in); `language` below is whatever whisper hears the recording
-    itself spoken in, which only informs the writing prompt."""
+    itself spoken in, which only informs the writing prompt. A non-empty
+    `transcript` (regenerate) skips whisper: the first build already stored
+    what the recording says."""
     try:
-        store.set_stage(island_id, "transcribing")
-        result = await asyncio.to_thread(transcribe.transcribe, audio_path)
-        text = result.get("text", "")
-        language = result.get("language", "")
+        text, language = transcript, _script_language(transcript)
         if not text:
-            store.set_failed(
-                island_id, "Nothing could be transcribed from that recording.", "transcribe_empty"
-            )
-            return
-        store.set_transcript(island_id, text)
-        log.info("island %s transcript: %d chars, language=%s", island_id, len(text), language)
+            store.set_stage(island_id, "transcribing")
+            result = await asyncio.to_thread(transcribe.transcribe, audio_path)
+            text = result.get("text", "")
+            language = result.get("language", "")
+            if not text:
+                store.set_failed(
+                    island_id, "Nothing could be transcribed from that recording.",
+                    "transcribe_empty",
+                )
+                return
+            store.set_transcript(island_id, text)
+            log.info("island %s transcript: %d chars, language=%s",
+                     island_id, len(text), language)
 
         # voice-topic: expand the spoken topic into keywords, pull real
         # Tatoeba sentences as seeds for the generator.
@@ -646,7 +668,7 @@ async def create_island(
     if len(raw) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, {"code": "recording_too_large"})
 
-    _take_build_slot(device, "create")
+    _take_build_slot(device, "create", "create")
     island_id = store.create_island(
         complexity, speaker, register, language, native=native, device=device,
         **({"source": "phrases", "source_name": "voice-topic"} if topic else {}),
@@ -881,7 +903,7 @@ async def create_import_island(
 
     island_title = title.strip() or Path(audio.filename or "import").stem
     try:
-        _take_build_slot(device, "create")
+        _take_build_slot(device, "create", "import")
     except HTTPException:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         raise
@@ -965,7 +987,7 @@ async def import_podcast_episode(
         raise HTTPException(400, "that url could not be used")
 
     island_title = title.strip() or "Podcast episode"
-    _take_build_slot(device, "create")
+    _take_build_slot(device, "create", "import")
     tmp_dir = Path(tempfile.mkdtemp(prefix="podcast-"))
     island_id = store.create_island(
         "simple", speaker, language=language, native=native, source="podcast", source_name=title,
@@ -1050,6 +1072,7 @@ async def get_island(island_id: str, authorization: str | None = Header(None),
     require_token(authorization)
     device = _require_device(x_shadow_device)
     island = await asyncio.to_thread(_own_island, island_id, device)
+    island["known"] = await asyncio.to_thread(store.known_idxs, device, island_id)
     # A re-voice or regenerate rewrites lines while the phone polls this
     # route, so backfill only a settled island.
     if island["status"] == "ready":
@@ -1333,9 +1356,16 @@ def _run_calibration(src: Path, ref_path: Path, device: str) -> dict:
     }
 
 
+def _is_guide_island(island: dict) -> bool:
+    """The 3-line starter island the first-run guide opens. Only the
+    guide's first take on it is scored leniently (BL-54)."""
+    return island.get("source") == "starter"
+
+
 def _run_clean(src: Path, ref_path: Path, profile, island_id: str, idx: int,
                line: dict, speed: float, span: tuple[int, int] | None,
-               lag_ms: int, line_start_ms: int, language: str = "ja") -> dict:
+               lag_ms: int, line_start_ms: int, language: str = "ja",
+               lenient: bool = False) -> dict:
     """Take the played line back out of a take, store both versions, score
     the take's timing against the line's words, and analyse mora length and
     pitch accent. Blocking, for the same reasons as _run_calibration."""
@@ -1367,7 +1397,7 @@ def _run_clean(src: Path, ref_path: Path, profile, island_id: str, idx: int,
     try:
         score = take_score.score_take(
             ref_audio, take_for_score, aec.SR, line["words"], speed, span,
-            anchor_ms, lag_ms, anchor,
+            anchor_ms, lag_ms, anchor, lenient,
         )
     except Exception:
         log.exception("take scoring failed island=%s idx=%d", island_id, idx)
@@ -1431,6 +1461,7 @@ async def upload_take(
     end: int = Form(-1),
     lag: int = Form(0),
     line_start: int = Form(-1),
+    guide: str = Form("0"),
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
@@ -1441,7 +1472,8 @@ async def upload_take(
     line. `lag` (the phone's Lag setting, ms) and `line_start` (ms from the
     start of the recording to the line's first audio, for takes with no
     echo to find the anchor in) feed the take's timing score; both are
-    ignored for a calibration upload.
+    ignored for a calibration upload. `guide=1` comes from the first-run
+    guide's shadow moment: that island's first take is scored leniently.
 
     A take uploaded before the phone has a stored profile is kept as
     recorded and scored on `line_start` rather than refused: with headphones
@@ -1497,9 +1529,12 @@ async def upload_take(
             response = await asyncio.to_thread(_run_calibration, src, ref_path, device)
         else:
             lag_ms = max(0, min(5000, lag))
+            lenient = (guide == "1" and _is_guide_island(island)
+                       and not await asyncio.to_thread(store.has_take_score, device, island_id))
             response = await asyncio.to_thread(
                 _run_clean, src, ref_path, profile, island_id, idx,
                 line, render_speed, span, lag_ms, line_start, island.get("language", "ja"),
+                lenient,
             )
             try:
                 response["award"] = await asyncio.to_thread(
@@ -1570,7 +1605,7 @@ async def regenerate(
     if not wav.exists():
         raise HTTPException(409, "the original recording is gone")
 
-    _take_build_slot(device, "rework")
+    _take_build_slot(device, "rework", "regenerate")
     store.clear_lines(island_id)
     with store.connect() as conn:
         conn.execute(
@@ -1581,6 +1616,7 @@ async def regenerate(
     background.add_task(
         _build_island, island_id, wav, complexity, island["speaker"], count,
         island.get("register", "polite"), island.get("language", "ja"), island.get("native", "en"),
+        transcript=island.get("transcript") or "",
     )
     return {"id": island_id, "status": "working", "complexity": complexity}
 
@@ -1624,7 +1660,7 @@ async def revoice(
     if voices.language_for(speaker) != island.get("language", "ja"):
         raise HTTPException(400, "that voice does not speak the island's language")
 
-    _take_build_slot(device, "rework")
+    _take_build_slot(device, "rework", "revoice")
     store.set_speaker(island_id, speaker)
     store.set_stage(island_id, "speaking")
     # Lines are replaced one at a time as they render (INSERT OR REPLACE), so
@@ -1675,23 +1711,30 @@ async def word_gloss(word: str, authorization: str | None = Header(None)) -> dic
 @app.get("/shadow/explain-word")
 async def explain_word(word: str, sentence_ja: str, sentence_en: str = "",
                        language: str = "ja", native: str = "en",
-                       authorization: str | None = Header(None)) -> dict:
+                       authorization: str | None = Header(None),
+                       x_shadow_device: str = Header("")) -> dict:
     """How one word functions in one particular sentence. Cached in sqlite,
     keyed on (word, understood language + sentence_ja), since the same word
     in the same sentence answered in the same language always gets the same
-    answer."""
+    answer. A cache hit is free; a miss is a Claude call and takes an
+    `explain_word` slot from the daily cap."""
     require_token(authorization)
+    device = _require_device(x_shadow_device)
     # An English answer keeps the plain key it always had, so cached answers
     # from before other native languages existed still hit.
     cache_key = sentence_ja if native == "en" else f"{native}:{sentence_ja}"
     cached = await asyncio.to_thread(store.get_word_context, word, cache_key)
     if cached is not None:
         return {"context": cached}
+    _take_use_slot(device, "explain_word", "word")
     context = await asyncio.to_thread(
         explain.word_context, word, sentence_ja, sentence_en, language=language, native=native
     )
     if context:
         await asyncio.to_thread(store.set_word_context, word, cache_key, context)
+    else:
+        # The CLI failed and nothing was cached, so a retap would pay again.
+        await asyncio.to_thread(_refund_use_slot, device, "explain_word", "word")
     return {"context": context}
 
 
@@ -1730,12 +1773,16 @@ async def explain_chat(body: ExplainChatBody,
                 # A row sqlite cannot parse back is no better than no row:
                 # fall through to a fresh answer, which overwrites it below.
                 log.warning("explain cache row is not valid JSON, treating as a miss")
-    _take_use_slot(_require_device(x_shadow_device), "explain")
+    device = _require_device(x_shadow_device)
+    _take_use_slot(device, "explain", "explain")
     raw = await asyncio.to_thread(
         explain.chat_answer, body.sentence_ja, body.sentence_en, body.marked,
         body.question, body.history, language=body.language, native=body.native,
     )
     answer = explain.parse_explain_answer(raw, body.sentence_ja)
+    if not answer:
+        # The CLI failed and nothing was cached, so a retap would pay again.
+        await asyncio.to_thread(_refund_use_slot, device, "explain", "explain")
     if answer and not body.history:
         await asyncio.to_thread(
             store.set_explain_answer, body.sentence_ja, body.marked, question_key,
@@ -1914,15 +1961,19 @@ def _claim_owner() -> None:
 DAILY_CAPS = {
     name: int(os.getenv(f"SHADOW_DAILY_{name.upper()}", str(default)))
     for name, default in (
-        ("explain", 100), ("word_audio", 400), ("podcast_search", 60), ("take", 200),
+        ("explain", 100), ("explain_word", 100), ("word_audio", 400),
+        ("podcast_search", 60), ("take", 200),
     )
 }
 
 
-def _take_use_slot(device: str, kind: str) -> None:
+def _take_use_slot(device: str, kind: str, charge: str = "") -> None:
     """Per-owner daily cap for the cheap-but-not-free routes, counted in the
     same builds table. Same rules as `_take_build_slot`: owner device exempt,
-    called after validation, and only on a cache miss where there is a cache."""
+    called after validation, and only on a cache miss where there is a cache.
+    `charge` names the energy price (a key of `energy.PRICES`) the call
+    spends, between the cap check and the slot write: a refused charge never
+    burns a slot and a cap 429 never burns energy."""
     if _is_owner(device):
         return
     limit = DAILY_CAPS[kind]
@@ -1930,14 +1981,25 @@ def _take_use_slot(device: str, kind: str) -> None:
         raise HTTPException(
             429, {"code": "daily_limit", "limit": limit, "kind": kind}
         )
+    if charge:
+        energy.charge(device, charge, False)
     store.log_build(device, kind)
 
 
-def _take_build_slot(device: str, kind: str) -> None:
+def _refund_use_slot(device: str, kind: str, charge: str) -> None:
+    """Undoes `_take_use_slot` for a call whose AI step failed and cached
+    nothing: the energy and the cap slot both come back, so a failed call
+    costs nothing. Only when a charge was refunded, so with SHADOW_ENERGY off
+    the routes behave as before."""
+    if energy.refund(device, charge, _is_owner(device)):
+        store.unlog_build(device, kind)
+
+
+def _take_build_slot(device: str, kind: str, charge: str = "") -> None:
     """Called immediately before the first write of a build, so a 400 on bad
     input never consumes a slot. The owner device is exempt. `kind` is
     "create" (record, file import, podcast import) or "rework" (regenerate,
-    re-voice); each has its own daily cap."""
+    re-voice); each has its own daily cap. `charge` as in `_take_use_slot`."""
     if _is_owner(device):
         return
     limit = DAILY_CREATES if kind == "create" else DAILY_REWORKS
@@ -1945,6 +2007,8 @@ def _take_build_slot(device: str, kind: str) -> None:
         raise HTTPException(
             429, {"code": "daily_limit", "limit": limit, "kind": kind}
         )
+    if charge:
+        energy.charge(device, charge, False)
     store.log_build(device, kind)
 
 
@@ -2115,21 +2179,26 @@ def phrases_search(language: str, ui: str = "en", q: str = "", category: str = "
 
 
 async def _build_phrases(island_id: str, texts: list[str], glosses: list[str], title: str,
-                         speaker: int, language: str, native: str) -> None:
+                         speaker: int, language: str, native: str,
+                         topic: str = "") -> None:
     """Voice a catalogue topic. No recording and no transcription: the lines
     are the catalogue's own phrases. A translator failure only costs the
-    native text, the island still becomes ready."""
+    native text, the island still becomes ready. With `topic` set, the
+    finished island is also kept as the shared render for (language, topic,
+    speaker, native), so the next person who picks it gets a copy instead of
+    a new synthesis."""
     try:
         store.set_stage(island_id, "speaking")
         translations = glosses
-        if native != "en":
+        translated = True
+        if native != "en" and not all(glosses):
             try:
                 translations = await asyncio.to_thread(
                     generate.translate_lines, texts, language, native
                 )
             except Exception:
                 log.exception("island %s: phrase translation failed", island_id)
-                translations = []
+                translations, translated = [], False
         lines = []
         for i, text in enumerate(texts):
             gloss = translations[i] if i < len(translations) else ""
@@ -2144,6 +2213,18 @@ async def _build_phrases(island_id: str, texts: list[str], glosses: list[str], t
     except Exception as exc:
         log.exception("island %s failed", island_id)
         store.set_failed(island_id, str(exc))
+        return
+    # Only a complete render is shared: a missing translation or a silent
+    # line would otherwise reach every later learner of this key. save_cache
+    # checks the stored lines again (count, idx and gloss).
+    if not topic or not translated or made < len(texts):
+        return
+    # The island is ready whatever happens below: a cache that cannot be
+    # written only means the next pick synthesises again.
+    try:
+        await asyncio.to_thread(starter.save_cache, island_id, language, topic, speaker, native)
+    except Exception:
+        log.exception("island %s: phrase cache not saved", island_id)
 
 
 @app.post("/shadow/phrases/import")
@@ -2184,15 +2265,31 @@ async def import_phrases(
         ):
             return {"id": existing["id"], "status": existing["status"]}
 
-    _take_build_slot(device, "create")
+    if speaker == voices.default_speaker(language) and starter.has_template(language, topic):
+        island_id = await asyncio.to_thread(
+            starter.seed_topic, device, language, native, topic, speaker)
+        return {"id": island_id, "status": "ready"}
+
+    # Someone already had this topic rendered in this voice for this native
+    # language: copy their render. No slot, no synthesis.
+    # A copy that fails anyway falls through to a normal build.
+    if starter.has_cached(language, topic, speaker, native):
+        try:
+            island_id = await asyncio.to_thread(
+                starter.seed_cached, device, language, topic, speaker, native)
+            return {"id": island_id, "status": "ready"}
+        except Exception:
+            log.exception("phrase cache copy failed for %s/%s", language, topic)
+
+    _take_build_slot(device, "create", "phrases")
     island_id = store.create_island(
         "simple", speaker, language=language, native=native, source="phrases",
         source_name=topic, device=device,
     )
     background.add_task(
         _build_phrases, island_id, [e["text"] for e in entries],
-        [e.get("en", "") if native == "en" else "" for e in entries],
-        island_title, speaker, language, native,
+        [e.get(native, "") for e in entries],
+        island_title, speaker, language, native, topic=topic,
     )
     return {"id": island_id, "status": "pending"}
 
@@ -2254,7 +2351,7 @@ async def import_grammar(
                 and existing["source_name"] == row["id"]):
             return {"id": existing["id"], "status": existing["status"]}
 
-    _take_build_slot(device, "create")
+    _take_build_slot(device, "create", "create")
     island_id = store.create_island(
         "simple", speaker, register, "ja", native=native, source="grammar",
         source_name=row["id"], device=device,
@@ -2439,7 +2536,7 @@ async def import_youtube_captions(
         raise HTTPException(400, {"code": "no_captions"})
 
     island_title = title.strip()[:200] or "YouTube video"
-    _take_build_slot(device, "create")
+    _take_build_slot(device, "create", "import")
     island_id = store.create_island(
         "simple", speaker, language=language, native=native, source="youtube",
         source_name=video_id, device=device,
@@ -2672,7 +2769,11 @@ async def get_progress(
 ) -> dict:
     require_token(authorization)
     device = _require_device(x_shadow_device)
-    return await asyncio.to_thread(progression.snapshot, device)
+    snap = await asyncio.to_thread(progression.snapshot, device)
+    snap["known_lines"] = await asyncio.to_thread(store.count_known, device)
+    if energy.ON:
+        snap["energy"] = await asyncio.to_thread(energy.status, device, _is_owner(device))
+    return snap
 
 
 # cat-leaderboard routes
@@ -3042,3 +3143,162 @@ async def review_session_start(
     return await asyncio.to_thread(review_session.start, device,
                                    body.size if edit else _session_size(body.size),
                                    body.order, edit, body.language or None)
+
+
+@app.post("/shadow/starter/finish")
+async def starter_finish(
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    owner = device
+    return {"progress": await asyncio.to_thread(progression.grant_starter, owner),
+            "item": progression.STARTER_ITEM}
+
+
+@app.post("/shadow/starter")
+async def starter_start(
+    language: str = Form(...),
+    native: str = Form(...),
+    level: str = Form("new"),
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    """The first-run starter island: seeded from the baked template for the
+    level pick, free and instant. A repeat call with the same level returns
+    the island the device already has; the other level seeds its own."""
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    if language not in ("ja", "es", "en"):
+        raise HTTPException(400, "language must be 'ja', 'es' or 'en'")
+    if native not in ("he", "en"):
+        raise HTTPException(400, "native must be 'he' or 'en'")
+    if language == native:
+        raise HTTPException(400, "the learning language must differ from the native one")
+    if level not in starter.INTRO_LEVELS:
+        raise HTTPException(400, "level must be 'new' or 'some'")
+    if not starter.has_intro(language, level):
+        raise HTTPException(404, "no starter island for that language")
+    for existing in store.list_islands(device):
+        if (existing["source"] == "starter" and existing["language"] == language
+                and existing["source_name"] == starter.intro_name(level)
+                and existing["status"] != "failed"):
+            if existing["status"] != "ready" or starter.intro_is_current(
+                    existing["id"], language, level):
+                return {"id": existing["id"], "status": existing["status"]}
+            # Seeded by an older build: drop it so Home shows one "First steps".
+            await asyncio.to_thread(store.delete_island, existing["id"])
+    island_id = await asyncio.to_thread(starter.seed_intro, device, language, native, level)
+    return {"id": island_id, "status": "ready"}
+
+
+# --- bl58-easy-for-me ---
+
+
+def _known_line(island_id: str, idx: int, device: str) -> None:
+    """404 unless `device` owns the island and the line exists."""
+    island = _own_island(island_id, device)
+    if not any(l["idx"] == idx for l in island["lines"]):
+        raise HTTPException(404, "no such line")
+
+
+def _mark_known(device: str, island_id: str, idx: int) -> dict:
+    _known_line(island_id, idx, device)
+    award = None
+    if store.mark_known(device, island_id, idx) and store.has_line_take(device, island_id, idx):
+        award = progression.award_known(device, island_id, idx)
+    return {"known": store.known_idxs(device, island_id),
+            "total": store.count_known(device), "award": award}
+
+
+def _unmark_known(device: str, island_id: str, idx: int) -> dict:
+    _known_line(island_id, idx, device)
+    store.unmark_known(device, island_id, idx)
+    return {"known": store.known_idxs(device, island_id), "total": store.count_known(device)}
+
+
+@app.post("/shadow/islands/{island_id}/lines/{idx}/known")
+async def mark_known(
+    island_id: str,
+    idx: int,
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    """"Easy for me": the line leaves Practice now and the island's later
+    lines skip the prep passes. The award pays once per line, only when the
+    mark is new and the line was ever taken whole; otherwise `award` is
+    None. Returns the island's known idxs and the device's total."""
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    return await asyncio.to_thread(_mark_known, device, island_id, idx)
+
+
+@app.delete("/shadow/islands/{island_id}/lines/{idx}/known")
+async def unmark_known(
+    island_id: str,
+    idx: int,
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    """Takes the mark back. Idempotent; a paid award stays paid."""
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    return await asyncio.to_thread(_unmark_known, device, island_id, idx)
+
+
+# --- bl52-energy ---
+# The meter routes. Everything a learner sees comes through get_progress;
+# these two exist for the owner's grant sheet and for a direct read.
+
+
+def _energy_target(device: str, username: str) -> str:
+    """Owner only: the device behind a handle. 403 for anyone else, flag or
+    no flag, so the grant control has no server surface for other users;
+    404 when no profile carries the handle."""
+    if not _is_owner(device):
+        raise HTTPException(403, {"code": "not_owner"})
+    row = user_profile.lookup(username)
+    if row is None:
+        raise HTTPException(404, {"code": "profile_not_found"})
+    return row["owner"]
+
+
+@app.get("/shadow/energy")
+async def energy_get(
+    username: str = Query(""),
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    """Own status, or `?username=` for another user's (owner only)."""
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    if username:
+        target = await asyncio.to_thread(_energy_target, device, username)
+        if not energy.ON:
+            return {"on": False}
+        return await asyncio.to_thread(energy.status, target, _is_owner(target))
+    if not energy.ON:
+        return {"on": False}
+    return await asyncio.to_thread(energy.status, device, _is_owner(device))
+
+
+@app.post("/shadow/energy/grant")
+async def energy_grant(
+    username: str = Form(...),
+    amount: int = Form(...),
+    note: str = Form(""),
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    """Owner only: adds `amount` to the user's grant balance and returns
+    their status. Logged with the granter, the handle and the note."""
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    target = await asyncio.to_thread(_energy_target, device, username)
+    if not energy.ON:
+        return {"on": False}
+    note = note.strip()[:200]
+    return await asyncio.to_thread(
+        energy.grant, device, target, username, amount, note, _is_owner(target)
+    )

@@ -1,0 +1,457 @@
+{
+ "language": "es",
+ "topic": "help",
+ "lines": [
+  {
+   "ja": "Perdone, ¿me puede ayudar?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Excuse me, can you help me?",
+    "he": "סליחה, אתה יכול לעזור לי?"
+   },
+   "duration": 1.664,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Perdone,",
+     "start": 0.076,
+     "end": 0.701,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Perdone,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "¿me",
+     "start": 0.701,
+     "end": 0.851,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿me",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "puede",
+     "start": 0.851,
+     "end": 1.126,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "puede",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "ayudar?",
+     "start": 1.126,
+     "end": 1.664,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "ayudar?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "He perdido mi cartera.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "I've lost my wallet.",
+    "he": "אני איבדתי את התיק שלי."
+   },
+   "duration": 1.408,
+   "timeline": [],
+   "words": [
+    {
+     "text": "He",
+     "start": 0.076,
+     "end": 0.251,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "He",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "perdido",
+     "start": 0.251,
+     "end": 0.701,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "perdido",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "mi",
+     "start": 0.701,
+     "end": 0.851,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "mi",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "cartera.",
+     "start": 0.851,
+     "end": 1.408,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "cartera.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "No me siento bien.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "I don't feel well.",
+    "he": "אני לא מרגיש טוב."
+   },
+   "duration": 1.1946666666666668,
+   "timeline": [],
+   "words": [
+    {
+     "text": "No",
+     "start": 0.101,
+     "end": 0.301,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "No",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "me",
+     "start": 0.301,
+     "end": 0.451,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "me",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "siento",
+     "start": 0.451,
+     "end": 0.826,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "siento",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "bien.",
+     "start": 0.826,
+     "end": 1.195,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "bien.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "¿Dónde está el hospital?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Where is the hospital?",
+    "he": "איפה בית החולים?"
+   },
+   "duration": 1.5146666666666666,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Dónde",
+     "start": 0.076,
+     "end": 0.501,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Dónde",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "está",
+     "start": 0.501,
+     "end": 0.776,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "está",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "el",
+     "start": 0.776,
+     "end": 0.876,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "el",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "hospital?",
+     "start": 0.876,
+     "end": 1.515,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "hospital?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "¿Me puede prestar su teléfono?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Could you lend me your phone?",
+    "he": "אתה יכול להשאיל לי את הטלפון שלך?"
+   },
+   "duration": 1.792,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Me",
+     "start": 0.076,
+     "end": 0.251,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Me",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "puede",
+     "start": 0.251,
+     "end": 0.551,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "puede",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "prestar",
+     "start": 0.551,
+     "end": 1.051,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "prestar",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "su",
+     "start": 1.051,
+     "end": 1.201,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "su",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "teléfono?",
+     "start": 1.201,
+     "end": 1.792,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "teléfono?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "¿Hay alguien que hable inglés?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Is there anyone who speaks English?",
+    "he": "יש מישהו שמדבר אנגלית?"
+   },
+   "duration": 1.6,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Hay",
+     "start": 0.076,
+     "end": 0.301,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Hay",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "alguien",
+     "start": 0.301,
+     "end": 0.726,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "alguien",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "que",
+     "start": 0.726,
+     "end": 0.876,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "que",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "hable",
+     "start": 0.876,
+     "end": 1.126,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "hable",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "inglés?",
+     "start": 1.126,
+     "end": 1.6,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "inglés?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Un momento, por favor.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "One moment, please.",
+    "he": "רק רגע, בבקשה."
+   },
+   "duration": 1.536,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Un",
+     "start": 0.076,
+     "end": 0.276,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Un",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "momento,",
+     "start": 0.276,
+     "end": 0.876,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "momento,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "por",
+     "start": 0.876,
+     "end": 1.076,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "por",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "favor.",
+     "start": 1.076,
+     "end": 1.536,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "favor.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

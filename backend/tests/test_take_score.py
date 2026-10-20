@@ -173,3 +173,21 @@ def test_dtw_path_is_monotone_and_spans_all_of_ref():
         assert i1 - i0 in (0, 1)
         assert j1 - j0 in (0, 1)
         assert (i1, j1) != (i0, j0)
+
+
+def test_lenient_tolerance_forgives_a_word_400ms_late():
+    rng = np.random.default_rng(5)
+    ref = _reference(rng)
+    take = np.concatenate([
+        _burst(rng, _WORD_MS),
+        _silence(_GAP_MS + 400),            # word 1 arrives 400ms late
+        _burst(rng, _WORD_MS),
+        _silence(_GAP_MS - 400),            # word 2 lands on time again
+        _burst(rng, _WORD_MS),
+        _silence(_GAP_MS),
+        _burst(rng, _WORD_MS),
+    ])
+    strict = ts.score_take(ref, take, SR, WORDS, 1.0, None, 0.0, 0, "echo")
+    easy = ts.score_take(ref, take, SR, WORDS, 1.0, None, 0.0, 0, "echo", lenient=True)
+    assert strict["words"] == ["ok", "late", "ok", "ok"]
+    assert easy["words"] == ["ok", "ok", "ok", "ok"]

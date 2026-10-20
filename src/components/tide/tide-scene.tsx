@@ -31,6 +31,7 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withDelay,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
@@ -69,6 +70,10 @@ const LIFT_MS = 300;
 /** Under reduced motion a line change is a plain crossfade. */
 const CROSSFADE_IN_MS = 250;
 const CROSSFADE_OUT_MS = 200;
+/** The outgoing copy is fully faded by this share of its lift, and the new
+ * card waits NEW_DELAY_MS before it fades in, so the two never overlap. */
+const OUT_FADE_SHARE = 0.25;
+const NEW_DELAY_MS = 80;
 /** How long a line change waits for the active line's own layout event
  * before it scrolls with the measurements it has (the line's box did not
  * move, so no event comes). */
@@ -124,6 +129,10 @@ type Props = {
   /** Opened under the card morph: a long island's transcript mounts few rows
    * and widens when this calls back (it returns a cancel). Read at mount. */
   widenWhen?: (widen: () => void) => () => void;
+  /** Runs when a drag or a glide of the transcript comes to rest (the first-run guide re-measures its holes). */
+  onScrollSettled?: () => void;
+  /** No hand scrolling (the first-run guide): the card and the guide's lit holes stay put. Auto-scroll still runs. */
+  scrollLocked?: boolean;
 };
 
 /**
@@ -152,6 +161,8 @@ export const TideScene = memo(function TideScene({
   initialHeight = 0,
   bottomInset = 0,
   widenWhen,
+  onScrollSettled,
+  scrollLocked = false,
 }: Props) {
   const { t } = useT();
   // The scene fills the window's width; its height starts from the caller's
@@ -353,12 +364,12 @@ export const TideScene = memo(function TideScene({
     if (reducedMotion) {
       riseY.value = 0;
       riseScale.value = 1;
-      riseOpacity.value = withTiming(1, { duration: CROSSFADE_IN_MS });
+      riseOpacity.value = withDelay(NEW_DELAY_MS, withTiming(1, { duration: CROSSFADE_IN_MS }));
       outLift.value = withTiming(1, { duration: CROSSFADE_OUT_MS });
     } else {
       riseY.value = RISE_FROM;
       riseScale.value = RISE_SCALE_FROM;
-      riseOpacity.value = withTiming(1, { duration: RISE_FADE_MS });
+      riseOpacity.value = withDelay(NEW_DELAY_MS, withTiming(1, { duration: RISE_FADE_MS }));
       riseY.value = withSpring(0, RISE_SPRING);
       riseScale.value = withSpring(1, RISE_SPRING);
       outLift.value = withTiming(1, { duration: LIFT_MS });
@@ -388,10 +399,19 @@ export const TideScene = memo(function TideScene({
       transform: [{ translateY: riseY.value + lift * (1 - shown) * PIECE_RISE }, { scaleY: riseScale.value }],
     };
   });
-  const outStyle = useAnimatedStyle(() => ({
-    opacity: 1 - outLift.value,
-    transform: [{ translateY: reducedMotion ? 0 : LIFT_TO * outLift.value }],
+  const outStyle = useAnimatedStyle(() => {
+    const k = Number.isFinite(outLift.value) ? outLift.value : 1;
+    return {
+      opacity: Math.max(0, 1 - k / OUT_FADE_SHARE),
+      transform: [{ translateY: reducedMotion ? 0 : LIFT_TO * k }],
+    };
+  });
+  // The old line's own dim row comes in as its lifting copy goes, so the two
+  // never show at full strength in one place (a doubled ghost of the line).
+  const freshRowStyle = useAnimatedStyle(() => ({
+    opacity: Number.isFinite(outLift.value) ? outLift.value : 1,
   }));
+  const freshIndex = outgoing.current?.index ?? -1;
 
   useEffect(() => {
     if (pill !== 'on') return;
@@ -437,6 +457,18 @@ export const TideScene = memo(function TideScene({
     }
   };
 
+  // A touch on the transcript stops a running glide (both platforms abort an
+  // animated scroll on touch down) without starting a drag, so follow stays
+  // on and the 1pt guard would skip the same target from then on: the line
+  // rests wherever the glide stopped. Aim again when the finger lifts; at
+  // rest this scrolls to where the view already is. Not while a first
+  // placement or a line change still waits for the line's fresh layout.
+  const onTouchEnd = () => {
+    if (arrivalPending.current || syncPending.current) return;
+    lastTarget.current = null;
+    syncNow();
+  };
+
   const sky = useSkyStyle();
   const night = isNight(new Date());
   const period = currentPeriod(new Date());
@@ -445,7 +477,7 @@ export const TideScene = memo(function TideScene({
   const causticIntensity = period === 'night' ? 0.07 : period === 'day' ? 0.14 : 0.1;
 
   return (
-    <View style={styles.fill} onLayout={onLayout} onTouchStart={waterSim.wake}>
+    <View style={styles.fill} onLayout={onLayout} onTouchStart={waterSim.wake} onTouchEnd={onTouchEnd}>
       <View style={[StyleSheet.absoluteFill, sky.from]} />
       <Animated.View style={[StyleSheet.absoluteFill, sky.to, sky.fadeStyle]} />
       {night && (
@@ -462,8 +494,11 @@ export const TideScene = memo(function TideScene({
       <ScrollView
         ref={scrollRef}
         style={styles.scroll}
+        scrollEnabled={!scrollLocked}
         contentContainerStyle={[styles.content, { paddingTop: WL_MAX * sceneH, minHeight: sceneH + inset }]}
         onScrollBeginDrag={onScrollBeginDrag}
+        onScrollEndDrag={onScrollSettled}
+        onMomentumScrollEnd={onScrollSettled}
         onScroll={windowed ? onScroll : undefined}
         scrollEventThrottle={windowed ? 100 : undefined}
         bounces={false}
@@ -500,7 +535,7 @@ export const TideScene = memo(function TideScene({
         <Animated.View style={[rowsStyle, { marginTop: pastOffset }]}>
           {lines.slice(rowWindow.start, lineIndex).map((text, j) => {
             const i = rowWindow.start + j;
-            return (
+            const row = (
               <TranscriptLine
                 key={i}
                 index={i}
@@ -510,6 +545,13 @@ export const TideScene = memo(function TideScene({
                 onPress={tapLine}
                 onRowLayout={rowLayout}
               />
+            );
+            return i === freshIndex ? (
+              <Animated.View key={i} style={freshRowStyle}>
+                {row}
+              </Animated.View>
+            ) : (
+              row
             );
           })}
         </Animated.View>
@@ -582,7 +624,7 @@ export const TideScene = memo(function TideScene({
           <Animated.View style={rowsStyle}>
             {lines.slice(lineIndex + 1, rowWindow.end).map((text, j) => {
               const i = lineIndex + 1 + j;
-              return (
+              const row = (
                 <TranscriptLine
                   key={i}
                   index={i}
@@ -595,6 +637,13 @@ export const TideScene = memo(function TideScene({
                   shallow={waterPalette.shallow}
                   onRowLayout={rowLayout}
                 />
+              );
+              return i === freshIndex ? (
+                <Animated.View key={i} style={freshRowStyle}>
+                  {row}
+                </Animated.View>
+              ) : (
+                row
               );
             })}
           </Animated.View>

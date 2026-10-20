@@ -57,6 +57,9 @@ export type LanguagePickerProps = {
   /** A language chosen on the other screen, hidden here so the two picks
    * can never collide (for example English understanding English). */
   exclude?: LanguageId;
+  /** Plain rows with no list of their own, for a screen that scrolls them in
+   * its own ScrollView (Settings stacks two pickers on one page, ET-12). */
+  inline?: boolean;
 };
 
 function matchesQuery(entry: LanguageEntry, query: string): boolean {
@@ -119,7 +122,7 @@ function LanguageRow({
  * language step and Settings > Language both render this instead of keeping
  * their own pill rows, so the catalogue only needs wiring once.
  */
-export function LanguagePicker({ mode, value, onChange, exclude }: LanguagePickerProps) {
+export function LanguagePicker({ mode, value, onChange, exclude, inline }: LanguagePickerProps) {
   const { t } = useT();
   const dir = useDir();
   const [query, setQuery] = useState('');
@@ -150,6 +153,70 @@ export function LanguagePicker({ mode, value, onChange, exclude }: LanguagePicke
     return base.length ? [{ title: 'All languages', data: base }] : [];
   }, [mode, exclude, query, activeRegion]);
 
+  const header = (
+    <View style={styles.header}>
+      <View style={[styles.searchRow, dir.row]}>
+        <SearchIcon color={tide.textDim} size={18} />
+        <TextInput
+          style={[styles.searchInput, dir.text]}
+          value={query}
+          onChangeText={setQuery}
+          placeholder={t('settings.picker.searchPlaceholder')}
+          placeholderTextColor={tide.textDim}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+      </View>
+      {mode === 'learn' ? (
+        <View style={[styles.chipRow, dir.row]}>
+          <RegionChip
+            label={t('settings.picker.regionAll')}
+            active={activeRegion === null}
+            onPress={() => setActiveRegion(null)}
+          />
+          {REGIONS.map((region) => (
+            <RegionChip
+              key={region}
+              label={t(REGION_KEY[region])}
+              active={activeRegion === region}
+              onPress={() => setActiveRegion((prev) => (prev === region ? null : region))}
+            />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+  const empty = query.trim() ? (
+    <Text style={[styles.empty, dir.text]}>{t('settings.picker.noMatch', { query: query.trim() })}</Text>
+  ) : null;
+  const sectionHeader = (section: Section) => (
+    <View style={styles.sectionHeaderWrap}>
+      <Text style={[styles.sectionHeader, dir.text]}>{sectionTitle(t, section.title)}</Text>
+    </View>
+  );
+  const row = (item: LanguageEntry) => {
+    // A "coming soon" pick can never become what the app is actually
+    // learning (see `setLearningLanguage`), so a learn-mode tap on one
+    // must not reach `onChange` at all: `disabled` blocks the press
+    // itself, rather than letting `onChange` silently no-op it.
+    const soon = mode === 'learn' && !item.learnable;
+    return <LanguageRow key={item.id} entry={item} selected={item.id === value} soon={soon} onPress={() => onChange(item.id)} />;
+  };
+
+  if (inline) {
+    return (
+      <View style={styles.list}>
+        {header}
+        {sections.length === 0 ? empty : null}
+        {sections.map((section) => (
+          <View key={section.title} style={styles.inlineSection}>
+            {sectionHeader(section)}
+            {section.data.map(row)}
+          </View>
+        ))}
+      </View>
+    );
+  }
   return (
     <SectionList
       style={styles.fill}
@@ -158,57 +225,10 @@ export function LanguagePicker({ mode, value, onChange, exclude }: LanguagePicke
       keyExtractor={(item) => item.id}
       stickySectionHeadersEnabled={false}
       keyboardShouldPersistTaps="handled"
-      ListHeaderComponent={
-        <View style={styles.header}>
-          <View style={[styles.searchRow, dir.row]}>
-            <SearchIcon color={tide.textDim} size={18} />
-            <TextInput
-              style={[styles.searchInput, dir.text]}
-              value={query}
-              onChangeText={setQuery}
-              placeholder={t('settings.picker.searchPlaceholder')}
-              placeholderTextColor={tide.textDim}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-          </View>
-          {mode === 'learn' ? (
-            <View style={[styles.chipRow, dir.row]}>
-              <RegionChip
-                label={t('settings.picker.regionAll')}
-                active={activeRegion === null}
-                onPress={() => setActiveRegion(null)}
-              />
-              {REGIONS.map((region) => (
-                <RegionChip
-                  key={region}
-                  label={t(REGION_KEY[region])}
-                  active={activeRegion === region}
-                  onPress={() => setActiveRegion((prev) => (prev === region ? null : region))}
-                />
-              ))}
-            </View>
-          ) : null}
-        </View>
-      }
-      ListEmptyComponent={
-        query.trim() ? (
-          <Text style={[styles.empty, dir.text]}>{t('settings.picker.noMatch', { query: query.trim() })}</Text>
-        ) : null
-      }
-      renderSectionHeader={({ section }) => (
-        <View style={styles.sectionHeaderWrap}>
-          <Text style={[styles.sectionHeader, dir.text]}>{sectionTitle(t, section.title)}</Text>
-        </View>
-      )}
-      renderItem={({ item }) => {
-        // A "coming soon" pick can never become what the app is actually
-        // learning (see `setLearningLanguage`), so a learn-mode tap on one
-        // must not reach `onChange` at all: `disabled` blocks the press
-        // itself, rather than letting `onChange` silently no-op it.
-        const soon = mode === 'learn' && !item.learnable;
-        return <LanguageRow entry={item} selected={item.id === value} soon={soon} onPress={() => onChange(item.id)} />;
-      }}
+      ListHeaderComponent={header}
+      ListEmptyComponent={empty}
+      renderSectionHeader={({ section }) => sectionHeader(section)}
+      renderItem={({ item }) => row(item)}
     />
   );
 }
@@ -223,6 +243,8 @@ export function languageColor(id: LanguageId): string {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   list: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl, gap: Spacing.sm },
+  // The SectionList's `gap` between its rows, kept when the rows are inline.
+  inlineSection: { gap: Spacing.sm },
   header: { gap: Spacing.sm, paddingBottom: Spacing.xs },
   searchRow: {
     flexDirection: 'row',

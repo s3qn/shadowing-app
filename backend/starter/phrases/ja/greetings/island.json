@@ -1,0 +1,757 @@
+{
+ "language": "ja",
+ "topic": "greetings",
+ "lines": [
+  {
+   "ja": "おはようございます。",
+   "kana": "おはようございます。",
+   "romaji": "",
+   "gloss": {
+    "en": "Good morning.",
+    "he": "בוקר טוב."
+   },
+   "duration": 1.4984,
+   "timeline": [
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.1,
+     "end": 0.218,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ハ",
+     "kana": "は",
+     "start": 0.218,
+     "end": 0.3996,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ヨ",
+     "kana": "よ",
+     "start": 0.3996,
+     "end": 0.5558,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.5558,
+     "end": 0.6453,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ゴ",
+     "kana": "ご",
+     "start": 0.6453,
+     "end": 0.7972,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ザ",
+     "kana": "ざ",
+     "start": 0.7972,
+     "end": 0.9792,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 0.9792,
+     "end": 1.0445,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 1.0445,
+     "end": 1.2287,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.2287,
+     "end": 1.3984,
+     "phrase": 0,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "おはようございます。",
+     "start": 0.0,
+     "end": 1.3984,
+     "ruby": [
+      {
+       "text": "おはようございます。",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "こんにちは。",
+   "kana": "こんにちは。",
+   "romaji": "",
+   "gloss": {
+    "en": "Hello.",
+    "he": "שלום."
+   },
+   "duration": 1.0616,
+   "timeline": [
+    {
+     "text": "コ",
+     "kana": "こ",
+     "start": 0.1,
+     "end": 0.3377,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 0.3377,
+     "end": 0.4088,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ニ",
+     "kana": "に",
+     "start": 0.4088,
+     "end": 0.5412,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "チ",
+     "kana": "ち",
+     "start": 0.5412,
+     "end": 0.7019,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ワ",
+     "kana": "わ",
+     "start": 0.7019,
+     "end": 0.9616,
+     "phrase": 0,
+     "high": true
+    }
+   ],
+   "words": [
+    {
+     "text": "こんにちは。",
+     "start": 0.0,
+     "end": 0.9616,
+     "ruby": [
+      {
+       "text": "こんにちは。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "こんばんは。",
+   "kana": "こんばんは。",
+   "romaji": "",
+   "gloss": {
+    "en": "Good evening.",
+    "he": "ערב טוב."
+   },
+   "duration": 1.0068,
+   "timeline": [
+    {
+     "text": "コ",
+     "kana": "こ",
+     "start": 0.1,
+     "end": 0.3387,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 0.3387,
+     "end": 0.4179,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "バ",
+     "kana": "ば",
+     "start": 0.4179,
+     "end": 0.6087,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 0.6087,
+     "end": 0.6931,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ワ",
+     "kana": "わ",
+     "start": 0.6931,
+     "end": 0.9068,
+     "phrase": 0,
+     "high": true
+    }
+   ],
+   "words": [
+    {
+     "text": "こんばんは。",
+     "start": 0.0,
+     "end": 0.9068,
+     "ruby": [
+      {
+       "text": "こんばんは。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "お久しぶりです。",
+   "kana": "おひさしぶりです。",
+   "romaji": "",
+   "gloss": {
+    "en": "It's been a long time.",
+    "he": "מזמן לא התראינו."
+   },
+   "duration": 1.3849,
+   "timeline": [
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.1,
+     "end": 0.223,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ヒ",
+     "kana": "ひ",
+     "start": 0.223,
+     "end": 0.3669,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "サ",
+     "kana": "さ",
+     "start": 0.3669,
+     "end": 0.5333,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 0.5333,
+     "end": 0.6691,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ブ",
+     "kana": "ぶ",
+     "start": 0.6691,
+     "end": 0.8031,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "リ",
+     "kana": "り",
+     "start": 0.8031,
+     "end": 0.9152,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 0.9152,
+     "end": 1.1011,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.1011,
+     "end": 1.2849,
+     "phrase": 0,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "お",
+     "start": 0.0,
+     "end": 0.223,
+     "ruby": [
+      {
+       "text": "お",
+       "rt": ""
+      }
+     ],
+     "pos": "other"
+    },
+    {
+     "text": "久しぶりです。",
+     "start": 0.223,
+     "end": 1.2849,
+     "ruby": [
+      {
+       "text": "久",
+       "rt": "ひさ"
+      },
+      {
+       "text": "しぶりです。",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    }
+   ]
+  },
+  {
+   "ja": "お元気ですか。",
+   "kana": "おげんきですか。",
+   "romaji": "",
+   "gloss": {
+    "en": "How are you?",
+    "he": "מה שלומך?"
+   },
+   "duration": 1.2883,
+   "timeline": [
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.1,
+     "end": 0.2265,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ゲ",
+     "kana": "げ",
+     "start": 0.2265,
+     "end": 0.4354,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 0.4354,
+     "end": 0.5263,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "キ",
+     "kana": "き",
+     "start": 0.5263,
+     "end": 0.6505,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 0.6505,
+     "end": 0.8022,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 0.8022,
+     "end": 0.9165,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 0.9165,
+     "end": 1.1883,
+     "phrase": 0,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "お",
+     "start": 0.0,
+     "end": 0.2265,
+     "ruby": [
+      {
+       "text": "お",
+       "rt": ""
+      }
+     ],
+     "pos": "other"
+    },
+    {
+     "text": "元気です",
+     "start": 0.2265,
+     "end": 0.9165,
+     "ruby": [
+      {
+       "text": "元気",
+       "rt": "げんき"
+      },
+      {
+       "text": "です",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "か。",
+     "start": 0.9165,
+     "end": 1.1883,
+     "ruby": [
+      {
+       "text": "か。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "おかげさまで元気です。",
+   "kana": "おかげさまでげんきです。",
+   "romaji": "",
+   "gloss": {
+    "en": "I'm well, thank you.",
+    "he": "ברוך השם, אני בסדר."
+   },
+   "duration": 1.7936,
+   "timeline": [
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.1,
+     "end": 0.2253,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 0.2253,
+     "end": 0.3677,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ゲ",
+     "kana": "げ",
+     "start": 0.3677,
+     "end": 0.514,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "サ",
+     "kana": "さ",
+     "start": 0.514,
+     "end": 0.6633,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 0.6633,
+     "end": 0.8008,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 0.8008,
+     "end": 0.9337,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ゲ",
+     "kana": "げ",
+     "start": 0.9337,
+     "end": 1.126,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 1.126,
+     "end": 1.2006,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "キ",
+     "kana": "き",
+     "start": 1.2006,
+     "end": 1.325,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 1.325,
+     "end": 1.5107,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.5107,
+     "end": 1.6936,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "おかげさま",
+     "start": 0.0,
+     "end": 0.8008,
+     "ruby": [
+      {
+       "text": "おかげさま",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "で",
+     "start": 0.8008,
+     "end": 0.9337,
+     "ruby": [
+      {
+       "text": "で",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "元気です。",
+     "start": 0.9337,
+     "end": 1.6936,
+     "ruby": [
+      {
+       "text": "元気",
+       "rt": "げんき"
+      },
+      {
+       "text": "です。",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    }
+   ]
+  },
+  {
+   "ja": "また明日。",
+   "kana": "またあした。",
+   "romaji": "",
+   "gloss": {
+    "en": "See you tomorrow.",
+    "he": "נתראה מחר."
+   },
+   "duration": 1.0044,
+   "timeline": [
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 0.1,
+     "end": 0.2836,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "タ",
+     "kana": "た",
+     "start": 0.2836,
+     "end": 0.4539,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ア",
+     "kana": "あ",
+     "start": 0.4539,
+     "end": 0.5572,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 0.5572,
+     "end": 0.6575,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "タ",
+     "kana": "た",
+     "start": 0.6575,
+     "end": 0.9044,
+     "phrase": 1,
+     "high": true
+    }
+   ],
+   "words": [
+    {
+     "text": "また",
+     "start": 0.0,
+     "end": 0.4539,
+     "ruby": [
+      {
+       "text": "また",
+       "rt": ""
+      }
+     ],
+     "pos": "other"
+    },
+    {
+     "text": "明日。",
+     "start": 0.4539,
+     "end": 0.9044,
+     "ruby": [
+      {
+       "text": "明日",
+       "rt": "あした"
+      },
+      {
+       "text": "。",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    }
+   ]
+  },
+  {
+   "ja": "おやすみなさい。",
+   "kana": "おやすみなさい。",
+   "romaji": "",
+   "gloss": {
+    "en": "Good night.",
+    "he": "לילה טוב."
+   },
+   "duration": 1.2707,
+   "timeline": [
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.1,
+     "end": 0.2271,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ヤ",
+     "kana": "や",
+     "start": 0.2271,
+     "end": 0.3907,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 0.3907,
+     "end": 0.5427,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ミ",
+     "kana": "み",
+     "start": 0.5427,
+     "end": 0.6734,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ナ",
+     "kana": "な",
+     "start": 0.6734,
+     "end": 0.8124,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "サ",
+     "kana": "さ",
+     "start": 0.8124,
+     "end": 1.0315,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 1.0315,
+     "end": 1.1707,
+     "phrase": 0,
+     "high": true
+    }
+   ],
+   "words": [
+    {
+     "text": "おやすみなさい。",
+     "start": 0.0,
+     "end": 1.1707,
+     "ruby": [
+      {
+       "text": "おやすみなさい。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  }
+ ]
+}

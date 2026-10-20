@@ -64,7 +64,11 @@ export function ActionBar({ label, price, disabled, busy, onPress }: ActionBarPr
       setShown(label);
       t.value = reduced ? 1 : withTiming(1, { duration: 160 });
     } else {
-      t.value = reduced ? 0 : withDelay(sweeping.current ? SWEEP_MS - 120 : 0, withTiming(0, { duration: 120 }));
+      const delay = sweeping.current ? SWEEP_MS - 120 : 0;
+      t.value = reduced ? 0 : withDelay(delay, withTiming(0, { duration: 120 }));
+      // Unmount once faded, so a faded-out pill can never linger over the grid.
+      const id = setTimeout(() => setShown(null), (reduced ? 0 : delay + 120) + 40);
+      return () => clearTimeout(id);
     }
   }, [label, reduced, t]);
   // Kept apart from the fade effect so a price change never restarts the fade.
@@ -84,6 +88,7 @@ export function ActionBar({ label, price, disabled, busy, onPress }: ActionBarPr
           disabled={!sweep && (disabled || busy || !label)}
           onPress={onPress}
           accessibilityLabel={shown}
+          containerStyle={disabled ? styles.solid : undefined}
           style={[{ borderRadius: 999 }, disabled ? { backgroundColor: NAVY } : FACE_FILL]}>
           <View style={[styles.row, dir.row]}>
             <Text style={[styles.label, dir.writing, { color: disabled ? tide.textDim : TEXT }]}>{shown}</Text>
@@ -103,6 +108,8 @@ export function ActionBar({ label, price, disabled, busy, onPress }: ActionBarPr
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', height: ACTION_H },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  // A disabled pill stays opaque so grid rows never show through it.
+  solid: { opacity: 1 },
   label: { fontFamily: fonts.ui, fontWeight: '600', fontSize: 13 },
   capsule: {
     flexDirection: 'row',

@@ -41,7 +41,7 @@ export const tideWaters = {
 } as const;
 
 /** The four verbs a button can stand for. Every prism surface picks its colours from `verb[v]`. */
-export type Verb = 'listen' | 'speak' | 'read' | 'tools';
+export type Verb = 'listen' | 'speak' | 'read' | 'tools' | 'mumble' | 'along';
 
 /**
  * Per-verb colour set for the prism kit: `c1` and `c2` are the icon and sheen
@@ -55,6 +55,9 @@ export const verb: Record<Verb, { c1: string; c2: string; glow: string; lip: str
   speak: { c1: '#FF5468', c2: '#FF8A70', glow: 'rgba(255,84,104,0.42)', lip: '#79524D' },
   read: { c1: '#FFC857', c2: '#FFE9A8', glow: 'rgba(255,200,87,0.38)', lip: '#797D66' },
   tools: { c1: '#F4F2F8', c2: '#B9C2D6', glow: 'rgba(244,242,248,0.28)', lip: '#596B7B' },
+  // Practice stages Mumble and Read along (M10). `read` stays gold for the word glow.
+  mumble: { c1: '#A58BFF', c2: '#CABBFF', glow: 'rgba(165,139,255,0.40)', lip: '#5F5A8D' },
+  along: { c1: '#3DDC97', c2: '#9AEFC9', glow: 'rgba(61,220,151,0.38)', lip: '#4F7B6C' },
 } as const;
 
 /**

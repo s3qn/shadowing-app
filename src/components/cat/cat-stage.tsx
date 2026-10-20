@@ -1,5 +1,5 @@
 import { Canvas, Group, LinearGradient, Path, RadialGradient, Rect, RoundedRect, Skia, vec } from '@shopify/react-native-skia';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useIsFocused } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { cancelAnimation, Easing, Extrapolation, interpolate, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
@@ -9,6 +9,8 @@ import type { CatRect } from '@/hooks/use-gaze';
 import { BlinkEnabled } from '@/lib/cat-blink';
 import { hapticSelection } from '@/lib/haptics';
 import { useT } from '@/lib/i18n';
+
+const SLEEPY_AFTER_MS = 45_000;
 
 export type CatStageProps = Pick<CatAvatarProps, 'equipped' | 'preview'> & {
   /** Bump this to play the landing dip after an equip or a buy. */
@@ -162,6 +164,14 @@ export function CatStage({ equipped, preview, dipKey = 0, gaze, onCatRect }: Cat
   const { width } = useWindowDimensions();
   const { t } = useT();
   const [petKey, setPetKey] = useState(0);
+  const [sleepy, setSleepy] = useState(false);
+  const focused = useIsFocused();
+  useEffect(() => {
+    setSleepy(false);
+    if (!focused) return;
+    const id = setTimeout(() => setSleepy(true), SLEEPY_AFTER_MS);
+    return () => clearTimeout(id);
+  }, [petKey, dipKey, focused]);
   const reduced = useReducedMotion();
   const dip = useSharedValue(1);
   useEffect(() => {
@@ -291,7 +301,7 @@ export function CatStage({ equipped, preview, dipKey = 0, gaze, onCatRect }: Cat
               void hapticSelection();
               setPetKey((k) => k + 1);
             }}>
-            <CatAvatar size={CAT_SIZE} equipped={equipped} preview={preview} petKey={petKey} gaze={gaze} />
+            <CatAvatar size={CAT_SIZE} equipped={equipped} preview={preview} petKey={petKey} gaze={gaze} emotion={sleepy ? 'sleepy' : 'none'} />
           </Pressable>
         </BlinkEnabled.Provider>
       </Animated.View>

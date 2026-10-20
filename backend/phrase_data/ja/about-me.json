@@ -1,9 +1,9 @@
 [
-  {"text": "はじめまして。", "en": "Nice to meet you."},
-  {"text": "ジョンといいます。", "en": "My name is John."},
-  {"text": "イスラエルから来ました。", "en": "I'm from Israel."},
-  {"text": "日本語を勉強しています。", "en": "I'm studying Japanese."},
-  {"text": "まだ少ししか話せません。", "en": "I can only speak a little so far."},
-  {"text": "東京に住んでいます。", "en": "I live in Tokyo."},
-  {"text": "どうぞよろしくお願いします。", "en": "Pleased to meet you."}
+  {"text": "はじめまして。", "en": "Nice to meet you.", "he": "נעים מאוד."},
+  {"text": "ジョンといいます。", "en": "My name is John.", "he": "קוראים לי ג'ון."},
+  {"text": "イスラエルから来ました。", "en": "I'm from Israel.", "he": "אני מישראל."},
+  {"text": "日本語を勉強しています。", "en": "I'm studying Japanese.", "he": "אני לומד יפנית."},
+  {"text": "まだ少ししか話せません。", "en": "I can only speak a little so far.", "he": "אני עדיין מדבר רק קצת."},
+  {"text": "東京に住んでいます。", "en": "I live in Tokyo.", "he": "אני גר בטוקיו."},
+  {"text": "どうぞよろしくお願いします。", "en": "Pleased to meet you.", "he": "נעים מאוד להכיר."}
 ]

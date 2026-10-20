@@ -1,0 +1,555 @@
+{
+ "language": "ja",
+ "title": {
+  "en": "First steps",
+  "he": "צעדים ראשונים"
+ },
+ "lines": [
+  {
+   "ja": "こんにちは。",
+   "kana": "こんにちは。",
+   "romaji": "",
+   "gloss": {
+    "en": "Hello.",
+    "he": "שלום."
+   },
+   "duration": 1.0616,
+   "timeline": [
+    {
+     "text": "コ",
+     "kana": "こ",
+     "start": 0.1,
+     "end": 0.3377,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 0.3377,
+     "end": 0.4088,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ニ",
+     "kana": "に",
+     "start": 0.4088,
+     "end": 0.5412,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "チ",
+     "kana": "ち",
+     "start": 0.5412,
+     "end": 0.7019,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ワ",
+     "kana": "わ",
+     "start": 0.7019,
+     "end": 0.9616,
+     "phrase": 0,
+     "high": true
+    }
+   ],
+   "words": [
+    {
+     "text": "こんにちは。",
+     "start": 0.0,
+     "end": 0.9616,
+     "ruby": [
+      {
+       "text": "こんにちは。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "どこの出身ですか。",
+   "kana": "どこのしゅっしんですか。",
+   "romaji": "",
+   "gloss": {
+    "en": "Where are you from?",
+    "he": "מאיפה אתה?"
+   },
+   "duration": 1.6768,
+   "timeline": [
+    {
+     "text": "ド",
+     "kana": "ど",
+     "start": 0.1,
+     "end": 0.2755,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "コ",
+     "kana": "こ",
+     "start": 0.2755,
+     "end": 0.4175,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ノ",
+     "kana": "の",
+     "start": 0.4175,
+     "end": 0.5565,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "シュ",
+     "kana": "しゅ",
+     "start": 0.5565,
+     "end": 0.7253,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ッ",
+     "kana": "っ",
+     "start": 0.7253,
+     "end": 0.7866,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 0.7866,
+     "end": 0.9755,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 0.9755,
+     "end": 1.0506,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 1.0506,
+     "end": 1.1883,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.1883,
+     "end": 1.303,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 1.303,
+     "end": 1.5768,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "どこ",
+     "start": 0.0,
+     "end": 0.4175,
+     "ruby": [
+      {
+       "text": "どこ",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "の",
+     "start": 0.4175,
+     "end": 0.5565,
+     "ruby": [
+      {
+       "text": "の",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "出身です",
+     "start": 0.5565,
+     "end": 1.303,
+     "ruby": [
+      {
+       "text": "出身",
+       "rt": "しゅっしん"
+      },
+      {
+       "text": "です",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "か。",
+     "start": 1.303,
+     "end": 1.5768,
+     "ruby": [
+      {
+       "text": "か。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "明日は友達と一緒に日本語を勉強します。",
+   "kana": "あしたはともだちといっしょににほんごをべんきょうします。",
+   "romaji": "",
+   "gloss": {
+    "en": "Tomorrow I will study Japanese with a friend.",
+    "he": "מחר אלמד יפנית עם חבר."
+   },
+   "duration": 3.6173,
+   "timeline": [
+    {
+     "text": "ア",
+     "kana": "あ",
+     "start": 0.1,
+     "end": 0.2589,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 0.2589,
+     "end": 0.3562,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "タ",
+     "kana": "た",
+     "start": 0.3562,
+     "end": 0.5148,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ワ",
+     "kana": "わ",
+     "start": 0.5148,
+     "end": 0.6611,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ト",
+     "kana": "と",
+     "start": 0.6611,
+     "end": 0.7994,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "モ",
+     "kana": "も",
+     "start": 0.7994,
+     "end": 0.9346,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ダ",
+     "kana": "だ",
+     "start": 0.9346,
+     "end": 1.0987,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "チ",
+     "kana": "ち",
+     "start": 1.0987,
+     "end": 1.196,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ト",
+     "kana": "と",
+     "start": 1.196,
+     "end": 1.3734,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 1.3734,
+     "end": 1.46,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "ッ",
+     "kana": "っ",
+     "start": 1.46,
+     "end": 1.5354,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "ショ",
+     "kana": "しょ",
+     "start": 1.5354,
+     "end": 1.6985,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "ニ",
+     "kana": "に",
+     "start": 1.6985,
+     "end": 1.8226,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "ニ",
+     "kana": "に",
+     "start": 1.8226,
+     "end": 1.974,
+     "phrase": 3,
+     "high": false
+    },
+    {
+     "text": "ホ",
+     "kana": "ほ",
+     "start": 1.974,
+     "end": 2.1812,
+     "phrase": 3,
+     "high": true
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 2.1812,
+     "end": 2.2594,
+     "phrase": 3,
+     "high": true
+    },
+    {
+     "text": "ゴ",
+     "kana": "ご",
+     "start": 2.2594,
+     "end": 2.4037,
+     "phrase": 3,
+     "high": true
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 2.4037,
+     "end": 2.5003,
+     "phrase": 3,
+     "high": true
+    },
+    {
+     "text": "ベ",
+     "kana": "べ",
+     "start": 2.5003,
+     "end": 2.6914,
+     "phrase": 4,
+     "high": false
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 2.6914,
+     "end": 2.7843,
+     "phrase": 4,
+     "high": true
+    },
+    {
+     "text": "キョ",
+     "kana": "きょ",
+     "start": 2.7843,
+     "end": 2.9453,
+     "phrase": 4,
+     "high": true
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 2.9453,
+     "end": 3.0333,
+     "phrase": 4,
+     "high": true
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 3.0333,
+     "end": 3.1608,
+     "phrase": 5,
+     "high": false
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 3.1608,
+     "end": 3.3429,
+     "phrase": 5,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 3.3429,
+     "end": 3.5173,
+     "phrase": 5,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "明日",
+     "start": 0.0,
+     "end": 0.5148,
+     "ruby": [
+      {
+       "text": "明日",
+       "rt": "あした"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "は",
+     "start": 0.5148,
+     "end": 0.6611,
+     "ruby": [
+      {
+       "text": "は",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "友達",
+     "start": 0.6611,
+     "end": 1.196,
+     "ruby": [
+      {
+       "text": "友達",
+       "rt": "ともだち"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "と",
+     "start": 1.196,
+     "end": 1.3734,
+     "ruby": [
+      {
+       "text": "と",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "一緒",
+     "start": 1.3734,
+     "end": 1.6985,
+     "ruby": [
+      {
+       "text": "一緒",
+       "rt": "いっしょ"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "に",
+     "start": 1.6985,
+     "end": 1.8226,
+     "ruby": [
+      {
+       "text": "に",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "日本語",
+     "start": 1.8226,
+     "end": 2.4037,
+     "ruby": [
+      {
+       "text": "日本語",
+       "rt": "にほんご"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "を",
+     "start": 2.4037,
+     "end": 2.5003,
+     "ruby": [
+      {
+       "text": "を",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "勉強",
+     "start": 2.5003,
+     "end": 3.0333,
+     "ruby": [
+      {
+       "text": "勉強",
+       "rt": "べんきょう"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "します。",
+     "start": 3.0333,
+     "end": 3.5173,
+     "ruby": [
+      {
+       "text": "します。",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    }
+   ]
+  }
+ ]
+}

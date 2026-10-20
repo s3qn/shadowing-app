@@ -85,6 +85,9 @@ export const he = {
 
   // Podcast episodes
   'home.episodesTitle': 'פרקים',
+  'home.episodeConfirmTitle': 'ליצור אי מהפרק הזה?',
+  'home.episodeConfirmBody': 'האודיו יורד והשורות נבנות, וזה לוקח כמה דקות.',
+  'home.episodeConfirmAction': 'ליצור אי',
   'home.episodesFeedError': 'לא ניתן לטעון את הפיד.',
   'home.episodeFallbackTitle': 'פרק פודקאסט',
   'home.untitledEpisode': 'פרק ללא שם',

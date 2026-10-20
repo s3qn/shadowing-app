@@ -1,9 +1,9 @@
 [
-  {"text": "これは何ですか。", "en": "What is this?"},
-  {"text": "トイレはどこですか。", "en": "Where is the restroom?"},
-  {"text": "今、何時ですか。", "en": "What time is it now?"},
-  {"text": "もう一度言ってください。", "en": "Please say that again."},
-  {"text": "ゆっくり話してください。", "en": "Please speak slowly."},
-  {"text": "英語が話せますか。", "en": "Can you speak English?"},
-  {"text": "これはどういう意味ですか。", "en": "What does this mean?"}
+  {"text": "これは何ですか。", "en": "What is this?", "he": "מה זה?"},
+  {"text": "トイレはどこですか。", "en": "Where is the restroom?", "he": "איפה השירותים?"},
+  {"text": "今、何時ですか。", "en": "What time is it now?", "he": "מה השעה עכשיו?"},
+  {"text": "もう一度言ってください。", "en": "Please say that again.", "he": "תגיד את זה שוב, בבקשה."},
+  {"text": "ゆっくり話してください。", "en": "Please speak slowly.", "he": "תדבר לאט, בבקשה."},
+  {"text": "英語が話せますか。", "en": "Can you speak English?", "he": "אתה מדבר אנגלית?"},
+  {"text": "これはどういう意味ですか。", "en": "What does this mean?", "he": "מה זה אומר?"}
 ]

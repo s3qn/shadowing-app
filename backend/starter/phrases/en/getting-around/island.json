@@ -1,0 +1,541 @@
+{
+ "language": "en",
+ "topic": "getting-around",
+ "lines": [
+  {
+   "ja": "Where is the train station?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "איפה תחנת הרכבת?"
+   },
+   "duration": 1.408,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Where",
+     "start": 0.066,
+     "end": 0.191,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Where",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "is",
+     "start": 0.191,
+     "end": 0.316,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "is",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "the",
+     "start": 0.316,
+     "end": 0.416,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "the",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "train",
+     "start": 0.416,
+     "end": 0.741,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "train",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "station?",
+     "start": 0.741,
+     "end": 1.408,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "station?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Does this train go downtown?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "הרכבת הזו נוסעת למרכז העיר?"
+   },
+   "duration": 1.664,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Does",
+     "start": 0.062,
+     "end": 0.212,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Does",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "this",
+     "start": 0.212,
+     "end": 0.412,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "this",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "train",
+     "start": 0.412,
+     "end": 0.687,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "train",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "go",
+     "start": 0.687,
+     "end": 0.837,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "go",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "downtown?",
+     "start": 0.837,
+     "end": 1.664,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "downtown?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "I'll get off at the next stop.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "אני אצא בתחנה הבאה."
+   },
+   "duration": 1.5786666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "I'll",
+     "start": 0.066,
+     "end": 0.216,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I'll",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "get",
+     "start": 0.216,
+     "end": 0.366,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "get",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "off",
+     "start": 0.366,
+     "end": 0.541,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "off",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "at",
+     "start": 0.541,
+     "end": 0.616,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "at",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "the",
+     "start": 0.616,
+     "end": 0.716,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "the",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "next",
+     "start": 0.716,
+     "end": 0.991,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "next",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "stop.",
+     "start": 0.991,
+     "end": 1.579,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "stop.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Go straight, then turn right.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "סע ישר, ואז פנה ימינה."
+   },
+   "duration": 1.856,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Go",
+     "start": 0.066,
+     "end": 0.291,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Go",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "straight,",
+     "start": 0.291,
+     "end": 0.866,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "straight,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "then",
+     "start": 0.866,
+     "end": 1.041,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "then",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "turn",
+     "start": 1.041,
+     "end": 1.341,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "turn",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "right.",
+     "start": 1.341,
+     "end": 1.856,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "right.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Is it far from here?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "זה רחוק מכאן?"
+   },
+   "duration": 1.1733333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Is",
+     "start": 0.091,
+     "end": 0.191,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Is",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "it",
+     "start": 0.191,
+     "end": 0.316,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "it",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "far",
+     "start": 0.316,
+     "end": 0.591,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "far",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "from",
+     "start": 0.591,
+     "end": 0.766,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "from",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "here?",
+     "start": 0.766,
+     "end": 1.173,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "here?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Where can I buy a ticket?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "איפה אפשר לקנות כרטיס?"
+   },
+   "duration": 1.3653333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Where",
+     "start": 0.066,
+     "end": 0.216,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Where",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "can",
+     "start": 0.216,
+     "end": 0.341,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "can",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "I",
+     "start": 0.341,
+     "end": 0.491,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "buy",
+     "start": 0.491,
+     "end": 0.716,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "buy",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "a",
+     "start": 0.716,
+     "end": 0.791,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "a",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "ticket?",
+     "start": 0.791,
+     "end": 1.365,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "ticket?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "I think I'm lost.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "אני חושב שאני אבוד."
+   },
+   "duration": 1.1093333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "I",
+     "start": 0.066,
+     "end": 0.216,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "think",
+     "start": 0.216,
+     "end": 0.366,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "think",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "I'm",
+     "start": 0.366,
+     "end": 0.541,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I'm",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "lost.",
+     "start": 0.541,
+     "end": 1.109,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "lost.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

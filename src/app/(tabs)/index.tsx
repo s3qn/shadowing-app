@@ -51,9 +51,21 @@ import { SearchIcon } from '@/components/tide/toolbar-icons';
 import { GlassInput } from '@/components/tide/glass-input';
 import { fonts } from '@/constants/fonts';
 import { prism, Radius, Spacing, tide, verb, withAlpha } from '@/constants/theme';
-import { PILL_H, PILL_ICON_OFF, PILL_LABEL_SIZE, PILL_PAD_X, PillTrayShell, SlidingLitPill, useSlidingPill } from '@/components/prism/pill-tray';
+import {
+  PILL_CHROME_BORDER,
+  PILL_H,
+  PILL_LABEL_SIZE,
+  PILL_PAD_X,
+  type PillItemBox,
+  PillTrayShell,
+  SlidingLitPill,
+  usePillChromeStyle,
+  usePillLabelStyle,
+  useSlidingPill,
+} from '@/components/prism/pill-tray';
 import { alertSheet, confirmSheet } from '@/lib/confirm-sheet';
 import { useSkyStyle, isNight } from '@/lib/sky';
+import { getGuideStep, setGuideStep, useGuideAnchor, useGuideStep } from '@/lib/guide';
 import { useT, useDir } from '@/lib/i18n';
 import * as api from '@/lib/api';
 import { registerCard, startOpen, unregisterCard, useMorphHidesTitle, type CardRect } from '@/lib/card-morph';
@@ -110,7 +122,9 @@ const STEP = CARD_H + GAP;
 const SETTLE_MS = 120;
 // The plain search list's space above the first card and below the last.
 const LIST_TOP = Spacing.sm;
-const LIST_BOTTOM = Spacing.xxl * 3;
+// Tall enough that the last card scrolls clear above the floating add button
+// (fab: bottom 96 plus its height).
+const LIST_BOTTOM = 168;
 // How much of the list's bottom the floating tab bar covers. The screen pads
 // its bottom by the safe-area inset and the bar sits that inset plus its gap
 // above the screen edge, so the inset cancels and only the bar's reach is left.
@@ -158,11 +172,29 @@ const SORT_PILL_BORDER = 1;
  * One sort option: a pill that hugs its label with a plain press scale. The
  * active option shows only the sliding lit pill underneath; an inactive one
  * draws its own faint chip. The border width is constant so the pill never
- * changes size when it turns on.
+ * changes size when it turns on. The chip and the label colour follow how
+ * much of the sliding pill covers this option.
  */
-function SortPill({ on, label, onPress, onLayout }: { on: boolean; label: string; onPress: () => void; onLayout: (e: LayoutChangeEvent) => void }) {
+function SortPill({
+  label,
+  onPress,
+  onLayout,
+  box,
+  pillX,
+  pillW,
+}: {
+  label: string;
+  onPress: () => void;
+  onLayout: (e: LayoutChangeEvent) => void;
+  box: PillItemBox | undefined;
+  pillX: SharedValue<number>;
+  pillW: SharedValue<number>;
+}) {
   const scale = useSharedValue(1);
   const scaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const cover = { translateX: pillX, width: pillW, item: box };
+  const chromeStyle = usePillChromeStyle(cover);
+  const labelStyle = usePillLabelStyle(cover);
   return (
     <Pressable
       onLayout={onLayout}
@@ -173,8 +205,8 @@ function SortPill({ on, label, onPress, onLayout }: { on: boolean; label: string
       onPressOut={() => {
         scale.value = withSpring(1, prism.press.spring);
       }}>
-      <Animated.View style={[styles.pill, on ? null : styles.pillChrome, scaleStyle]}>
-        <Text style={[styles.pillText, { color: on ? prism.tray.lit.label : PILL_ICON_OFF }]}>{label}</Text>
+      <Animated.View style={[styles.pill, chromeStyle, scaleStyle]}>
+        <Animated.Text style={[styles.pillText, labelStyle]}>{label}</Animated.Text>
       </Animated.View>
     </Pressable>
   );
@@ -205,8 +237,10 @@ function SortRow({ sort, onSort, labels }: { sort: Sort; onSort: (s: Sort) => vo
         {SORTS.map((s, i) => (
           <SortPill
             key={s}
-            on={sort === s}
             label={labels[s]}
+            box={layouts[i]}
+            pillX={translateX}
+            pillW={width}
             onLayout={(e) => measured(i, e)}
             onPress={() => {
               if (s !== sort) void hapticSelection();
@@ -228,6 +262,7 @@ export default function IslandsScreen() {
   const router = useRouter();
   const { t } = useT();
   const [addOpen, setAddOpen] = useState(false);
+  const guideStep = useGuideStep();
   const dir = useDir();
   const SORT_LABEL: Record<Sort, string> = { newest: t('home.sortNewest'), least: t('home.sortLeastPracticed') };
   const sky = useSkyStyle();
@@ -264,6 +299,8 @@ export default function IslandsScreen() {
   // due again. `dueIds` below adds islands never practiced at all, which the
   // backend never lists (schedule.py only tracks islands it has seen).
   const [fetchedDueIds, setFetchedDueIds] = useState<Set<string>>(new Set());
+  // False until the schedule answers (or fails), so the card shows a dash instead of a 0 that pops to 2.
+  const [dueReady, setDueReady] = useState(false);
   const reducedMotion = useReducedMotion();
   // The list has two shapes. The wheel (search closed): a pad above the first
   // card and below the last one centres any card, snapping, scale and dim,
@@ -615,13 +652,20 @@ export default function IslandsScreen() {
       });
       void api.getDueToday().then((rows) => {
         if (alive) setFetchedDueIds(new Set(rows.map((r) => r.island_id)));
-      }).catch(() => {});
+      }).catch(() => {}).finally(() => {
+        if (alive) setDueReady(true);
+      });
       return () => {
         alive = false;
         setFocused(false);
       };
     }, [load]),
   );
+  // Only while Home is on top: Record, Import or YouTube from the add sheet sends the guide back to 'home' under them.
+  const fab = useGuideAnchor('addFab', focused && (guideStep === 'home' || guideStep === 'tour'));
+  // bl58-easy-for-me: where "No islands yet" sits, so the guide's bubble keeps clear of it.
+  const headAnchor = useGuideAnchor('homeHead', focused && guideStep === 'home');
+  const emptyAnchor = useGuideAnchor('homeEmpty', focused && guideStep === 'home');
 
   // Keep polling only while some island is neither ready nor failed, so the
   // row flips to ready on its own and an idle Home makes no requests.
@@ -776,14 +820,16 @@ export default function IslandsScreen() {
 
   // Built once per change of what it shows, not per Home render: the header
   // re-renders whenever it gets new options.
+  // The search button sits at the reading start: left in English, right in Hebrew.
+  const searchSide = dir.rtl ? 'headerRight' : 'headerLeft';
   const screenOptions = useMemo(
     () => ({
       headerStyle: { backgroundColor: sky.top },
       headerTintColor: tide.text,
       headerShadowVisible: false,
-      headerLeft: () => (
+      [searchSide]: () => (
         // prism-home: edited region
-        <Animated.View style={searchButtonStyle} pointerEvents={searchOpen ? 'none' : 'auto'}>
+        <Animated.View style={[searchButtonStyle, { marginHorizontal: 12 }]} pointerEvents={searchOpen ? 'none' : 'auto'}>
           <PrismButton
             shape="round"
             size={prism.sizes.roundSm}
@@ -796,7 +842,7 @@ export default function IslandsScreen() {
         // prism-home: end
       ),
     }),
-    [sky.top, searchOpen, openSearch, searchButtonStyle, t],
+    [sky.top, searchOpen, openSearch, searchButtonStyle, t, searchSide],
   );
 
   const wheel = shape.wheel;
@@ -935,9 +981,9 @@ export default function IslandsScreen() {
         grow={searchGrow}
         rowH={searchRowH}
       />
-      <View style={styles.headerFixed}>
-        <CatBadge />
-        <PracticeCard log={log} dueCount={readyDueCount} onPractice={() => router.push('/review')} onDrive={startDrive} />
+      <View ref={headAnchor.ref} onLayout={headAnchor.onLayout} collapsable={false} style={styles.headerFixed}>
+        <CatBadge anchorGuide={focused && guideStep === 'cat'} />
+        <PracticeCard log={log} dueCount={dueReady && !loading ? readyDueCount : null} onPractice={() => router.push('/review')} onDrive={startDrive} />
         {/* pill-tray-tab-bar: sort row start */}
         <SortRow sort={sort} onSort={setSort} labels={SORT_LABEL} />
         {/* pill-tray-tab-bar: sort row end */}
@@ -972,6 +1018,8 @@ export default function IslandsScreen() {
         decelerationRate={shape.wheel ? 'fast' : 'normal'}
         disableIntervalMomentum={shape.wheel}
         getItemLayout={(_, index) => ({ length: STEP, offset: (shape.wheel ? wheelPad : LIST_TOP) + index * STEP, index })}
+        // bl58-easy-for-me: the header loading moves the empty text; the guide's bubble follows it.
+        onContentSizeChange={emptyAnchor.onLayout}
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={load} tintColor={tide.textDim} />
         }
@@ -981,7 +1029,7 @@ export default function IslandsScreen() {
               <CatConstellation />
             </View>
           ) : (
-            <View style={styles.center}>
+            <View ref={emptyAnchor.ref} onLayout={emptyAnchor.onLayout} style={styles.center}>
               <Text style={[styles.empty, { color: tide.textDim }]}>
                 {error
                   ? error
@@ -992,21 +1040,38 @@ export default function IslandsScreen() {
               {!error && !query.trim() && visibleIslands.length === 0 ? (
                 <Text style={[styles.empty, { color: tide.textDim }]}>{t('home.noIslandsHint')}</Text>
               ) : null}
+              {error ? (
+                <PrismButton
+                  shape="pill"
+                  verb="tools"
+                  label={t('common.retry')}
+                  accessibilityLabel={t('common.retry')}
+                  containerStyle={{ marginTop: Spacing.lg }}
+                  onPress={() => {
+                    setLoading(true);
+                    void load();
+                  }}
+                />
+              ) : null}
             </View>
           )
         }
         renderItem={renderIsland}
       />
       {/* prism-home: edited region */}
-      <PrismButton
-        shape="round"
-        size={prism.sizes.bigRound}
-        verb="speak"
-        containerStyle={styles.fab}
-        onPress={() => setAddOpen(true)}
-        accessibilityLabel={t('home.addTitle')}>
-        <SymbolView name={{ ios: 'plus', android: 'add' }} size={24} weight="regular" tintColor={verb.speak.c1} />
-      </PrismButton>
+      <View ref={fab.ref} onLayout={fab.onLayout} style={[styles.fab, dir.rtl && styles.fabRtl]}>
+        <PrismButton
+          shape="round"
+          size={prism.sizes.bigRound}
+          verb="speak"
+          onPress={() => {
+            if (getGuideStep() === 'home') setGuideStep('add');
+            setAddOpen(true);
+          }}
+          accessibilityLabel={t('home.addTitle')}>
+          <SymbolView name={{ ios: 'plus', android: 'add' }} size={24} weight="regular" tintColor={verb.speak.c1} />
+        </PrismButton>
+      </View>
       {/* prism-home: end */}
       <AddIslandSheet open={addOpen} onClose={() => setAddOpen(false)} />
       <BottomSheet
@@ -1523,8 +1588,8 @@ const IslandRow = memo(function IslandRow({
               the wrong side of the row once `dir.row` reverses the order. */}
           {due ? (
             <>
-              <Text style={[styles.cardMeta, dir.text, { color: tide.turn }]}>{t('home.dueToday')}</Text>
-              <Text style={[styles.cardMeta, { color: tide.turn }]}>·</Text>
+              <Text style={[styles.cardMeta, dir.text, { color: verb.read.c2 }]}>{t('home.dueToday')}</Text>
+              <Text style={[styles.cardMeta, { color: verb.read.c2 }]}>·</Text>
             </>
           ) : null}
           {busy ? null : <Text style={[styles.cardMeta, dir.text, { color: tide.textDim }]}>{meta}</Text>}
@@ -1634,10 +1699,9 @@ const styles = StyleSheet.create({
     height: PILL_H,
     borderRadius: PILL_H / 2,
     borderWidth: SORT_PILL_BORDER,
-    borderColor: 'transparent',
+    borderColor: PILL_CHROME_BORDER,
     paddingHorizontal: PILL_PAD_X,
   },
-  pillChrome: { backgroundColor: prism.tray.pillFill, borderColor: 'rgba(255,255,255,0.05)' },
   pillText: { fontSize: PILL_LABEL_SIZE, fontWeight: '600', fontFamily: fonts.ui },
   // pill-tray-tab-bar: sort row end
   star: {
@@ -1655,4 +1719,6 @@ const styles = StyleSheet.create({
     right: Spacing.lg,
     bottom: 96,
   },
+  // Hebrew cards read from the right, so the button moves to the left corner.
+  fabRtl: { right: undefined, left: Spacing.lg },
 });

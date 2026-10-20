@@ -32,6 +32,7 @@ import * as api from '@/lib/api';
 import { scheduleAudioSessionRelease, startPlayback, stopPlayback, useSessionPlayer } from '@/lib/audio-mode';
 import { useT } from '@/lib/i18n';
 import { getLastLine, resumeLine, setLastLine } from '@/lib/last-line';
+import { TAKE_VOICE_VOLUME } from '@/lib/pass-programme';
 import { getSettingsSync } from '@/lib/settings';
 
 /** The track stops this far before a line's end. It has to stay above the
@@ -89,6 +90,10 @@ export default function PodcastScreen() {
   // One take machine: useLadder runs both the review ladder and the single
   // in-place pass (count in, record under the line, play it next to the original).
   const take = useTake(island?.id, lines[activeLine]?.idx ?? 0, generation, undefined, undefined, { countPass: true });
+  // bl57-intro-round2: the episode sits at half volume under the Shadow take.
+  useEffect(() => {
+    player.volume = take.phase === 'recording' ? TAKE_VOICE_VOLUME : 1;
+  }, [take.phase, player]);
   const stopAt = useRef<StopAt | null>(null);
 
   useEffect(() => {
@@ -463,6 +468,7 @@ export default function PodcastScreen() {
                   ringDisabled={ladder.dock.ringDisabled}
                   locked={ladder.active}
                   recordLabel={ladder.dock.recordLabel}
+                  stageIndex={ladder.dock.stageIndex}
                   speed={speedLive}
                   speedOn={Math.abs(speedLive - snapRate(getSettingsSync().defaultSpeed)) > 0.001}
                   onSpeed={onSpeedChip}
@@ -519,7 +525,7 @@ export default function PodcastScreen() {
           ) : null}
         </>
       )}
-      {ladder.stage ? <LadderStageView {...ladder.stage} top={0} onHelp={onPassHelp} /> : null}
+      {ladder.stage ? <LadderStageView {...ladder.stage} highlight={highlight} top={0} onHelp={onPassHelp} /> : null}
       {island ? (
         <PassHelpSheet
           open={helpOpen}

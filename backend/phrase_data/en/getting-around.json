@@ -1,9 +1,9 @@
 [
-  {"text": "Where is the train station?"},
-  {"text": "Does this train go downtown?"},
-  {"text": "I'll get off at the next stop."},
-  {"text": "Go straight, then turn right."},
-  {"text": "Is it far from here?"},
-  {"text": "Where can I buy a ticket?"},
-  {"text": "I think I'm lost."}
+  {"text": "Where is the train station?", "he": "איפה תחנת הרכבת?"},
+  {"text": "Does this train go downtown?", "he": "הרכבת הזאת נוסעת למרכז העיר?"},
+  {"text": "I'll get off at the next stop.", "he": "אני יורד בתחנה הבאה."},
+  {"text": "Go straight, then turn right.", "he": "תמשיך ישר ואז פנה ימינה."},
+  {"text": "Is it far from here?", "he": "זה רחוק מכאן?"},
+  {"text": "Where can I buy a ticket?", "he": "איפה אפשר לקנות כרטיס?"},
+  {"text": "I think I'm lost.", "he": "נראה לי שהלכתי לאיבוד."}
 ]

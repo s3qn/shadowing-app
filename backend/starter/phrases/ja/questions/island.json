@@ -1,0 +1,996 @@
+{
+ "language": "ja",
+ "topic": "questions",
+ "lines": [
+  {
+   "ja": "これは何ですか。",
+   "kana": "これはなにですか。",
+   "romaji": "",
+   "gloss": {
+    "en": "What is this?",
+    "he": "זה מה?"
+   },
+   "duration": 1.4578,
+   "timeline": [
+    {
+     "text": "コ",
+     "kana": "こ",
+     "start": 0.1,
+     "end": 0.2688,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "レ",
+     "kana": "れ",
+     "start": 0.2688,
+     "end": 0.4093,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ワ",
+     "kana": "わ",
+     "start": 0.4093,
+     "end": 0.5421,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ナ",
+     "kana": "な",
+     "start": 0.5421,
+     "end": 0.6973,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ニ",
+     "kana": "に",
+     "start": 0.6973,
+     "end": 0.8167,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 0.8167,
+     "end": 0.9691,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 0.9691,
+     "end": 1.086,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 1.086,
+     "end": 1.3578,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "これ",
+     "start": 0.0,
+     "end": 0.4093,
+     "ruby": [
+      {
+       "text": "これ",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "は",
+     "start": 0.4093,
+     "end": 0.5421,
+     "ruby": [
+      {
+       "text": "は",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "何です",
+     "start": 0.5421,
+     "end": 1.086,
+     "ruby": [
+      {
+       "text": "何",
+       "rt": "なに"
+      },
+      {
+       "text": "です",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "か。",
+     "start": 1.086,
+     "end": 1.3578,
+     "ruby": [
+      {
+       "text": "か。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "トイレはどこですか。",
+   "kana": "といれはどこですか。",
+   "romaji": "",
+   "gloss": {
+    "en": "Where is the restroom?",
+    "he": "איפה השירותים?"
+   },
+   "duration": 1.5882,
+   "timeline": [
+    {
+     "text": "ト",
+     "kana": "と",
+     "start": 0.1,
+     "end": 0.3186,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 0.3186,
+     "end": 0.4008,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "レ",
+     "kana": "れ",
+     "start": 0.4008,
+     "end": 0.5347,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ワ",
+     "kana": "わ",
+     "start": 0.5347,
+     "end": 0.6561,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ド",
+     "kana": "ど",
+     "start": 0.6561,
+     "end": 0.8171,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "コ",
+     "kana": "こ",
+     "start": 0.8171,
+     "end": 0.952,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 0.952,
+     "end": 1.0996,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.0996,
+     "end": 1.2163,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 1.2163,
+     "end": 1.4882,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "トイレ",
+     "start": 0.0,
+     "end": 0.5347,
+     "ruby": [
+      {
+       "text": "トイレ",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "は",
+     "start": 0.5347,
+     "end": 0.6561,
+     "ruby": [
+      {
+       "text": "は",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "どこです",
+     "start": 0.6561,
+     "end": 1.2163,
+     "ruby": [
+      {
+       "text": "どこです",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "か。",
+     "start": 1.2163,
+     "end": 1.4882,
+     "ruby": [
+      {
+       "text": "か。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "今、何時ですか。",
+   "kana": "いま、なんじですか。",
+   "romaji": "",
+   "gloss": {
+    "en": "What time is it now?",
+    "he": "מה השעה עכשיו?"
+   },
+   "duration": 1.9246,
+   "timeline": [
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 0.1,
+     "end": 0.1969,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 0.1969,
+     "end": 0.4532,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ナ",
+     "kana": "な",
+     "start": 0.8497,
+     "end": 1.083,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 1.083,
+     "end": 1.1647,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ジ",
+     "kana": "じ",
+     "start": 1.1647,
+     "end": 1.2853,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 1.2853,
+     "end": 1.4358,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.4358,
+     "end": 1.5529,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 1.5529,
+     "end": 1.8246,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "今、",
+     "start": 0.0,
+     "end": 0.4532,
+     "ruby": [
+      {
+       "text": "今",
+       "rt": "いま"
+      },
+      {
+       "text": "、",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "何時です",
+     "start": 0.8497,
+     "end": 1.5529,
+     "ruby": [
+      {
+       "text": "何",
+       "rt": "なん"
+      },
+      {
+       "text": "時",
+       "rt": "じ"
+      },
+      {
+       "text": "です",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "か。",
+     "start": 1.5529,
+     "end": 1.8246,
+     "ruby": [
+      {
+       "text": "か。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "もう一度言ってください。",
+   "kana": "もういちどいってください。",
+   "romaji": "",
+   "gloss": {
+    "en": "Please say that again.",
+    "he": "תגיד שוב בבקשה."
+   },
+   "duration": 1.8442,
+   "timeline": [
+    {
+     "text": "モ",
+     "kana": "も",
+     "start": 0.1,
+     "end": 0.3102,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.3102,
+     "end": 0.4333,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 0.4333,
+     "end": 0.5305,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "チ",
+     "kana": "ち",
+     "start": 0.5305,
+     "end": 0.6743,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ド",
+     "kana": "ど",
+     "start": 0.6743,
+     "end": 0.8323,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 0.8323,
+     "end": 0.9198,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ッ",
+     "kana": "っ",
+     "start": 0.9198,
+     "end": 0.9809,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "テ",
+     "kana": "て",
+     "start": 0.9809,
+     "end": 1.1237,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ク",
+     "kana": "く",
+     "start": 1.1237,
+     "end": 1.225,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "ダ",
+     "kana": "だ",
+     "start": 1.225,
+     "end": 1.3717,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "サ",
+     "kana": "さ",
+     "start": 1.3717,
+     "end": 1.5996,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 1.5996,
+     "end": 1.7442,
+     "phrase": 2,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "もう一度",
+     "start": 0.0,
+     "end": 0.8323,
+     "ruby": [
+      {
+       "text": "もう",
+       "rt": ""
+      },
+      {
+       "text": "一度",
+       "rt": "いちど"
+      }
+     ],
+     "pos": "other"
+    },
+    {
+     "text": "言ってください。",
+     "start": 0.8323,
+     "end": 1.7442,
+     "ruby": [
+      {
+       "text": "言",
+       "rt": "い"
+      },
+      {
+       "text": "ってください。",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    }
+   ]
+  },
+  {
+   "ja": "ゆっくり話してください。",
+   "kana": "ゆっくりはなしてください。",
+   "romaji": "",
+   "gloss": {
+    "en": "Please speak slowly.",
+    "he": "דבר לאט בבקשה."
+   },
+   "duration": 1.8816,
+   "timeline": [
+    {
+     "text": "ユ",
+     "kana": "ゆ",
+     "start": 0.1,
+     "end": 0.2937,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ッ",
+     "kana": "っ",
+     "start": 0.2937,
+     "end": 0.3766,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ク",
+     "kana": "く",
+     "start": 0.3766,
+     "end": 0.5219,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "リ",
+     "kana": "り",
+     "start": 0.5219,
+     "end": 0.6526,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ハ",
+     "kana": "は",
+     "start": 0.6526,
+     "end": 0.7897,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ナ",
+     "kana": "な",
+     "start": 0.7897,
+     "end": 0.9463,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 0.9463,
+     "end": 1.0175,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "テ",
+     "kana": "て",
+     "start": 1.0175,
+     "end": 1.1628,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ク",
+     "kana": "く",
+     "start": 1.1628,
+     "end": 1.2646,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "ダ",
+     "kana": "だ",
+     "start": 1.2646,
+     "end": 1.4091,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "サ",
+     "kana": "さ",
+     "start": 1.4091,
+     "end": 1.637,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 1.637,
+     "end": 1.7816,
+     "phrase": 2,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "ゆっくり",
+     "start": 0.0,
+     "end": 0.6526,
+     "ruby": [
+      {
+       "text": "ゆっくり",
+       "rt": ""
+      }
+     ],
+     "pos": "other"
+    },
+    {
+     "text": "話してください。",
+     "start": 0.6526,
+     "end": 1.7816,
+     "ruby": [
+      {
+       "text": "話",
+       "rt": "はな"
+      },
+      {
+       "text": "してください。",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    }
+   ]
+  },
+  {
+   "ja": "英語が話せますか。",
+   "kana": "えいごがはなせますか。",
+   "romaji": "",
+   "gloss": {
+    "en": "Can you speak English?",
+    "he": "אתה מדבר אנגלית?"
+   },
+   "duration": 1.7166,
+   "timeline": [
+    {
+     "text": "エ",
+     "kana": "え",
+     "start": 0.1,
+     "end": 0.267,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "エ",
+     "kana": "え",
+     "start": 0.267,
+     "end": 0.3767,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ゴ",
+     "kana": "ご",
+     "start": 0.3767,
+     "end": 0.5308,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ガ",
+     "kana": "が",
+     "start": 0.5308,
+     "end": 0.6668,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ハ",
+     "kana": "は",
+     "start": 0.6668,
+     "end": 0.8078,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ナ",
+     "kana": "な",
+     "start": 0.8078,
+     "end": 0.9483,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "セ",
+     "kana": "せ",
+     "start": 0.9483,
+     "end": 1.0787,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 1.0787,
+     "end": 1.2355,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.2355,
+     "end": 1.3499,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 1.3499,
+     "end": 1.6166,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "英語",
+     "start": 0.0,
+     "end": 0.5308,
+     "ruby": [
+      {
+       "text": "英語",
+       "rt": "えいご"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "が",
+     "start": 0.5308,
+     "end": 0.6668,
+     "ruby": [
+      {
+       "text": "が",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "話せます",
+     "start": 0.6668,
+     "end": 1.3499,
+     "ruby": [
+      {
+       "text": "話",
+       "rt": "はな"
+      },
+      {
+       "text": "せます",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    },
+    {
+     "text": "か。",
+     "start": 1.3499,
+     "end": 1.6166,
+     "ruby": [
+      {
+       "text": "か。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "これはどういう意味ですか。",
+   "kana": "これはどういういみですか。",
+   "romaji": "",
+   "gloss": {
+    "en": "What does this mean?",
+    "he": "מה זה אומר?"
+   },
+   "duration": 1.9553,
+   "timeline": [
+    {
+     "text": "コ",
+     "kana": "こ",
+     "start": 0.1,
+     "end": 0.2685,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "レ",
+     "kana": "れ",
+     "start": 0.2685,
+     "end": 0.4089,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ワ",
+     "kana": "わ",
+     "start": 0.4089,
+     "end": 0.5499,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ド",
+     "kana": "ど",
+     "start": 0.5499,
+     "end": 0.7216,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.7216,
+     "end": 0.8339,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ユ",
+     "kana": "ゆ",
+     "start": 0.8339,
+     "end": 1.0067,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ウ",
+     "kana": "う",
+     "start": 1.0067,
+     "end": 1.1,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 1.1,
+     "end": 1.1837,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "ミ",
+     "kana": "み",
+     "start": 1.1837,
+     "end": 1.3172,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 1.3172,
+     "end": 1.4686,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.4686,
+     "end": 1.5837,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 1.5837,
+     "end": 1.8553,
+     "phrase": 2,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "これ",
+     "start": 0.0,
+     "end": 0.4089,
+     "ruby": [
+      {
+       "text": "これ",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "は",
+     "start": 0.4089,
+     "end": 0.5499,
+     "ruby": [
+      {
+       "text": "は",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "どういう",
+     "start": 0.5499,
+     "end": 1.1,
+     "ruby": [
+      {
+       "text": "どういう",
+       "rt": ""
+      }
+     ],
+     "pos": "other"
+    },
+    {
+     "text": "意味です",
+     "start": 1.1,
+     "end": 1.5837,
+     "ruby": [
+      {
+       "text": "意味",
+       "rt": "いみ"
+      },
+      {
+       "text": "です",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "か。",
+     "start": 1.5837,
+     "end": 1.8553,
+     "ruby": [
+      {
+       "text": "か。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  }
+ ]
+}

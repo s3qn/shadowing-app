@@ -1,9 +1,9 @@
 [
-  {"text": "¿Dónde está la estación?", "en": "Where is the station?"},
-  {"text": "¿Este tren va a Sevilla?", "en": "Does this train go to Seville?"},
-  {"text": "Me bajo en la próxima parada.", "en": "I'll get off at the next stop."},
-  {"text": "Siga recto y gire a la derecha.", "en": "Go straight, then turn right."},
-  {"text": "¿Está lejos de aquí?", "en": "Is it far from here?"},
-  {"text": "¿Dónde puedo comprar un billete?", "en": "Where can I buy a ticket?"},
-  {"text": "Estoy perdido.", "en": "I'm lost."}
+  {"text": "¿Dónde está la estación?", "en": "Where is the station?", "he": "איפה התחנה?"},
+  {"text": "¿Este tren va a Sevilla?", "en": "Does this train go to Seville?", "he": "הרכבת הזאת נוסעת לסביליה?"},
+  {"text": "Me bajo en la próxima parada.", "en": "I'll get off at the next stop.", "he": "אני יורד בתחנה הבאה."},
+  {"text": "Siga recto y gire a la derecha.", "en": "Go straight, then turn right.", "he": "תמשיך ישר ואז פנה ימינה."},
+  {"text": "¿Está lejos de aquí?", "en": "Is it far from here?", "he": "זה רחוק מכאן?"},
+  {"text": "¿Dónde puedo comprar un billete?", "en": "Where can I buy a ticket?", "he": "איפה אפשר לקנות כרטיס?"},
+  {"text": "Estoy perdido.", "en": "I'm lost.", "he": "אני הלכתי לאיבוד."}
 ]

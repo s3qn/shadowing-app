@@ -1,9 +1,9 @@
 [
-  {"text": "いくらですか。", "en": "How much is it?"},
-  {"text": "ちょっと高いですね。", "en": "That's a bit expensive."},
-  {"text": "試着してもいいですか。", "en": "May I try this on?"},
-  {"text": "もう少し安いのはありますか。", "en": "Do you have anything a bit cheaper?"},
-  {"text": "カードで払えますか。", "en": "Can I pay by card?"},
-  {"text": "袋は要りません。", "en": "I don't need a bag."},
-  {"text": "これにします。", "en": "I'll take this one."}
+  {"text": "いくらですか。", "en": "How much is it?", "he": "כמה זה עולה?"},
+  {"text": "ちょっと高いですね。", "en": "That's a bit expensive.", "he": "זה קצת יקר."},
+  {"text": "試着してもいいですか。", "en": "May I try this on?", "he": "אפשר למדוד את זה?"},
+  {"text": "もう少し安いのはありますか。", "en": "Do you have anything a bit cheaper?", "he": "יש משהו קצת יותר זול?"},
+  {"text": "カードで払えますか。", "en": "Can I pay by card?", "he": "אפשר לשלם בכרטיס?"},
+  {"text": "袋は要りません。", "en": "I don't need a bag.", "he": "אני לא צריך שקית."},
+  {"text": "これにします。", "en": "I'll take this one.", "he": "אני לוקח את זה."}
 ]

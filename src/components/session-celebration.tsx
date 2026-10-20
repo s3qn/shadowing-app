@@ -23,6 +23,7 @@ import { HeroGlow, HeroNumber, heroText } from '@/components/tide/hero-number';
 import { Canvas, LinearGradient, RoundedRect, vec } from '@shopify/react-native-skia';
 
 import { Tile as GradTile, type Look } from '@/components/tide/ladder-stage';
+import { useEmotionPulse } from '@/hooks/use-emotion-pulse';
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
 import { isolate } from '@/lib/bidi';
@@ -138,6 +139,11 @@ export function SessionCelebration({ c, levelUp }: Props) {
   const level = c?.after.level ?? levelUp?.level ?? 1;
   const prevLevel = c?.before.level ?? levelUp?.prevLevel ?? level - 1;
   const leveled = levelOnly || level > prevLevel;
+  const [catEmotion, fireEmotion] = useEmotionPulse();
+  const avgScore = c?.avgScore ?? null;
+  useEffect(() => {
+    if (leveled) fireEmotion(avgScore !== null && band(avgScore) === 'building' ? 'encouraging' : 'proud', 4000);
+  }, [leveled, avgScore, fireEmotion]);
   const beforeFrac = c ? frac(c.before.into, c.before.toNext) : 0;
   const afterFrac = c ? frac(c.after.into, c.after.toNext) : progress ? frac(progress.xp_into_level, progress.xp_to_next) : 0;
   const equipped = useMemo(() => (progress && catalog ? equippedArt(progress, catalog) : {}), [progress, catalog]);
@@ -356,7 +362,7 @@ export function SessionCelebration({ c, levelUp }: Props) {
                     <HeroNumber value={level} size={120} />
                   </View>
                 </View>
-                <CatAvatar size={150} equipped={equipped} />
+                <CatAvatar size={150} equipped={equipped} emotion={catEmotion} />
               </View>
               <View style={[styles.track, { marginTop: 26 }]}>
                 <XpFill bar={bar} base={base} ghost={leveled ? 0 : beforeFrac} />

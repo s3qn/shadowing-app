@@ -3,6 +3,7 @@ import {
   RiveFileFactory,
   RiveImages,
   RiveView,
+  useRiveBoolean,
   useRiveEnum,
   useRiveNumber,
   useRiveTrigger,
@@ -10,11 +11,11 @@ import {
   type RiveFile,
 } from '@rive-app/react-native';
 import { useIsFocused } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGazeValue } from '@/hooks/use-gaze';
 import { Image, View } from 'react-native';
 
-import { CAT_BOX, SLOTS, type Equipped, type KagenekoMode, type Slot } from '@/constants/cosmetics';
+import { CAT_BOX, SLOTS, type Equipped, type KagenekoEmotion, type KagenekoMode, type Slot } from '@/constants/cosmetics';
 
 // If the placeholder looks faint in a dev build, try 100 (Rive author's note).
 const SHOWN_ON = 1;
@@ -23,6 +24,8 @@ export type KagenekoViewProps = {
   size: number;
   equipped: Equipped;
   mode?: KagenekoMode;
+  /** A looping emotion. Undefined means none. Cleared on unmount. */
+  emotion?: KagenekoEmotion;
   /** Bump to play the pet reaction. The first value is ignored. */
   petKey?: number;
   frameRate?: number;
@@ -64,7 +67,7 @@ function useKagenekoFile(onFail?: () => void): RiveFile | undefined {
   return file;
 }
 
-export function KagenekoView({ size, equipped, mode, petKey, frameRate, gaze = false, instanceName, onFail }: KagenekoViewProps) {
+export function KagenekoView({ size, equipped, mode, emotion, petKey, frameRate, gaze = false, instanceName, onFail }: KagenekoViewProps) {
   const file = useKagenekoFile(onFail);
   const focused = useIsFocused();
   const { instance } = useViewModelInstance(file, {
@@ -77,6 +80,59 @@ export function KagenekoView({ size, equipped, mode, petKey, frameRate, gaze = f
   useEffect(() => {
     setMode(mode ?? 'idle');
   }, [mode, setMode, instance]);
+
+  const viewRef = useRef<{ play: () => Promise<void> } | null>(null);
+  const hybridRef = useMemo(() => ({ f: (r: { play: () => Promise<void> } | null) => (viewRef.current = r) }), []);
+  const play = () => {
+    try {
+      void viewRef.current?.play().catch(() => {});
+    } catch {
+      // The view is not ready yet.
+    }
+  };
+  // Start the state machine explicitly once the file and instance are bound.
+  useEffect(() => {
+    if (file && instance) play();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [file, instance]);
+
+  const { setValue: setEmotion } = useRiveEnum('emotion', instance);
+  // The setter identity changes whenever the value does, so it lives in a ref and the effects ignore it.
+  const emotionRef = useRef(setEmotion);
+  emotionRef.current = setEmotion;
+  useEffect(() => {
+    try {
+      emotionRef.current(emotion ?? 'none');
+      play();
+    } catch {
+      // The file has no emotion input.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emotion, instance]);
+  useEffect(
+    () => () => {
+      try {
+        emotionRef.current('none');
+      } catch {
+        // Already disposed.
+      }
+    },
+    [],
+  );
+
+  // Mirror touches into the file's `pressing` boolean. Plain View callbacks do not take the gesture from a parent Pressable.
+  const { setValue: setPressing } = useRiveBoolean('pressing', instance);
+  const press = (v: boolean) => {
+    try {
+      setPressing(v);
+      play();
+    } catch {
+      // The file has no pressing input.
+    }
+  };
+  const pressRef = useRef(press);
+  pressRef.current = press;
+  useEffect(() => () => pressRef.current(false), []);
 
   const { trigger } = useRiveTrigger('pet', instance);
   const lastPet = useRef(petKey);
@@ -126,13 +182,19 @@ export function KagenekoView({ size, equipped, mode, petKey, frameRate, gaze = f
         ),
       )}
       <SlotSync key="tail" riveSlot="tail" art={isTailBow ? accessoryArt : null} instance={instance} setShown={tail.setValue} />
-      <View style={{ width: size, height: (size * CAT_BOX.h) / CAT_BOX.w }}>
+      <View
+        style={{ width: size, height: (size * CAT_BOX.h) / CAT_BOX.w }}
+        onTouchStart={() => press(true)}
+        onTouchEnd={() => press(false)}
+        onTouchCancel={() => press(false)}>
         {file && instance ? (
           <RiveView
             file={file}
             dataBind={instance}
             fit={Fit.Contain}
             autoPlay
+            stateMachineName="Kageneko"
+            hybridRef={hybridRef}
             frameRate={focused ? Math.min(frameRate ?? 30, 30) : 1}
             onError={() => onFail?.()}
             style={{ width: '100%', height: '100%' }}

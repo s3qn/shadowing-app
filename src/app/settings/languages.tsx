@@ -1,6 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LanguagePicker } from '@/components/language-picker';
@@ -21,9 +21,9 @@ import {
  * The two language pickers, same disabled-pair rule as onboarding's
  * languages step: understanding a language cannot pair with learning the
  * same one. Writes each pick straight to settings, no confirm step. Each
- * `LanguagePicker` is a `SectionList` (see its own file), so this screen
- * gives each one a fixed half of the height rather than nesting it in a
- * `ScrollView`, which would collapse it to zero height.
+ * picker is `inline` (plain rows, the catalogue is short) and the page
+ * scrolls as one: two fixed halves, each its own list, cut the learn list's
+ * Coming soon rows off flush against the understand section (ET-12).
  */
 export default function LanguagesSettingsScreen() {
   const { t } = useT();
@@ -72,21 +72,18 @@ export default function LanguagesSettingsScreen() {
 
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
-      <View style={styles.half}>
+      <ScrollView style={styles.fill} keyboardShouldPersistTaps="handled">
         <Text style={[styles.label, dir.text, dir.rtl && styles.labelRtl]}>{t('settings.languages.learn')}</Text>
-        <LanguagePicker mode="learn" value={learning} onChange={pickLearning} exclude={understand} />
-      </View>
-      <View style={styles.half}>
+        <LanguagePicker inline mode="learn" value={learning} onChange={pickLearning} exclude={understand} />
         <Text style={[styles.label, dir.text, dir.rtl && styles.labelRtl]}>{t('settings.languages.understand')}</Text>
-        <LanguagePicker mode="understand" value={understand} onChange={pickUnderstand} exclude={learning} />
-      </View>
+        <LanguagePicker inline mode="understand" value={understand} onChange={pickUnderstand} exclude={learning} />
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  half: { flex: 1, paddingTop: Spacing.sm },
   label: {
     fontSize: 12,
     fontFamily: fonts.uiMedium,
@@ -95,6 +92,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     color: tide.textDim,
     marginLeft: Spacing.lg + Spacing.sm,
+    marginTop: Spacing.sm,
     marginBottom: Spacing.xs,
   },
   labelRtl: { marginLeft: 0, marginRight: Spacing.lg + Spacing.sm },

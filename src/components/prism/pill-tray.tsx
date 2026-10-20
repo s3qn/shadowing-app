@@ -1,8 +1,17 @@
 import { type ReactNode, useEffect, useMemo, useRef } from 'react';
 import { type StyleProp, StyleSheet, View, type ViewStyle } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { Canvas, Fill, LinearGradient, RoundedRect, vec } from '@shopify/react-native-skia';
-import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming, type SharedValue, type WithTimingConfig } from 'react-native-reanimated';
+import { Canvas, LinearGradient, RoundedRect, vec } from '@shopify/react-native-skia';
+import Animated, {
+  interpolateColor,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withSpring,
+  withTiming,
+  type SharedValue,
+  type WithTimingConfig,
+} from 'react-native-reanimated';
 
 import { Radius, prism, withAlpha } from '@/constants/theme';
 
@@ -13,6 +22,11 @@ export const PILL_LABEL_SIZE = 13;
 export const PILL_ICON_SIZE = 17;
 export const PILL_ICON_OFF = '#9E98B0';
 export const PILL_ICON_ON = prism.tray.lit.icon;
+/** An unlit pill's own faint chip: its fill and its border. */
+export const PILL_CHROME_FILL = prism.tray.pillFill;
+export const PILL_CHROME_BORDER = 'rgba(255,255,255,0.05)';
+/** The light slot-tab pill (wardrobe): a pale fill with a pink-to-blue fringe at the ends. */
+export const LIGHT_PILL_FILL = '#F4F2FA';
 
 export type PillTrayShellProps = {
   children?: ReactNode;
@@ -92,57 +106,6 @@ export function LitPillFill({ width, height, opacity }: LitPillFillProps) {
   );
 }
 
-export type LitPillCoverProps = {
-  /**
-   * The pill's height inside its border, a constant at the call site (the
-   * tray's pill height less its border), used only for the direction of the
-   * vertical gradient. Nothing here is measured.
-   */
-  height: number;
-  /** 0 to 1, driven by the caller: a crossfade between options. */
-  opacity: SharedValue<number>;
-};
-
-/**
- * The selected-pill background for a pill that stays put and crossfades
- * instead of sliding: the same gradient as `LitPillFill`, painted over the
- * whole canvas instead of over a rectangle of a remembered width. The canvas
- * is an absolute fill, so it is always exactly the pill it sits in, and that
- * pill's own rounded, overflow-hidden box cuts the ends, the way the tab
- * bar's sliding pill cuts its fill. Place it in a container with
- * `borderRadius` and `overflow: 'hidden'`.
- *
- * A pill that measures itself into state and hands that width to
- * `LitPillFill` instead can fall behind its own label: when the app language
- * changed, the Home sort pills kept the width their English labels had while
- * the pill, its rim and the Hebrew label grew, which left a dark crescent at
- * one end.
- */
-export function LitPillCover({ height, opacity }: LitPillCoverProps) {
-  const fadeStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
-  const gradient = useMemo(
-    () => (
-      <Canvas style={StyleSheet.absoluteFill}>
-        <Fill color="#FFFFFF" />
-        <Fill>
-          <LinearGradient
-            start={vec(0, 0)}
-            end={vec(0, Math.max(1, height))}
-            colors={[withAlpha(prism.tray.lit.top, prism.tray.lit.alpha), withAlpha(prism.tray.lit.bottom, prism.tray.lit.alpha)]}
-          />
-        </Fill>
-      </Canvas>
-    ),
-    [height],
-  );
-
-  return (
-    <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, fadeStyle]}>
-      {gradient}
-    </Animated.View>
-  );
-}
-
 export type LitPillRimProps = {
   /** Corner radius, matched to the radius of the container this sits in. */
   radius: number;
@@ -216,6 +179,70 @@ export function useSlidingPill(active: { x: number; width: number } | undefined,
   return { translateX, width };
 }
 
+/** One item's box in the row a `SlidingLitPill` moves through. */
+export type PillItemBox = { x: number; width: number };
+
+/** The sliding pill's position and width, and one item's box: what a cover-driven style reads. */
+export type PillCover = { translateX: SharedValue<number>; width: SharedValue<number>; item: PillItemBox | undefined };
+
+/**
+ * How much of an item at `x` (width `w`) a pill at `tx` (width `pw`) covers,
+ * 0 to 1, and 0 until the item is measured. A label colour or an unlit chip
+ * driven by this follows the pill as it travels, so a label never turns lit
+ * over the empty tray or goes dim while the lit pill still sits under it.
+ * Each style computes it itself instead of through a derived value, so it
+ * changes in the same frame as the pill.
+ */
+function coverOf(tx: number, pw: number, x: number, w: number): number {
+  'worklet';
+  if (!(w > 0)) return 0;
+  const c = (Math.min(tx + pw, x + w) - Math.max(tx, x)) / w;
+  // NaN fails the comparison and reads as 0.
+  return c > 0 ? Math.min(1, c) : 0;
+}
+
+/**
+ * A label colour that moves from `off` to `on` with the pill's cover. `span`
+ * narrows the blend around the half-covered point, for a pill whose two label
+ * colours are far apart (dark ink on the light slot pill), where a grey in
+ * between reads on neither side of the pill's edge.
+ */
+export function usePillLabelStyle(
+  { translateX, width, item }: PillCover,
+  off: string = PILL_ICON_OFF,
+  on: string = prism.tray.lit.label,
+  span: readonly [number, number] = [0, 1],
+) {
+  const [lo, hi] = span;
+  const x = item?.x ?? 0;
+  const w = item?.width ?? 0;
+  return useAnimatedStyle(() => ({ color: interpolateColor(coverOf(translateX.value, width.value, x, w), [lo, hi], [off, on]) }));
+}
+
+/** The opacity of an item's lit-only part (the tab bar's lit icon): its cover. */
+export function usePillLitStyle({ translateX, width, item }: PillCover) {
+  const x = item?.x ?? 0;
+  const w = item?.width ?? 0;
+  return useAnimatedStyle(() => ({ opacity: coverOf(translateX.value, width.value, x, w) }));
+}
+
+/**
+ * An unlit pill's chip (fill and border), fading out as the pill covers it.
+ * Animates the pill's own colours, so the pill needs a constant 1 px border
+ * and its size never changes when it turns on.
+ */
+export function usePillChromeStyle({ translateX, width, item }: PillCover) {
+  const x = item?.x ?? 0;
+  const w = item?.width ?? 0;
+  return useAnimatedStyle(() => {
+    const c = coverOf(translateX.value, width.value, x, w);
+    return {
+      backgroundColor: interpolateColor(c, [0, 1], [PILL_CHROME_FILL, 'rgba(255,255,255,0)']),
+      borderColor: interpolateColor(c, [0, 1], [PILL_CHROME_BORDER, 'rgba(255,255,255,0)']),
+    };
+  });
+}
+
 const AnimatedView = Animated.createAnimatedComponent(View);
 
 export type SlidingLitPillProps = {
@@ -225,6 +252,8 @@ export type SlidingLitPillProps = {
   fillWidth: number;
   /** Scrub hold, 0 to 1: grows the pill a little and brightens the rim. */
   held?: SharedValue<number>;
+  /** `light`: the wardrobe slot tabs' pale fringed pill, no rim. Default: the blue lit pill. */
+  look?: 'lit' | 'light';
 };
 
 /**
@@ -235,7 +264,7 @@ export type SlidingLitPillProps = {
  * for a frame); this container clips it down to the current width. The rim is
  * sized to the container instead, so its right end stays round.
  */
-export function SlidingLitPill({ translateX, width, fillWidth, held }: SlidingLitPillProps) {
+export function SlidingLitPill({ translateX, width, fillWidth, held, look = 'lit' }: SlidingLitPillProps) {
   const opacity = useSharedValue(1);
   const style = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }, { scale: 1 + (held ? held.value : 0) * 0.06 }],
@@ -244,10 +273,28 @@ export function SlidingLitPill({ translateX, width, fillWidth, held }: SlidingLi
   return (
     <AnimatedView pointerEvents="none" style={[styles.slidingPill, style]}>
       <View style={[styles.litFillBox, { width: fillWidth, height: PILL_H }]}>
-        <LitPillFill width={fillWidth} height={PILL_H} opacity={opacity} />
+        {look === 'light' ? <LightPillFill width={fillWidth} /> : <LitPillFill width={fillWidth} height={PILL_H} opacity={opacity} />}
       </View>
-      <LitPillRim radius={PILL_H / 2} opacity={opacity} held={held} />
+      {look === 'light' ? null : <LitPillRim radius={PILL_H / 2} opacity={opacity} held={held} />}
     </AnimatedView>
+  );
+}
+
+/** The light pill's canvas at a fixed width, clipped by the sliding container like `LitPillFill`. */
+function LightPillFill({ width }: { width: number }) {
+  if (!(width > 0)) return null;
+  return (
+    <Canvas style={StyleSheet.absoluteFill}>
+      <RoundedRect x={0} y={0} width={width} height={PILL_H} r={PILL_H / 2} color={LIGHT_PILL_FILL} />
+      <RoundedRect x={0} y={0} width={width} height={PILL_H} r={PILL_H / 2}>
+        <LinearGradient
+          start={vec(0, 0)}
+          end={vec(width, 0)}
+          colors={[prism.fringe.leftOn, LIGHT_PILL_FILL, LIGHT_PILL_FILL, prism.fringe.rightOn]}
+          positions={[0, 0.2, 0.8, 1]}
+        />
+      </RoundedRect>
+    </Canvas>
   );
 }
 

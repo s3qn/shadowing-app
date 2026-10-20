@@ -51,6 +51,10 @@ QUALITY_GREAT = 0.8
 QUALITY_MIN_WORDS = 3
 QUALITY_XP, QUALITY_COINS = 5, 1
 MASTERY_XP, MASTERY_COINS = 60, 20
+# "Easy for me": once per line, only for a line that was ever taken whole.
+# Outside the daily cap like the one-time milestones; TAKES_PER_DAY bounds
+# it at 180 XP a day.
+KNOWN_XP, KNOWN_COINS = 3, 1
 # (minimum streak days, xp, coins), longest first.
 STREAK_TIERS = ((30, 30, 8), (7, 20, 5), (3, 10, 3))
 MILESTONES = {
@@ -276,6 +280,33 @@ def _grant_beta(conn: sqlite3.Connection, owner: str) -> None:
         (owner, BETA_HAT, _now()),
     )
     conn.commit()
+
+
+STARTER_ITEM = "face.blush_pink"
+
+
+def grant_starter(owner: str) -> dict:
+    """The first-win gift. Owned for good; equipped only on the first grant,
+    so a replay never overrides what the user wears since. A level 1 owner
+    is also topped up to level 2 once (key `first_run`), so the finish screen
+    always reads 1 to 2; replays pay 0."""
+    item = _ITEMS[STARTER_ITEM]
+    snap = snapshot(owner)
+    if snap["level"] == 1:
+        award(owner, "first_run", max(0, xp_to_next(1) - snap["xp"]), 0)
+    conn = connect()
+    with conn:
+        cur = conn.execute(
+            "INSERT OR IGNORE INTO owned (owner, item_id, bought_at) VALUES (?, ?, ?)",
+            (owner, STARTER_ITEM, _now()),
+        )
+        if cur.rowcount == 1:
+            conn.execute(
+                "INSERT INTO equipped (owner, slot, item_id) VALUES (?, ?, ?)"
+                " ON CONFLICT(owner, slot) DO UPDATE SET item_id = excluded.item_id",
+                (owner, item["slot"], STARTER_ITEM),
+            )
+    return snapshot(owner)
 
 
 def snapshot(owner: str) -> dict:
@@ -581,6 +612,14 @@ def award(owner: str, key: str, xp: int, coins: int) -> dict:
     """The primitive: pays `key` once. Replays return zeros. It is uncapped and
     skips the day, streak and milestone rules: for tests and seeds only."""
     return _run_awards_plain(owner, key, xp, coins)
+
+
+def award_known(owner: str, island_id: str, idx: int) -> dict:
+    """Pays the "Easy for me" mark on a line once. Replays return zeros.
+    Outside the daily cap; to count it inside the cap instead, return
+    `_run_awards(owner, [(key, KNOWN_XP, KNOWN_COINS)], _today())`."""
+    key = f"known:{island_id}:{idx}"
+    return _run_awards_plain(owner, key, KNOWN_XP, KNOWN_COINS)
 
 
 def _run_awards_plain(owner: str, key: str, xp: int, coins: int) -> dict:

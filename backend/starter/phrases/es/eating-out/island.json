@@ -1,0 +1,481 @@
+{
+ "language": "es",
+ "topic": "eating-out",
+ "lines": [
+  {
+   "ja": "Una mesa para dos, por favor.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "A table for two, please.",
+    "he": "שולחן לשני אנשים, בבקשה."
+   },
+   "duration": 1.856,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Una",
+     "start": 0.076,
+     "end": 0.351,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Una",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "mesa",
+     "start": 0.351,
+     "end": 0.701,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "mesa",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "para",
+     "start": 0.701,
+     "end": 0.926,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "para",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "dos,",
+     "start": 0.926,
+     "end": 1.251,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "dos,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "por",
+     "start": 1.251,
+     "end": 1.426,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "por",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "favor.",
+     "start": 1.426,
+     "end": 1.856,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "favor.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "¿Me trae la carta, por favor?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Could you bring me the menu, please?",
+    "he": "תביא לי את התפריט, בבקשה?"
+   },
+   "duration": 1.7493333333333334,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Me",
+     "start": 0.076,
+     "end": 0.251,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Me",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "trae",
+     "start": 0.251,
+     "end": 0.526,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "trae",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "la",
+     "start": 0.526,
+     "end": 0.676,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "la",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "carta,",
+     "start": 0.676,
+     "end": 1.126,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "carta,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "por",
+     "start": 1.126,
+     "end": 1.326,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "por",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "favor?",
+     "start": 1.326,
+     "end": 1.749,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "favor?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "¿Qué me recomienda?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "What do you recommend?",
+    "he": "מה אתה מציע?"
+   },
+   "duration": 1.1733333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Qué",
+     "start": 0.076,
+     "end": 0.276,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Qué",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "me",
+     "start": 0.276,
+     "end": 0.426,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "me",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "recomienda?",
+     "start": 0.426,
+     "end": 1.173,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "recomienda?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Quisiera esto, por favor.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "I'd like this, please.",
+    "he": "אני רוצה את זה, בבקשה."
+   },
+   "duration": 1.6426666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Quisiera",
+     "start": 0.076,
+     "end": 0.551,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Quisiera",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "esto,",
+     "start": 0.551,
+     "end": 0.976,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "esto,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "por",
+     "start": 0.976,
+     "end": 1.176,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "por",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "favor.",
+     "start": 1.176,
+     "end": 1.643,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "favor.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Un vaso de agua, por favor.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "A glass of water, please.",
+    "he": "כוס מים, בבקשה."
+   },
+   "duration": 1.792,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Un",
+     "start": 0.054,
+     "end": 0.279,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Un",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "vaso",
+     "start": 0.279,
+     "end": 0.629,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "vaso",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "de",
+     "start": 0.629,
+     "end": 0.779,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "de",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "agua,",
+     "start": 0.779,
+     "end": 1.154,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "agua,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "por",
+     "start": 1.154,
+     "end": 1.354,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "por",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "favor.",
+     "start": 1.354,
+     "end": 1.792,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "favor.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Está muy rico.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "It's very tasty.",
+    "he": "זה מאוד טעים."
+   },
+   "duration": 1.1306666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Está",
+     "start": 0.076,
+     "end": 0.426,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Está",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "muy",
+     "start": 0.426,
+     "end": 0.676,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "muy",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "rico.",
+     "start": 0.676,
+     "end": 1.131,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "rico.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "La cuenta, por favor.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "The check, please.",
+    "he": "החשבון, בבקשה."
+   },
+   "duration": 1.4293333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "La",
+     "start": 0.076,
+     "end": 0.226,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "La",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "cuenta,",
+     "start": 0.226,
+     "end": 0.751,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "cuenta,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "por",
+     "start": 0.751,
+     "end": 0.951,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "por",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "favor.",
+     "start": 0.951,
+     "end": 1.429,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "favor.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

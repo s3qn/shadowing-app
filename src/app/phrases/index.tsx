@@ -40,8 +40,9 @@ import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
 import { hapticSelection } from '@/lib/haptics';
+import { getGuideStep, setGuideStep, useGuideAnchor, useGuideLock, useGuideStep } from '@/lib/guide';
 import { useDir, useT } from '@/lib/i18n';
-import { getSettingsSync, isGrammarLevel, setGrammarLevel, subscribeSettings, toIslandLanguage } from '@/lib/settings';
+import { getSettingsSync, isGrammarLevel, setGrammarLevel, subscribeSettings, toIslandLanguage, toNativeLanguage } from '@/lib/settings';
 
 const SIDE = 16;
 const MIC_SIZE = 44;
@@ -506,23 +507,33 @@ export default function PhrasesScreen() {
 
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
+  const guideTopics = useGuideStep() === 'topics';
+  useGuideLock(guideTopics); // bl57-intro-round2
+  const guideGrid = useGuideAnchor('topicGrid', guideTopics && (!!topics || !!error));
+  const firstFresh = guideTopics ? topics?.find((x) => !x.added)?.id : undefined;
+  const firstTile = useGuideAnchor('topicFirstTile', !!firstFresh);
   const topicList = topics ? (
+    <View ref={guideGrid.ref} onLayout={guideGrid.onLayout} style={styles.fill}>
     <FlatList
       style={styles.fill}
       contentContainerStyle={[styles.list, hasGrammar && styles.listDeck]}
-      columnWrapperStyle={styles.row}
+      columnWrapperStyle={[styles.row, dir.row]}
       numColumns={2}
       data={topics}
       keyExtractor={(topic) => topic.id}
       renderItem={({ item }) => {
         const title = lang === 'he' ? (item.titleHe ?? item.title) : item.title;
-        const he = lang !== 'he' && !!item.titleHe && item.titleHe !== item.title ? `${item.titleHe} · ` : '';
+        // The Hebrew sub-label is for a learner whose glosses are Hebrew under another UI language.
+        const heGloss = lang !== 'he' && toNativeLanguage(getSettingsSync().understoodLanguage) === 'he';
+        const he = heGloss && !!item.titleHe && item.titleHe !== item.title ? `${item.titleHe} · ` : '';
         const look = TOPIC_LOOK[item.id] ?? FALLBACK_LOOK;
-        return (
-          <PressScale
-            style={styles.tile}
-            accessibilityRole="button"
-            onPress={() => router.push({ pathname: '/phrases/build', params: { topic: item.id } })}>
+        const open = () => {
+          const guided = getGuideStep() === 'topics';
+          if (guided) setGuideStep('size');
+          router.push({ pathname: '/phrases/build', params: { topic: item.id, ...(guided ? { guide: 'size' } : {}) } });
+        };
+        const tile = (
+          <PressScale style={styles.tile} accessibilityRole="button" onPress={open}>
             <TopicTile look={look}>
               <Text style={styles.glyph}>{look.emoji}</Text>
               {item.added ? (
@@ -542,8 +553,16 @@ export default function PhrasesScreen() {
             </TopicTile>
           </PressScale>
         );
+        return item.id === firstFresh ? (
+          <View ref={firstTile.ref} onLayout={firstTile.onLayout} style={styles.tile}>
+            {tile}
+          </View>
+        ) : (
+          tile
+        );
       }}
     />
+    </View>
   ) : null;
 
   return (
@@ -556,15 +575,17 @@ export default function PhrasesScreen() {
           headerTintColor: tide.text,
           headerShadowVisible: false,
           headerRight: () => (
-            <PrismButton
-              shape="round"
-              size={MIC_SIZE}
-              verb="speak"
-              onPress={() => router.push({ pathname: '/record', params: { mode: 'topic' } })}
-              accessibilityRole="button"
-              accessibilityLabel={t('phrases.micLabel')}>
-              <View style={styles.recordDot} />
-            </PrismButton>
+            <View style={{ marginEnd: 12 }}>
+              <PrismButton
+                shape="round"
+                size={MIC_SIZE}
+                verb="speak"
+                onPress={() => router.push({ pathname: '/record', params: { mode: 'topic' } })}
+                accessibilityRole="button"
+                accessibilityLabel={t('phrases.micLabel')}>
+                <View style={styles.recordDot} />
+              </PrismButton>
+            </View>
           ),
         }}
       />
@@ -573,9 +594,12 @@ export default function PhrasesScreen() {
         <Text style={[styles.hint, dir.text]}>{t('phrases.promptHint')}</Text>
       </View>
       {error ? (
-        <Pressable style={styles.center} onPress={retry} accessibilityRole="button">
+        <View style={styles.center}>
           <Text style={[styles.hint, styles.centerText]}>{error}</Text>
-        </Pressable>
+          <View ref={guideGrid.ref} onLayout={guideGrid.onLayout} style={styles.retryBox}>
+            <PrismButton shape="pill" verb="read" height={48} label={t('common.retry')} onPress={retry} />
+          </View>
+        </View>
       ) : !topics ? (
         <View style={styles.center}>
           <CatConstellation size={120} label={t('common.loading')} />
@@ -603,7 +627,10 @@ export default function PhrasesScreen() {
           </View>
           <GestureDetector gesture={deck}>
             <Animated.View style={[styles.deck, { width: pageW + stride, gap: stride - pageW }, deckStyle]}>
-              <View style={{ width: pageW }}>{topicList}</View>
+              {/* The page ends 34 in for the rail; the topic tiles have no rail, so they run on to a SIDE margin like the left. */}
+              <View style={{ width: pageW }}>
+                <View style={{ flex: 1, width: pageW + PAGE_INSET - 2 * SIDE }}>{topicList}</View>
+              </View>
               <View style={{ width: pageW }}>
                 {!shown ? (
                   <View style={styles.center}>
@@ -703,12 +730,13 @@ const styles = StyleSheet.create({
   promptWrap: { paddingHorizontal: SIDE, paddingTop: Spacing.sm, gap: 4 },
   prompt: { fontSize: 20, lineHeight: 26, color: tide.text, fontFamily: fonts.uiMedium, fontWeight: '500' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.lg, paddingHorizontal: SIDE },
+  retryBox: { minWidth: 160 },
   centerText: { textAlign: 'center' },
   hint: { fontSize: 14, lineHeight: 20, color: tide.textDim, fontFamily: fonts.ui },
   list: { paddingHorizontal: SIDE, paddingVertical: Spacing.md, gap: TILE_GAP },
   // The deck's last row scrolls clear of the bottom fade.
   listDeck: { paddingHorizontal: 0, paddingBottom: FADE_H },
-  row: { gap: TILE_GAP },
+  row: { flexDirection: 'row', gap: TILE_GAP },
   // The grammar grid spaces rows by margin, not gap, so every row is exactly ROW_H for getItemLayout.
   grid: { paddingTop: 0, gap: 0 },
   gridRow: { gap: TILE_GAP, marginBottom: TILE_GAP },

@@ -1,9 +1,9 @@
 [
-  {"text": "Hoy hace mucho calor.", "en": "It's very hot today."},
-  {"text": "¿Qué hiciste el fin de semana?", "en": "What did you do over the weekend?"},
-  {"text": "¿Qué te gusta hacer en tu tiempo libre?", "en": "What do you like to do in your free time?"},
-  {"text": "Me encanta el cine.", "en": "I love the movies."},
-  {"text": "¿Has estado muy ocupado últimamente?", "en": "Have you been very busy lately?"},
-  {"text": "¡Qué buena idea!", "en": "What a good idea!"},
-  {"text": "Estoy un poco cansado.", "en": "I'm a little tired."}
+  {"text": "Hoy hace mucho calor.", "en": "It's very hot today.", "he": "חם מאוד היום."},
+  {"text": "¿Qué hiciste el fin de semana?", "en": "What did you do over the weekend?", "he": "מה עשית בסוף השבוע?"},
+  {"text": "¿Qué te gusta hacer en tu tiempo libre?", "en": "What do you like to do in your free time?", "he": "מה אתה אוהב לעשות בזמן הפנוי?"},
+  {"text": "Me encanta el cine.", "en": "I love the movies.", "he": "אני אוהב קולנוע."},
+  {"text": "¿Has estado muy ocupado últimamente?", "en": "Have you been very busy lately?", "he": "היית עסוק לאחרונה?"},
+  {"text": "¡Qué buena idea!", "en": "What a good idea!", "he": "איזה רעיון טוב!"},
+  {"text": "Estoy un poco cansado.", "en": "I'm a little tired.", "he": "אני קצת עייף."}
 ]

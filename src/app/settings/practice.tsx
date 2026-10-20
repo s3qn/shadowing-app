@@ -64,7 +64,7 @@ export default function PracticeSettingsScreen() {
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       <ScrollView contentContainerStyle={styles.list}>
         {isJapanese ? (
-          <SettingsSection title={t('settings.practice.reading')} footnote={t('settings.playback.defaultFootnote')}>
+          <SettingsSection title={t('settings.practice.reading')} footnote={t('settings.practice.readingFootnote')}>
             <View style={styles.segBox}>
               <Segmented
                 options={readingChoices}
@@ -75,7 +75,7 @@ export default function PracticeSettingsScreen() {
           </SettingsSection>
         ) : null}
 
-        <SettingsSection title={t('settings.practice.defaults')} footnote={t('settings.playback.defaultFootnote')}>
+        <SettingsSection title={t('settings.practice.defaults')} footnote={t('settings.practice.defaultsFootnote')}>
           {isJapanese ? (
             <SettingsRow
               label={t('settings.practice.pitchMarks')}

@@ -1,9 +1,9 @@
 [
-  {"text": "Nice to meet you."},
-  {"text": "My name is Dana."},
-  {"text": "I'm from Israel."},
-  {"text": "I'm learning English."},
-  {"text": "I only speak a little so far."},
-  {"text": "I live in Tel Aviv."},
-  {"text": "Pleased to meet you."}
+  {"text": "Nice to meet you.", "he": "נעים מאוד."},
+  {"text": "My name is Dana.", "he": "קוראים לי דנה."},
+  {"text": "I'm from Israel.", "he": "אני מישראל."},
+  {"text": "I'm learning English.", "he": "אני לומדת אנגלית."},
+  {"text": "I only speak a little so far.", "he": "אני עדיין מדברת רק קצת."},
+  {"text": "I live in Tel Aviv.", "he": "אני גרה בתל אביב."},
+  {"text": "Pleased to meet you.", "he": "נעים מאוד להכיר."}
 ]

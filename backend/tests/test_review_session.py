@@ -29,6 +29,7 @@ def _init_db():
         conn.execute("DELETE FROM review_session_lines")
         conn.execute("DELETE FROM review_sessions")
         conn.execute("DELETE FROM take_scores WHERE device=?", (DEV,))
+        conn.execute("DELETE FROM known_lines WHERE device=?", (DEV,))
         conn.execute("DELETE FROM islands WHERE device=?", (DEV,))
     with schedule.connect() as conn:
         conn.execute("DELETE FROM schedule_state")
@@ -269,6 +270,34 @@ def test_available_and_projects_route_list_every_saved_project():
     with pytest.raises(HTTPException) as e:
         asyncio.run(main.review_session_projects(authorization="Bearer nope", x_shadow_device=DEV))
     assert e.value.status_code in (401, 403)
+
+
+def test_known_lines_leave_plan_edited_and_available_and_an_all_known_island_drops():
+    pod = _island("podcast", 4, "Pod")
+    _cards(pod, 4)
+    voice = _island("voice", 6, "Voice")
+    store.mark_known(DEV, pod, 1)
+    store.mark_known(DEV, voice, 0)
+    store.mark_known(DEV, voice, 5)
+    assert {x["island_id"]: x["total"] for x in rs.available(DEV)} == {pod: 3, voice: 4}
+    by = {x["island_id"]: x for x in rs.plan(DEV, 30)["projects"]}
+    assert (by[pod]["picked"], by[pod]["total"]) == ([0, 2, 3], 3)
+    assert (by[voice]["picked"], by[voice]["total"]) == ([1, 2, 3, 4], 4)
+    edited = rs.plan(DEV, 30, edit=[(voice, 50), (pod, 50)])
+    assert [x["picked"] for x in edited["projects"]] == [[1, 2, 3, 4], [0, 2, 3]]
+    assert edited["size"] == 7
+    # Every line known: the island is gone from all three.
+    for i in (0, 2, 3):
+        store.mark_known(DEV, pod, i)
+    for i in range(1, 5):
+        store.mark_known(DEV, voice, i)
+    assert rs.available(DEV) == []
+    assert rs.plan(DEV, 10)["projects"] == []
+    assert rs.plan(DEV, 10, edit=[(pod, 5), (voice, 5)])["projects"] == []
+    # Unmarking one line brings the island back with just that line.
+    store.unmark_known(DEV, voice, 3)
+    assert [(x["island_id"], x["total"]) for x in rs.available(DEV)] == [(voice, 1)]
+    assert rs.plan(DEV, 10)["projects"][0]["picked"] == [3]
 
 
 def test_language_filter_keeps_only_the_learning_language():

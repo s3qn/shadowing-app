@@ -40,6 +40,12 @@
     "plugins": [
       "expo-router",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Echo Tail attaches the screenshots you pick to your bug report."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#1E1B3A",

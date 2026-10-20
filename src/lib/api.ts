@@ -10,6 +10,7 @@
  * throws "Unsupported FormDataPart implementation" if you try it.
  */
 
+import { Platform } from 'react-native';
 import { fetch as expoFetchRaw } from 'expo/fetch';
 import { Directory, File, Paths } from 'expo-file-system';
 
@@ -17,6 +18,7 @@ import type { ArtSpec, Slot } from '@/constants/cosmetics';
 import { accessTokenSync } from '@/lib/auth';
 import { deviceIdSync } from '@/lib/device';
 import { t } from '@/lib/i18n';
+import type { StarterLevel } from '@/lib/settings';
 import { en, type Key } from '@/locales/en';
 
 /** A request that never reached the server (offline, DNS, TLS) rejects with
@@ -95,7 +97,7 @@ export type Speaker = { uuid: string; name: string; policy: string; styles: Spea
 export type NativeLanguage = 'he' | 'en';
 
 /** How an island was made. */ // youtube-shadowing
-export type IslandSource = 'voice' | 'phrases' | 'import' | 'podcast' | 'youtube' | 'grammar';
+export type IslandSource = 'voice' | 'phrases' | 'import' | 'podcast' | 'youtube' | 'grammar' | 'starter';
 
 export type IslandSummary = {
   id: string;
@@ -139,6 +141,8 @@ export type Island = IslandSummary & {
   source?: IslandSource;
   /** The grammar point id on a grammar island. */
   source_name?: string;
+  /** bl58-easy-for-me: line idxs marked Easy for me. Absent in a copy cached before this build. */
+  known?: number[];
 };
 
 /** Why an island failed, in the reader's language. Falls back to the English
@@ -188,11 +192,10 @@ async function json<T>(res: Response): Promise<T> {
       throw new Error(t('api.unreachable'));
     }
     if (res.status === 429) {
-      throw new Error(typeof detail === 'string' && detail ? detail : t('api.daily_limit_any'));
+      throw new Error(t('api.daily_limit_any'));
     }
-    if (typeof detail === 'string' && detail) throw new Error(detail);
-    const looksLikeHtml = body.trimStart().startsWith('<');
-    throw new Error(looksLikeHtml ? t('api.requestFailed', { status: res.status }) : `${res.status} ${body.slice(0, 160)}`);
+    // A plain-string detail is English developer text: never shown, only the status.
+    throw new Error(t('api.requestFailed', { status: res.status }));
   }
   return (await res.json()) as T;
 }
@@ -492,6 +495,20 @@ export async function postPracticeEvent(islandId: string, seconds: number): Prom
   return json<{ award?: { xp: number } }>(res);
 }
 
+// --- bl58-easy-for-me ---
+/** The island's known idxs after a mark, the device's total, and the XP paid (null when the line was never taken whole, or the mark was not new). */
+export type KnownReply = { known: number[]; total: number; award?: { xp: number } | null };
+
+export async function markKnown(islandId: string, idx: number): Promise<KnownReply> {
+  const res = await expoFetch(`${BASE}/islands/${islandId}/lines/${idx}/known`, { method: 'POST', headers: headers() });
+  return json<KnownReply>(res);
+}
+
+export async function unmarkKnown(islandId: string, idx: number): Promise<KnownReply> {
+  const res = await expoFetch(`${BASE}/islands/${islandId}/lines/${idx}/known`, { method: 'DELETE', headers: headers() });
+  return json<KnownReply>(res);
+}
+
 export type DueIsland = { island_id: string; level: number; due_on: string; last_practiced_on: string };
 
 export async function getDueToday(): Promise<DueIsland[]> {
@@ -593,15 +610,33 @@ export async function explainChat(body: {
   );
 }
 
-/** Posts a feature idea from the Settings feedback screen. */
-export async function suggestFeature(text: string): Promise<void> {
-  await json(
-    await fetch(`${BASE}/suggestions`, {
-      method: 'POST',
-      headers: { ...headers(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    }),
-  );
+export type FeedbackPayload = { kind: 'bug' | 'suggestion'; text: string; meta: string; voice?: string; images: string[] };
+
+/**
+ * Posts one tester report. Resolves with the HTTP status, or 0 when the
+ * request never reached the server (the caller queues it). Web has no `File`,
+ * so it fetches each local uri as a blob.
+ */
+export async function sendFeedback(p: FeedbackPayload): Promise<number> {
+  try {
+    const form = new FormData();
+    form.append('kind', p.kind);
+    form.append('text', p.text);
+    form.append('meta', p.meta);
+    const web = Platform.OS === 'web';
+    const attach = async (field: string, uri: string, name: string) => {
+      if (web) form.append(field, await (await globalThis.fetch(uri)).blob(), name);
+      else form.append(field, new File(uri), name);
+    };
+    if (p.voice) await attach('voice', p.voice, web ? 'voice.webm' : 'voice.m4a');
+    for (let i = 0; i < p.images.length; i++) await attach('images', p.images[i], `img-${i + 1}`);
+    const res = web
+      ? await fetch(`${BASE}/feedback`, { method: 'POST', headers: headers(), body: form })
+      : await expoFetch(`${BASE}/feedback`, { method: 'POST', headers: headers(), body: form });
+    return res.status;
+  } catch {
+    return 0;
+  }
 }
 
 /** One word rendered on its own in the given voice. */
@@ -737,7 +772,7 @@ export type TakeClean = {
  * reference matches it. `lagMs` is the phone's Lag setting and `lineStartMs`
  * is when the line's first audio played, measured from the start of the
  * recording; both feed the take's timing score and are ignored for a
- * calibration upload.
+ * calibration upload. `guide` marks the first-run guide's shadow take.
  */
 export async function uploadTake(
   islandId: string,
@@ -748,6 +783,7 @@ export async function uploadTake(
   span: AudioSpan | null = null,
   lagMs = 0,
   lineStartMs: number | null = null,
+  guide = false,
 ): Promise<TakeClean> {
   const form = new FormData();
   form.append('take', new File(uri), 'take.wav');
@@ -761,6 +797,7 @@ export async function uploadTake(
   if (lineStartMs !== null) {
     form.append('line_start', String(Math.round(lineStartMs)));
   }
+  if (guide) form.append('guide', '1');
 
   return json<TakeClean>(
     await expoFetch(`${BASE}/islands/${islandId}/lines/${idx}/take`, {
@@ -824,15 +861,30 @@ export async function importPhrases(
   speaker: number,
   language: Language = 'ja',
   native: NativeLanguage = 'en',
-): Promise<{ id: string }> {
+): Promise<{ id: string; status?: string }> {
   const form = new FormData();
   form.append('topic', topic);
   form.append('speaker', String(speaker));
   form.append('language', language);
   form.append('native', native);
 
-  return json<{ id: string }>(
+  return json<{ id: string; status?: string }>(
     await expoFetch(`${BASE}/phrases/import`, { method: 'POST', headers: headers(), body: form }),
+  );
+}
+
+/** The first-run guide's pre-baked 3-line island. A repeat call returns the same one. */
+export async function startStarter(
+  language: Language,
+  native: NativeLanguage,
+  level: StarterLevel = 'new',
+): Promise<{ id: string; status?: string }> {
+  const form = new FormData();
+  form.append('language', language);
+  form.append('native', native);
+  form.append('level', level);
+  return json<{ id: string; status?: string }>(
+    await expoFetch(`${BASE}/starter`, { method: 'POST', headers: headers(), body: form }),
   );
 }
 
@@ -1011,6 +1063,8 @@ export type Progress = {
   owned: string[];
   equipped: Record<Slot, string | null>;
   catalog_version: number;
+  /** bl58-easy-for-me: lines marked Easy for me across every island. */
+  known_lines?: number;
 };
 
 export type CosmeticItem = {
@@ -1103,6 +1157,13 @@ export async function finishReviewSession(body: {
 
 export async function getCosmeticsCatalog(ui: 'en' | 'he'): Promise<CosmeticsCatalog> {
   return json<CosmeticsCatalog>(await fetch(`${BASE}/cosmetics/catalog?ui=${ui}`, { headers: headers() }));
+}
+
+/** Grants the starter gift (face.blush_pink) and returns the fresh progress. */
+export async function finishStarter(): Promise<{ progress: Progress; item: string }> {
+  return json<{ progress: Progress; item: string }>(
+    await fetch(`${BASE}/starter/finish`, { method: 'POST', headers: headers() }),
+  );
 }
 
 export async function buyCosmetic(itemId: string): Promise<Progress> {

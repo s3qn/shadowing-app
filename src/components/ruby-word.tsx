@@ -1,5 +1,5 @@
 import { memo, type ReactNode, useMemo, useState } from 'react';
-import { type LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
+import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
 import { type Highlight, useWordInk, wordIntensity } from '@/components/word-highlight';
@@ -48,6 +48,12 @@ type Props = {
   /** Multiplies every font size and line height of the word (the active line
    * shrinks to fit two rows, see `fitScale`). Defaults to 1. */
   scale?: number;
+  /** The furigana's resting colour. Defaults to the dim ink. */
+  rubyColor?: string;
+  /** The colour a lit word and its furigana fade to. Defaults to the Japanese accent. */
+  litColor?: string;
+  /** The furigana's font weight. Defaults to the style's own. */
+  rubyWeight?: '600' | '700';
 };
 
 /**
@@ -84,6 +90,9 @@ export const RubyWord = memo(function RubyWord({
   concealed = false,
   big = false,
   scale = 1,
+  rubyColor,
+  litColor,
+  rubyWeight,
 }: Props) {
   const sc = Number.isFinite(scale) && scale > 0 ? scale : 1;
   const baseSize = useMemo(
@@ -91,7 +100,7 @@ export const RubyWord = memo(function RubyWord({
     [big, sc],
   );
   const rtSize = useMemo(
-    () => (big ? scaled(styles.rtBig, sc) : sc === 1 ? null : scaled({ fontSize: 10, lineHeight: 13 }, sc)),
+    () => (big ? scaled(styles.rtBig, sc) : sc === 1 ? null : scaled({ fontSize: 10, lineHeight: RT_LINE }, sc)),
     [big, sc],
   );
   const romajiSize = useMemo(() => (sc === 1 ? null : scaled({ fontSize: 9, lineHeight: 11 }, sc)), [sc]);
@@ -111,8 +120,8 @@ export const RubyWord = memo(function RubyWord({
   const inGrammar = grammar && !concealed;
   // The lilac is the base the karaoke ink fades from and back to, so the mark
   // survives the highlight passing over it.
-  const baseInk = useWordInk(lit, index, inGrammar ? GRAMMAR_LILAC : dimmed ? tide.textDim : tide.text);
-  const rubyInk = useWordInk(lit, index, tide.textDim);
+  const baseInk = useWordInk(lit, index, inGrammar ? GRAMMAR_LILAC : dimmed ? tide.textDim : tide.text, litColor);
+  const rubyInk = useWordInk(lit, index, rubyColor ?? tide.textDim, litColor);
   // A plain word that wraps onto a second row: the moras cannot be placed by
   // character any more, so its strip stays empty.
   const [wrapped, setWrapped] = useState(false);
@@ -175,14 +184,17 @@ export const RubyWord = memo(function RubyWord({
                 {cells ? (
                   <PitchStrip cells={cells} pitch={pitch!.slice(from, from + moraCells(cells))} concealed={concealed} />
                 ) : null}
-                <Animated.Text style={[styles.rt, rtSize, rubyInk]}>{seg.rt}</Animated.Text>
+                <Animated.Text style={[styles.rt, rtSize, rubyInk, rubyWeight ? { fontWeight: rubyWeight } : null]}>{seg.rt}</Animated.Text>
                 <Animated.Text style={[styles.base, baseSize, baseInk, ink]}>{seg.text}</Animated.Text>
               </View>
             );
           })
         ) : (
           <>
-            {showRuby ? <Text style={[styles.rt, rtSize]}>{''}</Text> : null}
+            {/* The empty ruby row as a sized box: an empty Text measures 0 tall
+                on some platforms, which lifted a plain word (か。) above its
+                neighbours' baseline. */}
+            {showRuby ? <View style={{ height: rtSize?.lineHeight ?? RT_LINE }} /> : null}
             <Animated.Text
               style={[styles.base, baseSize, baseInk, ink]}
               onLayout={
@@ -213,6 +225,7 @@ export const RubyWord = memo(function RubyWord({
 /** Height of the pitch strip over a word: the only space pitch adds. */
 const STRIP = 6;
 const BASE_LINE = 32;
+const RT_LINE = 13;
 
 /** A font size and line height pair, each multiplied by `k`. */
 function scaled(v: { fontSize?: number; lineHeight?: number }, k: number) {
@@ -268,7 +281,7 @@ const styles = StyleSheet.create({
   rubyRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end' },
   plain: { flexDirection: 'column', justifyContent: 'flex-end' },
   segment: { alignItems: 'center', flexShrink: 1, maxWidth: '100%' },
-  rt: { fontFamily: fonts.serifJp, fontSize: 10, lineHeight: 13, includeFontPadding: false },
+  rt: { fontFamily: fonts.serifJp, fontSize: 10, lineHeight: RT_LINE, includeFontPadding: false },
   base: { fontFamily: fonts.serifJp, fontSize: 22, lineHeight: BASE_LINE, includeFontPadding: false },
   grammar: { fontWeight: '600' },
   posBar: { height: 2, borderRadius: 1, marginTop: 2, alignSelf: 'stretch' },

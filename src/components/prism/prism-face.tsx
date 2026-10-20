@@ -58,6 +58,8 @@ export type PrismFaceProps = {
   dimT?: SharedValue<number>;
   /** Drops the blur and the drop shadow (the glow stays): for a face already inside a GlassPanel. */
   flat?: boolean;
+  /** A colour laid over the glass fill, under the sheen: the welcome pills' verb tints. */
+  tint?: string;
   /** Tile: under the icon. Pill: after the icon. Round ignores it. Turns the verb colour (white on a pill) when on. */
   label?: string;
   /** Extra text style for the label, e.g. a Japanese font. */
@@ -82,7 +84,7 @@ function safeT(v: number): number {
  * rim that strengthens when `onT` reaches 1. Carries no press behaviour;
  * `PrismButton` adds the drop and the ripples on top of this.
  */
-export function PrismFace({ shape, size, width, height, verb, onT, dimT, flat, label, labelStyle, value, style, children }: PrismFaceProps) {
+export function PrismFace({ shape, size, width, height, verb, onT, dimT, flat, tint, label, labelStyle, value, style, children }: PrismFaceProps) {
   const colours = verbTokens[verb];
   const dir = useDir();
   // A face used outside PrismButton (the lab's static discs) never passes
@@ -104,8 +106,10 @@ export function PrismFace({ shape, size, width, height, verb, onT, dimT, flat, l
     setCanvasSize({ width: lw, height: lh });
   };
 
+  // Over a solid tint the lit sheen reads as colour bands, so a tinted face keeps the resting sheen (the mock's 10 %).
+  const sheenOn = tint ? prism.sheen.opacity : prism.sheen.opacityOn;
   const sheenStyle = useAnimatedStyle(() => ({
-    opacity: (prism.sheen.opacity + (prism.sheen.opacityOn - prism.sheen.opacity) * safeT(onT.value)) * (1 - safeT(dim.value)),
+    opacity: (prism.sheen.opacity + (sheenOn - prism.sheen.opacity) * safeT(onT.value)) * (1 - safeT(dim.value)),
   }));
   const fringeOnStyle = useAnimatedStyle(() => ({ opacity: safeT(onT.value) }));
   const glowStyle = useAnimatedStyle(() => ({ opacity: safeT(onT.value) * (1 - safeT(dim.value)) }));
@@ -196,6 +200,7 @@ export function PrismFace({ shape, size, width, height, verb, onT, dimT, flat, l
           <BlurView style={StyleSheet.absoluteFill} intensity={prism.blur.intensity} tint={prism.blur.tint} />
         ) : null}
         <View style={[StyleSheet.absoluteFill, { backgroundColor: prism.fill }]} />
+        {tint ? <View style={[StyleSheet.absoluteFill, { backgroundColor: tint }]} /> : null}
         {hasCanvas ? (
           <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, sheenStyle]}>
             {sheen}

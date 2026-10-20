@@ -13,6 +13,7 @@ import type { Href } from 'expo-router';
 import { AppState } from 'react-native';
 
 import * as api from '@/lib/api';
+import { getGuideStep, guideSessionEnded } from '@/lib/guide';
 import { setSessionActive, type RecapLine } from '@/lib/level-up-store';
 import { celebrateOffline, celebrateReview } from '@/lib/progression';
 import { latestTakeScore, resetSessionScores, sessionScoreAverage } from '@/lib/take-scores';
@@ -129,6 +130,9 @@ export function finishSession(completed: boolean): void {
   if (!s) return;
   session = null;
   setSessionActive(false);
+  // The guide's practice ends on its own level-up (moment 6), not the summary.
+  const guided = getGuideStep() === 'practice';
+  guideSessionEnded();
   if (s.lines.length === 0 || !s.sessionId) return;
   const avg = sessionScoreAverage();
   const seconds = activeSeconds(s.startedAt);
@@ -139,8 +143,12 @@ export function finishSession(completed: boolean): void {
   });
   api
     .finishReviewSession({ session_id: s.sessionId, sentences: s.lines.length, seconds, ...(avg === null ? {} : { avg_score: avg }), lines, completed })
-    .then((res) => celebrateReview(res, s.lines.length, avg, { lines: recap, seconds }))
-    .catch(() => celebrateOffline(s.lines.length, avg, { lines: recap, seconds }));
+    .then((res) => {
+      if (!guided) celebrateReview(res, s.lines.length, avg, { lines: recap, seconds });
+    })
+    .catch(() => {
+      if (!guided) celebrateOffline(s.lines.length, avg, { lines: recap, seconds });
+    });
 }
 
 /** Ends the session. With an id, ends only when that project is the current one (the unmount guard). Lines done are reported as an unfinished session. */

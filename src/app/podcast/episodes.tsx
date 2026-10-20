@@ -6,6 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
 import { PressScale } from '@/components/press-scale';
+import { PrismButton } from '@/components/prism';
+import { confirmSheet } from '@/lib/confirm-sheet';
 
 import { fonts } from '@/constants/fonts';
 import { useDir, useT } from '@/lib/i18n';
@@ -42,6 +44,8 @@ export default function PodcastEpisodesScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const [attempt, setAttempt] = useState(0);
+
   useEffect(() => {
     if (!feedUrl) return;
     let cancelled = false;
@@ -64,9 +68,18 @@ export default function PodcastEpisodesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [feedUrl, title, t]);
+  }, [feedUrl, title, t, attempt]);
 
-  function buildFrom(episode: api.PodcastEpisode) {
+  async function buildFrom(episode: api.PodcastEpisode) {
+    const pick = await confirmSheet({
+      title: t('home.episodeConfirmTitle'),
+      message: t('home.episodeConfirmBody'),
+      actions: [
+        { label: t('common.cancel'), verb: 'tools' },
+        { label: t('home.episodeConfirmAction'), verb: 'listen' },
+      ],
+    });
+    if (pick !== 1) return;
     router.push({
       pathname: '/podcast/build',
       params: { audioUrl: episode.audio_url, title: episode.title || feedTitle || t('home.episodeFallbackTitle') },
@@ -92,6 +105,7 @@ export default function PodcastEpisodesScreen() {
       ) : error ? (
         <View style={styles.center}>
           <Text style={[styles.hint, styles.centerText]}>{error}</Text>
+          <PrismButton shape="pill" verb="tools" label={t('common.retry')} accessibilityLabel={t('common.retry')} onPress={() => setAttempt((n) => n + 1)} />
         </View>
       ) : (
         <FlatList
@@ -104,7 +118,7 @@ export default function PodcastEpisodesScreen() {
             const pub = published(item.published, locale);
             const meta = [dur, pub].filter(Boolean).join(' · ');
             return (
-              <PressScale onPress={() => buildFrom(item)} accessibilityRole="button" style={styles.episode}>
+              <PressScale onPress={() => void buildFrom(item)} accessibilityRole="button" style={styles.episode}>
                 <Text style={[styles.episodeTitle, dir.content]} numberOfLines={2}>
                   {item.title || t('home.untitledEpisode')}
                 </Text>

@@ -1,5 +1,7 @@
 import { cancelAnimation, Easing, makeMutable, runOnUI, withDelay, withTiming } from 'react-native-reanimated';
 
+import { LOADER_OUT_MS, loaderShown } from '@/lib/loading-overlay';
+
 /** Each piece of the player's content comes in this long, rising this far. */
 export const PIECE_MS = 220;
 export const PIECE_RISE = 8;
@@ -47,20 +49,22 @@ function startReveal(staged: boolean) {
   'worklet';
   if (revealStarted.value === 1 || revealHeld.value === 1 || revealLinesReady.value !== 1) return;
   revealStarted.value = 1;
+  // The root loader still drawn: its fade-out runs first, so the line never shows under it.
+  const wait = loaderShown.value > 0.01 ? LOADER_OUT_MS : 0;
   if (staged) {
     revealRise.value = 1;
     setPieces(0);
-    revealCard.value = withDelay(DELAY_CARD, withTiming(1, { duration: PIECE_MS, easing: EASE_OUT }));
-    revealRows.value = withDelay(DELAY_ROWS, withTiming(1, { duration: PIECE_MS, easing: EASE_OUT }));
-    revealToolbar.value = withDelay(DELAY_TOOLBAR, withTiming(1, { duration: PIECE_MS, easing: EASE_OUT }));
-    revealDock.value = withDelay(DELAY_DOCK, withTiming(1, { duration: PIECE_MS, easing: EASE_OUT }));
+    revealCard.value = withDelay(wait + DELAY_CARD, withTiming(1, { duration: PIECE_MS, easing: EASE_OUT }));
+    revealRows.value = withDelay(wait + DELAY_ROWS, withTiming(1, { duration: PIECE_MS, easing: EASE_OUT }));
+    revealToolbar.value = withDelay(wait + DELAY_TOOLBAR, withTiming(1, { duration: PIECE_MS, easing: EASE_OUT }));
+    revealDock.value = withDelay(wait + DELAY_DOCK, withTiming(1, { duration: PIECE_MS, easing: EASE_OUT }));
     return;
   }
   revealRise.value = 0;
-  revealCard.value = withTiming(1, { duration: PLAIN_MS });
-  revealRows.value = withTiming(1, { duration: PLAIN_MS });
-  revealToolbar.value = withTiming(1, { duration: PLAIN_MS });
-  revealDock.value = withTiming(1, { duration: PLAIN_MS });
+  revealCard.value = withDelay(wait, withTiming(1, { duration: PLAIN_MS }));
+  revealRows.value = withDelay(wait, withTiming(1, { duration: PLAIN_MS }));
+  revealToolbar.value = withDelay(wait, withTiming(1, { duration: PLAIN_MS }));
+  revealDock.value = withDelay(wait, withTiming(1, { duration: PLAIN_MS }));
 }
 
 function armWorklet() {

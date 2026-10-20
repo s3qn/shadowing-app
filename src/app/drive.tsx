@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
@@ -20,8 +20,12 @@ import { Radius, Spacing, tide, verb } from '@/constants/theme';
 import { useDrive, type DrivePhase } from '@/hooks/use-drive';
 import { hapticSelection } from '@/lib/haptics';
 import { useDir, useT } from '@/lib/i18n';
-import { requestLoader } from '@/lib/loading-overlay';
+import { LOADER_OUT_MS, loaderShown, requestLoader } from '@/lib/loading-overlay';
 import { useSkyStyle } from '@/lib/sky';
+
+/** The stack's fade into this screen (`animationDuration` of `drive` in app/_layout.tsx). */
+const SCREEN_FADE_MS = 250;
+const FG_IN_MS = 180;
 
 function labelColour(phase: DrivePhase): string {
   if (phase === 'listen') return verb.listen.c1;
@@ -46,9 +50,22 @@ export default function DriveScreen() {
   const d = useDrive({ id, line: lineNo !== undefined && Number.isFinite(lineNo) ? lineNo : undefined });
   const { phase, island, line } = d;
 
+  // Home stays under this screen while it fades in: nothing of its own (the loader included)
+  // shows until the fade is done, so the two screens' text never mix.
+  const [landed, setLanded] = useState(reduced);
   useEffect(() => {
-    requestLoader(phase === 'loading');
-  }, [phase]);
+    if (landed) return;
+    const id = setTimeout(() => setLanded(true), SCREEN_FADE_MS);
+    return () => clearTimeout(id);
+  }, [landed]);
+  const fg = useSharedValue(landed ? 1 : 0);
+  useEffect(() => {
+    if (landed) fg.value = reduced ? 1 : withTiming(1, { duration: FG_IN_MS, easing: Easing.out(Easing.quad) });
+  }, [landed, reduced, fg]);
+  const fgStyle = useAnimatedStyle(() => ({ opacity: Number.isFinite(fg.value) ? fg.value : 1 }));
+  useEffect(() => {
+    requestLoader(landed && phase === 'loading');
+  }, [landed, phase]);
   useEffect(() => () => requestLoader(false), []);
 
   const paused = phase === 'paused';
@@ -63,7 +80,10 @@ export default function DriveScreen() {
   const colour = labelColour(phase);
   const labelKey =
     phase === 'listen' ? 'drive.listen' : phase === 'repeat' ? 'drive.repeat' : phase === 'offline' ? 'drive.offline' : 'drive.paused';
-  const showText = line !== null && phase !== 'empty' && phase !== 'offline';
+  // The line waits out the loading phase (its audio is still on the way): the loader stands in for it.
+  const showText = line !== null && phase !== 'empty' && phase !== 'offline' && phase !== 'loading';
+  // Arriving while the loader is still drawn, the line waits for its fade-out instead of showing under it.
+  const afterLoader = phase !== 'loading' && loaderShown.value > 0.01 ? LOADER_OUT_MS : 0;
 
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
@@ -71,90 +91,96 @@ export default function DriveScreen() {
     <View style={[styles.root, { backgroundColor: sky.top }]}>
       <View style={[StyleSheet.absoluteFill, sky.from]} />
       <Animated.View style={[StyleSheet.absoluteFill, sky.to, sky.fadeStyle]} />
-      <View style={[styles.top, { paddingTop: insets.top + Spacing.sm }, dir.row]}>
-        <PrismButton
-          shape="round"
-          verb="tools"
-          size={36}
-          flat
-          onPress={close}
-          accessibilityLabel={t('drive.close')}
-          containerStyle={styles.close}>
-          <SymbolView name={{ ios: 'xmark', android: 'close' }} size={16} weight="semibold" tintColor={verb.tools.c1} />
-        </PrismButton>
-        <View style={styles.title}>
-          {island ? (
-            <PlayerTitle title={island.title} lineIndex={line?.idx ?? 0} lineCount={island.lineCount} />
-          ) : (
-            <Text style={styles.titleOnly}>{t('drive.title')}</Text>
-          )}
+      <Animated.View style={[styles.root, fgStyle]}>
+        <View style={[styles.top, { paddingTop: insets.top + Spacing.sm }, dir.row]}>
+          <PrismButton
+            shape="round"
+            verb="tools"
+            size={36}
+            flat
+            onPress={close}
+            accessibilityLabel={t('drive.close')}
+            containerStyle={styles.close}>
+            <SymbolView name={{ ios: 'xmark', android: 'close' }} size={16} weight="semibold" tintColor={verb.tools.c1} />
+          </PrismButton>
+          <View style={styles.title}>
+            {island ? (
+              <PlayerTitle title={island.title} lineIndex={line?.idx ?? 0} lineCount={island.lineCount} />
+            ) : (
+              <Text style={styles.titleOnly}>{t('drive.title')}</Text>
+            )}
+          </View>
+          <View style={styles.close} />
         </View>
-        <View style={styles.close} />
-      </View>
 
-      <Pressable
-        style={styles.tap}
-        accessibilityRole="button"
-        accessibilityLabel={paused ? t('drive.tapToReplay') : t('drive.pauseAction')}
-        disabled={phase === 'loading' || phase === 'empty'}
-        onPress={() => {
-          void hapticSelection();
-          d.toggle();
-        }}>
-        {phase === 'empty' ? (
-          <Text style={styles.empty}>{t('drive.empty')}</Text>
-        ) : (
-          <Animated.View style={[styles.block, blockStyle]}>
-            {phase !== 'loading' ? (
-              <Animated.View
-                key={labelKey}
-                entering={reduced ? undefined : FadeIn.duration(180).easing(Easing.linear)}
-                exiting={reduced ? undefined : FadeOut.duration(180).easing(Easing.linear)}>
-                <Text style={[styles.label, { color: colour }]}>{t(labelKey)}</Text>
-              </Animated.View>
-            ) : null}
-            {showText ? (
-              <>
-                <Text style={styles.ja} adjustsFontSizeToFit numberOfLines={4}>
-                  {line.ja}
-                </Text>
-                {line.en ? (
-                  <Text style={styles.en} numberOfLines={3}>
-                    {line.en}
-                  </Text>
-                ) : null}
-                <View style={styles.track}>
-                  <Animated.View style={[styles.fill, { backgroundColor: colour }, fillStyle]} />
-                </View>
-                {paused ? <Text style={styles.hint}>{t('drive.tapToReplay')}</Text> : null}
-              </>
-            ) : null}
-          </Animated.View>
-        )}
-      </Pressable>
+        <Pressable
+          style={styles.tap}
+          accessibilityRole="button"
+          accessibilityLabel={paused ? t('drive.tapToReplay') : t('drive.pauseAction')}
+          disabled={phase === 'loading' || phase === 'empty'}
+          onPress={() => {
+            void hapticSelection();
+            d.toggle();
+          }}>
+          {phase === 'empty' ? (
+            <Text style={styles.empty}>{t('drive.empty')}</Text>
+          ) : (
+            <Animated.View style={[styles.block, blockStyle]}>
+              {phase !== 'loading' ? (
+                <Animated.View
+                  entering={reduced ? undefined : FadeIn.delay(afterLoader).duration(FG_IN_MS).easing(Easing.out(Easing.quad))}
+                  style={styles.block}>
+                  <Animated.View
+                    key={labelKey}
+                    entering={reduced ? undefined : FadeIn.duration(180).easing(Easing.linear)}
+                    exiting={reduced ? undefined : FadeOut.duration(180).easing(Easing.linear)}>
+                    <Text style={[styles.label, { color: colour }]}>{t(labelKey)}</Text>
+                  </Animated.View>
+                  {showText ? (
+                    <>
+                      <Text style={styles.ja} adjustsFontSizeToFit numberOfLines={4}>
+                        {line.ja}
+                      </Text>
+                      {line.en ? (
+                        <Text style={styles.en} numberOfLines={3}>
+                          {line.en}
+                        </Text>
+                      ) : null}
+                      <View style={styles.track}>
+                        <Animated.View style={[styles.fill, { backgroundColor: colour }, fillStyle]} />
+                      </View>
+                      {paused ? <Text style={styles.hint}>{t('drive.tapToReplay')}</Text> : null}
+                    </>
+                  ) : null}
+                </Animated.View>
+              ) : null}
+            </Animated.View>
+          )}
+        </Pressable>
 
-      <View style={[styles.bottom, { paddingBottom: insets.bottom + Spacing.lg }, dir.row]}>
-        <PrismButton
-          shape="round"
-          verb="tools"
-          size={56}
-          flat
-          onPress={d.previous}
-          disabled={phase === 'empty' || phase === 'loading'}
-          accessibilityLabel={t('drive.previousLine')}>
-          <SymbolView name={{ ios: 'backward.end.fill', android: 'skip_previous' }} size={22} weight="regular" tintColor={verb.tools.c1} />
-        </PrismButton>
-        <PrismButton
-          shape="round"
-          verb="tools"
-          size={56}
-          flat
-          onPress={d.next}
-          disabled={phase === 'empty' || phase === 'loading'}
-          accessibilityLabel={t('drive.nextLine')}>
-          <SymbolView name={{ ios: 'forward.end.fill', android: 'skip_next' }} size={22} weight="regular" tintColor={verb.tools.c1} />
-        </PrismButton>
-      </View>
+        <View style={[styles.bottom, { paddingBottom: insets.bottom + Spacing.lg }, dir.row]}>
+          <PrismButton
+            shape="round"
+            verb="tools"
+            size={56}
+            flat
+            onPress={d.previous}
+            disabled={phase === 'empty' || phase === 'loading'}
+            accessibilityLabel={t('drive.previousLine')}>
+            <SymbolView name={{ ios: 'backward.end.fill', android: 'skip_previous' }} size={22} weight="regular" tintColor={verb.tools.c1} />
+          </PrismButton>
+          <PrismButton
+            shape="round"
+            verb="tools"
+            size={56}
+            flat
+            onPress={d.next}
+            disabled={phase === 'empty' || phase === 'loading'}
+            accessibilityLabel={t('drive.nextLine')}>
+            <SymbolView name={{ ios: 'forward.end.fill', android: 'skip_next' }} size={22} weight="regular" tintColor={verb.tools.c1} />
+          </PrismButton>
+        </View>
+      </Animated.View>
     </View>
   );
 }

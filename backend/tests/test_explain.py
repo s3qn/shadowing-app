@@ -319,9 +319,7 @@ def test_parse_explain_answer_grammar_item_without_span_is_unaffected():
     assert "span" not in result["grammar"][0]
 
 
-def test_word_context_ja_en_prompt_is_byte_identical_to_before_languages(monkeypatch):
-    # Japanese answered in English must keep the exact prompt it always had,
-    # or cached and fresh answers for existing islands would drift apart.
+def test_word_context_ja_en_prompt_leads_with_meaning(monkeypatch):
     captured = {}
 
     def fake_run(argv, input=None, **kwargs):
@@ -338,9 +336,10 @@ def test_word_context_ja_en_prompt_is_byte_identical_to_before_languages(monkeyp
         "<<<JA>>>学校に行きます。<<<END>>>\n"
         "<<<EN>>>I go to school.<<<END>>>\n"
         "<<<WORD>>>行きます<<<END>>>\n\n"
-        "Reply in 1-2 short plain English sentences: this word's role, grammar, or "
-        "nuance in this sentence, not a dictionary definition. No markdown, no "
-        "preamble, no quotation marks around the answer."
+        "Reply in 1-2 short plain English sentences. Start with what the word MEANS "
+        "here, as a short gloss. Then add at most one short usage note if it helps. "
+        "No grammar lecture, no markdown, no preamble, no quotation marks around the "
+        "answer."
     )
     assert captured["input"] == expected
 
@@ -429,3 +428,22 @@ def test_parse_explain_answer_drops_span_that_is_not_a_substring():
 
     assert result["grammar"] == [{"pattern": "に", "explanation": "marks the destination."}]
     assert "span" not in result["grammar"][0]
+
+
+def test_word_context_prompt_asks_meaning_first_in_native_language(monkeypatch):
+    seen = []
+
+    def fake_run(argv, input=None, **kwargs):
+        seen.append(input)
+        return FakeCompleted(returncode=0, stdout="answer")
+
+    monkeypatch.setattr(explain.subprocess, "run", fake_run)
+
+    for lang, name in (("es", "Spanish"), ("en", "English"), ("ja", "Japanese")):
+        explain.word_context("palabra", "Una frase.", "A sentence.", language=lang, native="he")
+    for prompt, name in zip(seen, ("Spanish", "English", "Japanese")):
+        assert name in prompt
+        assert "Start with what the word MEANS" in prompt
+        assert "short gloss in Hebrew" in prompt
+        assert "at most one short usage note" in prompt
+        assert "Answer in Hebrew." in prompt

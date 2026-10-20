@@ -1,0 +1,891 @@
+{
+ "language": "ja",
+ "topic": "eating-out",
+ "lines": [
+  {
+   "ja": "二人です。",
+   "kana": "ににんです。",
+   "romaji": "",
+   "gloss": {
+    "en": "Table for two.",
+    "he": "שניים."
+   },
+   "duration": 0.9693,
+   "timeline": [
+    {
+     "text": "フ",
+     "kana": "ふ",
+     "start": 0.1,
+     "end": 0.2235,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "タ",
+     "kana": "た",
+     "start": 0.2235,
+     "end": 0.3945,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "リ",
+     "kana": "り",
+     "start": 0.3945,
+     "end": 0.5062,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 0.5062,
+     "end": 0.6869,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 0.6869,
+     "end": 0.8693,
+     "phrase": 0,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "二人です。",
+     "start": 0.0,
+     "end": 0.8693,
+     "ruby": [
+      {
+       "text": "二",
+       "rt": "に"
+      },
+      {
+       "text": "人",
+       "rt": "にん"
+      },
+      {
+       "text": "です。",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "メニューをお願いします。",
+   "kana": "めにゅーをおねがいします。",
+   "romaji": "",
+   "gloss": {
+    "en": "The menu, please.",
+    "he": "אפשר תפריט בבקשה."
+   },
+   "duration": 1.7591,
+   "timeline": [
+    {
+     "text": "メ",
+     "kana": "め",
+     "start": 0.1,
+     "end": 0.2779,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ニュ",
+     "kana": "にゅ",
+     "start": 0.2779,
+     "end": 0.4876,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ウ",
+     "kana": "う",
+     "start": 0.4876,
+     "end": 0.5776,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.5776,
+     "end": 0.6918,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.6918,
+     "end": 0.7883,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ネ",
+     "kana": "ね",
+     "start": 0.7883,
+     "end": 0.9295,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ガ",
+     "kana": "が",
+     "start": 0.9295,
+     "end": 1.1015,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 1.1015,
+     "end": 1.1706,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 1.1706,
+     "end": 1.3041,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 1.3041,
+     "end": 1.4851,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.4851,
+     "end": 1.6591,
+     "phrase": 2,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "メニュー",
+     "start": 0.0,
+     "end": 0.5776,
+     "ruby": [
+      {
+       "text": "メニュー",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "を",
+     "start": 0.5776,
+     "end": 0.6918,
+     "ruby": [
+      {
+       "text": "を",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "お願い",
+     "start": 0.6918,
+     "end": 1.1706,
+     "ruby": [
+      {
+       "text": "お",
+       "rt": ""
+      },
+      {
+       "text": "願",
+       "rt": "ねが"
+      },
+      {
+       "text": "い",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "します。",
+     "start": 1.1706,
+     "end": 1.6591,
+     "ruby": [
+      {
+       "text": "します。",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    }
+   ]
+  },
+  {
+   "ja": "おすすめは何ですか。",
+   "kana": "おすすめはなにですか。",
+   "romaji": "",
+   "gloss": {
+    "en": "What do you recommend?",
+    "he": "מה אתם מציעים?"
+   },
+   "duration": 1.7393,
+   "timeline": [
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.1,
+     "end": 0.2219,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 0.2219,
+     "end": 0.3827,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 0.3827,
+     "end": 0.5456,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "メ",
+     "kana": "め",
+     "start": 0.5456,
+     "end": 0.6972,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ワ",
+     "kana": "わ",
+     "start": 0.6972,
+     "end": 0.8244,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ナ",
+     "kana": "な",
+     "start": 0.8244,
+     "end": 0.9789,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ニ",
+     "kana": "に",
+     "start": 0.9789,
+     "end": 1.0983,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 1.0983,
+     "end": 1.2506,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.2506,
+     "end": 1.3675,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 1.3675,
+     "end": 1.6393,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "おすすめ",
+     "start": 0.0,
+     "end": 0.6972,
+     "ruby": [
+      {
+       "text": "おすすめ",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "は",
+     "start": 0.6972,
+     "end": 0.8244,
+     "ruby": [
+      {
+       "text": "は",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "何です",
+     "start": 0.8244,
+     "end": 1.3675,
+     "ruby": [
+      {
+       "text": "何",
+       "rt": "なに"
+      },
+      {
+       "text": "です",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "か。",
+     "start": 1.3675,
+     "end": 1.6393,
+     "ruby": [
+      {
+       "text": "か。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "これをください。",
+   "kana": "これをください。",
+   "romaji": "",
+   "gloss": {
+    "en": "I'll have this, please.",
+    "he": "את זה בבקשה."
+   },
+   "duration": 1.2751,
+   "timeline": [
+    {
+     "text": "コ",
+     "kana": "こ",
+     "start": 0.1,
+     "end": 0.2681,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "レ",
+     "kana": "れ",
+     "start": 0.2681,
+     "end": 0.4001,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.4001,
+     "end": 0.5393,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ク",
+     "kana": "く",
+     "start": 0.5393,
+     "end": 0.6566,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ダ",
+     "kana": "だ",
+     "start": 0.6566,
+     "end": 0.8034,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "サ",
+     "kana": "さ",
+     "start": 0.8034,
+     "end": 1.0304,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 1.0304,
+     "end": 1.1751,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "これ",
+     "start": 0.0,
+     "end": 0.4001,
+     "ruby": [
+      {
+       "text": "これ",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "を",
+     "start": 0.4001,
+     "end": 0.5393,
+     "ruby": [
+      {
+       "text": "を",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "ください。",
+     "start": 0.5393,
+     "end": 1.1751,
+     "ruby": [
+      {
+       "text": "ください。",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    }
+   ]
+  },
+  {
+   "ja": "水をください。",
+   "kana": "みずをください。",
+   "romaji": "",
+   "gloss": {
+    "en": "Water, please.",
+    "he": "מים בבקשה."
+   },
+   "duration": 1.2912,
+   "timeline": [
+    {
+     "text": "ミ",
+     "kana": "み",
+     "start": 0.1,
+     "end": 0.2648,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ズ",
+     "kana": "ず",
+     "start": 0.2648,
+     "end": 0.4269,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.4269,
+     "end": 0.557,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ク",
+     "kana": "く",
+     "start": 0.557,
+     "end": 0.6711,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ダ",
+     "kana": "だ",
+     "start": 0.6711,
+     "end": 0.8195,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "サ",
+     "kana": "さ",
+     "start": 0.8195,
+     "end": 1.0466,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 1.0466,
+     "end": 1.1912,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "水",
+     "start": 0.0,
+     "end": 0.4269,
+     "ruby": [
+      {
+       "text": "水",
+       "rt": "みず"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "を",
+     "start": 0.4269,
+     "end": 0.557,
+     "ruby": [
+      {
+       "text": "を",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "ください。",
+     "start": 0.557,
+     "end": 1.1912,
+     "ruby": [
+      {
+       "text": "ください。",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    }
+   ]
+  },
+  {
+   "ja": "とてもおいしいです。",
+   "kana": "とてもおいしいです。",
+   "romaji": "",
+   "gloss": {
+    "en": "It's very delicious.",
+    "he": "זה ממש טעים."
+   },
+   "duration": 1.4937,
+   "timeline": [
+    {
+     "text": "ト",
+     "kana": "と",
+     "start": 0.1,
+     "end": 0.282,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "テ",
+     "kana": "て",
+     "start": 0.282,
+     "end": 0.4291,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "モ",
+     "kana": "も",
+     "start": 0.4291,
+     "end": 0.5991,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.5991,
+     "end": 0.7095,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 0.7095,
+     "end": 0.7815,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 0.7815,
+     "end": 0.9643,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 0.9643,
+     "end": 1.0384,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 1.0384,
+     "end": 1.2174,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.2174,
+     "end": 1.3937,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "とても",
+     "start": 0.0,
+     "end": 0.5991,
+     "ruby": [
+      {
+       "text": "とても",
+       "rt": ""
+      }
+     ],
+     "pos": "other"
+    },
+    {
+     "text": "おいしいです。",
+     "start": 0.5991,
+     "end": 1.3937,
+     "ruby": [
+      {
+       "text": "おいしいです。",
+       "rt": ""
+      }
+     ],
+     "pos": "adjective"
+    }
+   ]
+  },
+  {
+   "ja": "お会計をお願いします。",
+   "kana": "おかいけいをおねがいします。",
+   "romaji": "",
+   "gloss": {
+    "en": "The check, please.",
+    "he": "חשבון בבקשה."
+   },
+   "duration": 1.9817,
+   "timeline": [
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.1,
+     "end": 0.2435,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 0.2435,
+     "end": 0.4286,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 0.4286,
+     "end": 0.5353,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ケ",
+     "kana": "け",
+     "start": 0.5353,
+     "end": 0.708,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "エ",
+     "kana": "え",
+     "start": 0.708,
+     "end": 0.806,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.806,
+     "end": 0.9195,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.9195,
+     "end": 1.0141,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ネ",
+     "kana": "ね",
+     "start": 1.0141,
+     "end": 1.1525,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ガ",
+     "kana": "が",
+     "start": 1.1525,
+     "end": 1.3241,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 1.3241,
+     "end": 1.3932,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 1.3932,
+     "end": 1.5267,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 1.5267,
+     "end": 1.7077,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.7077,
+     "end": 1.8817,
+     "phrase": 2,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "お",
+     "start": 0.0,
+     "end": 0.2435,
+     "ruby": [
+      {
+       "text": "お",
+       "rt": ""
+      }
+     ],
+     "pos": "other"
+    },
+    {
+     "text": "会計",
+     "start": 0.2435,
+     "end": 0.806,
+     "ruby": [
+      {
+       "text": "会計",
+       "rt": "かいけい"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "を",
+     "start": 0.806,
+     "end": 0.9195,
+     "ruby": [
+      {
+       "text": "を",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "お願い",
+     "start": 0.9195,
+     "end": 1.3932,
+     "ruby": [
+      {
+       "text": "お",
+       "rt": ""
+      },
+      {
+       "text": "願",
+       "rt": "ねが"
+      },
+      {
+       "text": "い",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "します。",
+     "start": 1.3932,
+     "end": 1.8817,
+     "ruby": [
+      {
+       "text": "します。",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    }
+   ]
+  }
+ ]
+}

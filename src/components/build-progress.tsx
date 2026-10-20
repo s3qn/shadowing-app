@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { Stack, useLocalSearchParams, usePathname, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,6 +7,7 @@ import { CatConstellation } from '@/components/cat-constellation';
 import { HeaderClosePill } from '@/components/header-close-pill';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
+import { PrismButton } from '@/components/prism';
 import { useT } from '@/lib/i18n';
 
 /** The shared build screen: close pill, the cat loader with the stage label,
@@ -16,6 +17,7 @@ export function BuildProgress({
   hint,
   error,
   blankTitle,
+  onRetry,
   onClose,
 }: {
   stage: string;
@@ -23,9 +25,16 @@ export function BuildProgress({
   error?: string;
   /** Hide the route's header title. */
   blankTitle?: boolean;
+  /** Runs the build again in place. Without it Retry re-opens the route. */
+  onRetry?: () => void;
   onClose: () => void;
 }) {
   const { t } = useT();
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useLocalSearchParams();
+  // Replacing the route with itself remounts it, which starts the build again.
+  const retry = onRetry ?? (() => router.replace({ pathname: pathname as never, params: params as never }));
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       <StatusBar style="light" />
@@ -39,9 +48,17 @@ export function BuildProgress({
         }}
       />
       <View style={styles.center}>
-        <CatConstellation size={120} label={stage.replace(/…$/, '')} />
-        <Text style={[styles.hint, styles.centerText]}>{hint}</Text>
-        {error ? <Text style={[styles.error, styles.centerText]}>{error}</Text> : null}
+        {error ? (
+          <>
+            <Text style={[styles.error, styles.centerText]}>{error}</Text>
+            <PrismButton shape="pill" verb="speak" label={t('common.retry')} onPress={retry} />
+          </>
+        ) : (
+          <>
+            <CatConstellation size={120} label={stage.replace(/…$/, '')} />
+            <Text style={[styles.hint, styles.centerText]}>{hint}</Text>
+          </>
+        )}
       </View>
     </SafeAreaView>
   );

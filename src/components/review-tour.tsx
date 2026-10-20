@@ -11,6 +11,7 @@ import { PILL_LABEL_SIZE } from '@/components/prism/pill-tray';
 import { applyPlaybackMode, applyRecordingMode, scheduleAudioSessionRelease } from '@/lib/audio-mode';
 import { getReview, postReviewDone, postShot, postVerdict, postVoiceNote, type ReviewTour as Tour, type ReviewVerdict } from '@/lib/api';
 import { tide } from '@/constants/theme';
+import { useGuideStep } from '@/lib/guide';
 
 const DEFAULT_CHIPS = ['slow', 'ugly', 'bug', 'not like the mock', 'confusing'];
 const VERDICTS: { key: ReviewVerdict; label: string; colour: string }[] = [
@@ -44,6 +45,9 @@ type Saved = { verdict: ReviewVerdict; chips: string[] };
  */
 export function ReviewTour() {
   const router = useRouter();
+  const guideStep = useGuideStep();
+  // The first-run guide lights one control at a time (the + on Home, the dock on the island): the pill would sit on it.
+  const guideActive = guideStep !== 'done';
   const [tour, setTour] = useState<Tour | null>(null);
   const [index, setIndex] = useState(0);
   const [open, setOpen] = useState(false);
@@ -213,7 +217,7 @@ export function ReviewTour() {
 
   return (
     <>
-      {open || capturing ? null : (
+      {open || capturing || guideActive ? null : (
         <Pressable
           onPress={() => {
             if (recording) void stopNote();

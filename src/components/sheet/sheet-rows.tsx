@@ -1,3 +1,4 @@
+import type { Ref } from 'react';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -20,14 +21,18 @@ type SheetActionProps = {
   /** Disc colour behind the leading symbol. Undefined draws the plain icon slot, unchanged. */
   discColor?: string;
   onPress: () => void;
+  /** A first-run guide anchor (`useGuideAnchor`) to measure this row by. */
+  anchor?: { ref: Ref<View>; onLayout: () => void };
 };
 
-export function SheetAction({ label, hint, destructive, disabled, icon, discColor, onPress }: SheetActionProps) {
+export function SheetAction({ label, hint, destructive, disabled, icon, discColor, onPress, anchor }: SheetActionProps) {
   const dir = useDir();
   // Same precedence as the label style array: destructive, then disabled overrides.
   const tint = disabled ? tide.textDim : destructive ? tide.record : discColor ? discColor : tide.text;
   return (
     <Pressable
+      ref={anchor?.ref}
+      onLayout={anchor?.onLayout}
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"

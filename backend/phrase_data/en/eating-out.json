@@ -1,9 +1,9 @@
 [
-  {"text": "A table for two, please."},
-  {"text": "Could I see the menu?"},
-  {"text": "What do you recommend?"},
-  {"text": "I'll have this one, please."},
-  {"text": "Could I get a glass of water?"},
-  {"text": "This is delicious."},
-  {"text": "Could we have the check, please?"}
+  {"text": "A table for two, please.", "he": "שולחן לשניים, בבקשה."},
+  {"text": "Could I see the menu?", "he": "אפשר לראות תפריט?"},
+  {"text": "What do you recommend?", "he": "מה אתם ממליצים?"},
+  {"text": "I'll have this one, please.", "he": "אני אקח את זה, בבקשה."},
+  {"text": "Could I get a glass of water?", "he": "אפשר כוס מים?"},
+  {"text": "This is delicious.", "he": "זה טעים מאוד."},
+  {"text": "Could we have the check, please?", "he": "אפשר לקבל את החשבון, בבקשה?"}
 ]

@@ -752,6 +752,7 @@ export default function VideoScreen() {
                     level={take.level}
                     onRecord={ladder.dock.onRecord}
                     recordLabel={ladder.dock.recordLabel}
+                    stageIndex={ladder.dock.stageIndex}
                     face={ladder.dock.face}
                     countIn={ladder.dock.countIn}
                     beatMs={ladder.dock.beatMs}
@@ -830,7 +831,7 @@ export default function VideoScreen() {
         </View>
       )}
       {/* Under the video, so it stays in view while the ladder runs. */}
-      {ladder.stage ? <LadderStageView {...ladder.stage} top={fs ? 0 : playerSize.height} onHelp={onPassHelp} /> : null}
+      {ladder.stage ? <LadderStageView {...ladder.stage} highlight={highlight} top={fs ? 0 : playerSize.height} onHelp={onPassHelp} /> : null}
       {island ? (
         <PassHelpSheet
           open={helpOpen}

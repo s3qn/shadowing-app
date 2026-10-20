@@ -1,9 +1,9 @@
 [
-  {"text": "すみません、助けてください。", "en": "Excuse me, please help me."},
-  {"text": "財布をなくしました。", "en": "I lost my wallet."},
-  {"text": "気分が悪いです。", "en": "I don't feel well."},
-  {"text": "病院はどこですか。", "en": "Where is the hospital?"},
-  {"text": "電話を貸してもらえますか。", "en": "Could I borrow a phone?"},
-  {"text": "英語がわかる人はいますか。", "en": "Is there anyone who understands English?"},
-  {"text": "ちょっと待ってください。", "en": "Please wait a moment."}
+  {"text": "すみません、助けてください。", "en": "Excuse me, please help me.", "he": "סליחה, תעזרו לי בבקשה."},
+  {"text": "財布をなくしました。", "en": "I lost my wallet.", "he": "איבדתי את הארנק."},
+  {"text": "気分が悪いです。", "en": "I don't feel well.", "he": "אני לא מרגיש טוב."},
+  {"text": "病院はどこですか。", "en": "Where is the hospital?", "he": "איפה בית החולים?"},
+  {"text": "電話を貸してもらえますか。", "en": "Could I borrow a phone?", "he": "אפשר לשאול טלפון?"},
+  {"text": "英語がわかる人はいますか。", "en": "Is there anyone who understands English?", "he": "יש כאן מישהו שמבין אנגלית?"},
+  {"text": "ちょっと待ってください。", "en": "Please wait a moment.", "he": "רגע, בבקשה."}
 ]

@@ -108,6 +108,9 @@ def available(device: str, language: str | None = None) -> list[dict]:
 def _projects(device: str, today: str,
               language: str | None = None) -> tuple[list[dict], list[dict], list[dict]]:
     all_islands = store.list_islands(device)
+    # Lines marked "Easy for me" leave every project; one rule for cards and
+    # whole islands, so plan, the edited plan and the Add list totals agree.
+    known = store.known_by_island(device)
     # Cards saved before they kept a language fall back to their island's, then 'ja'.
     island_lang = {isl["id"]: isl.get("language") or "ja" for isl in all_islands}
     by_island: dict[str, list[dict]] = {}
@@ -119,6 +122,9 @@ def _projects(device: str, today: str,
 
     with_due, idle = [], []
     for island_id, cards in by_island.items():
+        cards = [c for c in cards if c["idx"] not in known.get(island_id, ())]
+        if not cards:
+            continue
         due = sum(1 for c in cards if c["due_on"] <= today)
         proj = {
             "island_id": island_id,
@@ -129,6 +135,7 @@ def _projects(device: str, today: str,
             "cards": {c["idx"]: c for c in cards},
             "due": due,
             "saved": max(c["created_at"] for c in cards),
+            "known": known.get(island_id, set()),
         }
         (with_due if due else idle).append(proj)
     with_due.sort(key=lambda p: -p["due"])
@@ -141,7 +148,9 @@ def _projects(device: str, today: str,
     due_on = {r["island_id"]: r["due_on"] for r in rows}
     islands = []
     for isl in all_islands:
-        if (isl["status"] != "ready" or isl["line_count"] < 1
+        mine = known.get(isl["id"], set())
+        left = isl["line_count"] - sum(1 for k in mine if k < isl["line_count"])
+        if (isl["status"] != "ready" or left < 1
                 or isl["source"] in schedule.NO_SCHEDULE_SOURCES or isl["id"] in by_island
                 or (language and island_lang[isl["id"]] != language)):
             continue
@@ -152,8 +161,9 @@ def _projects(device: str, today: str,
             "source": isl["source"],
             "kind": "island",
             "lines": None,
-            "line_count": isl["line_count"],
+            "line_count": left,
             "due_on": when,
+            "known": mine,
         })
     islands.sort(key=lambda p: p["due_on"])
     return with_due, islands, idle
@@ -174,7 +184,8 @@ def _first_line(device: str, proj: dict, idx: int) -> dict:
 def _load_lines(p: dict) -> list[dict]:
     if p["lines"] is None:
         isl = store.get_island(p["island_id"]) or {"lines": []}
-        p["lines"] = [{"idx": ln["idx"]} for ln in isl["lines"]]
+        known = p.get("known", ())
+        p["lines"] = [{"idx": ln["idx"]} for ln in isl["lines"] if ln["idx"] not in known]
     return p["lines"]
 
 

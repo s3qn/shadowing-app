@@ -11,7 +11,7 @@ import {
   ShadowBubbles,
   WaveLane,
 } from '@/components/onboarding/pass-effects';
-import { StepAction, StepCopy, StepFrame } from '@/components/onboarding/step-frame';
+import { StepCopy } from '@/components/onboarding/step-frame';
 import { type Verb } from '@/components/prism';
 import { type SheetIcon } from '@/components/sheet/sheet-rows';
 import { fonts } from '@/constants/fonts';
@@ -156,8 +156,7 @@ function getLottieSource(index: 0 | 1 | 2 | 3): LottieSource {
  * run off one frame clock each that stops when this unmounts, and are still
  * under reduced motion.
  *
- * The onboarding wraps it in a step (`PassStep` below) and the practice
- * sheet's help shows it on its own, so both read the same explanation.
+ * The practice sheet's help shows it on its own.
  */
 export function PassExplainer({
   pass,
@@ -266,39 +265,6 @@ export function PassExplainer({
       </ArtCard>
       <StepCopy kicker={kicker} kickerColour={info.colour} title={t(info.headlineKey)} body={t(info.lineKey)} />
     </>
-  );
-}
-
-/**
- * One of the five onboarding pass screens: the progress dots, the pass's own
- * explanation, and the button on to the next one.
- */
-export function PassStep({
-  pass,
-  learning,
-  understood,
-  onNext,
-}: {
-  pass: 0 | 1 | 2 | 3 | 4;
-  learning: LearningLanguage;
-  understood: UnderstoodLanguage;
-  onNext: () => void;
-}) {
-  const { t } = useT();
-  const info = PASSES[pass];
-
-  return (
-    <StepFrame
-      dots={{ count: PASSES.length, active: pass, colour: info.colour }}
-      footer={
-        <StepAction
-          verb={info.nextVerb}
-          label={t(pass === 4 ? 'settings.onboarding.gotIt' : 'settings.onboarding.next')}
-          onPress={onNext}
-        />
-      }>
-      <PassExplainer pass={pass} learning={learning} understood={understood} />
-    </StepFrame>
   );
 }
 

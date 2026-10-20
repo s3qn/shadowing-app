@@ -1,0 +1,493 @@
+{
+ "language": "es",
+ "topic": "getting-around",
+ "lines": [
+  {
+   "ja": "¿Dónde está la estación?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Where is the station?",
+    "he": "איפה התחנה?"
+   },
+   "duration": 1.472,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Dónde",
+     "start": 0.076,
+     "end": 0.476,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Dónde",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "está",
+     "start": 0.476,
+     "end": 0.751,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "está",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "la",
+     "start": 0.751,
+     "end": 0.826,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "la",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "estación?",
+     "start": 0.826,
+     "end": 1.472,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "estación?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "¿Este tren va a Sevilla?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Does this train go to Seville?",
+    "he": "הרכבת הזאת נוסעת לסביליה?"
+   },
+   "duration": 1.5786666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Este",
+     "start": 0.076,
+     "end": 0.401,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Este",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "tren",
+     "start": 0.401,
+     "end": 0.751,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "tren",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "va",
+     "start": 0.751,
+     "end": 0.926,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "va",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "a",
+     "start": 0.926,
+     "end": 1.026,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "a",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "Sevilla?",
+     "start": 1.026,
+     "end": 1.579,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Sevilla?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Me bajo en la próxima parada.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "I'll get off at the next stop.",
+    "he": "אני יורד בתחנה הבאה."
+   },
+   "duration": 1.792,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Me",
+     "start": 0.076,
+     "end": 0.226,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Me",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "bajo",
+     "start": 0.226,
+     "end": 0.601,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "bajo",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "en",
+     "start": 0.601,
+     "end": 0.676,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "en",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "la",
+     "start": 0.676,
+     "end": 0.826,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "la",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "próxima",
+     "start": 0.826,
+     "end": 1.326,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "próxima",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "parada.",
+     "start": 1.326,
+     "end": 1.792,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "parada.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Siga recto y gire a la derecha.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Go straight, then turn right.",
+    "he": "המשך ישר ואז פנה ימינה."
+   },
+   "duration": 1.8986666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Siga",
+     "start": 0.076,
+     "end": 0.401,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Siga",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "recto",
+     "start": 0.401,
+     "end": 0.776,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "recto",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "y",
+     "start": 0.776,
+     "end": 0.901,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "y",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "gire",
+     "start": 0.901,
+     "end": 1.201,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "gire",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "a",
+     "start": 1.201,
+     "end": 1.251,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "a",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "la",
+     "start": 1.251,
+     "end": 1.351,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "la",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "derecha.",
+     "start": 1.351,
+     "end": 1.899,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "derecha.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "¿Está lejos de aquí?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Is it far from here?",
+    "he": "זה רחוק מכאן?"
+   },
+   "duration": 1.3013333333333332,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Está",
+     "start": 0.076,
+     "end": 0.426,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Está",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "lejos",
+     "start": 0.426,
+     "end": 0.801,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "lejos",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "de",
+     "start": 0.801,
+     "end": 0.901,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "de",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "aquí?",
+     "start": 0.901,
+     "end": 1.301,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "aquí?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "¿Dónde puedo comprar un billete?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Where can I buy a ticket?",
+    "he": "איפה אפשר לקנות כרטיס?"
+   },
+   "duration": 1.8986666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Dónde",
+     "start": 0.076,
+     "end": 0.426,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Dónde",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "puedo",
+     "start": 0.426,
+     "end": 0.776,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "puedo",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "comprar",
+     "start": 0.776,
+     "end": 1.201,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "comprar",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "un",
+     "start": 1.201,
+     "end": 1.326,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "un",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "billete?",
+     "start": 1.326,
+     "end": 1.899,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "billete?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Estoy perdido.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "I'm lost.",
+    "he": "אני אבוד."
+   },
+   "duration": 1.0453333333333332,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Estoy",
+     "start": 0.076,
+     "end": 0.476,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Estoy",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "perdido.",
+     "start": 0.476,
+     "end": 1.045,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "perdido.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,468 @@
+{
+ "language": "en",
+ "title": {
+  "en": "First steps",
+  "he": "צעדים ראשונים"
+ },
+ "lines": [
+  {
+   "ja": "Could you tell me the way to the station?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Could you tell me the way to the station?",
+    "he": "אפשר להסביר לי איך מגיעים לתחנה?"
+   },
+   "duration": 1.856,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Could",
+     "start": 0.062,
+     "end": 0.212,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Could",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "you",
+     "start": 0.212,
+     "end": 0.337,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "you",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "tell",
+     "start": 0.337,
+     "end": 0.512,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "tell",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "me",
+     "start": 0.512,
+     "end": 0.637,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "me",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "the",
+     "start": 0.637,
+     "end": 0.737,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "the",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "way",
+     "start": 0.737,
+     "end": 0.962,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "way",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "to",
+     "start": 0.962,
+     "end": 1.037,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "to",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "the",
+     "start": 1.037,
+     "end": 1.137,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "the",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "station?",
+     "start": 1.137,
+     "end": 1.856,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "station?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "This weekend I'm planning to see a movie with some friends.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "This weekend I'm planning to see a movie with some friends.",
+    "he": "בסוף השבוע אני מתכנן לראות סרט עם כמה חברים."
+   },
+   "duration": 3.3706666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "This",
+     "start": 0.066,
+     "end": 0.291,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "This",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "weekend",
+     "start": 0.291,
+     "end": 1.191,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "weekend",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "I'm",
+     "start": 1.191,
+     "end": 1.391,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I'm",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "planning",
+     "start": 1.391,
+     "end": 1.741,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "planning",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "to",
+     "start": 1.741,
+     "end": 1.841,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "to",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "see",
+     "start": 1.841,
+     "end": 1.966,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "see",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "a",
+     "start": 1.966,
+     "end": 2.066,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "a",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "movie",
+     "start": 2.066,
+     "end": 2.466,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "movie",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "with",
+     "start": 2.466,
+     "end": 2.616,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "with",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "some",
+     "start": 2.616,
+     "end": 2.841,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "some",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "friends.",
+     "start": 2.841,
+     "end": 3.371,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "friends.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Since I moved here, a walk around the neighbourhood every morning has become a habit.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Since I moved here, a walk around the neighbourhood every morning has become a habit.",
+    "he": "מאז שעברתי לכאן, טיול בשכונה כל בוקר נהיה הרגל."
+   },
+   "duration": 4.416,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Since",
+     "start": 0.087,
+     "end": 0.312,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Since",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "I",
+     "start": 0.312,
+     "end": 0.462,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "moved",
+     "start": 0.462,
+     "end": 0.762,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "moved",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "here,",
+     "start": 0.762,
+     "end": 1.412,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "here,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "a",
+     "start": 1.412,
+     "end": 1.537,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "a",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "walk",
+     "start": 1.537,
+     "end": 1.837,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "walk",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "around",
+     "start": 1.837,
+     "end": 2.087,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "around",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "the",
+     "start": 2.087,
+     "end": 2.187,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "the",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "neighbourhood",
+     "start": 2.187,
+     "end": 2.762,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "neighbourhood",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "every",
+     "start": 2.762,
+     "end": 3.062,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "every",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "morning",
+     "start": 3.062,
+     "end": 3.462,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "morning",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "has",
+     "start": 3.462,
+     "end": 3.612,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "has",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "become",
+     "start": 3.612,
+     "end": 3.887,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "become",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "a",
+     "start": 3.887,
+     "end": 3.962,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "a",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "habit.",
+     "start": 3.962,
+     "end": 4.416,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "habit.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

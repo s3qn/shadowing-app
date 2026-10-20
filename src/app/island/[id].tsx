@@ -86,6 +86,11 @@ import { alertSheet, confirmSheet } from '@/lib/confirm-sheet';
 import { hapticImpact, hapticSelection } from '@/lib/haptics';
 import { invalidateCachedIsland, peekCachedIsland, readCachedIsland, writeCachedIsland } from '@/lib/island-cache';
 import { requestLoader } from '@/lib/loading-overlay';
+import { IslandGuide } from '@/components/onboarding/island-guide';
+import { getGuideStep, noteGuideEasyTap, setGuideStep, useGuideAnchor, useGuideLock, useGuideStep } from '@/lib/guide'; // bl57-intro-round2
+import { GuideBubble } from '@/components/onboarding/guide-bubble'; // bl58-easy-for-me
+import { GlassPanel } from '@/components/prism/glass-panel'; // bl58-easy-for-me
+import { noteAward } from '@/lib/progression'; // bl58-easy-for-me
 import { useIslandExport } from '@/hooks/use-island-export';
 import { getLastLine, peekLastLine, resumeLine, setLastLine } from '@/lib/last-line';
 import { useSkyStyle } from '@/lib/sky';
@@ -119,6 +124,7 @@ import {
   isPlayStep,
   isSpeakStep,
   onLadderLineFinish,
+  TAKE_VOICE_VOLUME, // bl57-intro-round2
   repeatsOf,
   stageOf,
   stepOfPass,
@@ -165,8 +171,13 @@ const lockScreen = Platform.OS === 'ios' || !isRunningInExpoGo();
 // How long Auto Echo holds on a finished line before moving on, so its score
 // and the XP it paid have time to be seen.
 const ECHO_RESULT_HOLD_MS = 1400;
+// bl58-easy-for-me: Auto Echo's hold while the 90+ offer is up, and the Easy glide (E4: the line sinks into the water).
+const EASY_OFFER_HOLD_MS = 4000;
+const EASY_GLIDE_MS = 450;
 // auto-practice: how long the next island's title shows before the chain moves on.
 const AUTO_NEXT_HOLD_MS = 1400;
+// auto-practice: the longest the loader stands in for a session's player before its stage is up.
+const OPEN_HOLD_MAX_MS = 6000;
 
 // The exported file keeps its own breath between plays, whatever the player's
 // Pause is set to.
@@ -258,7 +269,7 @@ export default function IslandScreen() {
   const { id, morph, auto, line: ytLine } = useLocalSearchParams<{ id: string; morph?: string; auto?: string; line?: string }>(); // auto-practice, youtube-shadowing
   const navigation = useNavigation();
   const sky = useSkyStyle();
-  const { t } = useT();
+  const { t, lang: uiLang } = useT();
   const dir = useDir(); // offline-islands
   // Whether the card morph that opened this island covered the screen at
   // mount. Never state: the morph's landing and cover-gone must not render
@@ -360,6 +371,74 @@ export default function IslandScreen() {
   // The Reading tile's popover and the tile's box, anchored like Blind's.
   const [readingPopOpen, setReadingPopOpen] = useState(false);
   const dockY = useRef(0);
+  // bl56-first-run-flow: the guide's first island parks each played line and shows IslandGuide.
+  const guideStep = useGuideStep();
+  // bl57-intro-round2: four moments on the 3-line starter island (listen, shadow, prep, solo).
+  const guideOn =
+    (guideStep === 'listen' || guideStep === 'shadow' || guideStep === 'prep' || guideStep === 'solo') &&
+    id === getSettingsSync().guideIslandId;
+  // bl57-intro-round2: no way out while the guide runs here, nor during its Practice 5 session.
+  // A failed load (or line audio that never loads) unlocks it, so the error and its Retry are never a dead end.
+  const [guideAudioFailed, setGuideAudioFailed] = useState(false);
+  // Whether the audio load error is up for this outage; a line that loads re-arms it.
+  const audioFailShown = useRef(false);
+  const guideLocked = (guideOn && !!island && island.lines.length > 0 && !error && !guideAudioFailed) || guideStep === 'practice';
+  useGuideLock(guideLocked);
+  // The guide lights the current line card too, so its text stays readable under the dim.
+  const cardAnchor = useGuideAnchor('lineCard', guideOn);
+  // bl58-easy-for-me: the Easy chip is a second lit hole under the guide.
+  const chipAnchor = useGuideAnchor('easyChip', guideOn);
+  const remeasureCard = cardAnchor.onLayout;
+  const remeasureChip = chipAnchor.onLayout;
+  // Measures the card and the chip together, now and once the card has settled (a glide, a spring, the transcript's
+  // own re-aim): a transform or a scroll fires no onLayout, so the chip's hole would stay where the chip was.
+  // Called on a line change, on the card's layout and when the transcript stops scrolling. It only writes the
+  // guide's anchor store, which nothing here renders from, so it cannot feed back into the scroll.
+  const guideMeasureTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const remeasureGuide = useCallback(() => {
+    guideMeasureTimers.current.forEach(clearTimeout);
+    guideMeasureTimers.current = [];
+    if (!guideOn) return;
+    remeasureCard();
+    remeasureChip();
+    guideMeasureTimers.current = [250, 600, 1100].map((ms) =>
+      setTimeout(() => {
+        remeasureCard();
+        remeasureChip();
+      }, ms),
+    );
+  }, [guideOn, remeasureCard, remeasureChip]);
+  useEffect(() => {
+    if (!guideOn) return;
+    remeasureGuide();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => guideMeasureTimers.current.forEach(clearTimeout);
+  }, [guideOn, idx, remeasureGuide]);
+  // bl58-easy-for-me: the lines marked Easy for me (backend idx, from GET /islands and the mark replies), the 90+
+  // offer (the line's position here) and the reaction after a mark. `offered` keeps the offer to once per line per open.
+  const [known, setKnown] = useState<ReadonlySet<number>>(() => new Set());
+  const offerClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [easyOffer, setEasyOffer] = useState<number | null>(null);
+  const [easyDone, setEasyDone] = useState<{ count: number } | null>(null);
+  const offeredRef = useRef(new Set<string>());
+  const easyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const glideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (easyTimer.current) clearTimeout(easyTimer.current);
+      if (glideTimer.current) clearTimeout(glideTimer.current);
+    },
+    [],
+  );
+  // Every GET carries the list; a copy cached before this build has none and shows nothing marked until the next one.
+  const knownFromServer = island?.known;
+  useEffect(() => {
+    if (knownFromServer) setKnown(new Set(knownFromServer));
+  }, [knownFromServer]);
+  // A guide state saved by an older build can point at a non-starter island: start over, never lock the user there.
+  useEffect(() => {
+    if (guideOn && island && island.source !== 'starter') setGuideStep('home');
+  }, [guideOn, island]);
   // An open popover reads those refs at render time, so a tile, dock or width
   // change while one is open renders the screen once more. Closed, it is free.
   const popOpenRef = useRef(false);
@@ -367,6 +446,7 @@ export default function IslandScreen() {
     popOpenRef.current = speedPopOpen || repeatPopOpen || blindPopOpen || readingPopOpen;
   }, [speedPopOpen, repeatPopOpen, blindPopOpen, readingPopOpen]);
   const [, bumpAnchors] = useState(0);
+  const [, bumpGuide] = useState(0); // first-run guide: re-place the spotlight when a dock control moves
   const anchorMoved = useCallback((moved: boolean) => {
     if (moved && popOpenRef.current) bumpAnchors((n) => n + 1);
   }, []);
@@ -374,6 +454,7 @@ export default function IslandScreen() {
     (key: DockAnchorKey, box: DockAnchor) => {
       const old = anchors.current[key];
       anchors.current[key] = box;
+      if (key === 'play' || key === 'record') bumpGuide((n) => n + 1);
       anchorMoved(!old || old.x !== box.x || old.y !== box.y || old.width !== box.width);
     },
     [anchorMoved],
@@ -510,6 +591,10 @@ export default function IslandScreen() {
   const [chatGeneration, setChatGeneration] = useState(0);
 
   const line = island?.lines[idx];
+  // bl58-easy-for-me: from the first Easy mark on an island, every later line (backend order) runs Listen, Shadow,
+  // Compare without the prep passes; unmarking restores them. Line 1 under the guide skips them too (BL-57).
+  const lineKnown = !!line && known.has(line.idx);
+  const prepOn = !(guideOn && idx === 0) && !(line && [...known].some((k) => k < line.idx));
   // The line's own index on the server. `idx` is the position on screen,
   // which differs from it when a session shows only its picked lines.
   const lineIdx = line?.idx ?? idx;
@@ -621,9 +706,18 @@ export default function IslandScreen() {
   // The take player's status updates run this (each 50ms tick while a take
   // plays) without a render; assigned below, once the fill it moves exists.
   const takeStatusHandler = useRef<(s: AudioStatus) => void>(() => {});
-  const take = useTake(island?.id, lineIdx, generation, coveredAtMount ? firstTakeRead : undefined, (s) =>
-    takeStatusHandler.current(s),
+  const take = useTake(
+    island?.id,
+    lineIdx,
+    generation,
+    coveredAtMount ? firstTakeRead : undefined,
+    (s) => takeStatusHandler.current(s),
+    { guide: guideOn && guideStep !== 'listen' }, // bl57-intro-round2
   );
+  // bl57-intro-round2: the original voice sits at half volume under the Shadow take.
+  useEffect(() => {
+    player.volume = take.phase === 'recording' ? TAKE_VOICE_VOLUME : 1;
+  }, [take.phase, player]);
   // The latest take, for a timer set renders earlier (the take's room past the line).
   const takeLive = useRef(take);
   useLayoutEffect(() => {
@@ -684,6 +778,26 @@ export default function IslandScreen() {
   const pendingNextRef = useRef<{ id: string; kind: api.SessionKind } | null>(null);
   const autoLeavingRef = useRef(false);
   const autoStartedRef = useRef(false);
+  // auto-practice: a session opens straight into the ladder stage, so the loader stands in for
+  // the player until the stage is up (or OPEN_HOLD_MAX_MS passes), and the player's own line never
+  // shows between the two.
+  const [openHold, setOpenHold] = useState(autoStartPlace !== null);
+  const openHoldRef = useRef(openHold);
+  openHoldRef.current = openHold;
+  useEffect(() => {
+    if (!openHold) return;
+    const timer = setTimeout(() => setOpenHold(false), OPEN_HOLD_MAX_MS);
+    return () => clearTimeout(timer);
+  }, [openHold]);
+  // Lifted once the stage has mounted (behind the loader), not when it is asked for, so the
+  // player's line cannot start its reveal in the renders between.
+  const stageUp = useMemo(() => {
+    const k = stageOf(echoStep);
+    return k !== null && LADDER_STAGE_ORDER.indexOf(k) >= 0;
+  }, [echoStep]);
+  useEffect(() => {
+    if (openHold && stageUp) setOpenHold(false);
+  }, [openHold, stageUp]);
   const [autoUi, setAutoUi] = useState<AutoChain | null>(
     autoStartPlace ? { at: autoStartPlace.at, total: autoStartPlace.total, next: null } : null,
   );
@@ -770,6 +884,10 @@ export default function IslandScreen() {
   );
   const wasEchoTakePlaying = useRef(false);
   const echoActive = isActive(echoStep);
+  // A line played from the Explain sheet, or by Play under the first-run guide
+  // outside a ladder run, plays once and parks at its top (watchLineEnd), so
+  // the guide never chases a player running on into the next lines.
+  const playsOnce = explainOpen || (guideOn && !echoActive);
   // Outside a run the Blind setting decides; the ladder's passes decide it
   // themselves, keeping the sentence in view except for the blind take.
   const passText = textShownAt(echoStep, blindTake, finalTake);
@@ -778,7 +896,7 @@ export default function IslandScreen() {
   // (the crossing effect below), so no pause follows. The stop lands a status
   // or two after the crossing, and without this the countdown would flash
   // for that moment. With a 0s pause there is no pad to count down.
-  const stopsAtLineEnd = take.phase === 'recording' || explainOpen;
+  const stopsAtLineEnd = take.phase === 'recording' || playsOnce;
   // The line's status renders the screen only when something drawn from it
   // changes: playing, loaded, the duration, a finish, the breath and its
   // countdown second. Each 50ms position update runs onLineStatus (below)
@@ -821,6 +939,21 @@ export default function IslandScreen() {
     startEcho();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [island, line, status.isLoaded, sheet, echoStep]);
+  // bl57-intro-round2: line audio that never loads under the guide (offline, a server error) unlocks
+  // the screen and shows the load error, so Back is not a dead end.
+  useEffect(() => {
+    if (status.isLoaded) {
+      setGuideAudioFailed(false);
+      audioFailShown.current = false;
+    }
+    if (!guideOn || !island || status.isLoaded) return;
+    const timer = setTimeout(() => {
+      setGuideAudioFailed(true);
+      setError(t('player.couldNotLoadIsland'));
+    }, GUIDE_AUDIO_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guideOn, island, status.isLoaded]);
   const { status: wordStatus } = useLineStatus(wordPlayer, noop, (s) => `${s.isLoaded}:${s.playing}`);
   useSessionPlayer(wordPlayer);
   const autoPlayed = useRef<string | null>(null);
@@ -1015,7 +1148,7 @@ export default function IslandScreen() {
     const waiting = island === null && !error;
     readySentRef.current = true;
     playerReady(id, { waiting });
-    if (!waiting) requestLoader(false);
+    if (!waiting && !openHoldRef.current) requestLoader(false);
   });
   useLayoutEffect(() => {
     sendReady();
@@ -1397,10 +1530,18 @@ export default function IslandScreen() {
     playWhenLoaded.current = on;
     setPendingPlay(on);
   }
+  // A play that never loads its audio (offline mid-play, a server error) says
+  // so once instead of going quiet; see audioFailShown.
   useEffect(() => {
     if (!pendingPlay) return;
-    const t = setTimeout(() => setPendingPlay(false), PENDING_PLAY_MS);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => {
+      setPendingPlay(false);
+      if (latestStatus.current.isLoaded || audioFailShown.current) return;
+      audioFailShown.current = true;
+      setError(t('player.couldNotLoadIsland'));
+    }, PENDING_PLAY_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingPlay]);
 
   // Loads a new source into the one player, and starts it when a line switch
@@ -1631,10 +1772,10 @@ export default function IslandScreen() {
       endTakeAfterLine();
       return;
     }
-    // Played from the Explain sheet: once, then parked at the top of the same
-    // line, whatever Repeat says. Advancing would change the line, and a line
-    // change closes the sheet.
-    if (explainOpen) {
+    // Played from the Explain sheet or under the starter guide: once, then
+    // parked at the top of the same line, whatever Repeat says. Advancing
+    // would change the line, and a line change closes the sheet.
+    if (playsOnce) {
       stopPlayback(player);
       void player.seekTo(0);
       scheduleAudioSessionRelease();
@@ -1648,7 +1789,15 @@ export default function IslandScreen() {
   // order, and only when the position, playing, duration or line end
   // actually changed, as those effects would.
   const lastTick = useRef<{ time: number; playing: boolean; duration: number; end: number } | null>(null);
+  const tr = t; // onLineStatus below shadows t with the last tick
   function onLineStatus(s: AudioStatus) {
+    // The player reports a failed load (offline, a server error) at once: say
+    // so now, once per outage, instead of waiting out PENDING_PLAY_MS.
+    if (s.error && !s.isLoaded && !audioFailShown.current) {
+      audioFailShown.current = true;
+      setPendingPlay(false);
+      setError(tr('player.couldNotLoadIsland'));
+    }
     const end = lineEndOf(s.duration, breathSec);
     const t = lastTick.current;
     if (t && t.time === s.currentTime && t.playing === s.playing && t.duration === s.duration && t.end === end) {
@@ -1711,15 +1860,15 @@ export default function IslandScreen() {
       }
       return;
     }
-    // A finish that slips past the crossing stop above while Explain is open
-    // still must not advance the line.
-    if (explainOpen) {
+    // A finish that slips past the crossing stop above (or a 0s pause, which
+    // has no crossing) still must not advance the line.
+    if (playsOnce) {
       void player.seekTo(0);
       scheduleAudioSessionRelease();
       return;
     }
     const step = echoRef.current;
-    const fin = onLadderLineFinish(step, repeatRef.current, autoRecord, ladderPace);
+    const fin = onLadderLineFinish(step, repeatRef.current, autoRecord, ladderPace, prepOn); // bl57-intro-round2, bl58-easy-for-me
     if (fin.kind === 'repeat') {
       // Same stage once more after a short gap, no count.
       setRepeat(repeatRef.current + 1);
@@ -1902,6 +2051,11 @@ export default function IslandScreen() {
       clearSelection();
       return;
     }
+    // A tap beside an open word popover closes it, like any popover.
+    if (selected !== null) {
+      closePanel();
+      return;
+    }
     setPlayWhenLoaded(false);
     void playFromTop();
   }
@@ -2009,10 +2163,14 @@ export default function IslandScreen() {
   const enReveal = useSlideReveal(!englishShown, scrollRef);
   // Follows dragY while a swipe drags the card, with a slight scale down so
   // it reads as lifting off the waterline rather than just sliding.
+  // bl58-easy-for-me: E4's glide after an Easy tap: the card sinks into the water, the next line rises from the waterline.
+  const glideY = useSharedValue(0);
+  const glideOp = useSharedValue(1);
   const cardDragStyle = useAnimatedStyle(() => ({
+    opacity: glideOp.value,
     transform: [
-      { translateY: dragY.value },
-      { scale: interpolate(Math.abs(dragY.value), [0, DRAG_LIMIT], [1, 0.99], Extrapolation.CLAMP) },
+      { translateY: dragY.value + glideY.value },
+      { scale: interpolate(Math.abs(dragY.value), [0, DRAG_LIMIT], [1, 0.99], Extrapolation.CLAMP) * (0.97 + 0.03 * glideOp.value) },
     ],
   }));
   // The scene fades and rises 10pt into place as the screen opens, before the
@@ -2051,8 +2209,10 @@ export default function IslandScreen() {
   // asks for the loader if the player was not ready by then. Once landed, a
   // wait asks for it (the overlay's own grace delays the cat) and anything
   // else clears it.
-  const waitingForLines = !island && !error;
-  useEffect(() => {
+  const waitingForLines = (!island || openHold) && !error;
+  // A layout effect, ahead of the reveal's below, so a reveal that starts in the same commit sees
+  // the loader still drawn and waits out its fade.
+  useLayoutEffect(() => {
     // Under a covering morph only the clear is sent: its landing worklet asks
     // for the loader if the player still waits then.
     // A morph that lands on its timer before ready clears the loader as it
@@ -2063,7 +2223,7 @@ export default function IslandScreen() {
   useEffect(() => () => requestLoader(false), []);
 
   const contentReveal = useContentReveal({
-    ready: !!line,
+    ready: !!line && !openHold,
     coveredAtMount,
     staged: morph === '1' && !reducedMotion,
   });
@@ -2106,6 +2266,7 @@ export default function IslandScreen() {
   // never reaches here as an outside touch.
   function onSceneTouch() {
     if (!blockTouched.current && dragSpan) clearSelection();
+    if (!blockTouched.current && selected !== null) closePanel();
     blockTouched.current = false;
   }
 
@@ -2210,8 +2371,144 @@ export default function IslandScreen() {
     resetForNewAudio();
     setPlayWhenLoaded(wasActive);
     applyLadderNext();
+    setEasyOffer(null); // bl58-easy-for-me
     setIdx(clamped);
   }
+
+  // bl58-easy-for-me: Easy for me. A mark is a skip, never a grade: the line leaves Practice now and every later
+  // line on this island runs Listen, Shadow, Compare. Nothing marks by itself; the 90+ offer only asks.
+  const goLater = useStableHandler(go);
+  function glideTo(target: number) {
+    if (!island) return;
+    const clamped = Math.max(0, Math.min(island.lines.length - 1, target));
+    if (clamped === idx) return;
+    if (reducedMotion) {
+      go(clamped);
+      return;
+    }
+    if (glideTimer.current) clearTimeout(glideTimer.current);
+    const sink = { duration: EASY_GLIDE_MS, easing: Easing.bezier(0.4, 0, 1, 1) };
+    glideY.value = withTiming(60, sink);
+    glideOp.value = withTiming(0, sink);
+    glideTimer.current = setTimeout(() => {
+      goLater(clamped);
+      glideY.value = 60;
+      // The next line rises from the waterline 120 ms after the old one has sunk.
+      glideTimer.current = setTimeout(() => {
+        glideTimer.current = null;
+        glideY.value = withSpring(0, { damping: 20, stiffness: 180 });
+        glideOp.value = withTiming(1, { duration: 200 });
+      }, 120);
+    }, EASY_GLIDE_MS);
+  }
+  /** The first later line that is longer (words, or characters without them) and not known; else the first later unknown line; else stay. */
+  function nextLongerIdx(i: number): number {
+    const cur = island?.lines[i];
+    if (!island || !cur) return i;
+    const len = (l: api.Line) => l.words.length || Array.from(l.ja).length;
+    const later = island.lines
+      .map((l, j) => ({ l, j }))
+      .slice(i + 1)
+      .filter(({ l }) => !known.has(l.idx));
+    return later.find(({ l }) => len(l) > len(cur))?.j ?? later[0]?.j ?? i;
+  }
+  function showEasyDone(count: number) {
+    setEasyDone({ count });
+    if (easyTimer.current) clearTimeout(easyTimer.current);
+    easyTimer.current = setTimeout(() => {
+      easyTimer.current = null;
+      setEasyDone(null);
+    }, ECHO_RESULT_HOLD_MS);
+  }
+  const markEasy = useStableHandler(async (i: number) => {
+    const l = island?.lines[i];
+    if (!island || !l) return;
+    const islandId = island.id;
+    const lineIdx = l.idx;
+    setEasyOffer(null);
+    // A run in progress ends first, as Pause does.
+    // In a session the run carries on to the next line instead (below), as a Next tap inside a run does.
+    const wasRun = isActive(echoStep) || prelude !== null;
+    const carryOn = wasRun && auto === '1' && !guideOn;
+    if (wasRun && !carryOn) stopEcho();
+    setKnown((s) => new Set(s).add(lineIdx));
+    if (guideOn) {
+      // Under the guide the mark is best effort and the island moves on as a finished Compare would; two taps end it.
+      api.markKnown(islandId, lineIdx).catch(() => undefined);
+      const step = getGuideStep();
+      if (noteGuideEasyTap() >= 2 || step === 'solo') {
+        setGuideStep('topics');
+        router.replace('/phrases');
+        return;
+      }
+      go(i + 1);
+      if (step === 'listen' || step === 'shadow') setGuideStep('prep');
+      else if (step === 'prep') setGuideStep('solo');
+      return;
+    }
+    showEasyDone(known.has(lineIdx) ? known.size : known.size + 1);
+    // A session keeps its order and its run; otherwise the island moves to the next longer line.
+    if (carryOn && i + 1 < island.lines.length) startLineInRun(i + 1);
+    else if (carryOn) {
+      stopEcho();
+      if (autoRunRef.current) autoIslandDone();
+    } else glideTo(auto === '1' ? i + 1 : nextLongerIdx(i));
+    try {
+      const res = await api.markKnown(islandId, lineIdx);
+      setKnown(new Set(res.known));
+      setIsland((cur) => (cur && cur.id === islandId ? { ...cur, known: res.known } : cur));
+      noteAward(res.award);
+      if (easyTimer.current) showEasyDone(res.known.length);
+    } catch {
+      setKnown((cur) => {
+        const n = new Set(cur);
+        n.delete(lineIdx);
+        return n;
+      });
+      setEasyDone(null);
+      void alertSheet(t('ladder.easyFailed'));
+    }
+  });
+  const unmarkEasy = useStableHandler(async (i: number) => {
+    const l = island?.lines[i];
+    if (!island || !l) return;
+    const islandId = island.id;
+    const lineIdx = l.idx;
+    // An unmark ends the count toast of the mark it undoes.
+    if (easyTimer.current) clearTimeout(easyTimer.current);
+    easyTimer.current = null;
+    setEasyDone(null);
+    setKnown((cur) => {
+      const n = new Set(cur);
+      n.delete(lineIdx);
+      return n;
+    });
+    try {
+      const res = await api.unmarkKnown(islandId, lineIdx);
+      setKnown(new Set(res.known));
+      setIsland((cur) => (cur && cur.id === islandId ? { ...cur, known: res.known } : cur));
+    } catch {
+      setKnown((cur) => new Set(cur).add(lineIdx));
+      void alertSheet(t('ladder.easyFailed'));
+    }
+  });
+  // A new run takes the offer with it.
+  useEffect(() => {
+    if (isActive(echoStep)) setEasyOffer(null);
+  }, [echoStep]);
+  // E4's quiet pill: a 26 pt face with a 44 pt hit area. The island card wraps it in the guide's anchor; the stage view draws it as is.
+  const easyChipButton = line ? (
+    <PressScale
+      onPress={() => (lineKnown ? unmarkEasy(idx) : markEasy(idx))}
+      hitSlop={{ top: 9, bottom: 9, left: 8, right: 8 }}
+      accessibilityRole="button"
+      accessibilityState={{ selected: lineKnown }}
+      accessibilityLabel={lineKnown ? t('ladder.easyMarked') : t('ladder.easy')}
+      style={[styles.easyChip, lineKnown && styles.easyChipOn]}>
+      <Leaf size={14} />
+      <Text style={styles.easyChipText}>{lineKnown ? t('ladder.easyMarked') : t('ladder.easy')}</Text>
+    </PressScale>
+  ) : null;
   // Inside a run the neighbours restart it from their first pass.
   const next = () => (isActive(echoStep) ? startLineInRun(idx + 1) : go(idx + 1));
   const prev = () => (isActive(echoStep) ? startLineInRun(idx - 1) : go(idx - 1));
@@ -2766,18 +3063,53 @@ export default function IslandScreen() {
       // A Compare played back is one sentence ladder finished, which is what
       // a day on the streak counts.
       if (echoRef.current === 'ladderPlay' && island) addLadder(island.id);
-      if (autoEcho) {
+      if (guideOn) {
+        // bl57-intro-round2: under the guide a finished Compare parks the next line instead of running it.
+        // Only this finished Compare moves the guide on: a Pause, a background stop or a failed take keeps the step.
         advanceHoldRef.current = setTimeout(() => {
           advanceHoldRef.current = null;
-          // The toggle turned off during the hold: end the run instead.
-          if (!autoEchoRef.current) {
-            setEchoStep(afterTakePlayed(echoRef.current, false));
+          setEchoStep('done');
+          const step = getGuideStep();
+          if (step === 'solo') {
+            setGuideStep('topics');
+            router.replace('/phrases');
             return;
           }
-          advanceEcho();
+          go(idx + 1);
+          if (step === 'shadow') setGuideStep('prep');
+          else if (step === 'prep') setGuideStep('solo');
         }, ECHO_RESULT_HOLD_MS);
       } else {
-        setEchoStep('done');
+        // bl58-easy-for-me: a 90+ Compare on a line not yet known offers Easy, once per line per open. Only a tap marks.
+        const total = take.take?.score?.total;
+        const key = island && line ? `${island.id}:${line.idx}` : null;
+        const offer = key !== null && line && typeof total === 'number' && total >= 90 && !known.has(line.idx) && !offeredRef.current.has(key);
+        if (offer) {
+          offeredRef.current.add(key);
+          setEasyOffer(idx);
+        }
+        if (autoEcho) {
+          advanceHoldRef.current = setTimeout(() => {
+            advanceHoldRef.current = null;
+            setEasyOffer(null);
+            // The toggle turned off during the hold: end the run instead.
+            if (!autoEchoRef.current) {
+              setEchoStep(afterTakePlayed(echoRef.current, false));
+              return;
+            }
+            advanceEcho();
+          }, offer ? EASY_OFFER_HOLD_MS : ECHO_RESULT_HOLD_MS);
+        } else {
+          setEchoStep('done');
+          // Without Auto Echo nothing else ends the offer: it clears by itself, never marking.
+          if (offer) {
+            if (offerClearRef.current) clearTimeout(offerClearRef.current);
+            offerClearRef.current = setTimeout(() => {
+              offerClearRef.current = null;
+              setEasyOffer(null);
+            }, EASY_OFFER_HOLD_MS);
+          }
+        }
       }
     }
     wasEchoTakePlaying.current = take.takePlaying;
@@ -2937,6 +3269,9 @@ export default function IslandScreen() {
     const target = stepOfPass(i, hasTake);
     if (isArmedStep(target)) {
       if (countIn === null) {
+        // The step the badge skipped from may hold a full underline; the count-in starts empty.
+        cancelAnimation(echoFill);
+        echoFill.value = 0;
         stopPlayback(player);
         setPlayWhenLoaded(false);
         take.stopTake();
@@ -3116,6 +3451,7 @@ export default function IslandScreen() {
   const onReleaseHandle = useStableHandler(releaseHandle);
   const onHearWord = useStableHandler(() => void hearWord());
   const onClosePanel = useStableHandler(closePanel);
+  const onHeaderTouch = useStableHandler(onSceneTouch);
   const onRepeatSelection = useStableHandler(repeatSelection);
   const onOpenExplain = useStableHandler(openExplain);
   const onCopySelection = useStableHandler(copySelection);
@@ -3190,7 +3526,13 @@ export default function IslandScreen() {
     // touches; the Frost adds no offset, so the gesture's coordinates still
     // match the word boxes.
     return (
-      <Animated.View style={[styles.activeCard, cardDragStyle]}>
+      <Animated.View ref={cardAnchor.ref} onLayout={remeasureGuide} style={[styles.activeCard, cardDragStyle]}>
+        {/* bl58-easy-for-me: E4, the quiet pill beside the line number (the header carries the number). */}
+        <View style={styles.easyRow} pointerEvents="box-none">
+          <View ref={chipAnchor.ref} onLayout={chipAnchor.onLayout} collapsable={false}>
+            {easyChipButton}
+          </View>
+        </View>
         {line.words.length > 0 ? (
           <>
             {/* Fills the whole card, behind the block: catches a tap on the
@@ -3383,6 +3725,8 @@ export default function IslandScreen() {
       </Animated.View>
     );
   }, [
+    // bl58-easy-for-me: the chip's label and tap follow the mark.
+    lineKnown,
     t,
     isGrammar,
     line,
@@ -3416,6 +3760,8 @@ export default function IslandScreen() {
     // Stable for the screen's life: handlers from useStableHandler or an
     // empty useCallback, and a shared value.
     onBlockLayout,
+    cardAnchor.ref,
+    remeasureGuide,
     onBlockTouch,
     onClosePanel,
     onCopySelection,
@@ -3473,6 +3819,8 @@ export default function IslandScreen() {
     plainBack();
   });
   const onHeaderBack = useStableHandler(() => {
+    // bl57: the guide's island failed to load or play (the chevron came back): Home lights the + again, not nothing.
+    if (guideOn && !guideLocked) setGuideStep('home');
     if (autoRunRef.current || autoUi) {
       // auto-practice: Back ends the chain and goes Home in one step.
       if (leavingRef.current) return;
@@ -3509,9 +3857,11 @@ export default function IslandScreen() {
       lineCount={headerLineCount}
       placeholder={!island && !error}
       background={sky.top}
-      onBack={onHeaderBack}
-      onMenu={withMenu ? onHeaderMenu : null}
+      onBack={guideLocked ? null : onHeaderBack} // bl57-intro-round2
+      onMenu={withMenu && !guideLocked ? onHeaderMenu : null} // bl57-intro-round2
       onHelp={withHelp ? onPassHelp : null}
+      known={known.size} // bl58-easy-for-me
+      onTouch={onHeaderTouch}
     />
   );
 
@@ -3664,7 +4014,7 @@ export default function IslandScreen() {
       echoStep === 'idle'
         ? take.phase === 'recording'
           ? t('player.stopRecording')
-          : t('player.startLadder')
+          : t('player.shadow')
         : echoStep === 'done'
           ? t('player.startAgain')
           : counting
@@ -3692,8 +4042,10 @@ export default function IslandScreen() {
   const stageFresh = take.phase === 'ready' && !!take.take && take.take.recordedAt > scoreSince.current;
   const stageSc = stageFresh ? (take.take?.score ?? null) : null;
   const stageKept = wordsKeptUp(stageSc);
+  // bl58-easy-for-me: the 90+ offer lives in the dock, which the opaque stage view hides, and Auto Echo holds the
+  // run on Compare while it is up. The stage steps aside for the offer's hold so its bubble and choices show.
   const stageProps: LadderStageProps | null =
-    stageKey === null || stageIndex < 0
+    stageKey === null || stageIndex < 0 || easyOffer !== null
       ? null
       : {
           stage: stageKey,
@@ -3711,9 +4063,12 @@ export default function IslandScreen() {
           textHidden: textShownAt(echoStep, blindTake, finalTake) === false,
           round: finalTake ? 2 : 1,
           finalOn: blindTake,
+          prep: prepOn, // bl57-intro-round2, bl58-easy-for-me
+          chip: easyChipButton, // bl58-easy-for-me: E3, a mark ends the run
           text: line?.ja ?? '',
           line: line ?? null,
           level: take.level,
+          highlight,
           fill: echoFill,
           hint: stripHint,
           colour: LADDER_PASSES[stageIndex]!.colour,
@@ -3765,8 +4120,25 @@ export default function IslandScreen() {
           contentReveal={revealValues}
           initialHeight={Math.max(0, sceneEstimateH - dockSpace)}
           bottomInset={dockCover}
+          onScrollSettled={guideOn ? remeasureGuide : undefined}
+          scrollLocked={guideOn && guideLocked}
         />
 
+        {/* bl58-easy-for-me: the reaction after a mark (E4 b) and the 90+ offer's bubble (E4 c), above the dock. */}
+        {easyDone ? (
+          // The count sits in the empty sky under the header, clear of the lines below the waterline.
+          <View pointerEvents="none" style={[styles.easyToastTop, { top: screenInsets.top + 64 }]}>
+            <View style={styles.easyToast}>
+              <Leaf size={14} />
+              <Text style={styles.easyToastText}>{t('ladder.alreadyYours', { count: easyDone.count })}</Text>
+            </View>
+          </View>
+        ) : null}
+        {easyDone || easyOffer !== null ? (
+          <View pointerEvents="none" style={[styles.easyLayer, { bottom: dockCover + 4 }]}>
+            <GuideBubble kind="proud" text={easyDone ? t('guide.easyDone') : t('guide.easyOffer')} width={330} />
+          </View>
+        ) : null}
         {trayOpen ? (
           <Pressable
             style={styles.trayBackdrop}
@@ -3781,6 +4153,7 @@ export default function IslandScreen() {
           onLayout={(e) => {
             const { y, height } = e.nativeEvent.layout;
             anchorMoved(y !== dockY.current);
+            if (guideOn && y !== dockY.current) bumpGuide((n) => n + 1);
             dockY.current = y;
             if (Number.isFinite(height) && height > 0) {
               // What the scene already holds for it: the last player's dock
@@ -3791,6 +4164,30 @@ export default function IslandScreen() {
             }
           }}>
           <Animated.View style={bottomInStyle} pointerEvents="box-none">
+            {easyOffer !== null ? (
+              // bl58-easy-for-me: E4 c, the capsule holds the offer's two choices while it is up.
+              <View style={styles.offerRoot} pointerEvents="box-none">
+                <GlassPanel radius={Radius.pill} style={styles.offerCapsule}>
+                  <View style={styles.offerRow}>
+                    <PressScale
+                      onPress={() => markEasy(easyOffer)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('ladder.easyOffer.yes')}
+                      style={[styles.offerBtn, styles.offerBtnOn]}>
+                      <Leaf size={14} />
+                      <Text style={[styles.offerText, styles.offerTextOn]}>{t('ladder.easyOffer.yes')}</Text>
+                    </PressScale>
+                    <PressScale
+                      onPress={() => setEasyOffer(null)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('ladder.easyOffer.no')}
+                      style={styles.offerBtn}>
+                      <Text style={styles.offerText}>{t('ladder.easyOffer.no')}</Text>
+                    </PressScale>
+                  </View>
+                </GlassPanel>
+              </View>
+            ) : (
             <CompactDock
               playMode={ringMode === 'idle' ? 'idle' : 'playing'}
               onToggle={onToggle}
@@ -3802,6 +4199,8 @@ export default function IslandScreen() {
               level={take.level}
               onRecord={onDockRecord}
               recordLabel={dockRun.label}
+              // bl56-shadow-button
+              stageIndex={stageIndex}
               face={dockRun.face}
               countIn={countIn}
               beatMs={pacing.beatMs}
@@ -3828,6 +4227,7 @@ export default function IslandScreen() {
               onTrayToggle={() => setTrayOpen((v) => !v)}
               onAnchor={onAnchor}
             />
+            )}
           </Animated.View>
         </View>
         {speedPopOpen && anchors.current.speed && playerW.current > 0 ? (
@@ -3878,7 +4278,7 @@ export default function IslandScreen() {
             onClose={() => setRepeatPopOpen(false)}
           />
         ) : null}
-        {stageProps ? <LadderStageView {...stageProps} top={0} /> : null}
+        {stageProps ? <LadderStageView {...stageProps} top={0} followsReveal /> : null}
       </Animated.View>
 
       <PassHelpSheet
@@ -3927,11 +4327,23 @@ export default function IslandScreen() {
         generation={chatGeneration}
         onPlaySentence={onExplainPlay}
       />
+      {guideOn && guideLocked ? (
+        <IslandGuide
+          anchors={anchors}
+          dockY={dockY}
+          sceneTop={screenInsets.top + HEADER_ROW_H}
+          playing={ringMode !== 'idle'}
+          echoStep={echoStep}
+          stageActive={stageProps !== null}
+        />
+      ) : null}
     </View>
   );
 }
 
 const HEADER_ROW_H = PLAYER_HEADER_ROW_H;
+/** bl57-intro-round2: how long the guide waits for a line's audio to load before it unlocks the screen. */
+const GUIDE_AUDIO_MS = 15000;
 type TileBox = { x: number; y: number; width: number };
 /** The dock's height the last time a player laid it out, so the next open
  * can hold its place before the lines (and the dock) arrive. 0 until then. */
@@ -3945,11 +4357,15 @@ type PlayerHeaderProps = {
   /** Loading: the line row shows with a stand-in for the unknown count. */
   placeholder: boolean;
   background: string;
-  onBack: () => void;
+  onBack: (() => void) | null; // bl57-intro-round2: null leaves an empty slot while the guide locks the screen
   /** The `…` island menu; null leaves an empty slot of the same size. */
   onMenu: (() => void) | null;
   /** The ladder's `?` pass help, shown in the menu's slot; null shows the menu. */
   onHelp: (() => void) | null;
+  /** bl58-easy-for-me: lines marked Easy for me on this island; 0 shows no pill. */
+  known: number;
+  /** A touch on the bar: closes an open word panel. */
+  onTouch: () => void;
 };
 
 /**
@@ -3968,8 +4384,11 @@ const PlayerHeader = memo(function PlayerHeader({
   onBack,
   onMenu,
   onHelp,
+  known,
+  onTouch,
 }: PlayerHeaderProps) {
   const { t } = useT();
+  const dir = useDir();
   const insets = useSafeAreaInsets();
   // The title and both buttons: the overlay draws them while a morph runs.
   const titleHidden = useMorphHidesTitle(id, 'header');
@@ -3981,8 +4400,9 @@ const PlayerHeader = memo(function PlayerHeader({
     <View
       ref={barRef}
       onLayout={reportBar}
-      style={[styles.header, { paddingTop: insets.top, height: insets.top + HEADER_ROW_H, backgroundColor: background }]}>
-      <View pointerEvents="none" style={[styles.headerTitle, { top: insets.top }]}>
+      onTouchStart={onTouch}
+      style={[styles.header, dir.row, { paddingTop: insets.top, height: insets.top + HEADER_ROW_H, backgroundColor: background }]}>
+      <View pointerEvents="none" style={[styles.headerTitle, { top: insets.top }, known > 0 && (dir.rtl ? styles.headerTitleByPillRtl : styles.headerTitleByPill)]}>
         <PlayerTitle
           title={title}
           lineIndex={lineIndex}
@@ -3992,9 +4412,20 @@ const PlayerHeader = memo(function PlayerHeader({
           onTitleRect={setHeaderTitleRect}
         />
       </View>
-      <PressScale onPress={onBack} hitSlop={12} accessibilityLabel={t('player.back')} style={styles.headerButton}>
-        <Text style={[styles.backGlyph, titleHidden ? styles.hiddenChrome : null]}>‹</Text>
-      </PressScale>
+      {onBack ? (
+        <PressScale onPress={onBack} hitSlop={12} accessibilityLabel={t('player.back')} style={styles.headerButton}>
+          <Text style={[styles.backGlyph, titleHidden ? styles.hiddenChrome : null]}>{dir.rtl ? '›' : '‹'}</Text>
+        </PressScale>
+      ) : (
+        <View style={styles.headerButton} />
+      )}{/* bl57-intro-round2 */}
+      {known > 0 ? (
+        // bl58-easy-for-me: E4 b, the "already yours" count beside the menu.
+        <View style={[styles.knownPill, dir.rtl && styles.knownPillRtl, titleHidden ? styles.hiddenChrome : null]} accessibilityLabel={t('ladder.alreadyYours', { count: known })}>
+          <Leaf size={14} />
+          <Text style={styles.knownText}>{known}</Text>
+        </View>
+      ) : null}
       {onHelp ? (
         <View style={styles.headerButton}>
           <LadderHelpButton onPress={onHelp} />
@@ -4009,6 +4440,25 @@ const PlayerHeader = memo(function PlayerHeader({
     </View>
   );
 });
+
+/** bl58-easy-for-me: E4's leaf, drawn with two Views (a rounded leaf and its vein), no SVG. */
+function Leaf({ size }: { size: number }) {
+  const r = size / 2;
+  return (
+    <View
+      style={[
+        styles.leaf,
+        { width: size, height: size, borderTopRightRadius: r, borderBottomLeftRadius: r, borderTopLeftRadius: 0, borderBottomRightRadius: 0 },
+      ]}>
+      <View
+        style={[
+          styles.leafVein,
+          { left: size * 0.21, top: size * 0.21, width: size * 0.5, height: size * 0.29, borderLeftWidth: size * 0.115, borderBottomWidth: size * 0.115 },
+        ]}
+      />
+    </View>
+  );
+}
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
@@ -4074,6 +4524,76 @@ const styles = StyleSheet.create({
   // Hebrew text anyway.
   enRtl: { writingDirection: 'rtl' },
   menuGlyph: { fontFamily: fonts.ui, fontSize: 22, color: tide.text },
+  // bl58-easy-for-me: E4's pill, counter, toast and offer. Mint is verb.along (#3DDC97, #9AEFC9).
+  easyRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 4, zIndex: 6 },
+  easyChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 26,
+    paddingHorizontal: 10,
+    borderRadius: 13,
+    backgroundColor: 'rgba(61,220,151,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(61,220,151,0.45)',
+    borderTopColor: 'rgba(255,255,255,0.25)',
+  },
+  easyChipOn: { backgroundColor: 'rgba(61,220,151,0.14)' },
+  easyChipText: { fontFamily: fonts.uiMedium, fontSize: 12, fontWeight: '600', color: verb.along.c2 },
+  headerTitleByPill: { right: Spacing.sm + 44 + 52 },
+  headerTitleByPillRtl: { left: Spacing.sm + 44 + 52 },
+  knownPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 30,
+    paddingHorizontal: 12,
+    borderRadius: 15,
+    backgroundColor: 'rgba(61,220,151,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(61,220,151,0.45)',
+    marginStart: 'auto',
+    marginEnd: 6,
+  },
+  // The header row is reversed, so the menu is on the left: the pill hugs it from the right.
+  knownPillRtl: { marginStart: 6, marginEnd: 'auto' },
+  knownText: { fontFamily: fonts.uiMedium, fontSize: 13, fontWeight: '600', color: verb.along.c2 },
+  easyLayer: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 17 },
+  easyToastTop: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 17 },
+  easyToast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 38,
+    paddingHorizontal: 16,
+    borderRadius: 19,
+    backgroundColor: 'rgba(61,220,151,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(61,220,151,0.55)',
+    marginBottom: 6,
+  },
+  easyToastText: { fontFamily: fonts.uiMedium, fontSize: 14, fontWeight: '600', color: '#C9F7E0' },
+  offerRoot: { alignItems: 'center', paddingTop: 8, paddingBottom: 8 },
+  offerCapsule: { height: 56 },
+  offerRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 10 },
+  offerBtn: {
+    flex: 1,
+    height: 40,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  offerBtnOn: { backgroundColor: 'rgba(61,220,151,0.16)', borderColor: 'rgba(61,220,151,0.6)' },
+  offerText: { fontFamily: fonts.uiMedium, fontSize: 13, fontWeight: '600', color: tide.text },
+  offerTextOn: { color: '#C9F7E0' },
+  leaf: { backgroundColor: verb.along.c1, transform: [{ rotate: '-8deg' }] },
+  leafVein: { position: 'absolute', borderColor: '#08231a', transform: [{ rotate: '-45deg' }] },
   backGlyph: { fontFamily: fonts.ui, fontSize: 28, color: tide.text },
   // Above the tray backdrop (15) so the pills and the gear take taps; popovers sit at 20.
   // Floats over the scene's bottom: only the capsule, the tray and the slot draw.

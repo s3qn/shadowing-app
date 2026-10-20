@@ -17,6 +17,7 @@ import { Radius, Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
 import { applyPlaybackMode, scheduleAudioSessionRelease, startPlayback, useSessionPlayer } from '@/lib/audio-mode';
 import { useDir, useT } from '@/lib/i18n';
+import { localizeVoicePart } from '@/lib/voice-label';
 import { getLanguage, type LanguageId } from '@/lib/languages';
 import { getSettingsSync, getVoice, setVoice, subscribeSettings, toIslandLanguage } from '@/lib/settings';
 import { type Key } from '@/locales/en';
@@ -145,11 +146,11 @@ export default function VoiceScreen() {
                 ) : null}
                 {/* A voice's own name (Japanese for VOICEVOX), so it reads by
                     its own script, not the interface's. */}
-                <Text style={[styles.name, { color: tide.text }, dir.content]}>{sp.name}</Text>
+                <Text style={[styles.name, { color: tide.text }, dir.content]}>{localizeVoicePart(t, sp.name)}</Text>
               </View>
               <Segmented
                 scrollable
-                options={sp.styles.map((st) => ({ value: String(st.id), label: st.name }))}
+                options={sp.styles.map((st) => ({ value: String(st.id), label: localizeVoicePart(t, st.name) }))}
                 value={String(chosen)}
                 onChange={(v) => void pick(Number(v))}
               />

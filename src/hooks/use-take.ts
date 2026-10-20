@@ -141,8 +141,9 @@ export function useTake(
   /** `localOnly` saves and plays takes without the cleaner or a score, for a
    * line with no reference audio on the server (a captions-only video).
    * `countPass` adds the pass here for a scored take, for screens with no line
-   * player whose finish event would count it (video, podcast). */
-  options?: { localOnly?: boolean; countPass?: boolean },
+   * player whose finish event would count it (video, podcast). `guide` marks
+   * takes from the first-run guide's shadow moment (scored leniently once). */
+  options?: { localOnly?: boolean; countPass?: boolean; guide?: boolean },
 ) {
   const localOnly = options?.localOnly ?? false;
   const countPass = options?.countPass ?? false;
@@ -300,6 +301,7 @@ export function useTake(
     recordStartedAt: number;
     lineStartMs: number | null;
     silent: boolean;
+    guide: boolean;
   } | null>(null);
   const tail = useRef<ReturnType<typeof setTimeout> | null>(null);
   const watchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -373,13 +375,14 @@ export function useTake(
     lagMs: number,
     lineStartMs: number | null,
     seq: number,
+    guide: boolean,
   ) {
     // The clean status only describes the latest take: a newer take already
     // recording, or saved, owns it.
     const latest = () => seq === takeSeq.current;
     setClean({ state: 'working', erleDb: null, note: '' }, key);
     try {
-      const result = await uploadTake(targetIslandId, targetIdx, saved.uri, speed, false, span, lagMs, lineStartMs);
+      const result = await uploadTake(targetIslandId, targetIdx, saved.uri, speed, false, span, lagMs, lineStartMs, guide);
       noteAward(result.award);
       if (result.score) {
         const score = result.score;
@@ -481,6 +484,7 @@ export function useTake(
               savedFor.lagMs,
               savedFor.lineStartMs,
               seq,
+              savedFor.guide,
             );
           } catch (e) {
             // The previous take, if any, is untouched: saveTake only replaces
@@ -581,7 +585,7 @@ export function useTake(
       recorder.record();
       const recordStartedAt = Date.now();
       const isSilent = silent === 'auto' ? !(await probeHeadset()) : silent;
-      target.current = { key: lineKey, islandId, idx, mode, speed, lagMs, span, recordStartedAt, lineStartMs: null, silent: isSilent };
+      target.current = { key: lineKey, islandId, idx, mode, speed, lagMs, span, recordStartedAt, lineStartMs: null, silent: isSilent, guide: options?.guide ?? false };
       setMode(mode);
       // Nothing else should be pending here, but a leftover timer would end
       // this take early.

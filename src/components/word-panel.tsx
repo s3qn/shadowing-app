@@ -69,7 +69,7 @@ export function WordPanel({ word, gloss, context, left, top, romaji = false, dic
         </PressScale>
       </View>
 
-      <ScrollView style={styles.body} contentContainerStyle={{ gap: 4 }} nestedScrollEnabled>
+      <ScrollView style={styles.body} contentContainerStyle={{ gap: 4 }} nestedScrollEnabled persistentScrollbar showsVerticalScrollIndicator>
         {dictionary ? (
           gloss === null ? (
             <Text style={[styles.meaning, dir.text]}>{t('player.lookingUp')}</Text>
@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
   word: { fontSize: 20, fontWeight: '700', fontFamily: fonts.serifJp, color: tide.text },
   reading: { fontSize: 13, fontFamily: fonts.serifJp, color: tide.textDim },
   close: { fontSize: 22, lineHeight: 24, fontWeight: '600', paddingHorizontal: 4, fontFamily: fonts.ui, color: tide.textDim },
-  body: { flexGrow: 0, maxHeight: 96 },
+  body: { flexGrow: 0, maxHeight: 132 },
   meaning: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui, color: tide.text },
   context: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui, color: tide.textDim },
   contextLoading: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui, color: tide.textDim },

@@ -6,11 +6,9 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { LanguagePicker } from '@/components/language-picker';
 import { GoalOptions } from '@/components/onboarding/goal-step';
-import { LadderStep } from '@/components/onboarding/ladder-step';
 import { MicArt } from '@/components/onboarding/mic-art';
 import { OnboardingSky } from '@/components/onboarding/onboarding-sky';
-import { PassStep } from '@/components/onboarding/pass-step';
-import { Confetti, FirstIslandCard, RecordGlow } from '@/components/onboarding/ready-art';
+import { StarterStep } from '@/components/onboarding/starter-step';
 import { StepAction, StepCopy, StepFrame } from '@/components/onboarding/step-frame';
 import { SignInStep } from '@/components/onboarding/sign-in-step';
 import { WelcomeStep } from '@/components/onboarding/welcome-step';
@@ -21,14 +19,20 @@ import { getUsername } from '@/lib/api';
 import { hasSessionSync } from '@/lib/auth';
 import { previewAppLanguage, useDir, useT } from '@/lib/i18n';
 import { LANGUAGES } from '@/lib/languages';
+import { requestLoader } from '@/lib/loading-overlay';
 import {
   type DailyGoalMinutes,
   type LearningLanguage,
+  type StarterLevel,
   type UnderstoodLanguage,
   getSettingsSync,
   setDailyGoalMinutes,
   setLearningLanguage,
+  setReading,
+  toIslandLanguage,
+  setGuideStep,
   setOnboarded,
+  setStarterLevel,
   setUnderstoodLanguage,
 } from '@/lib/settings';
 import { type Key } from '@/locales/en';
@@ -39,11 +43,8 @@ const STEP_LEARN = 2;
 const STEP_UNDERSTAND = 3;
 const STEP_MIC = 4;
 const STEP_GOAL = 5;
-const STEP_LADDER = 6;
-const STEP_PASS_FIRST = 7;
-const STEP_PASS_LAST = 11;
-const STEP_READY = 12;
-const LAST_STEP = STEP_READY;
+const STEP_START = 6;
+const LAST_STEP = STEP_START;
 
 /**
  * First-run flow: explains shadowing, picks the language to learn and the
@@ -106,23 +107,40 @@ export default function OnboardingScreen() {
   // Saves, closes onboarding back to the one Home under it, then opens
   // `to` from there. Replacing with '/(tabs)' instead would stack a second
   // Home. The ref drops a second tap while the writes are in flight.
-  async function finish(to: 'home' | 'record' | 'podcast') {
-    if (leaving.current) return;
-    leaving.current = true;
+  async function saveAll(markOnboarded = true) {
     try {
       await Promise.all([
-        setOnboarded(true),
+        markOnboarded ? setOnboarded(true) : Promise.resolve(),
         setLearningLanguage(learning),
         setUnderstoodLanguage(understand),
         setDailyGoalMinutes(goal),
+        // Furigana is Japanese-only: other learners start with reading off.
+        toIslandLanguage(learning) === 'ja' ? Promise.resolve() : setReading('off'),
       ]);
     } catch (err: unknown) {
       console.warn('saving onboarding failed', err);
     }
+  }
+
+  async function finish() {
+    if (leaving.current) return;
+    leaving.current = true;
+    await saveAll();
     if (router.canGoBack()) router.back();
     else router.replace('/(tabs)');
-    if (to === 'record') router.push('/record');
-    else if (to === 'podcast') router.navigate('/(tabs)/podcast');
+  }
+
+  // A level pill: saves the languages and the pick, then arms the first-run guide on Home.
+  async function start(level: StarterLevel) {
+    if (leaving.current) return;
+    leaving.current = true;
+    await saveAll(false);
+    await setStarterLevel(level);
+    await setGuideStep('home');
+    await setOnboarded(true);
+    // The guide starts on Home, wherever the intro was opened from (Settings > Replay).
+    if (router.canDismiss()) router.dismissAll();
+    router.navigate('/');
   }
 
   // Sign-in is required: with no session, Skip never jumps past the account step.
@@ -131,7 +149,7 @@ export default function OnboardingScreen() {
       setStep(STEP_ACCOUNT);
       return;
     }
-    void finish('home');
+    void finish();
   }
 
   async function allowMic() {
@@ -157,7 +175,7 @@ export default function OnboardingScreen() {
     <View style={styles.fill}>
       <OnboardingSky />
       <SafeAreaView edges={['bottom']} style={styles.flow}>
-        {step < LAST_STEP && step !== STEP_ACCOUNT && (step !== STEP_WELCOME || hasSessionSync()) ? (
+        {step !== STEP_ACCOUNT && (step !== STEP_WELCOME || hasSessionSync()) ? (
           <PrismButton
             shape="pill"
             verb="tools"
@@ -254,7 +272,7 @@ export default function OnboardingScreen() {
               <StepAction
                 verb="listen"
                 label={t('settings.onboarding.continue')}
-                onPress={() => setStep(STEP_LADDER)}
+                onPress={() => setStep(STEP_START)}
               />
             }>
             <StepCopy
@@ -267,55 +285,8 @@ export default function OnboardingScreen() {
           </StepFrame>
         ) : null}
 
-        {step === STEP_LADDER ? <LadderStep onNext={() => setStep(STEP_PASS_FIRST)} /> : null}
-
-        {step >= STEP_PASS_FIRST && step <= STEP_PASS_LAST ? (
-          <PassStep
-            pass={(step - STEP_PASS_FIRST) as 0 | 1 | 2 | 3 | 4}
-            learning={learning}
-            understood={understand}
-            onNext={() => setStep(step + 1)}
-          />
-        ) : null}
-
-        {step === STEP_READY ? (
-          <>
-            <Confetti />
-            <StepFrame
-              footer={
-                <>
-                  <View style={styles.recordWrap}>
-                    <RecordGlow size={132} />
-                    <PrismButton
-                      shape="round"
-                      size={88}
-                      verb="speak"
-                      accessibilityLabel={t('settings.onboarding.recordFirstIsland')}
-                      onPress={() => void finish('record')}>
-                      <View style={styles.recordDot} />
-                    </PrismButton>
-                  </View>
-                  <Text style={styles.readyCaption}>{t('settings.onboarding.recordFirstIsland')}</Text>
-                  <StepAction
-                    verb="tools"
-                    on={false}
-                    label={t('settings.onboarding.pickPodcast')}
-                    onPress={() => void finish('podcast')}
-                  />
-                </>
-              }>
-              <StepCopy
-                kicker={t('settings.onboarding.allSet')}
-                kickerColour={tide.pos.verb}
-                title={t('settings.onboarding.ready')}
-                body={t('settings.onboarding.readyLine', {
-                  learn: t(`language.${learning}` as Key),
-                  understand: t(`language.${understand}` as Key),
-                })}
-              />
-              <FirstIslandCard />
-            </StepFrame>
-          </>
+        {step === STEP_START ? (
+          <StarterStep language={learning} onStart={(level) => void start(level)} />
         ) : null}
       </SafeAreaView>
     </View>
@@ -345,7 +316,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 280,
   },
-  recordWrap: { alignItems: 'center', justifyContent: 'center' },
-  readyCaption: { fontFamily: fonts.ui, fontSize: 15, color: tide.textDim },
-  recordDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: tide.record },
 });

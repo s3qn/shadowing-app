@@ -55,7 +55,10 @@ def _require_token(authorization: str | None) -> None:
         raise HTTPException(401, "bad token")
 
 
-def _relay_to_discord(text: str) -> None:
+def _relay_to_discord(text: str, prefix: str = "Feature suggestion: ") -> None:
+    """Posts one line to the Discord webhook, if one is set. `prefix` is the
+    suggestion label by default; energy.py relays its budget warning with
+    an empty one."""
     webhook = os.getenv("SHADOW_DISCORD_WEBHOOK")
     if not webhook:
         return
@@ -63,7 +66,7 @@ def _relay_to_discord(text: str) -> None:
         req = urllib.request.Request(
             webhook,
             data=json.dumps({
-                "content": f"Feature suggestion: {text}",
+                "content": f"{prefix}{text}",
                 "allowed_mentions": {"parse": []},
             }).encode(),
             headers={"Content-Type": "application/json"},

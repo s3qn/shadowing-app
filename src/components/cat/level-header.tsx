@@ -152,7 +152,7 @@ export function LevelHeader({ level, xpIntoLevel, xpToNext, coins, xpToday, xpTo
       <View style={[styles.coinPill, dir.row]} accessibilityLabel={t('wardrobe.coins', { n: coins })}>
         <Animated.View pointerEvents="none" style={[styles.ring, ringStyle]} />
         <View style={styles.disc} />
-        <CoinCount value={coins} />
+        <CoinCount value={coins} style={{ width: Math.max(24, String(Math.max(0, Math.round(Number.isFinite(coins) ? coins : 0))).length * 11) }} />
       </View>
     </View>
   );
@@ -160,7 +160,7 @@ export function LevelHeader({ level, xpIntoLevel, xpToNext, coins, xpToday, xpTo
 
 const styles = StyleSheet.create({
   wrap: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  left: { flex: 1, gap: 7 },
+  left: { flex: 1, minWidth: 0, gap: 7 },
   row: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
   levelDisc: {
     width: 64,
@@ -183,6 +183,7 @@ const styles = StyleSheet.create({
   xp: { fontFamily: fonts.ui, fontSize: 13, color: tide.textDim },
   coinPill: {
     flexDirection: 'row',
+    flexShrink: 0,
     alignItems: 'center',
     gap: 7,
     height: 44,

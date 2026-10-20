@@ -1,0 +1,1027 @@
+{
+ "language": "ja",
+ "title": {
+  "en": "First steps",
+  "he": "צעדים ראשונים"
+ },
+ "lines": [
+  {
+   "ja": "駅までの道を教えてもらえますか。",
+   "kana": "えきまでのみちをおしえてもらえますか。",
+   "romaji": "",
+   "gloss": {
+    "en": "Could you tell me the way to the station?",
+    "he": "אפשר להסביר לי איך מגיעים לתחנה?"
+   },
+   "duration": 2.7576,
+   "timeline": [
+    {
+     "text": "エ",
+     "kana": "え",
+     "start": 0.1,
+     "end": 0.239,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "キ",
+     "kana": "き",
+     "start": 0.239,
+     "end": 0.3725,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 0.3725,
+     "end": 0.5262,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 0.5262,
+     "end": 0.6486,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ノ",
+     "kana": "の",
+     "start": 0.6486,
+     "end": 0.7864,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ミ",
+     "kana": "み",
+     "start": 0.7864,
+     "end": 0.9393,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "チ",
+     "kana": "ち",
+     "start": 0.9393,
+     "end": 1.1113,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 1.1113,
+     "end": 1.2151,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 1.2151,
+     "end": 1.3178,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 1.3178,
+     "end": 1.5043,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "エ",
+     "kana": "え",
+     "start": 1.5043,
+     "end": 1.6217,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "テ",
+     "kana": "て",
+     "start": 1.6217,
+     "end": 1.7391,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "モ",
+     "kana": "も",
+     "start": 1.7391,
+     "end": 1.8843,
+     "phrase": 3,
+     "high": false
+    },
+    {
+     "text": "ラ",
+     "kana": "ら",
+     "start": 1.8843,
+     "end": 2.034,
+     "phrase": 3,
+     "high": true
+    },
+    {
+     "text": "エ",
+     "kana": "え",
+     "start": 2.034,
+     "end": 2.1167,
+     "phrase": 3,
+     "high": true
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 2.1167,
+     "end": 2.2747,
+     "phrase": 3,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 2.2747,
+     "end": 2.391,
+     "phrase": 3,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 2.391,
+     "end": 2.6576,
+     "phrase": 3,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "駅",
+     "start": 0.0,
+     "end": 0.3725,
+     "ruby": [
+      {
+       "text": "駅",
+       "rt": "えき"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "まで",
+     "start": 0.3725,
+     "end": 0.6486,
+     "ruby": [
+      {
+       "text": "まで",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "の",
+     "start": 0.6486,
+     "end": 0.7864,
+     "ruby": [
+      {
+       "text": "の",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "道",
+     "start": 0.7864,
+     "end": 1.1113,
+     "ruby": [
+      {
+       "text": "道",
+       "rt": "みち"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "を",
+     "start": 1.1113,
+     "end": 1.2151,
+     "ruby": [
+      {
+       "text": "を",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "教えてもらえます",
+     "start": 1.2151,
+     "end": 2.391,
+     "ruby": [
+      {
+       "text": "教",
+       "rt": "おし"
+      },
+      {
+       "text": "えてもらえます",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    },
+    {
+     "text": "か。",
+     "start": 2.391,
+     "end": 2.6576,
+     "ruby": [
+      {
+       "text": "か。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "週末は友達と映画を見に行く予定です。",
+   "kana": "しゅうまつはともだちとえいがをみにいくよていです。",
+   "romaji": "",
+   "gloss": {
+    "en": "This weekend I plan to see a movie with friends.",
+    "he": "בסוף השבוע אני מתכנן לראות סרט עם חברים."
+   },
+   "duration": 3.5047,
+   "timeline": [
+    {
+     "text": "シュ",
+     "kana": "しゅ",
+     "start": 0.1,
+     "end": 0.3492,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ウ",
+     "kana": "う",
+     "start": 0.3492,
+     "end": 0.4302,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 0.4302,
+     "end": 0.6029,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ツ",
+     "kana": "つ",
+     "start": 0.6029,
+     "end": 0.7498,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ワ",
+     "kana": "わ",
+     "start": 0.7498,
+     "end": 0.9054,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ト",
+     "kana": "と",
+     "start": 0.9054,
+     "end": 1.0429,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "モ",
+     "kana": "も",
+     "start": 1.0429,
+     "end": 1.1787,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ダ",
+     "kana": "だ",
+     "start": 1.1787,
+     "end": 1.3432,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "チ",
+     "kana": "ち",
+     "start": 1.3432,
+     "end": 1.4402,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ト",
+     "kana": "と",
+     "start": 1.4402,
+     "end": 1.6383,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "エ",
+     "kana": "え",
+     "start": 1.6383,
+     "end": 1.7425,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "エ",
+     "kana": "え",
+     "start": 1.7425,
+     "end": 1.8467,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "ガ",
+     "kana": "が",
+     "start": 1.8467,
+     "end": 2.0042,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 2.0042,
+     "end": 2.1089,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "ミ",
+     "kana": "み",
+     "start": 2.1089,
+     "end": 2.2522,
+     "phrase": 3,
+     "high": false
+    },
+    {
+     "text": "ニ",
+     "kana": "に",
+     "start": 2.2522,
+     "end": 2.4088,
+     "phrase": 3,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 2.4088,
+     "end": 2.507,
+     "phrase": 4,
+     "high": false
+    },
+    {
+     "text": "ク",
+     "kana": "く",
+     "start": 2.507,
+     "end": 2.6441,
+     "phrase": 4,
+     "high": true
+    },
+    {
+     "text": "ヨ",
+     "kana": "よ",
+     "start": 2.6441,
+     "end": 2.8002,
+     "phrase": 5,
+     "high": false
+    },
+    {
+     "text": "テ",
+     "kana": "て",
+     "start": 2.8002,
+     "end": 2.9659,
+     "phrase": 5,
+     "high": true
+    },
+    {
+     "text": "エ",
+     "kana": "え",
+     "start": 2.9659,
+     "end": 3.0541,
+     "phrase": 5,
+     "high": true
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 3.0541,
+     "end": 3.2267,
+     "phrase": 5,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 3.2267,
+     "end": 3.4047,
+     "phrase": 5,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "週末",
+     "start": 0.0,
+     "end": 0.7498,
+     "ruby": [
+      {
+       "text": "週末",
+       "rt": "しゅうまつ"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "は",
+     "start": 0.7498,
+     "end": 0.9054,
+     "ruby": [
+      {
+       "text": "は",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "友達",
+     "start": 0.9054,
+     "end": 1.4402,
+     "ruby": [
+      {
+       "text": "友達",
+       "rt": "ともだち"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "と",
+     "start": 1.4402,
+     "end": 1.6383,
+     "ruby": [
+      {
+       "text": "と",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "映画",
+     "start": 1.6383,
+     "end": 2.0042,
+     "ruby": [
+      {
+       "text": "映画",
+       "rt": "えいが"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "を",
+     "start": 2.0042,
+     "end": 2.1089,
+     "ruby": [
+      {
+       "text": "を",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "見",
+     "start": 2.1089,
+     "end": 2.2522,
+     "ruby": [
+      {
+       "text": "見",
+       "rt": "み"
+      }
+     ],
+     "pos": "verb"
+    },
+    {
+     "text": "に",
+     "start": 2.2522,
+     "end": 2.4088,
+     "ruby": [
+      {
+       "text": "に",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "行く",
+     "start": 2.4088,
+     "end": 2.6441,
+     "ruby": [
+      {
+       "text": "行",
+       "rt": "い"
+      },
+      {
+       "text": "く",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    },
+    {
+     "text": "予定です。",
+     "start": 2.6441,
+     "end": 3.4047,
+     "ruby": [
+      {
+       "text": "予定",
+       "rt": "よてい"
+      },
+      {
+       "text": "です。",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    }
+   ]
+  },
+  {
+   "ja": "日本に来てから、毎朝近所を散歩するのが習慣になりました。",
+   "kana": "にっぽんにきてから、まいあさきんじょをさんぽするのがしゅうかんになりました。",
+   "romaji": "",
+   "gloss": {
+    "en": "Since coming to Japan, a morning walk around the neighbourhood has become a habit.",
+    "he": "מאז שהגעתי ליפן, טיול בוקר בשכונה נהיה הרגל."
+   },
+   "duration": 5.1891,
+   "timeline": [
+    {
+     "text": "ニ",
+     "kana": "に",
+     "start": 0.1,
+     "end": 0.2732,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ッ",
+     "kana": "っ",
+     "start": 0.2732,
+     "end": 0.3613,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ポ",
+     "kana": "ぽ",
+     "start": 0.3613,
+     "end": 0.566,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 0.566,
+     "end": 0.635,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ニ",
+     "kana": "に",
+     "start": 0.635,
+     "end": 0.759,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "キ",
+     "kana": "き",
+     "start": 0.759,
+     "end": 0.8836,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "テ",
+     "kana": "て",
+     "start": 0.8836,
+     "end": 1.0236,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 1.0236,
+     "end": 1.1702,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ラ",
+     "kana": "ら",
+     "start": 1.1702,
+     "end": 1.3508,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 1.6276,
+     "end": 1.8296,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 1.8296,
+     "end": 1.9171,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "ア",
+     "kana": "あ",
+     "start": 1.9171,
+     "end": 2.0336,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "サ",
+     "kana": "さ",
+     "start": 2.0336,
+     "end": 2.2173,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "キ",
+     "kana": "き",
+     "start": 2.2173,
+     "end": 2.4128,
+     "phrase": 3,
+     "high": true
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 2.4128,
+     "end": 2.4956,
+     "phrase": 3,
+     "high": false
+    },
+    {
+     "text": "ジョ",
+     "kana": "じょ",
+     "start": 2.4956,
+     "end": 2.6316,
+     "phrase": 3,
+     "high": false
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 2.6316,
+     "end": 2.7226,
+     "phrase": 3,
+     "high": false
+    },
+    {
+     "text": "サ",
+     "kana": "さ",
+     "start": 2.7226,
+     "end": 2.9342,
+     "phrase": 4,
+     "high": false
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 2.9342,
+     "end": 3.0119,
+     "phrase": 4,
+     "high": true
+    },
+    {
+     "text": "ポ",
+     "kana": "ぽ",
+     "start": 3.0119,
+     "end": 3.1478,
+     "phrase": 4,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 3.1478,
+     "end": 3.2918,
+     "phrase": 5,
+     "high": false
+    },
+    {
+     "text": "ル",
+     "kana": "る",
+     "start": 3.2918,
+     "end": 3.4017,
+     "phrase": 5,
+     "high": true
+    },
+    {
+     "text": "ノ",
+     "kana": "の",
+     "start": 3.4017,
+     "end": 3.5358,
+     "phrase": 6,
+     "high": false
+    },
+    {
+     "text": "ガ",
+     "kana": "が",
+     "start": 3.5358,
+     "end": 3.6815,
+     "phrase": 6,
+     "high": true
+    },
+    {
+     "text": "シュ",
+     "kana": "しゅ",
+     "start": 3.6815,
+     "end": 3.8758,
+     "phrase": 7,
+     "high": false
+    },
+    {
+     "text": "ウ",
+     "kana": "う",
+     "start": 3.8758,
+     "end": 3.9623,
+     "phrase": 7,
+     "high": true
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 3.9623,
+     "end": 4.1669,
+     "phrase": 7,
+     "high": true
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 4.1669,
+     "end": 4.2296,
+     "phrase": 7,
+     "high": true
+    },
+    {
+     "text": "ニ",
+     "kana": "に",
+     "start": 4.2296,
+     "end": 4.3352,
+     "phrase": 7,
+     "high": true
+    },
+    {
+     "text": "ナ",
+     "kana": "な",
+     "start": 4.3352,
+     "end": 4.4932,
+     "phrase": 8,
+     "high": false
+    },
+    {
+     "text": "リ",
+     "kana": "り",
+     "start": 4.4932,
+     "end": 4.5941,
+     "phrase": 8,
+     "high": true
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 4.5941,
+     "end": 4.7454,
+     "phrase": 8,
+     "high": true
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 4.7454,
+     "end": 4.8404,
+     "phrase": 8,
+     "high": false
+    },
+    {
+     "text": "タ",
+     "kana": "た",
+     "start": 4.8404,
+     "end": 5.0891,
+     "phrase": 8,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "日本",
+     "start": 0.0,
+     "end": 0.635,
+     "ruby": [
+      {
+       "text": "日本",
+       "rt": "にっぽん"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "に",
+     "start": 0.635,
+     "end": 0.759,
+     "ruby": [
+      {
+       "text": "に",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "来て",
+     "start": 0.759,
+     "end": 1.0236,
+     "ruby": [
+      {
+       "text": "来",
+       "rt": "き"
+      },
+      {
+       "text": "て",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    },
+    {
+     "text": "から、",
+     "start": 1.0236,
+     "end": 1.3508,
+     "ruby": [
+      {
+       "text": "から、",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "毎朝",
+     "start": 1.6276,
+     "end": 2.2173,
+     "ruby": [
+      {
+       "text": "毎朝",
+       "rt": "まいあさ"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "近所",
+     "start": 2.2173,
+     "end": 2.6316,
+     "ruby": [
+      {
+       "text": "近所",
+       "rt": "きんじょ"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "を",
+     "start": 2.6316,
+     "end": 2.7226,
+     "ruby": [
+      {
+       "text": "を",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "散歩",
+     "start": 2.7226,
+     "end": 3.1478,
+     "ruby": [
+      {
+       "text": "散歩",
+       "rt": "さんぽ"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "するの",
+     "start": 3.1478,
+     "end": 3.5358,
+     "ruby": [
+      {
+       "text": "するの",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    },
+    {
+     "text": "が",
+     "start": 3.5358,
+     "end": 3.6815,
+     "ruby": [
+      {
+       "text": "が",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "習慣",
+     "start": 3.6815,
+     "end": 4.2296,
+     "ruby": [
+      {
+       "text": "習慣",
+       "rt": "しゅうかん"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "に",
+     "start": 4.2296,
+     "end": 4.3352,
+     "ruby": [
+      {
+       "text": "に",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "なりました。",
+     "start": 4.3352,
+     "end": 5.0891,
+     "ruby": [
+      {
+       "text": "なりました。",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,397 @@
+{
+ "language": "es",
+ "topic": "questions",
+ "lines": [
+  {
+   "ja": "¿Qué es esto?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "What is this?",
+    "he": "מה זה?"
+   },
+   "duration": 0.96,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Qué",
+     "start": 0.097,
+     "end": 0.297,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Qué",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "es",
+     "start": 0.297,
+     "end": 0.497,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "es",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "esto?",
+     "start": 0.497,
+     "end": 0.96,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "esto?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "¿Dónde está el baño?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Where is the restroom?",
+    "he": "איפה השירותים?"
+   },
+   "duration": 1.3653333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Dónde",
+     "start": 0.076,
+     "end": 0.501,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Dónde",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "está",
+     "start": 0.501,
+     "end": 0.776,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "está",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "el",
+     "start": 0.776,
+     "end": 0.901,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "el",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "baño?",
+     "start": 0.901,
+     "end": 1.365,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "baño?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "¿Qué hora es?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "What time is it?",
+    "he": "מה השעה?"
+   },
+   "duration": 0.8746666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Qué",
+     "start": 0.097,
+     "end": 0.297,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Qué",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "hora",
+     "start": 0.297,
+     "end": 0.572,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "hora",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "es?",
+     "start": 0.572,
+     "end": 0.875,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "es?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "¿Puedes repetirlo, por favor?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Can you repeat that, please?",
+    "he": "אפשר לחזור על זה, בבקשה?"
+   },
+   "duration": 1.792,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Puedes",
+     "start": 0.076,
+     "end": 0.451,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Puedes",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "repetirlo,",
+     "start": 0.451,
+     "end": 1.151,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "repetirlo,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "por",
+     "start": 1.151,
+     "end": 1.351,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "por",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "favor?",
+     "start": 1.351,
+     "end": 1.792,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "favor?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Habla más despacio, por favor.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Please speak more slowly.",
+    "he": "דבר לאט יותר, בבקשה."
+   },
+   "duration": 1.92,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Habla",
+     "start": 0.054,
+     "end": 0.379,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Habla",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "más",
+     "start": 0.379,
+     "end": 0.629,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "más",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "despacio,",
+     "start": 0.629,
+     "end": 1.304,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "despacio,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "por",
+     "start": 1.304,
+     "end": 1.504,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "por",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "favor.",
+     "start": 1.504,
+     "end": 1.92,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "favor.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "¿Hablas inglés?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Do you speak English?",
+    "he": "אתה מדבר אנגלית?"
+   },
+   "duration": 1.024,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Hablas",
+     "start": 0.076,
+     "end": 0.501,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Hablas",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "inglés?",
+     "start": 0.501,
+     "end": 1.024,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "inglés?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "¿Qué significa esta palabra?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "What does this word mean?",
+    "he": "מה המילה הזאת אומרת?"
+   },
+   "duration": 1.7493333333333334,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Qué",
+     "start": 0.076,
+     "end": 0.276,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Qué",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "significa",
+     "start": 0.276,
+     "end": 0.951,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "significa",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "esta",
+     "start": 0.951,
+     "end": 1.226,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "esta",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "palabra?",
+     "start": 1.226,
+     "end": 1.749,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "palabra?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

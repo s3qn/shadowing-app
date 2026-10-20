@@ -1,6 +1,6 @@
 import type { BottomTabBarProps } from 'expo-router/tabs';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -16,6 +16,7 @@ import Animated, {
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { hapticImpact, hapticSelection } from '@/lib/haptics';
+import { useGuideAnchor, useGuideStep } from '@/lib/guide';
 import { useDir } from '@/lib/i18n';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, prism } from '@/constants/theme';
@@ -27,8 +28,13 @@ import {
   PILL_LABEL_SIZE,
   PILL_PAD_X,
   PILL_SPRING,
+  PILL_CHROME_BORDER,
+  type PillItemBox,
   PillTrayShell,
   SlidingLitPill,
+  usePillChromeStyle,
+  usePillLabelStyle,
+  usePillLitStyle,
   useSlidingPill,
 } from '@/components/prism/pill-tray';
 
@@ -121,7 +127,6 @@ export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps
   // leaves a dark crescent at one end. Labels that shrink (an app language
   // switch) therefore cannot leave it short.
   const [fillWidth, setFillWidth] = useState(0);
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const layoutsRef = useRef<Array<{ x: number; width: number }>>([]);
 
   // Scrub gesture state, all UI-thread only. `layouts` and `barWidth` mirror
@@ -159,25 +164,24 @@ export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps
   // Slides when the active tab or the measured layouts change, including right
   // after a scrub commits a tab switch (that changes `state.index` like a tap).
   const { translateX: pillTranslateX, width: pillWidth } = useSlidingPill(tabLayouts[state.index]);
+  // A plain number for the gesture worklets: reading `state.index` inside one
+  // would copy the navigation state object to the UI thread.
+  const activeIndex = state.index;
 
   // Fires a tab switch: same haptic and navigate call for a tap and for a
-  // committed scrub. Also clears a scrub's hover highlight, since it drove
-  // `hoveredIndex` and the newly active tab now lights itself via `on`.
+  // committed scrub.
   const commit = useCallback((index: number) => {
     const route = state.routes[index];
     if (!route) return;
-    setHoveredIndex(null);
     void hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
     navigation.navigate(route.name);
   }, [navigation, state.routes]);
 
-  // Fires on each tab boundary a scrub's finger crosses.
-  const onCross = useCallback((index: number) => {
+  // Fires on each tab boundary a scrub's finger crosses. The labels follow
+  // the pill itself (usePillLabelStyle), so nothing else changes here.
+  const onCross = useCallback(() => {
     void hapticSelection();
-    setHoveredIndex(index);
   }, []);
-
-  const clearHover = useCallback(() => setHoveredIndex(null), []);
 
   const dragGesture = Gesture.Pan()
     .activateAfterLongPress(250)
@@ -191,7 +195,7 @@ export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps
       pillTranslateX.value = tab.x;
       lastHoverIndex.value = startIndex;
       held.value = withTiming(1, { duration: 180 });
-      if (startIndex !== state.index) runOnJS(onCross)(startIndex);
+      if (startIndex !== activeIndex) runOnJS(onCross)();
     })
     .onUpdate((e) => {
       if (layouts.value.length === 0 || barWidth.value === 0 || bubbleWidth.value === 0) return;
@@ -200,7 +204,7 @@ export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps
       const index = hitTestIndex(clampedX, layouts.value);
       if (index !== null && index !== lastHoverIndex.value) {
         lastHoverIndex.value = index;
-        runOnJS(onCross)(index);
+        runOnJS(onCross)();
       }
     })
     .onEnd(() => {
@@ -213,7 +217,7 @@ export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps
       // Always settle the pill on a tab. After a drag it sits wherever the
       // finger left it, and a release on the already active tab changes no
       // state, so the state.index effect never runs to move it back.
-      const released = success && lastHoverIndex.value >= 0 ? lastHoverIndex.value : state.index;
+      const released = success && lastHoverIndex.value >= 0 ? lastHoverIndex.value : activeIndex;
       const tab = layouts.value[released];
       if (tab) {
         pillTranslateX.value = withSpring(tab.x, PILL_SPRING);
@@ -221,7 +225,6 @@ export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps
       }
       lastHoverIndex.value = -1;
       bubbleWidth.value = 0;
-      if (!success) runOnJS(clearHover)();
     });
 
   const tapGesture = Gesture.Tap()
@@ -244,7 +247,6 @@ export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps
     });
 
   const rowGesture = Gesture.Exclusive(dragGesture, tapGesture);
-  const litIndex = hoveredIndex ?? state.index;
 
   return (
     <View
@@ -258,22 +260,23 @@ export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps
               const index = state.routes.indexOf(route);
               const options = descriptors[route.key]?.options;
               const label = options?.title ?? route.name;
-              const on = litIndex === index;
-              const Icon = TAB_ICON[route.name];
               return (
                 <TabPill
                   key={route.key}
-                  on={on}
+                  label={label}
+                  Icon={TAB_ICON[route.name]}
+                  box={tabLayouts[index]}
+                  pillX={pillTranslateX}
+                  pillW={pillWidth}
                   index={index}
                   pressedIndex={pressedIndex}
                   rtl={rtl}
+                  guide={route.name === 'podcast' ? 'podcast' : route.name === 'settings' ? 'settings' : undefined}
                   onLayout={(e) => {
                     const { x, width } = e.nativeEvent.layout;
                     handleTabLayout(index, x, width);
-                  }}>
-                  {Icon ? <Icon color={on ? PILL_ICON_ON : PILL_ICON_OFF} /> : null}
-                  <Text style={[styles.pillText, { color: on ? prism.tray.lit.label : PILL_ICON_OFF }]}>{label}</Text>
-                </TabPill>
+                  }}
+                />
               );
             })}
           </View>
@@ -284,24 +287,34 @@ export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps
 }
 
 type TabPillProps = {
-  children: React.ReactNode;
-  on: boolean;
+  label: string;
+  Icon?: (props: TabIconProps) => React.ReactElement;
+  /** This tab's box in the row, and the sliding pill: the colours follow how much of the pill covers the tab. */
+  box: PillItemBox | undefined;
+  pillX: SharedValue<number>;
+  pillW: SharedValue<number>;
   index: number;
   pressedIndex: SharedValue<number>;
   onLayout: (e: import('react-native').LayoutChangeEvent) => void;
   /** Hebrew: the icon leads from the right. */
   rtl: boolean;
+  /** The Podcast tab is lit by the guide's tour moment, the Settings tab by its beta moment. */
+  guide?: 'podcast' | 'settings';
 };
 
 /**
  * One tab's pill: a plain 0.96 press scale. The selected tab shows only the
  * sliding lit fill underneath; an unselected tab draws its own faint chip
- * background and rim so it still reads as a pill. The tap/scrub gesture on
+ * background and rim so it still reads as a pill. The chip, the label colour
+ * and the icon colour all follow how much of the sliding pill sits under this
+ * tab, so they change with the pill instead of before it arrives. The tap/scrub gesture on
  * the row (see `PillTabBar`) drives the press scale by writing this tab's
  * own index into `pressedIndex`, instead of this component's own
  * `Pressable`, since one `GestureDetector` now covers the whole row.
  */
-function TabPill({ children, on, index, pressedIndex, onLayout, rtl }: TabPillProps) {
+function TabPill({ label, Icon, box, pillX, pillW, index, pressedIndex, onLayout, rtl, guide }: TabPillProps) {
+  const gStep = useGuideStep();
+  const { ref, onLayout: measure } = useGuideAnchor(guide === 'settings' ? 'settingsTab' : 'podcastTab', guide === 'settings' ? gStep === 'beta' : guide === 'podcast' && gStep === 'tour');
   const scale = useSharedValue(1);
   useAnimatedReaction(
     () => pressedIndex.value === index,
@@ -311,9 +324,27 @@ function TabPill({ children, on, index, pressedIndex, onLayout, rtl }: TabPillPr
     },
   );
   const scaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const cover = { translateX: pillX, width: pillW, item: box };
+  const chromeStyle = usePillChromeStyle(cover);
+  const labelStyle = usePillLabelStyle(cover);
+  const litIconStyle = usePillLitStyle(cover);
   return (
-    <AnimatedView onLayout={onLayout} style={[styles.pill, rtl && styles.pillRtl, on ? null : styles.pillChrome, scaleStyle]}>
-      {children}
+    <AnimatedView
+      ref={ref}
+      onLayout={(e) => {
+        onLayout(e);
+        measure();
+      }}
+      style={[styles.pill, rtl && styles.pillRtl, chromeStyle, scaleStyle]}>
+      {Icon ? (
+        <View>
+          <Icon color={PILL_ICON_OFF} />
+          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, litIconStyle]}>
+            <Icon color={PILL_ICON_ON} />
+          </Animated.View>
+        </View>
+      ) : null}
+      <Animated.Text style={[styles.pillText, labelStyle]}>{label}</Animated.Text>
     </AnimatedView>
   );
 }
@@ -339,12 +370,10 @@ const styles = StyleSheet.create({
     height: PILL_H,
     paddingHorizontal: PILL_PAD_X,
     borderRadius: Radius.pill,
+    // Constant, so a tab keeps its size when it turns on; the colour fades with the chip.
+    borderWidth: 1,
+    borderColor: PILL_CHROME_BORDER,
   },
   pillRtl: { flexDirection: 'row-reverse' },
-  pillChrome: {
-    backgroundColor: prism.tray.pillFill,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-  },
   pillText: { fontSize: PILL_LABEL_SIZE, fontWeight: '600', fontFamily: fonts.ui },
 });

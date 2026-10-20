@@ -2,7 +2,7 @@ import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { type LayoutChangeEvent, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type ViewStyle } from 'react-native';
+import { AppState, type LayoutChangeEvent, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { Easing, FadeIn, FadeOut, type SharedValue, useAnimatedReaction, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,6 +22,7 @@ import { Spacing, tide, verb } from '@/constants/theme';
 import * as api from '@/lib/api';
 import { getSessionPrefs, routeFor, setSessionPrefs, startSession } from '@/lib/auto-practice';
 import { confirmSheet } from '@/lib/confirm-sheet';
+import { getGuideStep, guidePracticeStarted, useGuideAnchor, useGuideLock, useGuideStep } from '@/lib/guide';
 import { hapticImpact, hapticSelection } from '@/lib/haptics';
 import { useDir, useT } from '@/lib/i18n';
 import { kinsokuUnits } from '@/lib/kinsoku';
@@ -73,7 +74,13 @@ export default function ReviewScreen() {
   const dir = useDir();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [size, setSize] = useState<number>(() => getSettingsSync().sessionSize);
+  // The first-run guide aims for 5, so 5 is chosen up front and the plan does not change under its bubble.
+  const [size, setSize] = useState<number>(() => (getGuideStep() === 'size' ? 5 : getSettingsSync().sessionSize));
+  const guideSize = useGuideStep() === 'size';
+  useGuideLock(guideSize); // bl57-intro-round2
+  // The guide lights 5 until it is tapped, then Practice now.
+  const [fiveTapped, setFiveTapped] = useState(false);
+  const practiceBtn = useGuideAnchor('practiceNow', guideSize && fiveTapped);
   const [plan, setPlan] = useState<api.SessionPlan | null>(null);
   // The learner's own plan once they reorder, change a count, remove or add. Null plays the planner's pick for `size`.
   const [edit, setEdit] = useState<api.SessionPick[] | null>(null);
@@ -85,6 +92,7 @@ export default function ReviewScreen() {
   const [catalogue, setCatalogue] = useState<api.SessionCatalogueItem[] | null>(null);
   const [undo, setUndo] = useState<{ index: number; project: api.SessionProject } | null>(null);
   const [loadError, setLoadError] = useState('');
+  const retryAnchor = useGuideAnchor('sizeRetry', guideSize && !!plan && plan.count === 0 && !!loadError);
   const [starting, setStarting] = useState(false);
   const [count, setCount] = useState(0);
   // The picker never scrolls: rows that do not fit between the mix bar and Up first fold into a "+N more" line.
@@ -154,6 +162,18 @@ export default function ReviewScreen() {
     }, [loadDefault]),
   );
 
+  // A failed load retries itself every few seconds and when the app comes back to the front, so it recovers once the network returns.
+  useEffect(() => {
+    if (!loadError) return;
+    const again = () => loadDefault(sizeRef.current);
+    const id = setInterval(again, 5000);
+    const sub = AppState.addEventListener('change', (next) => next === 'active' && again());
+    return () => {
+      clearInterval(id);
+      sub.remove();
+    };
+  }, [loadError, loadDefault]);
+
   useEffect(() => {
     if (!undo) return;
     const id = setTimeout(() => setUndo(null), UNDO_MS);
@@ -161,8 +181,11 @@ export default function ReviewScreen() {
   }, [undo]);
 
   const pick = (n: number) => {
-    if (starting || n === lit) return;
+    if (starting) return;
+    if (guideSize) setFiveTapped(n === 5);
+    if (n === lit && !guideSize) return;
     void hapticSelection();
+    if (n === lit) return;
     setSize(n);
     sizeRef.current = n;
     void setSessionSize(n as SessionSize);
@@ -195,6 +218,7 @@ export default function ReviewScreen() {
       const started = await api.startSession(size, { ...(edit ? { projects: edit } : { order: plan.projects.map((p) => p.island_id) }), language: sessionLanguage() });
       setPlan(started);
       setCount(3);
+      if (guideSize) guidePracticeStarted();
     } catch (e) {
       setStarting(false);
       void confirmSheet({ title: e instanceof Error ? e.message : t('review.loadFailed'), actions: [{ label: t('common.ok'), verb: 'tools' }] });
@@ -227,7 +251,11 @@ export default function ReviewScreen() {
             <Text style={[styles.headSub, dir.writing]}>{t('review.subtitle')}</Text>
           </View>
         ),
-        headerRight: () => <LadderHelpButton onPress={help} />,
+        headerRight: () => (
+          <View style={{ marginEnd: 12 }}>
+            <LadderHelpButton onPress={help} />
+          </View>
+        ),
       }}
     />
   );
@@ -251,7 +279,12 @@ export default function ReviewScreen() {
         {header}
         <View style={styles.center}>
           {loadError ? (
-            <Text style={[styles.hint, dir.writing]}>{loadError}</Text>
+            <>
+              <Text style={[styles.hint, dir.writing]}>{loadError}</Text>
+              <View ref={retryAnchor.ref} onLayout={retryAnchor.onLayout} collapsable={false}>
+                <PrismButton shape="pill" verb="listen" label={t('common.retry')} onPress={() => loadDefault(sizeRef.current)} />
+              </View>
+            </>
           ) : (
             <>
               <Text style={[styles.emptyTitle, dir.writing]}>{t('review.emptyTitle')}</Text>
@@ -328,7 +361,8 @@ export default function ReviewScreen() {
       <StatusBar style="light" />
       {header}
       {counting ? (
-        <Animated.View key="count" entering={FadeIn.duration(250)} style={styles.fill}>
+        // Out, then in: the count screen starts as the pick screen's 150ms fade nears its end, and is under 0.3 until that is gone.
+        <Animated.View key="count" entering={FadeIn.delay(80).duration(250)} style={styles.fill}>
           <ScrollView contentContainerStyle={styles.countBody} scrollEnabled={false}>
             <UpFirst plan={plan} roomy />
             <Text style={[styles.label, dir.text, { marginTop: 24, marginBottom: 6 }]}>{t('review.then')}</Text>
@@ -344,10 +378,10 @@ export default function ReviewScreen() {
           </View>
         </Animated.View>
       ) : (
-        <Animated.View key="pick" exiting={FadeOut.duration(200)} style={styles.fill} onStartShouldSetResponderCapture={closeSoon}>
+        <Animated.View key="pick" exiting={FadeOut.duration(150)} style={styles.fill} onStartShouldSetResponderCapture={closeSoon}>
           <View style={[styles.body, { paddingTop: gap(24) }]} onLayout={measure('avail')}>
             <View onLayout={measure('top')}>
-              <SizeTray lit={lit} onPick={pick} />
+              <SizeTray lit={lit} onPick={pick} guide={guideSize} />
               <View style={{ marginTop: gap(28) }}>
                 <HeroNumber value={plan.count} />
                 <Text style={[styles.heroMeta, dir.text]}>{t('review.heroMeta', { ...meta, n: plan.count })}</Text>
@@ -402,9 +436,11 @@ export default function ReviewScreen() {
             </View>
           </View>
           <View style={[styles.cta, { paddingBottom: Math.max(insets.bottom + 2, 20) }]}>
-            <PrismButton shape="pill" verb="read" height={58} label={t('review.practiceNow')} disabled={starting} onPress={practice}>
-              <SymbolView name={{ ios: 'play.fill', android: 'play_arrow' }} size={16} weight="regular" tintColor={verb.read.c1} />
-            </PrismButton>
+            <View ref={practiceBtn.ref} onLayout={practiceBtn.onLayout}>
+              <PrismButton shape="pill" verb="read" height={58} label={t('review.practiceNow')} disabled={starting} onPress={practice}>
+                <SymbolView name={{ ios: 'play.fill', android: 'play_arrow' }} size={16} weight="regular" tintColor={verb.read.c1} />
+              </PrismButton>
+            </View>
           </View>
         </Animated.View>
       )}
@@ -452,8 +488,10 @@ export default function ReviewScreen() {
 }
 
 /** The 5 / 10 / 20 / 30 tray: one lit gold pill that slides under the chosen size (timing, no spring). It fades out while an edited plan matches no size. */
-function SizeTray({ lit: chosen, onPick }: { lit: number | null; onPick: (n: number) => void }) {
+function SizeTray({ lit: chosen, onPick, guide }: { lit: number | null; onPick: (n: number) => void; guide: boolean }) {
   const dir = useDir();
+  const tray = useGuideAnchor('sizeTray', guide);
+  const five = useGuideAnchor('size5', guide);
   const [lay, setLay] = useState<Array<{ x: number; width: number } | undefined>>([]);
   const at = chosen === null ? -1 : SIZES.indexOf(chosen as SessionSize);
   const { translateX, width } = useSlidingPill(at >= 0 ? lay[at] : undefined, TRAY_TIMING);
@@ -472,10 +510,10 @@ function SizeTray({ lit: chosen, onPick }: { lit: number | null; onPick: (n: num
   };
   return (
     <PillTrayShell style={styles.tray}>
-      <View style={[styles.trayRow, dir.row]}>
+      <View ref={tray.ref} onLayout={tray.onLayout} style={[styles.trayRow, dir.row]}>
         <Animated.View pointerEvents="none" style={[styles.lit, lit]} />
         {SIZES.map((n, i) => (
-          <Pressable key={n} style={styles.trayPill} onLayout={(e) => measured(i, e)} onPress={() => onPick(n)} accessibilityRole="button" accessibilityState={{ selected: n === chosen }}>
+          <Pressable key={n} ref={n === 5 ? five.ref : undefined} style={styles.trayPill} onLayout={(e) => { measured(i, e); if (n === 5) five.onLayout(); }} onPress={() => onPick(n)} accessibilityRole="button" accessibilityState={{ selected: n === chosen }}>
             <Text style={[styles.trayText, n === chosen && { color: verb.read.c1 }]}>{n}</Text>
           </Pressable>
         ))}
@@ -808,7 +846,7 @@ const styles = StyleSheet.create({
   oneLine: { flexDirection: 'row', overflow: 'hidden', marginTop: 4 },
   hidden: { opacity: 0 },
   ellipsis: { position: 'absolute', bottom: 4, fontSize: 28, fontWeight: '600', color: tide.text, fontFamily: fonts.ui },
-  unit: { flexDirection: 'row' },
+  unit: { flexDirection: 'row', flexShrink: 0 },
   plain: { fontSize: 28, fontWeight: '600', color: tide.text, fontFamily: fonts.ui, marginTop: 4 },
   en: { fontSize: 14, lineHeight: 21, color: tide.textDim, fontFamily: fonts.ui },
   cta: { paddingHorizontal: 20, paddingTop: 12 },

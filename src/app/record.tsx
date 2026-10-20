@@ -10,7 +10,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SymbolView } from 'expo-symbols'; // icon-buttons: discard
 import { useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -19,6 +19,7 @@ import { LevelBars, meterLevel } from '@/components/level-bars';
 import { PrismButton } from '@/components/prism';
 import { Segmented, type SegmentOption } from '@/components/segmented';
 
+import { HeaderClosePill } from '@/components/header-close-pill';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, prism, tide, verb as verbTokens } from '@/constants/theme'; // icon-buttons: discard
 import { useFollowBuild } from '@/hooks/use-follow-build';
@@ -344,13 +345,7 @@ export default function RecordScreen() {
           headerStyle: { backgroundColor: tide.sky[0] },
           headerTintColor: tide.text,
           headerShadowVisible: false,
-          headerLeft: () => (
-            <Pressable onPress={cancel} hitSlop={12}>
-              <Text style={{ color: tide.text, fontSize: 16, fontWeight: '600', fontFamily: fonts.ui }}>
-                {phase === 'building' ? t('record.close') : t('common.cancel')}
-              </Text>
-            </Pressable>
-          ),
+          headerLeft: () => <HeaderClosePill label={phase === 'building' ? t('record.close') : t('common.cancel')} onPress={cancel} />,
         }}
       />
 

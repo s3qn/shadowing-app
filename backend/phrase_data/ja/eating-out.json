@@ -1,9 +1,9 @@
 [
-  {"text": "二人です。", "en": "Table for two."},
-  {"text": "メニューをお願いします。", "en": "The menu, please."},
-  {"text": "おすすめは何ですか。", "en": "What do you recommend?"},
-  {"text": "これをください。", "en": "I'll have this, please."},
-  {"text": "水をください。", "en": "Water, please."},
-  {"text": "とてもおいしいです。", "en": "It's very delicious."},
-  {"text": "お会計をお願いします。", "en": "The check, please."}
+  {"text": "二人です。", "en": "Table for two.", "he": "שולחן לשניים."},
+  {"text": "メニューをお願いします。", "en": "The menu, please.", "he": "תפריט, בבקשה."},
+  {"text": "おすすめは何ですか。", "en": "What do you recommend?", "he": "מה אתם ממליצים?"},
+  {"text": "これをください。", "en": "I'll have this, please.", "he": "אני רוצה את זה, בבקשה."},
+  {"text": "水をください。", "en": "Water, please.", "he": "מים, בבקשה."},
+  {"text": "とてもおいしいです。", "en": "It's very delicious.", "he": "זה טעים מאוד."},
+  {"text": "お会計をお願いします。", "en": "The check, please.", "he": "החשבון, בבקשה."}
 ]

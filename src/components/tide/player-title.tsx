@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
 import Animated, { runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -64,7 +64,9 @@ export function PlayerTitle({ title, lineIndex, lineCount, hidden = false, onTit
   // While the island loads there is no line count yet and the line row is
   // invisible; the line it then opens on (a resumed one, say) lands without a roll.
   const prevCount = useRef(lineCount);
-  useEffect(() => {
+  // A layout effect, so the roll's start values are set before the new
+  // number is painted: an effect let it show for a frame at rest, then jump.
+  useLayoutEffect(() => {
     const wasEmpty = prevCount.current <= 0;
     prevCount.current = lineCount;
     if (lineIndex === prevIndex.current) return;
@@ -90,14 +92,26 @@ export function PlayerTitle({ title, lineIndex, lineCount, hidden = false, onTit
   // instead of hugging the left edge.
   const clipWidth = Math.max(widthFor(number), outNumber !== null ? widthFor(outNumber) : 0);
 
-  const outStyle = useAnimatedStyle(() => ({
-    opacity: 1 - anim.value,
-    transform: [{ translateY: reducedMotion ? 0 : -dir.value * anim.value * ROLL_HEIGHT }],
-  }));
-  const inStyle = useAnimatedStyle(() => ({
-    opacity: anim.value,
-    transform: [{ translateY: reducedMotion ? 0 : dir.value * (1 - anim.value) * ROLL_HEIGHT }],
-  }));
+  // An odometer: the clip box hides whatever part of either number has rolled
+  // out of it, so both stay opaque and the box is never empty mid-roll (a
+  // crossfade on top of the roll left it blank halfway). Reduced motion has
+  // no roll, so there the numbers crossfade in place.
+  const outStyle = useAnimatedStyle(() => {
+    const k = Number.isFinite(anim.value) ? anim.value : 1;
+    const d = dir.value === -1 ? -1 : 1;
+    return {
+      opacity: reducedMotion ? 1 - k : 1,
+      transform: [{ translateY: reducedMotion ? 0 : -d * k * ROLL_HEIGHT }],
+    };
+  });
+  const inStyle = useAnimatedStyle(() => {
+    const k = Number.isFinite(anim.value) ? anim.value : 1;
+    const d = dir.value === -1 ? -1 : 1;
+    return {
+      opacity: reducedMotion ? k : 1,
+      transform: [{ translateY: reducedMotion ? 0 : d * (1 - k) * ROLL_HEIGHT }],
+    };
+  });
 
   return (
     <View style={[styles.wrap, hidden ? styles.hidden : null]}>

@@ -142,7 +142,7 @@ def test_regenerate_passes_learning_and_native(monkeypatch, tmp_path):
     captured = {}
 
     async def fake_build_island(island_id, wav_path, complexity, speaker, count, register,
-                                 learning, native):
+                                 learning, native, transcript=""):
         captured["learning"] = learning
         captured["native"] = native
 
@@ -328,9 +328,11 @@ def test_explain_word_english_answer_hits_the_key_from_before_languages(monkeypa
 
     en = asyncio.run(main.explain_word(
         word="languages-word", sentence_ja="languages-route-sentence。", authorization=AUTH,
+        x_shadow_device=DEV,
     ))
     he = asyncio.run(main.explain_word(
         word="languages-word", sentence_ja="languages-route-sentence。", native="he", authorization=AUTH,
+        x_shadow_device=DEV,
     ))
     assert en == {"context": "cached gloss"}
     assert he == {"context": "fresh gloss"}

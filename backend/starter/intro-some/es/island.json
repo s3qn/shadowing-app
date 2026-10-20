@@ -1,0 +1,468 @@
+{
+ "language": "es",
+ "title": {
+  "en": "First steps",
+  "he": "צעדים ראשונים"
+ },
+ "lines": [
+  {
+   "ja": "¿Me puede decir cómo llegar a la estación?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Could you tell me how to get to the station?",
+    "he": "אפשר להגיד לי איך מגיעים לתחנה?"
+   },
+   "duration": 2.3466666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Me",
+     "start": 0.054,
+     "end": 0.229,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Me",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "puede",
+     "start": 0.229,
+     "end": 0.529,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "puede",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "decir",
+     "start": 0.529,
+     "end": 0.979,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "decir",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "cómo",
+     "start": 0.979,
+     "end": 1.304,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "cómo",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "llegar",
+     "start": 1.304,
+     "end": 1.629,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "llegar",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "a",
+     "start": 1.629,
+     "end": 1.679,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "a",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "la",
+     "start": 1.679,
+     "end": 1.754,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "la",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "estación?",
+     "start": 1.754,
+     "end": 2.347,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "estación?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Este fin de semana pienso ir al cine con unos amigos.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "This weekend I'm planning to go to the cinema with some friends.",
+    "he": "בסוף השבוע אני מתכנן ללכת לקולנוע עם כמה חברים."
+   },
+   "duration": 3.029333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Este",
+     "start": 0.029,
+     "end": 0.304,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Este",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "fin",
+     "start": 0.304,
+     "end": 0.479,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "fin",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "de",
+     "start": 0.479,
+     "end": 0.604,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "de",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "semana",
+     "start": 0.604,
+     "end": 1.079,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "semana",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "pienso",
+     "start": 1.079,
+     "end": 1.529,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "pienso",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "ir",
+     "start": 1.529,
+     "end": 1.704,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "ir",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "al",
+     "start": 1.704,
+     "end": 1.879,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "al",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "cine",
+     "start": 1.879,
+     "end": 2.179,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "cine",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "con",
+     "start": 2.179,
+     "end": 2.329,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "con",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "unos",
+     "start": 2.329,
+     "end": 2.604,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "unos",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "amigos.",
+     "start": 2.604,
+     "end": 3.029,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "amigos.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Desde que me mudé aquí, pasear por el barrio cada mañana se ha vuelto una costumbre.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Since I moved here, a walk around the neighbourhood every morning has become a habit.",
+    "he": "מאז שעברתי לכאן, טיול בשכונה כל בוקר נהיה הרגל."
+   },
+   "duration": 4.586666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Desde",
+     "start": 0.054,
+     "end": 0.354,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Desde",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "que",
+     "start": 0.354,
+     "end": 0.454,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "que",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "me",
+     "start": 0.454,
+     "end": 0.604,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "me",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "mudé",
+     "start": 0.604,
+     "end": 0.929,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "mudé",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "aquí,",
+     "start": 0.929,
+     "end": 1.529,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "aquí,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "pasear",
+     "start": 1.529,
+     "end": 1.979,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "pasear",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "por",
+     "start": 1.979,
+     "end": 2.104,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "por",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "el",
+     "start": 2.104,
+     "end": 2.229,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "el",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "barrio",
+     "start": 2.229,
+     "end": 2.604,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "barrio",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "cada",
+     "start": 2.604,
+     "end": 2.854,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "cada",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "mañana",
+     "start": 2.854,
+     "end": 3.354,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "mañana",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "se",
+     "start": 3.354,
+     "end": 3.454,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "se",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "ha",
+     "start": 3.454,
+     "end": 3.529,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "ha",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "vuelto",
+     "start": 3.529,
+     "end": 3.829,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "vuelto",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "una",
+     "start": 3.829,
+     "end": 4.004,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "una",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "costumbre.",
+     "start": 4.004,
+     "end": 4.587,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "costumbre.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

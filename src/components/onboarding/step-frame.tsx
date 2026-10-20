@@ -62,12 +62,17 @@ export function StepCopy({
   title,
   body,
   centered,
+  titleSize,
+  kickerSize,
 }: {
   kicker?: string;
   kickerColour?: string;
   title: string;
   body?: string;
   centered?: boolean;
+  titleSize?: number;
+  /** A bigger kicker keeps its tracking at 0.2 em. */
+  kickerSize?: number;
 }) {
   const dir = useDir();
   // Centred copy still needs the writing direction: without it a headline
@@ -76,8 +81,18 @@ export function StepCopy({
   const align = centered ? [styles.centered, dir.writing] : dir.text;
   return (
     <View style={styles.copy}>
-      {kicker ? <Text style={[styles.kicker, kickerColour ? { color: kickerColour } : null, align]}>{kicker}</Text> : null}
-      <Text style={[styles.title, align]}>{title}</Text>
+      {kicker ? (
+        <Text
+          style={[
+            styles.kicker,
+            kickerColour ? { color: kickerColour } : null,
+            kickerSize ? { fontSize: kickerSize, letterSpacing: kickerSize * 0.2 } : null,
+            align,
+          ]}>
+          {kicker}
+        </Text>
+      ) : null}
+      <Text style={[styles.title, titleSize ? { fontSize: titleSize, lineHeight: Math.round(titleSize * 1.18) } : null, align]}>{title}</Text>
       {body ? <Text style={[styles.body, align]}>{body}</Text> : null}
     </View>
   );

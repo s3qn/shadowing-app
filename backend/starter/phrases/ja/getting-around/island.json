@@ -1,0 +1,1204 @@
+{
+ "language": "ja",
+ "topic": "getting-around",
+ "lines": [
+  {
+   "ja": "駅はどこですか。",
+   "kana": "えきはどこですか。",
+   "romaji": "",
+   "gloss": {
+    "en": "Where is the station?",
+    "he": "איפה התחנה?"
+   },
+   "duration": 1.4752,
+   "timeline": [
+    {
+     "text": "エ",
+     "kana": "え",
+     "start": 0.1,
+     "end": 0.247,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "キ",
+     "kana": "き",
+     "start": 0.247,
+     "end": 0.3977,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ワ",
+     "kana": "わ",
+     "start": 0.3977,
+     "end": 0.5462,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ド",
+     "kana": "ど",
+     "start": 0.5462,
+     "end": 0.7052,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "コ",
+     "kana": "こ",
+     "start": 0.7052,
+     "end": 0.8389,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 0.8389,
+     "end": 0.9866,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 0.9866,
+     "end": 1.1033,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 1.1033,
+     "end": 1.3752,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "駅",
+     "start": 0.0,
+     "end": 0.3977,
+     "ruby": [
+      {
+       "text": "駅",
+       "rt": "えき"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "は",
+     "start": 0.3977,
+     "end": 0.5462,
+     "ruby": [
+      {
+       "text": "は",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "どこです",
+     "start": 0.5462,
+     "end": 1.1033,
+     "ruby": [
+      {
+       "text": "どこです",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "か。",
+     "start": 1.1033,
+     "end": 1.3752,
+     "ruby": [
+      {
+       "text": "か。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "この電車は新宿に行きますか。",
+   "kana": "このでんしゃはしんじゅくにいきますか。",
+   "romaji": "",
+   "gloss": {
+    "en": "Does this train go to Shinjuku?",
+    "he": "הרכבת הזאת נוסעת לשינג'וקו?"
+   },
+   "duration": 2.5496,
+   "timeline": [
+    {
+     "text": "コ",
+     "kana": "こ",
+     "start": 0.1,
+     "end": 0.263,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ノ",
+     "kana": "の",
+     "start": 0.263,
+     "end": 0.4133,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 0.4133,
+     "end": 0.5948,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 0.5948,
+     "end": 0.6619,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "シャ",
+     "kana": "しゃ",
+     "start": 0.6619,
+     "end": 0.8427,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ワ",
+     "kana": "わ",
+     "start": 0.8427,
+     "end": 0.9705,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 0.9705,
+     "end": 1.1861,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "ン",
+     "kana": "ん",
+     "start": 1.1861,
+     "end": 1.2658,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "ジュ",
+     "kana": "じゅ",
+     "start": 1.2658,
+     "end": 1.393,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "ク",
+     "kana": "く",
+     "start": 1.393,
+     "end": 1.5213,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "ニ",
+     "kana": "に",
+     "start": 1.5213,
+     "end": 1.6815,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 1.6815,
+     "end": 1.7802,
+     "phrase": 3,
+     "high": false
+    },
+    {
+     "text": "キ",
+     "kana": "き",
+     "start": 1.7802,
+     "end": 1.9104,
+     "phrase": 3,
+     "high": true
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 1.9104,
+     "end": 2.071,
+     "phrase": 3,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 2.071,
+     "end": 2.1832,
+     "phrase": 3,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 2.1832,
+     "end": 2.4496,
+     "phrase": 3,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "この",
+     "start": 0.0,
+     "end": 0.4133,
+     "ruby": [
+      {
+       "text": "この",
+       "rt": ""
+      }
+     ],
+     "pos": "other"
+    },
+    {
+     "text": "電車",
+     "start": 0.4133,
+     "end": 0.8427,
+     "ruby": [
+      {
+       "text": "電車",
+       "rt": "でんしゃ"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "は",
+     "start": 0.8427,
+     "end": 0.9705,
+     "ruby": [
+      {
+       "text": "は",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "新宿",
+     "start": 0.9705,
+     "end": 1.5213,
+     "ruby": [
+      {
+       "text": "新宿",
+       "rt": "しんじゅく"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "に",
+     "start": 1.5213,
+     "end": 1.6815,
+     "ruby": [
+      {
+       "text": "に",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "行きます",
+     "start": 1.6815,
+     "end": 2.1832,
+     "ruby": [
+      {
+       "text": "行",
+       "rt": "い"
+      },
+      {
+       "text": "きます",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    },
+    {
+     "text": "か。",
+     "start": 2.1832,
+     "end": 2.4496,
+     "ruby": [
+      {
+       "text": "か。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "次の駅で降ります。",
+   "kana": "つぎのえきでおります。",
+   "romaji": "",
+   "gloss": {
+    "en": "I'll get off at the next stop.",
+    "he": "אני יורד בתחנה הבאה."
+   },
+   "duration": 1.6876,
+   "timeline": [
+    {
+     "text": "ツ",
+     "kana": "つ",
+     "start": 0.1,
+     "end": 0.2982,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ギ",
+     "kana": "ぎ",
+     "start": 0.2982,
+     "end": 0.459,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ノ",
+     "kana": "の",
+     "start": 0.459,
+     "end": 0.6264,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "エ",
+     "kana": "え",
+     "start": 0.6264,
+     "end": 0.7289,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "キ",
+     "kana": "き",
+     "start": 0.7289,
+     "end": 0.8518,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 0.8518,
+     "end": 0.9961,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.9961,
+     "end": 1.1145,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "リ",
+     "kana": "り",
+     "start": 1.1145,
+     "end": 1.2285,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 1.2285,
+     "end": 1.411,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.411,
+     "end": 1.5876,
+     "phrase": 2,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "次",
+     "start": 0.0,
+     "end": 0.459,
+     "ruby": [
+      {
+       "text": "次",
+       "rt": "つぎ"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "の",
+     "start": 0.459,
+     "end": 0.6264,
+     "ruby": [
+      {
+       "text": "の",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "駅",
+     "start": 0.6264,
+     "end": 0.8518,
+     "ruby": [
+      {
+       "text": "駅",
+       "rt": "えき"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "で",
+     "start": 0.8518,
+     "end": 0.9961,
+     "ruby": [
+      {
+       "text": "で",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "降ります。",
+     "start": 0.9961,
+     "end": 1.5876,
+     "ruby": [
+      {
+       "text": "降",
+       "rt": "お"
+      },
+      {
+       "text": "ります。",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    }
+   ]
+  },
+  {
+   "ja": "まっすぐ行って、右に曲がってください。",
+   "kana": "まっすぐいって、みぎにまがってください。",
+   "romaji": "",
+   "gloss": {
+    "en": "Go straight, then turn right.",
+    "he": "תמשיך ישר ואז תפנה ימינה, בבקשה."
+   },
+   "duration": 3.1505,
+   "timeline": [
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 0.1,
+     "end": 0.304,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ッ",
+     "kana": "っ",
+     "start": 0.304,
+     "end": 0.3719,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 0.3719,
+     "end": 0.5312,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "グ",
+     "kana": "ぐ",
+     "start": 0.5312,
+     "end": 0.6788,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 0.6788,
+     "end": 0.788,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ッ",
+     "kana": "っ",
+     "start": 0.788,
+     "end": 0.8661,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "テ",
+     "kana": "て",
+     "start": 0.8661,
+     "end": 1.1278,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "ミ",
+     "kana": "み",
+     "start": 1.4812,
+     "end": 1.6401,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "ギ",
+     "kana": "ぎ",
+     "start": 1.6401,
+     "end": 1.7869,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "ニ",
+     "kana": "に",
+     "start": 1.7869,
+     "end": 1.9136,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 1.9136,
+     "end": 2.0669,
+     "phrase": 3,
+     "high": false
+    },
+    {
+     "text": "ガ",
+     "kana": "が",
+     "start": 2.0669,
+     "end": 2.2517,
+     "phrase": 3,
+     "high": true
+    },
+    {
+     "text": "ッ",
+     "kana": "っ",
+     "start": 2.2517,
+     "end": 2.2981,
+     "phrase": 3,
+     "high": false
+    },
+    {
+     "text": "テ",
+     "kana": "て",
+     "start": 2.2981,
+     "end": 2.4336,
+     "phrase": 3,
+     "high": false
+    },
+    {
+     "text": "ク",
+     "kana": "く",
+     "start": 2.4336,
+     "end": 2.5312,
+     "phrase": 4,
+     "high": false
+    },
+    {
+     "text": "ダ",
+     "kana": "だ",
+     "start": 2.5312,
+     "end": 2.678,
+     "phrase": 4,
+     "high": true
+    },
+    {
+     "text": "サ",
+     "kana": "さ",
+     "start": 2.678,
+     "end": 2.9058,
+     "phrase": 4,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 2.9058,
+     "end": 3.0505,
+     "phrase": 4,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "まっすぐ",
+     "start": 0.0,
+     "end": 0.6788,
+     "ruby": [
+      {
+       "text": "まっすぐ",
+       "rt": ""
+      }
+     ],
+     "pos": "other"
+    },
+    {
+     "text": "行って、",
+     "start": 0.6788,
+     "end": 1.1278,
+     "ruby": [
+      {
+       "text": "行",
+       "rt": "い"
+      },
+      {
+       "text": "って、",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    },
+    {
+     "text": "右",
+     "start": 1.4812,
+     "end": 1.7869,
+     "ruby": [
+      {
+       "text": "右",
+       "rt": "みぎ"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "に",
+     "start": 1.7869,
+     "end": 1.9136,
+     "ruby": [
+      {
+       "text": "に",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "曲がってください。",
+     "start": 1.9136,
+     "end": 3.0505,
+     "ruby": [
+      {
+       "text": "曲",
+       "rt": "ま"
+      },
+      {
+       "text": "がってください。",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    }
+   ]
+  },
+  {
+   "ja": "ここから遠いですか。",
+   "kana": "ここからとおいですか。",
+   "romaji": "",
+   "gloss": {
+    "en": "Is it far from here?",
+    "he": "זה רחוק מכאן?"
+   },
+   "duration": 1.6915,
+   "timeline": [
+    {
+     "text": "コ",
+     "kana": "こ",
+     "start": 0.1,
+     "end": 0.2813,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "コ",
+     "kana": "こ",
+     "start": 0.2813,
+     "end": 0.4283,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 0.4283,
+     "end": 0.57,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ラ",
+     "kana": "ら",
+     "start": 0.57,
+     "end": 0.7119,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ト",
+     "kana": "と",
+     "start": 0.7119,
+     "end": 0.873,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "オ",
+     "kana": "お",
+     "start": 0.873,
+     "end": 0.9833,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 0.9833,
+     "end": 1.0553,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 1.0553,
+     "end": 1.2072,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.2072,
+     "end": 1.3198,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 1.3198,
+     "end": 1.5915,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "ここ",
+     "start": 0.0,
+     "end": 0.4283,
+     "ruby": [
+      {
+       "text": "ここ",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "から",
+     "start": 0.4283,
+     "end": 0.7119,
+     "ruby": [
+      {
+       "text": "から",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "遠いです",
+     "start": 0.7119,
+     "end": 1.3198,
+     "ruby": [
+      {
+       "text": "遠",
+       "rt": "とお"
+      },
+      {
+       "text": "いです",
+       "rt": ""
+      }
+     ],
+     "pos": "adjective"
+    },
+    {
+     "text": "か。",
+     "start": 1.3198,
+     "end": 1.5915,
+     "ruby": [
+      {
+       "text": "か。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "切符はどこで買えますか。",
+   "kana": "きっぷはどこでかえますか。",
+   "romaji": "",
+   "gloss": {
+    "en": "Where can I buy a ticket?",
+    "he": "איפה אפשר לקנות כרטיס?"
+   },
+   "duration": 2.0094,
+   "timeline": [
+    {
+     "text": "キ",
+     "kana": "き",
+     "start": 0.1,
+     "end": 0.31,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "ッ",
+     "kana": "っ",
+     "start": 0.31,
+     "end": 0.3868,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "プ",
+     "kana": "ぷ",
+     "start": 0.3868,
+     "end": 0.5311,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ワ",
+     "kana": "わ",
+     "start": 0.5311,
+     "end": 0.673,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ド",
+     "kana": "ど",
+     "start": 0.673,
+     "end": 0.8297,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "コ",
+     "kana": "こ",
+     "start": 0.8297,
+     "end": 0.9637,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "デ",
+     "kana": "で",
+     "start": 0.9637,
+     "end": 1.1168,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 1.1168,
+     "end": 1.2901,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "エ",
+     "kana": "え",
+     "start": 1.2901,
+     "end": 1.3669,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 1.3669,
+     "end": 1.5269,
+     "phrase": 2,
+     "high": true
+    },
+    {
+     "text": "ス",
+     "kana": "す",
+     "start": 1.5269,
+     "end": 1.6427,
+     "phrase": 2,
+     "high": false
+    },
+    {
+     "text": "カ",
+     "kana": "か",
+     "start": 1.6427,
+     "end": 1.9094,
+     "phrase": 2,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "切符",
+     "start": 0.0,
+     "end": 0.5311,
+     "ruby": [
+      {
+       "text": "切符",
+       "rt": "きっぷ"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "は",
+     "start": 0.5311,
+     "end": 0.673,
+     "ruby": [
+      {
+       "text": "は",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "どこ",
+     "start": 0.673,
+     "end": 0.9637,
+     "ruby": [
+      {
+       "text": "どこ",
+       "rt": ""
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "で",
+     "start": 0.9637,
+     "end": 1.1168,
+     "ruby": [
+      {
+       "text": "で",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "買えます",
+     "start": 1.1168,
+     "end": 1.6427,
+     "ruby": [
+      {
+       "text": "買",
+       "rt": "か"
+      },
+      {
+       "text": "えます",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    },
+    {
+     "text": "か。",
+     "start": 1.6427,
+     "end": 1.9094,
+     "ruby": [
+      {
+       "text": "か。",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    }
+   ]
+  },
+  {
+   "ja": "道に迷いました。",
+   "kana": "みちにまよいました。",
+   "romaji": "",
+   "gloss": {
+    "en": "I'm lost.",
+    "he": "אני הלכתי לאבוד."
+   },
+   "duration": 1.5553,
+   "timeline": [
+    {
+     "text": "ミ",
+     "kana": "み",
+     "start": 0.1,
+     "end": 0.2695,
+     "phrase": 0,
+     "high": false
+    },
+    {
+     "text": "チ",
+     "kana": "ち",
+     "start": 0.2695,
+     "end": 0.425,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "ニ",
+     "kana": "に",
+     "start": 0.425,
+     "end": 0.5627,
+     "phrase": 0,
+     "high": true
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 0.5627,
+     "end": 0.7379,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "ヨ",
+     "kana": "よ",
+     "start": 0.7379,
+     "end": 0.895,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "イ",
+     "kana": "い",
+     "start": 0.895,
+     "end": 0.9584,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "マ",
+     "kana": "ま",
+     "start": 0.9584,
+     "end": 1.1179,
+     "phrase": 1,
+     "high": true
+    },
+    {
+     "text": "シ",
+     "kana": "し",
+     "start": 1.1179,
+     "end": 1.2066,
+     "phrase": 1,
+     "high": false
+    },
+    {
+     "text": "タ",
+     "kana": "た",
+     "start": 1.2066,
+     "end": 1.4553,
+     "phrase": 1,
+     "high": false
+    }
+   ],
+   "words": [
+    {
+     "text": "道",
+     "start": 0.0,
+     "end": 0.425,
+     "ruby": [
+      {
+       "text": "道",
+       "rt": "みち"
+      }
+     ],
+     "pos": "noun"
+    },
+    {
+     "text": "に",
+     "start": 0.425,
+     "end": 0.5627,
+     "ruby": [
+      {
+       "text": "に",
+       "rt": ""
+      }
+     ],
+     "pos": "particle"
+    },
+    {
+     "text": "迷いました。",
+     "start": 0.5627,
+     "end": 1.4553,
+     "ruby": [
+      {
+       "text": "迷",
+       "rt": "まよ"
+      },
+      {
+       "text": "いました。",
+       "rt": ""
+      }
+     ],
+     "pos": "verb"
+    }
+   ]
+  }
+ ]
+}

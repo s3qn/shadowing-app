@@ -218,9 +218,10 @@ export function isActive(step: PassStep): boolean {
  * half hands off to its take half. Any other step is not a line-finish step
  * and is returned unchanged.
  */
-export function nextOnLineFinish(step: PassStep, autoRecord: boolean): PassStep {
+export function nextOnLineFinish(step: PassStep, autoRecord: boolean, prep = true): PassStep {
   switch (step) {
     case 'ladderListen':
+      if (!prep) return autoRecord ? 'ladderRecord' : 'ladderArmed'; // bl57-intro-round2: line 1 skips the prep passes
       return 'ladderMemorise';
     case 'ladderMemorise':
       return 'ladderSay';
@@ -320,7 +321,11 @@ export function onLadderLineFinish(
   repeat: number,
   autoRecord: boolean,
   pace: LadderPace,
+  prep = true,
 ): { kind: 'repeat' } | { kind: 'next'; step: PassStep } {
   if (repeat < repeatsOf(step, pace)) return { kind: 'repeat' };
-  return { kind: 'next', step: nextOnLineFinish(step, autoRecord) };
+  return { kind: 'next', step: nextOnLineFinish(step, autoRecord, prep) };
 }
+
+/** The original voice's volume under the Shadow take, so the learner's voice leads the echo. */
+export const TAKE_VOICE_VOLUME = 0.5;

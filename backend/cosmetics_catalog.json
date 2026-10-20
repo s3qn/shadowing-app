@@ -41,7 +41,7 @@
    "id": "head.cap_paper",
    "slot": "head",
    "name": "Paper Cap",
-   "nameHe": "Cap נייר",
+   "nameHe": "כובע נייר",
    "level_req": 1,
    "price": 0,
    "art": {
@@ -53,7 +53,7 @@
    "id": "head.beanie_blue",
    "slot": "head",
    "name": "Blue Beanie",
-   "nameHe": "Beanie כחול",
+   "nameHe": "כובע צמר כחול",
    "level_req": 2,
    "price": 45,
    "art": {
@@ -67,7 +67,7 @@
    "id": "head.bow_pink",
    "slot": "head",
    "name": "Pink Head Bow",
-   "nameHe": "Head Bow ורוד",
+   "nameHe": "סרט ראש ורוד",
    "level_req": 4,
    "price": 75,
    "art": {
@@ -79,7 +79,7 @@
    "id": "head.cap_red",
    "slot": "head",
    "name": "Red Cap",
-   "nameHe": "Cap אדום",
+   "nameHe": "כובע מצחייה אדום",
    "level_req": 6,
    "price": 110,
    "art": {
@@ -91,7 +91,7 @@
    "id": "head.beanie_green",
    "slot": "head",
    "name": "Green Beanie",
-   "nameHe": "Beanie ירוק",
+   "nameHe": "כובע צמר ירוק",
    "level_req": 8,
    "price": 140,
    "art": {
@@ -105,7 +105,7 @@
    "id": "head.crown_gold",
    "slot": "head",
    "name": "Gold Crown",
-   "nameHe": "Crown זהב",
+   "nameHe": "כתר זהוב",
    "level_req": 10,
    "price": 0,
    "art": {
@@ -117,7 +117,7 @@
    "id": "head.tophat_black",
    "slot": "head",
    "name": "Black Top Hat",
-   "nameHe": "Top Hat שחור",
+   "nameHe": "צילינדר שחור",
    "level_req": 12,
    "price": 205,
    "art": {
@@ -131,7 +131,7 @@
    "id": "head.bow_purple",
    "slot": "head",
    "name": "Purple Head Bow",
-   "nameHe": "Head Bow סגול",
+   "nameHe": "סרט ראש סגול",
    "level_req": 15,
    "price": 250,
    "art": {
@@ -143,7 +143,7 @@
    "id": "head.beanie_orange",
    "slot": "head",
    "name": "Orange Beanie",
-   "nameHe": "Beanie כתום",
+   "nameHe": "כובע צמר כתום",
    "level_req": 18,
    "price": 295,
    "art": {
@@ -157,7 +157,7 @@
    "id": "head.cap_teal",
    "slot": "head",
    "name": "Teal Cap",
-   "nameHe": "Cap טורקיז",
+   "nameHe": "כובע מצחייה טורקיז",
    "level_req": 25,
    "price": 405,
    "art": {
@@ -171,7 +171,7 @@
    "id": "head.crown_orange",
    "slot": "head",
    "name": "Orange Crown",
-   "nameHe": "Crown כתום",
+   "nameHe": "כתר כתום",
    "level_req": 30,
    "price": 0,
    "art": {
@@ -185,7 +185,7 @@
    "id": "head.tophat_white",
    "slot": "head",
    "name": "White Top Hat",
-   "nameHe": "Top Hat לבן",
+   "nameHe": "צילינדר לבן",
    "level_req": 35,
    "price": 565,
    "art": {
@@ -199,7 +199,7 @@
    "id": "head.crown_silver",
    "slot": "head",
    "name": "Silver Crown",
-   "nameHe": "Crown כסף",
+   "nameHe": "כתר כסוף",
    "level_req": 45,
    "price": 720,
    "art": {
@@ -211,7 +211,7 @@
    "id": "head.crown_purple",
    "slot": "head",
    "name": "Purple Crown",
-   "nameHe": "Crown סגול",
+   "nameHe": "כתר סגול",
    "level_req": 50,
    "price": 0,
    "art": {
@@ -239,7 +239,7 @@
    "id": "face.blush_pink",
    "slot": "face",
    "name": "Pink Blush",
-   "nameHe": "Blush ורוד",
+   "nameHe": "סומק ורוד",
    "level_req": 2,
    "price": 45,
    "art": {
@@ -251,7 +251,7 @@
    "id": "face.glasses_black",
    "slot": "face",
    "name": "Black Glasses",
-   "nameHe": "Glasses שחור",
+   "nameHe": "משקפיים שחורים",
    "level_req": 3,
    "price": 60,
    "art": {
@@ -263,7 +263,7 @@
    "id": "face.mask_white",
    "slot": "face",
    "name": "White Mask",
-   "nameHe": "Mask לבן",
+   "nameHe": "מסכה לבנה",
    "level_req": 5,
    "price": 0,
    "art": {
@@ -277,7 +277,7 @@
    "id": "face.shades_black",
    "slot": "face",
    "name": "Black Shades",
-   "nameHe": "Shades שחור",
+   "nameHe": "משקפי שמש שחורים",
    "level_req": 6,
    "price": 110,
    "art": {
@@ -289,7 +289,7 @@
    "id": "face.monocle_gold",
    "slot": "face",
    "name": "Gold Monocle",
-   "nameHe": "Monocle זהב",
+   "nameHe": "מונוקל זהוב",
    "level_req": 8,
    "price": 140,
    "art": {
@@ -301,7 +301,7 @@
    "id": "face.glasses_red",
    "slot": "face",
    "name": "Red Glasses",
-   "nameHe": "Glasses אדום",
+   "nameHe": "משקפיים אדומים",
    "level_req": 12,
    "price": 205,
    "art": {
@@ -313,7 +313,7 @@
    "id": "face.blush_red",
    "slot": "face",
    "name": "Red Blush",
-   "nameHe": "Blush אדום",
+   "nameHe": "סומק אדום",
    "level_req": 15,
    "price": 250,
    "art": {
@@ -325,7 +325,7 @@
    "id": "face.mask_black",
    "slot": "face",
    "name": "Black Mask",
-   "nameHe": "Mask שחור",
+   "nameHe": "מסכה שחורה",
    "level_req": 20,
    "price": 0,
    "art": {
@@ -339,7 +339,7 @@
    "id": "face.shades_blue",
    "slot": "face",
    "name": "Blue Shades",
-   "nameHe": "Shades כחול",
+   "nameHe": "משקפי שמש כחולים",
    "level_req": 25,
    "price": 405,
    "art": {
@@ -351,7 +351,7 @@
    "id": "face.monocle_silver",
    "slot": "face",
    "name": "Silver Monocle",
-   "nameHe": "Monocle כסף",
+   "nameHe": "מונוקל כסוף",
    "level_req": 35,
    "price": 565,
    "art": {
@@ -363,7 +363,7 @@
    "id": "face.mask_gold",
    "slot": "face",
    "name": "Gold Mask",
-   "nameHe": "Mask זהב",
+   "nameHe": "מסכה זהובה",
    "level_req": 40,
    "price": 0,
    "art": {
@@ -377,7 +377,7 @@
    "id": "face.shades_pink",
    "slot": "face",
    "name": "Pink Shades",
-   "nameHe": "Shades ורוד",
+   "nameHe": "משקפי שמש ורודים",
    "level_req": 45,
    "price": 720,
    "art": {
@@ -391,7 +391,7 @@
    "id": "body.scarf_blue",
    "slot": "body",
    "name": "Blue Scarf",
-   "nameHe": "Scarf כחול",
+   "nameHe": "צעיף כחול",
    "level_req": 1,
    "price": 30,
    "art": {
@@ -403,7 +403,7 @@
    "id": "body.scarf_red",
    "slot": "body",
    "name": "Red Scarf",
-   "nameHe": "Scarf אדום",
+   "nameHe": "צעיף אדום",
    "level_req": 2,
    "price": 45,
    "art": {
@@ -417,7 +417,7 @@
    "id": "body.shirt_white",
    "slot": "body",
    "name": "White Shirt",
-   "nameHe": "Shirt לבן",
+   "nameHe": "חולצה לבנה",
    "level_req": 3,
    "price": 60,
    "art": {
@@ -429,7 +429,7 @@
    "id": "body.hoodie_green",
    "slot": "body",
    "name": "Green Hoodie",
-   "nameHe": "Hoodie ירוק",
+   "nameHe": "קפוצ'ון ירוק",
    "level_req": 4,
    "price": 75,
    "art": {
@@ -441,7 +441,7 @@
    "id": "body.shirt_orange",
    "slot": "body",
    "name": "Orange Shirt",
-   "nameHe": "Shirt כתום",
+   "nameHe": "חולצה כתומה",
    "level_req": 6,
    "price": 110,
    "art": {
@@ -455,7 +455,7 @@
    "id": "body.scarf_gold",
    "slot": "body",
    "name": "Gold Scarf",
-   "nameHe": "Scarf זהב",
+   "nameHe": "צעיף זהוב",
    "level_req": 8,
    "price": 140,
    "art": {
@@ -467,7 +467,7 @@
    "id": "body.hoodie_purple",
    "slot": "body",
    "name": "Purple Hoodie",
-   "nameHe": "Hoodie סגול",
+   "nameHe": "קפוצ'ון סגול",
    "level_req": 10,
    "price": 170,
    "art": {
@@ -479,7 +479,7 @@
    "id": "body.cape_red",
    "slot": "body",
    "name": "Red Cape",
-   "nameHe": "Cape אדום",
+   "nameHe": "גלימה אדומה",
    "level_req": 12,
    "price": 205,
    "art": {
@@ -491,7 +491,7 @@
    "id": "body.kimono_pink",
    "slot": "body",
    "name": "Pink Kimono",
-   "nameHe": "Kimono ורוד",
+   "nameHe": "קימונו ורוד",
    "level_req": 15,
    "price": 250,
    "art": {
@@ -505,7 +505,7 @@
    "id": "body.hoodie_black",
    "slot": "body",
    "name": "Black Hoodie",
-   "nameHe": "Hoodie שחור",
+   "nameHe": "קפוצ'ון שחור",
    "level_req": 18,
    "price": 295,
    "art": {
@@ -519,7 +519,7 @@
    "id": "body.cape_blue",
    "slot": "body",
    "name": "Blue Cape",
-   "nameHe": "Cape כחול",
+   "nameHe": "גלימה כחולה",
    "level_req": 20,
    "price": 330,
    "art": {
@@ -533,7 +533,7 @@
    "id": "body.kimono_blue",
    "slot": "body",
    "name": "Blue Kimono",
-   "nameHe": "Kimono כחול",
+   "nameHe": "קימונו כחול",
    "level_req": 30,
    "price": 485,
    "art": {
@@ -547,7 +547,7 @@
    "id": "body.cape_black",
    "slot": "body",
    "name": "Black Cape",
-   "nameHe": "Cape שחור",
+   "nameHe": "גלימה שחורה",
    "level_req": 40,
    "price": 640,
    "art": {
@@ -561,7 +561,7 @@
    "id": "body.kimono_gold",
    "slot": "body",
    "name": "Gold Kimono",
-   "nameHe": "Kimono זהב",
+   "nameHe": "קימונו זהוב",
    "level_req": 50,
    "price": 800,
    "art": {
@@ -575,7 +575,7 @@
    "id": "accessory.collar_red",
    "slot": "accessory",
    "name": "Red Collar",
-   "nameHe": "Collar אדום",
+   "nameHe": "קולר אדום",
    "level_req": 1,
    "price": 0,
    "art": {
@@ -587,7 +587,7 @@
    "id": "accessory.bell_gold",
    "slot": "accessory",
    "name": "Gold Bell",
-   "nameHe": "Bell זהב",
+   "nameHe": "פעמון זהוב",
    "level_req": 2,
    "price": 45,
    "art": {
@@ -599,7 +599,7 @@
    "id": "accessory.tailbow_pink",
    "slot": "accessory",
    "name": "Pink Tail Bow",
-   "nameHe": "Tail Bow ורוד",
+   "nameHe": "סרט זנב ורוד",
    "level_req": 3,
    "price": 60,
    "art": {
@@ -611,7 +611,7 @@
    "id": "accessory.bowtie_black",
    "slot": "accessory",
    "name": "Black Bow Tie",
-   "nameHe": "Bow Tie שחור",
+   "nameHe": "עניבת פרפר שחורה",
    "level_req": 4,
    "price": 75,
    "art": {
@@ -623,7 +623,7 @@
    "id": "accessory.badge_gold",
    "slot": "accessory",
    "name": "Gold Badge",
-   "nameHe": "Badge זהב",
+   "nameHe": "סמל זהוב",
    "level_req": 5,
    "price": 95,
    "art": {
@@ -635,7 +635,7 @@
    "id": "accessory.collar_blue",
    "slot": "accessory",
    "name": "Blue Collar",
-   "nameHe": "Collar כחול",
+   "nameHe": "קולר כחול",
    "level_req": 6,
    "price": 110,
    "art": {
@@ -647,7 +647,7 @@
    "id": "accessory.bowtie_red",
    "slot": "accessory",
    "name": "Red Bow Tie",
-   "nameHe": "Bow Tie אדום",
+   "nameHe": "עניבת פרפר אדומה",
    "level_req": 10,
    "price": 170,
    "art": {
@@ -661,7 +661,7 @@
    "id": "accessory.bell_silver",
    "slot": "accessory",
    "name": "Silver Bell",
-   "nameHe": "Bell כסף",
+   "nameHe": "פעמון כסוף",
    "level_req": 15,
    "price": 250,
    "art": {
@@ -673,7 +673,7 @@
    "id": "accessory.tailbow_purple",
    "slot": "accessory",
    "name": "Purple Tail Bow",
-   "nameHe": "Tail Bow סגול",
+   "nameHe": "סרט זנב סגול",
    "level_req": 20,
    "price": 330,
    "art": {
@@ -687,7 +687,7 @@
    "id": "accessory.collar_gold",
    "slot": "accessory",
    "name": "Gold Collar",
-   "nameHe": "Collar זהב",
+   "nameHe": "קולר זהוב",
    "level_req": 25,
    "price": 405,
    "art": {
@@ -701,7 +701,7 @@
    "id": "accessory.badge_teal",
    "slot": "accessory",
    "name": "Teal Badge",
-   "nameHe": "Badge טורקיז",
+   "nameHe": "סמל טורקיז",
    "level_req": 35,
    "price": 565,
    "art": {
@@ -713,7 +713,7 @@
    "id": "accessory.bowtie_gold",
    "slot": "accessory",
    "name": "Gold Bow Tie",
-   "nameHe": "Bow Tie זהב",
+   "nameHe": "עניבת פרפר זהובה",
    "level_req": 45,
    "price": 720,
    "art": {

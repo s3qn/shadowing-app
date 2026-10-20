@@ -272,6 +272,12 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - BL-51 daily Review XP and session summary
 - Hebrew and RTL pass (The Translator)
 - New app icon F01
+- BL-54 first-run guided intro (wave-1017c)
+- BL-55 ladder stages and Shadow button (wave-1017c)
+- BL-58 Easy for me across the app (wave-1017c)
+- BL-64 intro tour of the wardrobe and leaderboard (wave-1017c)
+- BL-65 Echo Loop welcome screen (wave-1017c)
+- BL-66 tester feedback inbox (wave-1017c)
 
 ## Next (approved, in order)
 

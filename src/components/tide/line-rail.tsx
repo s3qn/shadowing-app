@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { type LayoutChangeEvent, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
-  FadeIn,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -128,7 +127,8 @@ export function LineRail({ lineIndex, lineCount, reducedMotion, style, onJump }:
           <Animated.View style={styles.track} />
           <Animated.View style={[styles.fill, fillStyle]} />
           <Animated.View style={[styles.thumbWrap, thumbStyle]}>
-            <Animated.Text key={shown} entering={FadeIn.duration(100)} style={styles.number}>
+            {/* Updated in place: a remount per line crossed flashed the number from 0 while dragging. */}
+            <Animated.Text style={styles.number}>
               {shown + 1}
             </Animated.Text>
             <Animated.View style={styles.thumb} />

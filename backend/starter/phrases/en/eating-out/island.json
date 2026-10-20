@@ -1,0 +1,517 @@
+{
+ "language": "en",
+ "topic": "eating-out",
+ "lines": [
+  {
+   "ja": "A table for two, please.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "שולחן לשניים, בבקשה."
+   },
+   "duration": 1.7493333333333334,
+   "timeline": [],
+   "words": [
+    {
+     "text": "A",
+     "start": 0.066,
+     "end": 0.166,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "A",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "table",
+     "start": 0.166,
+     "end": 0.566,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "table",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "for",
+     "start": 0.566,
+     "end": 0.741,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "for",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "two,",
+     "start": 0.741,
+     "end": 1.116,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "two,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "please.",
+     "start": 1.116,
+     "end": 1.749,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "please.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Could I see the menu?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "אפשר לראות את התפריט?"
+   },
+   "duration": 1.2586666666666666,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Could",
+     "start": 0.062,
+     "end": 0.212,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Could",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "I",
+     "start": 0.212,
+     "end": 0.362,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "see",
+     "start": 0.362,
+     "end": 0.512,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "see",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "the",
+     "start": 0.512,
+     "end": 0.612,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "the",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "menu?",
+     "start": 0.612,
+     "end": 1.259,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "menu?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "What do you recommend?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "מה אתה מציע?"
+   },
+   "duration": 1.152,
+   "timeline": [],
+   "words": [
+    {
+     "text": "What",
+     "start": 0.087,
+     "end": 0.212,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "What",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "do",
+     "start": 0.212,
+     "end": 0.337,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "do",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "you",
+     "start": 0.337,
+     "end": 0.437,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "you",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "recommend?",
+     "start": 0.437,
+     "end": 1.152,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "recommend?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "I'll have this one, please.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "אני אקח את זה, בבקשה."
+   },
+   "duration": 1.4506666666666668,
+   "timeline": [],
+   "words": [
+    {
+     "text": "I'll",
+     "start": 0.0,
+     "end": 0.24,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I'll",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "have",
+     "start": 0.24,
+     "end": 0.34,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "have",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "this",
+     "start": 0.34,
+     "end": 0.58,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "this",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "one,",
+     "start": 0.58,
+     "end": 0.82,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "one,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "please.",
+     "start": 0.82,
+     "end": 1.451,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "please.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Could I get a glass of water?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "אפשר לקבל כוס מים?"
+   },
+   "duration": 1.5573333333333332,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Could",
+     "start": 0.062,
+     "end": 0.212,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Could",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "I",
+     "start": 0.212,
+     "end": 0.362,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "get",
+     "start": 0.362,
+     "end": 0.487,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "get",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "a",
+     "start": 0.487,
+     "end": 0.562,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "a",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "glass",
+     "start": 0.562,
+     "end": 0.912,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "glass",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "of",
+     "start": 0.912,
+     "end": 1.012,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "of",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "water?",
+     "start": 1.012,
+     "end": 1.557,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "water?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "This is delicious.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "זה טעים מאוד."
+   },
+   "duration": 1.152,
+   "timeline": [],
+   "words": [
+    {
+     "text": "This",
+     "start": 0.066,
+     "end": 0.266,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "This",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "is",
+     "start": 0.266,
+     "end": 0.416,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "is",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "delicious.",
+     "start": 0.416,
+     "end": 1.152,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "delicious.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Could we have the check, please?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "אפשר לקבל את החשבון, בבקשה?"
+   },
+   "duration": 1.536,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Could",
+     "start": 0.062,
+     "end": 0.212,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Could",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "we",
+     "start": 0.212,
+     "end": 0.337,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "we",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "have",
+     "start": 0.337,
+     "end": 0.487,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "have",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "the",
+     "start": 0.487,
+     "end": 0.587,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "the",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "check,",
+     "start": 0.587,
+     "end": 0.912,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "check,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "please?",
+     "start": 0.912,
+     "end": 1.536,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "please?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

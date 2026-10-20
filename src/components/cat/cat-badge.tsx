@@ -10,6 +10,7 @@ import type { Equipped } from '@/constants/cosmetics';
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
 import { getUsername } from '@/lib/api';
+import { useGuideAnchor } from '@/lib/guide';
 import { useDir, useT } from '@/lib/i18n';
 import { equippedArt, useProgress } from '@/lib/progression';
 
@@ -72,11 +73,13 @@ function CatBadgeView({ level, xpIntoLevel, xpToNext, coins, equipped, username,
   );
 }
 
-/** Connected to the shared progress cache; renders nothing until the first load lands. */
-export function CatBadge() {
+/** Connected to the shared progress cache; reserves its height until the first load lands. */
+export function CatBadge({ anchorGuide = false }: { anchorGuide?: boolean }) {
   const router = useRouter();
   const { progress, catalog } = useProgress();
   const [username, setName] = useState<string | null>(null);
+  // BL-64: the guide's cat step lights the card. PressScale forwards no ref, so the box comes from a wrapper.
+  const anchor = useGuideAnchor('catBadge', anchorGuide);
   // Refetch on focus so a handle picked in the gate shows on return to Home.
   useFocusEffect(
     useCallback(() => {
@@ -89,22 +92,26 @@ export function CatBadge() {
       };
     }, []),
   );
-  if (!progress || !catalog) return null;
+  // Reserve the row height so Home does not jump when progress lands (or never does, offline).
+  if (!progress || !catalog) return <View style={styles.placeholder} />;
   return (
-    <CatBadgeView
-      level={progress.level}
-      xpIntoLevel={progress.xp_into_level}
-      xpToNext={progress.xp_to_next}
-      coins={progress.coins}
-      equipped={equippedArt(progress, catalog)}
-      username={username}
-      onPress={() => router.push('/wardrobe')}
-    />
+    <View ref={anchor.ref} onLayout={anchor.onLayout} collapsable={false}>
+      <CatBadgeView
+        level={progress.level}
+        xpIntoLevel={progress.xp_into_level}
+        xpToNext={progress.xp_to_next}
+        coins={progress.coins}
+        equipped={equippedArt(progress, catalog)}
+        username={username}
+        onPress={() => router.push('/wardrobe')}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: {},
+  placeholder: { height: 68 },
   panel: { flexDirection: 'row', alignItems: 'center', height: 68, paddingStart: 10, paddingEnd: 14, gap: 12, overflow: 'hidden' },
   sheen: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(255,255,255,0.04)' },
   glow: { position: 'absolute', start: -2, top: -6, width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(185,198,255,0.34)' },

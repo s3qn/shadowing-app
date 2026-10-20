@@ -1,0 +1,337 @@
+{
+ "language": "es",
+ "topic": "about-me",
+ "lines": [
+  {
+   "ja": "Mucho gusto.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Nice to meet you.",
+    "he": "נעים מאוד."
+   },
+   "duration": 1.024,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Mucho",
+     "start": 0.076,
+     "end": 0.501,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Mucho",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "gusto.",
+     "start": 0.501,
+     "end": 1.024,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "gusto.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Me llamo David.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "My name is David.",
+    "he": "קוראים לי דוד."
+   },
+   "duration": 1.1733333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Me",
+     "start": 0.076,
+     "end": 0.301,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Me",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "llamo",
+     "start": 0.301,
+     "end": 0.651,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "llamo",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "David.",
+     "start": 0.651,
+     "end": 1.173,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "David.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Soy de Israel.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "I'm from Israel.",
+    "he": "אני מישראל."
+   },
+   "duration": 0.9813333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Soy",
+     "start": 0.097,
+     "end": 0.322,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Soy",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "de",
+     "start": 0.322,
+     "end": 0.397,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "de",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "Israel.",
+     "start": 0.397,
+     "end": 0.981,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Israel.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Estoy aprendiendo español.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "I'm learning Spanish.",
+    "he": "אני לומד ספרדית."
+   },
+   "duration": 1.6853333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Estoy",
+     "start": 0.076,
+     "end": 0.426,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Estoy",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "aprendiendo",
+     "start": 0.426,
+     "end": 1.051,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "aprendiendo",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "español.",
+     "start": 1.051,
+     "end": 1.685,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "español.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Todavía hablo poco.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "I still speak only a little.",
+    "he": "אני עדיין מדבר קצת."
+   },
+   "duration": 1.4293333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Todavía",
+     "start": 0.076,
+     "end": 0.701,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Todavía",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "hablo",
+     "start": 0.701,
+     "end": 1.001,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "hablo",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "poco.",
+     "start": 1.001,
+     "end": 1.429,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "poco.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Vivo en Madrid.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "I live in Madrid.",
+    "he": "אני גר במדריד."
+   },
+   "duration": 1.1093333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Vivo",
+     "start": 0.076,
+     "end": 0.426,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Vivo",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "en",
+     "start": 0.426,
+     "end": 0.551,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "en",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "Madrid.",
+     "start": 0.551,
+     "end": 1.109,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Madrid.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Encantado de conocerte.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Delighted to meet you.",
+    "he": "נעים להכיר אותך."
+   },
+   "duration": 1.6,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Encantado",
+     "start": 0.051,
+     "end": 0.776,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Encantado",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "de",
+     "start": 0.776,
+     "end": 0.901,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "de",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "conocerte.",
+     "start": 0.901,
+     "end": 1.6,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "conocerte.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

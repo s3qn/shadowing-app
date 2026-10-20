@@ -1,0 +1,505 @@
+{
+ "language": "es",
+ "topic": "small-talk",
+ "lines": [
+  {
+   "ja": "Hoy hace mucho calor.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "It's very hot today.",
+    "he": "היום חם מאוד."
+   },
+   "duration": 1.4293333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Hoy",
+     "start": 0.076,
+     "end": 0.326,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Hoy",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "hace",
+     "start": 0.326,
+     "end": 0.626,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "hace",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "mucho",
+     "start": 0.626,
+     "end": 1.026,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "mucho",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "calor.",
+     "start": 1.026,
+     "end": 1.429,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "calor.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "¿Qué hiciste el fin de semana?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "What did you do over the weekend?",
+    "he": "מה עשית בסוף השבוע?"
+   },
+   "duration": 1.728,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Qué",
+     "start": 0.076,
+     "end": 0.251,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Qué",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "hiciste",
+     "start": 0.251,
+     "end": 0.701,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "hiciste",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "el",
+     "start": 0.701,
+     "end": 0.876,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "el",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "fin",
+     "start": 0.876,
+     "end": 1.076,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "fin",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "de",
+     "start": 1.076,
+     "end": 1.226,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "de",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "semana?",
+     "start": 1.226,
+     "end": 1.728,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "semana?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "¿Qué te gusta hacer en tu tiempo libre?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "What do you like to do in your free time?",
+    "he": "מה את אוהבת לעשות בזמן הפנוי שלך?"
+   },
+   "duration": 2.1973333333333334,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Qué",
+     "start": 0.054,
+     "end": 0.254,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Qué",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "te",
+     "start": 0.254,
+     "end": 0.404,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "te",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "gusta",
+     "start": 0.404,
+     "end": 0.779,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "gusta",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "hacer",
+     "start": 0.779,
+     "end": 1.154,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "hacer",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "en",
+     "start": 1.154,
+     "end": 1.304,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "en",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "tu",
+     "start": 1.304,
+     "end": 1.454,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "tu",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "tiempo",
+     "start": 1.454,
+     "end": 1.804,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "tiempo",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "libre?",
+     "start": 1.804,
+     "end": 2.197,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "libre?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Me encanta el cine.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "I love the movies.",
+    "he": "אני מתה על קולנוע."
+   },
+   "duration": 1.2586666666666666,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Me",
+     "start": 0.076,
+     "end": 0.226,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Me",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "encanta",
+     "start": 0.226,
+     "end": 0.676,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "encanta",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "el",
+     "start": 0.676,
+     "end": 0.851,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "el",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "cine.",
+     "start": 0.851,
+     "end": 1.259,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "cine.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "¿Has estado muy ocupado últimamente?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Have you been very busy lately?",
+    "he": "היית עסוקה מאוד לאחרונה?"
+   },
+   "duration": 2.304,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¿Has",
+     "start": 0.054,
+     "end": 0.254,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Has",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "estado",
+     "start": 0.254,
+     "end": 0.729,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "estado",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "muy",
+     "start": 0.729,
+     "end": 0.929,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "muy",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "ocupado",
+     "start": 0.929,
+     "end": 1.479,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "ocupado",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "últimamente?",
+     "start": 1.479,
+     "end": 2.304,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "últimamente?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "¡Qué buena idea!",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "What a good idea!",
+    "he": "איזה רעיון טוב!"
+   },
+   "duration": 1.1306666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "¡Qué",
+     "start": 0.076,
+     "end": 0.276,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¡Qué",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "buena",
+     "start": 0.276,
+     "end": 0.651,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "buena",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "idea!",
+     "start": 0.651,
+     "end": 1.131,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "idea!",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Estoy un poco cansado.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "I'm a little tired.",
+    "he": "אני קצת עייף."
+   },
+   "duration": 1.536,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Estoy",
+     "start": 0.076,
+     "end": 0.426,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Estoy",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "un",
+     "start": 0.426,
+     "end": 0.601,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "un",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "poco",
+     "start": 0.601,
+     "end": 0.876,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "poco",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "cansado.",
+     "start": 0.876,
+     "end": 1.536,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "cansado.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -6,6 +6,7 @@ import Animated, {
   interpolate,
   useAnimatedReaction,
   useAnimatedStyle,
+  useDerivedValue,
   useReducedMotion,
   useSharedValue,
   withDelay,
@@ -13,6 +14,7 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
+import { Canvas, Circle, Group, LinearGradient, Path, vec } from '@shopify/react-native-skia';
 import { SymbolView } from 'expo-symbols';
 
 import { GlassPanel } from '@/components/prism/glass-panel';
@@ -25,7 +27,7 @@ import { hapticImpact } from '@/lib/haptics';
 import { useT } from '@/lib/i18n';
 import { COUNT_IN_BEAT_MS } from '@/lib/pass-programme';
 
-export type DockAnchorKey = 'speed' | 'repeat' | 'reading' | 'blind';
+export type DockAnchorKey = 'speed' | 'repeat' | 'reading' | 'blind' | 'play' | 'record';
 /** A control's box, relative to the dock's root View. Tray pills sit above the capsule, so their y is negative. */
 export type DockAnchor = { x: number; y: number; width: number };
 export type DockPill = {
@@ -51,6 +53,8 @@ export type CompactDockProps = {
   level: SharedValue<number>;
   onRecord: () => void;
   recordLabel: string;
+  /** The Shadow ring's stage arc: 0..4 while the five stages run, undefined or -1 when idle. */
+  stageIndex?: number;
   speed: number;
   speedOn: boolean;
   /** The chip tap: the screen opens its SpeedPopover. */
@@ -63,7 +67,7 @@ export type CompactDockProps = {
   compact?: boolean;
   /** Rendered above the capsule, centred, 8 pt gap. */
   slot?: ReactNode;
-  /** What the red button shows: the dot, the count digit, a stop square, or a dimmed dot (press off). */
+  /** What the Shadow button shows: the ring, the count digit, or a dimmed ring (press off). 'stop' keeps the ring: the arc marks the stage. */
   face?: 'dot' | 'count' | 'stop' | 'dim';
   /** The beat the count is on (3, 2, 1), or null. Pulses one ring per beat. */
   countIn?: number | null;
@@ -99,6 +103,7 @@ function DockPress({
   disabled,
   label,
   pressed: pressedScale = 0.96,
+  pressT,
   style,
   children,
 }: {
@@ -106,12 +111,20 @@ function DockPress({
   disabled?: boolean;
   label: string;
   pressed?: number;
+  /** 1 while held, 0 otherwise. The Shadow ring draws its lip from it. */
+  pressT?: SharedValue<number>;
   style?: object;
   children: ReactNode;
 }) {
   const reduced = useReducedMotion();
   const scale = useSharedValue(1);
   const animated = useAnimatedStyle(() => ({ transform: [{ scale: num(scale.value, 1) }] }));
+  useEffect(
+    () => () => {
+      cancelAnimation(scale);
+    },
+    [scale],
+  );
   return (
     <Pressable
       accessibilityRole="button"
@@ -121,13 +134,105 @@ function DockPress({
       onPressIn={() => {
         if (disabled) return;
         void hapticImpact();
+        if (pressT) pressT.value = 1;
         if (!reduced) scale.value = withTiming(pressedScale, { duration: 80, easing: Easing.out(Easing.quad) });
       }}
       onPressOut={() => {
+        if (pressT) pressT.value = 0;
         if (!reduced) scale.value = withSpring(1, prism.press.spring);
       }}>
       <Animated.View style={[styles.hit, style, disabled && styles.disabled, animated]}>{children}</Animated.View>
     </Pressable>
+  );
+}
+
+const SHADOW_BLUE = '#7CC8FF';
+const SHADOW_RED = '#FF5468';
+/** R04 gradient stops: red 85% to 15%, blue from 40%. */
+const FRINGE = [withAlpha(SHADOW_RED, 0.85), withAlpha(SHADOW_RED, 0.85), SHADOW_BLUE, SHADOW_BLUE];
+const FRINGE_AT = [0, 0.15, 0.4, 1];
+/** Segments 2 (Mumble) and 3 (Read along) take their stage pair, c1 to c2 (M10). */
+const SEG_COLORS: Record<number, string[]> = {
+  1: [verb.mumble.c1, verb.mumble.c2],
+  2: [verb.along.c1, verb.along.c2],
+};
+/** The canvas is 38 + 2 * PAD so the 3pt current segment is not clipped at the 38 box. */
+const PAD = 2;
+const SEG_LEN = 18.62;
+const SEG_STEP = SEG_LEN + 4;
+const STAGE_COUNT = 5;
+
+/** One stage segment of the arc, from 12 o'clock, in canvas coordinates. */
+function segmentPath(i: number) {
+  const pt = (arc: number) => {
+    const a = -Math.PI / 2 + arc / 18;
+    return `${(PAD + 19 + 18 * Math.cos(a)).toFixed(3)} ${(PAD + 19 + 18 * Math.sin(a)).toFixed(3)}`;
+  };
+  const start = 2 + SEG_STEP * i;
+  return `M${pt(start)}A18 18 0 0 1 ${pt(start + SEG_LEN)}`;
+}
+const SEGMENTS = Array.from({ length: STAGE_COUNT }, (_, i) => segmentPath(i));
+
+/** Current stage 3pt full, finished 2.4pt full, upcoming 2.4pt at 0.22. Crossfades over 200 ms. */
+function Segment({ d, i, stage }: { d: string; i: number; stage: number }) {
+  const w = useSharedValue(i === stage ? 3 : 2.4);
+  const a = useSharedValue(i > stage ? 0.22 : 1);
+  useEffect(() => {
+    const ease = { duration: 200, easing: Easing.out(Easing.quad) };
+    w.value = withTiming(i === stage ? 3 : 2.4, ease);
+    a.value = withTiming(i > stage ? 0.22 : 1, ease);
+    return () => {
+      cancelAnimation(w);
+      cancelAnimation(a);
+    };
+  }, [i, stage, w, a]);
+  const width = useDerivedValue(() => num(w.value, 2.4));
+  const opacity = useDerivedValue(() => num(a.value, 1));
+  return (
+    <Path path={d} style="stroke" strokeWidth={width} opacity={opacity}>
+      <LinearGradient start={vec(PAD + 1, 0)} end={vec(PAD + 37, 0)} colors={SEG_COLORS[i] ?? FRINGE} positions={SEG_COLORS[i] ? undefined : FRINGE_AT} />
+    </Path>
+  );
+}
+
+/**
+ * The Shadow button's face (designs/bl56/R04): a hollow Prism Edge ring, a white
+ * top line and two offset sound arcs with a dot. While the stages run the ring
+ * becomes five segments. Pressed, only the lip disc shows.
+ */
+function ShadowRing({ stage, pressT, hideGlyph }: { stage: number; pressT: SharedValue<number>; hideGlyph: boolean }) {
+  const running = Number.isFinite(stage) && stage >= 0;
+  const lip = useDerivedValue(() => 0.28 * num(pressT.value));
+  const ringGrad = <LinearGradient start={vec(PAD + 1, 0)} end={vec(PAD + 37, 0)} colors={FRINGE} positions={FRINGE_AT} />;
+  const glyphGrad = <LinearGradient start={vec(PAD + 9, 0)} end={vec(PAD + 29, 0)} colors={FRINGE} positions={FRINGE_AT} />;
+  const c = PAD + 19;
+  return (
+    <Canvas pointerEvents="none" style={styles.shadowCanvas}>
+      <Circle cx={c} cy={c} r={17} opacity={lip}>
+        {ringGrad}
+      </Circle>
+      {running ? (
+        SEGMENTS.map((d, i) => <Segment key={i} d={d} i={i} stage={stage} />)
+      ) : (
+        <Circle cx={c} cy={c} r={18} style="stroke" strokeWidth={2}>
+          {ringGrad}
+        </Circle>
+      )}
+      <Path path={`M${PAD + 8.6} ${PAD + 7.0}A16.5 16.5 0 0 1 ${PAD + 29.4} ${PAD + 7.0}`} style="stroke" strokeWidth={1.4} strokeCap="round" color="#FFFFFF" opacity={0.85} />
+      {hideGlyph ? null : (
+        <Group>
+          <Path path={`M${PAD + 14} ${PAD + 12.5}A8 8 0 0 1 ${PAD + 14} ${PAD + 25.5}`} style="stroke" strokeWidth={2.4} strokeCap="round" opacity={0.45}>
+            {glyphGrad}
+          </Path>
+          <Path path={`M${PAD + 21} ${PAD + 11}A10 10 0 0 1 ${PAD + 21} ${PAD + 27}`} style="stroke" strokeWidth={2.4} strokeCap="round">
+            {glyphGrad}
+          </Path>
+          <Circle cx={PAD + 11} cy={c} r={1.4}>
+            {glyphGrad}
+          </Circle>
+        </Group>
+      )}
+    </Canvas>
   );
 }
 
@@ -153,6 +258,7 @@ export const CompactDock = memo(function CompactDock({
   level,
   onRecord,
   recordLabel,
+  stageIndex = -1,
   speed,
   speedOn,
   onSpeed,
@@ -185,6 +291,9 @@ export const CompactDock = memo(function CompactDock({
   useEffect(() => {
     recT.value = withTiming(recording ? 1 : 0, { duration: 200 });
   }, [recording, recT]);
+
+  const shadowPress = useSharedValue(0);
+  useEffect(() => () => cancelAnimation(shadowPress), [shadowPress]);
 
   // Record glow: breathes with the mic level, as the old record button did.
   const smoothLevel = useSharedValue(0);
@@ -247,6 +356,13 @@ export const CompactDock = memo(function CompactDock({
   const reportChip = useCallback(() => {
     const c = chip.current;
     if (c) report('speed', { x: capsule.current.x + c.x, y: capsule.current.y + c.y, width: c.width });
+  }, [report]);
+  const ctl = useRef<Partial<Record<'play' | 'record', { x: number; y: number; width: number }>>>({});
+  const reportCtl = useCallback(() => {
+    for (const key of ['play', 'record'] as const) {
+      const c = ctl.current[key];
+      if (c) report(key, { x: capsule.current.x + c.x, y: capsule.current.y + c.y, width: c.width });
+    }
   }, [report]);
   const reportPills = useCallback(() => {
     for (const [key, b] of Object.entries(pillBoxes.current)) {
@@ -322,6 +438,7 @@ export const CompactDock = memo(function CompactDock({
         onLayout={(e: LayoutChangeEvent) => {
           capsule.current = { x: e.nativeEvent.layout.x, y: e.nativeEvent.layout.y };
           reportChip();
+          reportCtl();
           reportPills();
         }}>
       <GlassPanel radius={Radius.pill} style={styles.capsule}>
@@ -331,29 +448,38 @@ export const CompactDock = memo(function CompactDock({
               <Glyph ch="‹" />
             </PrismFace>
           </DockPress>
-          <DockPress onPress={onToggle} disabled={ringDisabled} label={playing ? t('player.stop') : t('player.play')} pressed={0.94}>
+          <View
+            onLayout={(e) => {
+              const { x, y, width } = e.nativeEvent.layout;
+              ctl.current.play = { x, y, width };
+              reportCtl();
+            }}>
+            <DockPress onPress={onToggle} disabled={ringDisabled} label={playing ? t('player.stop') : t('player.play')} pressed={0.94}>
             <PrismFace shape="round" size={44} verb="listen" onT={playT} flat>
               {playing ? <View style={styles.stopSquare} /> : <View style={styles.playTriangle} />}
             </PrismFace>
           </DockPress>
+          </View>
           <DockPress onPress={onNext} disabled={nextDisabled} label={t('player.nextLine')}>
             <PrismFace shape="round" size={38} verb="listen" onT={off} flat>
               <Glyph ch="›" />
             </PrismFace>
           </DockPress>
-          <DockPress onPress={onRecord} disabled={face === 'dim'} label={recordLabel}>
-            <Animated.View pointerEvents="none" style={[styles.recordGlow, glowStyle]} />
-            <PrismFace shape="round" size={38} verb="speak" onT={recT} flat>
-              {face === 'count' ? (
-                <Text style={styles.countDigit}>{countIn ?? ''}</Text>
-              ) : face === 'stop' ? (
-                <View style={styles.recordStop} />
-              ) : (
-                <View style={[styles.recordDot, recording && styles.recordDotActive]} />
-              )}
-            </PrismFace>
-            {countIn !== null ? <Animated.View pointerEvents="none" style={[styles.beatRing, beatStyle]} /> : null}
-          </DockPress>
+          <View
+            onLayout={(e) => {
+              const { x, y, width } = e.nativeEvent.layout;
+              ctl.current.record = { x, y, width };
+              reportCtl();
+            }}>
+            <DockPress onPress={onRecord} disabled={face === 'dim'} label={recordLabel} pressed={0.94} pressT={shadowPress}>
+              <Animated.View pointerEvents="none" style={[styles.recordGlow, glowStyle]} />
+              <View style={styles.shadowBox}>
+                <ShadowRing stage={stageIndex} pressT={shadowPress} hideGlyph={face === 'count'} />
+                {face === 'count' ? <Text style={styles.countDigit}>{countIn ?? ''}</Text> : null}
+              </View>
+              {countIn !== null ? <Animated.View pointerEvents="none" style={[styles.beatRing, beatStyle]} /> : null}
+            </DockPress>
+          </View>
           {compact ? null : (
             <View
               onLayout={(e) => {
@@ -483,13 +609,12 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: tide.record,
+    backgroundColor: SHADOW_BLUE,
   },
-  recordDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: tide.record },
-  recordStop: { width: 14, height: 14, borderRadius: 3, backgroundColor: verb.speak.c1 },
-  countDigit: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 20, color: verb.speak.c1, fontVariant: ['tabular-nums'] },
-  beatRing: { position: 'absolute', width: 50, height: 50, borderRadius: 25, borderWidth: 2, borderColor: tide.record },
-  recordDotActive: { backgroundColor: verb.speak.c1 },
+  shadowBox: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
+  shadowCanvas: { position: 'absolute', left: -PAD, top: -PAD, width: 38 + 2 * PAD, height: 38 + 2 * PAD },
+  countDigit: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 20, color: SHADOW_BLUE, fontVariant: ['tabular-nums'] },
+  beatRing: { position: 'absolute', width: 50, height: 50, borderRadius: 25, borderWidth: 2, borderColor: SHADOW_BLUE },
   chipHit: { width: 56 },
   chip: {
     height: 36,

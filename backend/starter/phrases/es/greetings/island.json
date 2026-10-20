@@ -1,0 +1,434 @@
+{
+ "language": "es",
+ "topic": "greetings",
+ "lines": [
+  {
+   "ja": "Buenos días.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Good morning.",
+    "he": "בוקר טוב."
+   },
+   "duration": 0.9386666666666666,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Buenos",
+     "start": 0.076,
+     "end": 0.476,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Buenos",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "días.",
+     "start": 0.476,
+     "end": 0.939,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "días.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Buenas tardes.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Good afternoon.",
+    "he": "צהריים טובים."
+   },
+   "duration": 1.024,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Buenas",
+     "start": 0.076,
+     "end": 0.501,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Buenas",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "tardes.",
+     "start": 0.501,
+     "end": 1.024,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "tardes.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Buenas noches.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Good evening.",
+    "he": "לילה טוב."
+   },
+   "duration": 1.1306666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Buenas",
+     "start": 0.076,
+     "end": 0.526,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Buenas",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "noches.",
+     "start": 0.526,
+     "end": 1.131,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "noches.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Hola, ¿cómo estás?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Hi, how are you?",
+    "he": "היי, מה נשמע?"
+   },
+   "duration": 1.1946666666666668,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Hola,",
+     "start": 0.076,
+     "end": 0.451,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Hola,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "¿cómo",
+     "start": 0.451,
+     "end": 0.676,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿cómo",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "estás?",
+     "start": 0.676,
+     "end": 1.195,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "estás?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Muy bien, gracias. ¿Y tú?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Very well, thank you. And you?",
+    "he": "מצוין, תודה. ואתה?"
+   },
+   "duration": 1.664,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Muy",
+     "start": 0.076,
+     "end": 0.326,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Muy",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "bien,",
+     "start": 0.326,
+     "end": 0.701,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "bien,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "gracias.",
+     "start": 0.701,
+     "end": 1.301,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "gracias.",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "¿Y",
+     "start": 1.301,
+     "end": 1.426,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "¿Y",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "tú?",
+     "start": 1.426,
+     "end": 1.664,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "tú?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Hace mucho que no te veo.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "I haven't seen you in a long time.",
+    "he": "לא ראיתי אותך הרבה זמן."
+   },
+   "duration": 1.6853333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Hace",
+     "start": 0.076,
+     "end": 0.426,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Hace",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "mucho",
+     "start": 0.426,
+     "end": 0.901,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "mucho",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "que",
+     "start": 0.901,
+     "end": 1.051,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "que",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "no",
+     "start": 1.051,
+     "end": 1.226,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "no",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "te",
+     "start": 1.226,
+     "end": 1.351,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "te",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "veo.",
+     "start": 1.351,
+     "end": 1.685,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "veo.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Hasta mañana.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "See you tomorrow.",
+    "he": "נתראה מחר."
+   },
+   "duration": 0.96,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Hasta",
+     "start": 0.097,
+     "end": 0.397,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Hasta",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "mañana.",
+     "start": 0.397,
+     "end": 0.96,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "mañana.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Que tengas un buen día.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Have a nice day.",
+    "he": "שיהיה לך יום טוב."
+   },
+   "duration": 1.6426666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Que",
+     "start": 0.076,
+     "end": 0.301,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Que",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "tengas",
+     "start": 0.301,
+     "end": 0.801,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "tengas",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "un",
+     "start": 0.801,
+     "end": 1.001,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "un",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "buen",
+     "start": 1.001,
+     "end": 1.301,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "buen",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "día.",
+     "start": 1.301,
+     "end": 1.643,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "día.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

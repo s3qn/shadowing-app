@@ -10,6 +10,7 @@
  */
 
 import { useMemo, useSyncExternalStore } from 'react';
+import { Platform } from 'react-native';
 
 import { type Key, en } from '@/locales/en';
 import { he } from '@/locales/he';
@@ -152,6 +153,10 @@ export type Dir = {
   content: { textAlign: 'right'; writingDirection: 'auto' } | { writingDirection: 'auto' };
   /** The "go forward" chevron glyph, mirrored for a reversed reading order. */
   chevron: '›' | '‹';
+  /** Header options that hand the title's free space to the left side, so a left-aligned title (the web and Android default) sits at the right, next to a mirrored header button. The iOS header centres its title, so it keeps the default there. */
+  headerSides:
+    | { headerLeftContainerStyle: { flexGrow: 1; flexBasis: 0 }; headerRightContainerStyle: { flexGrow: 0; flexBasis: 'auto' } }
+    | undefined;
 };
 
 /** Mirrors the handful of rows and text alignments that read as a sequence
@@ -168,6 +173,10 @@ export function useDir(): Dir {
       writing: rtl ? ({ writingDirection: 'rtl' } as const) : undefined,
       content: rtl ? ({ textAlign: 'right', writingDirection: 'auto' } as const) : ({ writingDirection: 'auto' } as const),
       chevron: rtl ? ('‹' as const) : ('›' as const),
+      headerSides:
+        rtl && Platform.OS !== 'ios'
+          ? ({ headerLeftContainerStyle: { flexGrow: 1, flexBasis: 0 }, headerRightContainerStyle: { flexGrow: 0, flexBasis: 'auto' } } as const)
+          : undefined,
     }),
     [rtl],
   );

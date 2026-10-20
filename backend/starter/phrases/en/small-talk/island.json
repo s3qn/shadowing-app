@@ -1,0 +1,601 @@
+{
+ "language": "en",
+ "topic": "small-talk",
+ "lines": [
+  {
+   "ja": "It's really hot today, isn't it?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "היום ממש חם, לא?"
+   },
+   "duration": 1.8986666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "It's",
+     "start": 0.091,
+     "end": 0.291,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "It's",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "really",
+     "start": 0.291,
+     "end": 0.566,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "really",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "hot",
+     "start": 0.566,
+     "end": 0.816,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "hot",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "today,",
+     "start": 0.816,
+     "end": 1.341,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "today,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "isn't",
+     "start": 1.341,
+     "end": 1.591,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "isn't",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "it?",
+     "start": 1.591,
+     "end": 1.899,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "it?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "What did you do over the weekend?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "מה עשית בסוף השבוע?"
+   },
+   "duration": 1.6426666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "What",
+     "start": 0.091,
+     "end": 0.216,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "What",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "did",
+     "start": 0.216,
+     "end": 0.341,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "did",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "you",
+     "start": 0.341,
+     "end": 0.466,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "you",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "do",
+     "start": 0.466,
+     "end": 0.666,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "do",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "over",
+     "start": 0.666,
+     "end": 0.841,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "over",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "the",
+     "start": 0.841,
+     "end": 0.941,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "the",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "weekend?",
+     "start": 0.941,
+     "end": 1.643,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "weekend?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "What do you like to do in your free time?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "מה אתה אוהב לעשות בזמן הפנוי שלך?"
+   },
+   "duration": 1.8986666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "What",
+     "start": 0.066,
+     "end": 0.191,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "What",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "do",
+     "start": 0.191,
+     "end": 0.316,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "do",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "you",
+     "start": 0.316,
+     "end": 0.416,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "you",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "like",
+     "start": 0.416,
+     "end": 0.591,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "like",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "to",
+     "start": 0.591,
+     "end": 0.691,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "to",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "do",
+     "start": 0.691,
+     "end": 0.841,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "do",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "in",
+     "start": 0.841,
+     "end": 0.916,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "in",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "your",
+     "start": 0.916,
+     "end": 1.091,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "your",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "free",
+     "start": 1.091,
+     "end": 1.316,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "free",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "time?",
+     "start": 1.316,
+     "end": 1.899,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "time?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "I love going to the movies.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "אני מת על ללכת לקולנוע."
+   },
+   "duration": 1.5786666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "I",
+     "start": 0.07,
+     "end": 0.27,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "love",
+     "start": 0.27,
+     "end": 0.52,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "love",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "going",
+     "start": 0.52,
+     "end": 0.82,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "going",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "to",
+     "start": 0.82,
+     "end": 0.895,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "to",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "the",
+     "start": 0.895,
+     "end": 0.995,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "the",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "movies.",
+     "start": 0.995,
+     "end": 1.579,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "movies.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Have you been busy lately?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "היית עסוק לאחרונה?"
+   },
+   "duration": 1.4506666666666668,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Have",
+     "start": 0.066,
+     "end": 0.241,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Have",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "you",
+     "start": 0.241,
+     "end": 0.341,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "you",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "been",
+     "start": 0.341,
+     "end": 0.541,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "been",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "busy",
+     "start": 0.541,
+     "end": 0.866,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "busy",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "lately?",
+     "start": 0.866,
+     "end": 1.451,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "lately?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "That sounds great.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "נשמע מצוין."
+   },
+   "duration": 1.152,
+   "timeline": [],
+   "words": [
+    {
+     "text": "That",
+     "start": 0.087,
+     "end": 0.312,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "That",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "sounds",
+     "start": 0.312,
+     "end": 0.612,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "sounds",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "great.",
+     "start": 0.612,
+     "end": 1.152,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "great.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "I'm a little tired today.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "",
+    "he": "אני קצת עייף היום."
+   },
+   "duration": 1.408,
+   "timeline": [],
+   "words": [
+    {
+     "text": "I'm",
+     "start": 0.07,
+     "end": 0.22,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "I'm",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "a",
+     "start": 0.22,
+     "end": 0.27,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "a",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "little",
+     "start": 0.27,
+     "end": 0.47,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "little",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "tired",
+     "start": 0.47,
+     "end": 0.845,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "tired",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "today.",
+     "start": 0.845,
+     "end": 1.408,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "today.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

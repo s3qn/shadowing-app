@@ -1,9 +1,9 @@
 [
-  {"text": "¿Qué es esto?", "en": "What is this?"},
-  {"text": "¿Dónde está el baño?", "en": "Where is the restroom?"},
-  {"text": "¿Qué hora es?", "en": "What time is it?"},
-  {"text": "¿Puedes repetirlo, por favor?", "en": "Can you repeat that, please?"},
-  {"text": "Habla más despacio, por favor.", "en": "Please speak more slowly."},
-  {"text": "¿Hablas inglés?", "en": "Do you speak English?"},
-  {"text": "¿Qué significa esta palabra?", "en": "What does this word mean?"}
+  {"text": "¿Qué es esto?", "en": "What is this?", "he": "מה זה?"},
+  {"text": "¿Dónde está el baño?", "en": "Where is the restroom?", "he": "איפה השירותים?"},
+  {"text": "¿Qué hora es?", "en": "What time is it?", "he": "מה השעה?"},
+  {"text": "¿Puedes repetirlo, por favor?", "en": "Can you repeat that, please?", "he": "אפשר לחזור על זה, בבקשה?"},
+  {"text": "Habla más despacio, por favor.", "en": "Please speak more slowly.", "he": "תדבר לאט יותר, בבקשה."},
+  {"text": "¿Hablas inglés?", "en": "Do you speak English?", "he": "אתה מדבר אנגלית?"},
+  {"text": "¿Qué significa esta palabra?", "en": "What does this word mean?", "he": "מה המילה הזאת אומרת?"}
 ]
