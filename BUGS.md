@@ -60,6 +60,14 @@ Fires from a focus listener when the guide calls router.dismissAll() with
 nothing to dismiss (GuideHost tour() / home(), maybe others). Dev-only, no
 crash. Fix: guard each dismissAll() with router.canDismiss().
 
+### ET-17 · bug · P1 · fixed in wave-1021 · build 21
+**First username screen: the keyboard covers Save (build 20, Sean's mom, 2026-10-21).**
+- `src/app/username.tsx` had no KeyboardAvoidingView and no onSubmitEditing,
+  and with `first=1` there is no Cancel, so a new user sees "Available" and
+  no way forward. Fix: keyboard avoiding, Return saves, tap outside closes
+  the keyboard.
+- Build 20 workaround: tap Return on the keyboard to close it; Save is under it.
+
 ### ET-16 · ux · P3 · open · next build
 **Small leftovers from the 2026-10-20 testers.**
 - On the guide's 'cat' step the bubble covers the daily stats numbers.
