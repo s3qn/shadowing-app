@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ACTION_H, ActionBar } from '@/components/cat/action-bar';
 import { CatStage, STAGE_H, WATER_H } from '@/components/cat/cat-stage';
 import { ItemGrid } from '@/components/cat/item-grid';
+import { ItemSheet } from '@/components/cat/item-sheet';
 import { LevelHeader } from '@/components/cat/level-header';
 import { SlotTabs } from '@/components/cat/slot-tabs';
 import { PrismButton } from '@/components/prism';
@@ -33,9 +34,11 @@ export default function WardrobeScreen() {
   const dir = useDir();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { progress, catalog, error, reload, apply } = useProgress();
+  const { progress, catalog, error, reload, apply, listenedHours } = useProgress();
   const [slot, setSlot] = useState<Slot>('head');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // The item sheet shows the selected item; closing it keeps the selection and the disabled bar.
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [dipKey, setDipKey] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
@@ -124,7 +127,11 @@ export default function WardrobeScreen() {
     const st = itemState(item, progress);
     if (st === 'equipped') void setEquipped(item.slot, null);
     else if (st === 'owned') void setEquipped(item.slot, item.id);
-    else setSelectedId(item.id === selectedId ? null : item.id);
+    else if (st === 'locked') {
+      // Try-on behind the sheet; the sheet says how it unlocks. An old server without `unlock` gets the selection and the bar only.
+      setSelectedId(item.id);
+      if (item.unlock) setSheetOpen(true);
+    } else setSelectedId(item.id === selectedId ? null : item.id);
   };
 
   const gaze = useGaze();
@@ -159,7 +166,7 @@ export default function WardrobeScreen() {
         ? t('wardrobe.claim')
         : t('wardrobe.buyPlain')
       : selectedState === 'locked'
-        ? t('wardrobe.reachLevel', { n: selected.level_req })
+        ? (selected.unlock?.text ?? t('wardrobe.reachLevel', { n: selected.level_req }))
         : selectedState === 'unaffordable'
           ? t('wardrobe.needCoins', { n: selected.price })
           : null;
@@ -173,8 +180,6 @@ export default function WardrobeScreen() {
           ...dir.headerSides,
           headerRight: () => (
             <Pressable
-              ref={trophy.ref}
-              onLayout={trophy.onLayout}
               accessibilityRole="button"
               accessibilityLabel={t('leaderboard.open')}
               hitSlop={10}
@@ -183,7 +188,10 @@ export default function WardrobeScreen() {
                 router.push('/leaderboard');
               }}
             >
-              <SymbolView name={{ ios: 'trophy.fill', android: 'emoji_events' }} size={22} tintColor={tide.pos.verb} />
+              {/* A fixed box for the guide anchor: the header's symbol alone can measure 0x0. */}
+              <View ref={trophy.ref} onLayout={trophy.onLayout} collapsable={false} style={styles.trophy}>
+                <SymbolView name={{ ios: 'trophy.fill', android: 'emoji_events' }} size={22} tintColor={tide.pos.verb} />
+              </View>
             </Pressable>
           ),
         }}
@@ -225,12 +233,14 @@ export default function WardrobeScreen() {
           onPress={() => void buy()}
         />
       </View>
+      <ItemSheet item={selected} open={sheetOpen} onClose={() => setSheetOpen(false)} progress={progress} hours={listenedHours} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: PAGE },
+  trophy: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   center: { alignItems: 'center', justifyContent: 'center', gap: Spacing.lg },
   failed: { fontFamily: fonts.ui, fontSize: 15, color: tide.text },
   header: { position: 'absolute', left: Spacing.lg, right: Spacing.lg, zIndex: 5 },

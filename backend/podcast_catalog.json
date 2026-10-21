@@ -9,15 +9,6 @@
         "subtitleHe": "האזנה ליפנית ברורה וקצרה",
         "shows": [
           {
-            "collectionId": 1353032168,
-            "title": "Nihongo con Teppei",
-            "feedUrl": "http://teppeisensei.com/index20.rdf",
-            "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts113/v4/70/fc/43/70fc43c3-daa3-111d-bf5f-3f70676d8988/mza_4320301816157088475.png/600x600bb.jpg",
-            "level": "beginner",
-            "tagline": "Short daily talks in slow, plain Japanese for beginners.",
-            "taglineHe": "שיחות יומיות קצרות ביפנית איטית ופשוטה למתחילים."
-          },
-          {
             "collectionId": 1471500012,
             "title": "Japanese podcast for beginners (Nihongo con Teppei)",
             "feedUrl": "http://nihongoconteppei.com/feed/podcast",

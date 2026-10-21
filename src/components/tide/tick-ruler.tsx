@@ -49,6 +49,8 @@ type Props = {
   noLabels?: boolean;
   /** Colour the ruler's ends fade into. Unset means no fade. */
   fadeColor?: string;
+  /** Width of each fade edge; defaults to 16% of the ruler. */
+  fadeWidth?: number;
 };
 
 /**
@@ -70,6 +72,7 @@ export function TickRuler({
   height = TICK_RULER_H,
   noLabels,
   fadeColor,
+  fadeWidth,
 }: Props) {
   const STEP = stepProp ?? DEFAULT_STEP;
   // Centred on its tick and wide enough for "0.75" at a 12pt step. The
@@ -78,7 +81,7 @@ export function TickRuler({
   const grooveH = Math.round((GROOVE_H * height) / TICK_RULER_H);
   const grooveTop = noLabels ? Math.round((height - grooveH) / 2) : Math.round((GROOVE_TOP * height) / TICK_RULER_H);
   const scale = height / TICK_RULER_H;
-  const fadeW = Math.round(width * 0.16);
+  const fadeW = fadeWidth ?? Math.round(width * 0.16);
   const reducedMotion = useReducedMotion();
   const last = steps - 1;
   // The strip's translateX: tick i sits under the centre mark at -i * STEP.

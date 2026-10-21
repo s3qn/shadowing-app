@@ -1536,7 +1536,7 @@ const IslandRow = memo(function IslandRow({
     const d = Number.isFinite(raw) ? raw : 1;
     return {
       transform: [{ scale: reducedMotion ? 1 : 1 - d * 0.05 }],
-      opacity: 1 - d * 0.35,
+      opacity: 1 - d * 0.25,
     };
   });
 
@@ -1638,7 +1638,7 @@ const styles = StyleSheet.create({
   },
   rowFill: { position: 'absolute', left: 0, top: 0, bottom: 0, opacity: 0.16 },
   // The ownership band grows from the edge the card is read from.
-  rowFillRtl: { left: undefined, right: 0 },
+  rowFillRtl: { left: 'auto', right: 0 },
   flashFill: { ...StyleSheet.absoluteFill },
   flashBorder: { ...StyleSheet.absoluteFill, borderWidth: 2, borderRadius: 16 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
@@ -1720,5 +1720,5 @@ const styles = StyleSheet.create({
     bottom: 96,
   },
   // Hebrew cards read from the right, so the button moves to the left corner.
-  fabRtl: { right: undefined, left: Spacing.lg },
+  fabRtl: { right: 'auto', left: Spacing.lg },
 });

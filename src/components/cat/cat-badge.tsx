@@ -42,7 +42,7 @@ function CatBadgeView({ level, xpIntoLevel, xpToNext, coins, equipped, username,
     <PressScale onPress={onPress} accessibilityRole="button" accessibilityLabel={t('wardrobe.title')} style={styles.wrap}>
       <GlassPanel radius={34} style={[styles.panel, dir.row]}>
         <View pointerEvents="none" style={styles.sheen} />
-        <View pointerEvents="none" style={styles.glow} />
+        <View pointerEvents="none" style={[styles.glow, dir.rtl ? styles.glowRtl : styles.glowLtr]} />
         <CatAvatar size={56} equipped={equipped} frameRate={30} />
         <View style={styles.mid}>
           <View style={[styles.handleRow, dir.row]}>
@@ -114,7 +114,9 @@ const styles = StyleSheet.create({
   placeholder: { height: 68 },
   panel: { flexDirection: 'row', alignItems: 'center', height: 68, paddingStart: 10, paddingEnd: 14, gap: 12, overflow: 'hidden' },
   sheen: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(255,255,255,0.04)' },
-  glow: { position: 'absolute', start: -2, top: -6, width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(185,198,255,0.34)' },
+  glowLtr: { left: -2 },
+  glowRtl: { right: -2 },
+  glow: { position: 'absolute', top: -6, width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(185,198,255,0.34)' },
   mid: { flex: 1, gap: 3 },
   handleRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
   handle: { flexShrink: 1, fontFamily: fonts.ui, fontWeight: '800', letterSpacing: -0.5, color: '#ECE8F4', textAlign: 'left' },

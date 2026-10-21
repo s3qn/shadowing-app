@@ -168,6 +168,14 @@ def _pinned_transport(host: str, addr: str) -> httpx.AsyncHTTPTransport:
     return transport
 
 
+# Some feed hosts answer 403 to a client with no User-Agent.
+FETCH_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; PodcastFetcher/1.0; +https://shadow.sean.build)",
+    "Accept": "application/rss+xml, application/xml, text/xml, audio/mpeg, audio/*, */*;q=0.8",
+}
+FALLBACK_UA = "Podcasts/1.0 iTunes"
+
+
 async def _stream_to(url: str, dest: Path | None, max_bytes: int) -> bytes | None:
     """The body of `fetch`, without its deadline."""
     chunks: list[bytes] = []
@@ -175,6 +183,7 @@ async def _stream_to(url: str, dest: Path | None, max_bytes: int) -> bytes | Non
     try:
         timeout = httpx.Timeout(CONNECT_TIMEOUT_S)
         current = url
+        headers = FETCH_HEADERS
         for _hop in range(MAX_REDIRECTS + 1):
             try:
                 addr = await check_url(current)
@@ -185,11 +194,15 @@ async def _stream_to(url: str, dest: Path | None, max_bytes: int) -> bytes | Non
             transport = _pinned_transport(host, addr)
             async with httpx.AsyncClient(
                 transport=transport, follow_redirects=False, timeout=timeout, trust_env=False,
+                headers=headers,
             ) as client:
                 async with client.stream("GET", current) as resp:
                     location = resp.headers.get("location")
                     if resp.status_code in REDIRECT_STATUSES and location:
                         current = urljoin(current, location)
+                        continue
+                    if resp.status_code == 403 and headers is FETCH_HEADERS:
+                        headers = {**FETCH_HEADERS, "User-Agent": FALLBACK_UA}
                         continue
                     if resp.status_code // 100 != 2:
                         raise PodcastError(f"fetch failed with status {resp.status_code}")

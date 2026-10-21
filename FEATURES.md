@@ -278,6 +278,8 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - BL-64 intro tour of the wardrobe and leaderboard (wave-1017c)
 - BL-65 Echo Loop welcome screen (wave-1017c)
 - BL-66 tester feedback inbox (wave-1017c)
+- wave-1021 (build 21): immersion features, achievements and unlock sheet,
+  Hebrew pass, ET-17
 
 ## Next (approved, in order)
 

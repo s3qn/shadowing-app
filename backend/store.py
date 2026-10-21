@@ -515,6 +515,35 @@ def island_source(island_id: str) -> str | None:
     return None if row is None else row["source"]
 
 
+def island_language(island_id: str) -> str | None:
+    """An island's learning language, or None for an unknown id."""
+    with connect() as conn:
+        row = conn.execute("SELECT language FROM islands WHERE id=?", (island_id,)).fetchone()
+    return None if row is None else row["language"]
+
+
+def island_languages() -> dict[str, str]:
+    """{island id: learning language} for every island, for cross-db joins."""
+    with connect() as conn:
+        rows = conn.execute("SELECT id, language FROM islands").fetchall()
+    return {r["id"]: r["language"] for r in rows}
+
+
+def island_length(island_id: str) -> float:
+    """Seconds of media in an island: the video's duration, else the sum of
+    its line durations. 0 for an unknown id."""
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT duration FROM videos WHERE island_id=?", (island_id,)
+        ).fetchone()
+        if row is not None and row["duration"] > 0:
+            return float(row["duration"])
+        row = conn.execute(
+            "SELECT COALESCE(SUM(duration), 0) AS s FROM lines WHERE island_id=?", (island_id,)
+        ).fetchone()
+    return float(row["s"])
+
+
 def count_islands(device: str) -> int:
     """How many ready islands `device` owns."""
     with connect() as conn:

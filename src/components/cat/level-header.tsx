@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   cancelAnimation,
@@ -15,8 +16,18 @@ import Animated, {
 
 import { fonts } from '@/constants/fonts';
 import { tide, verb } from '@/constants/theme';
+import { getUsername } from '@/lib/api';
 import { hapticImpact } from '@/lib/haptics';
 import { useDir, useT } from '@/lib/i18n';
+import { useProgressCache } from '@/lib/progression';
+
+/** Listening hours for display: one decimal under 100 h, whole hours above. */
+export function formatHours(seconds: number): string {
+  const h = Math.max(0, Number.isFinite(seconds) ? seconds : 0) / 3600;
+  if (h >= 100) return String(Math.floor(h));
+  const r = Math.floor(h * 10) / 10;
+  return Number.isInteger(r) ? String(r) : r.toFixed(1);
+}
 
 const XP_TRACK = 'rgba(255,255,255,0.10)';
 const XP_HIGHLIGHT = 'rgba(255,255,255,0.25)';
@@ -148,6 +159,7 @@ export function LevelHeader({ level, xpIntoLevel, xpToNext, coins, xpToday, xpTo
               : t('wardrobe.today', { used: xpToday, cap: xpTodayCap })}
           </Text>
         ) : null}
+        <HoursLine />
       </View>
       <View style={[styles.coinPill, dir.row]} accessibilityLabel={t('wardrobe.coins', { n: coins })}>
         <Animated.View pointerEvents="none" style={[styles.ring, ringStyle]} />
@@ -158,7 +170,46 @@ export function LevelHeader({ level, xpIntoLevel, xpToNext, coins, xpToday, xpTo
   );
 }
 
+/** "38.4 h listened ›": lifetime hours from the cached progress, a tap opens
+ * the own profile. Hidden until progress carries listened_seconds; not
+ * tappable without a username. */
+function HoursLine() {
+  const { t } = useT();
+  const dir = useDir();
+  const router = useRouter();
+  const seconds = useProgressCache().progress?.listened_seconds;
+  const [username, setUsername] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getUsername()
+      .then((u) => {
+        if (alive) setUsername(u);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+  if (typeof seconds !== 'number') return null;
+  const label = t('wardrobe.listened', { h: formatHours(seconds) });
+  if (!username) return <Text style={[styles.hours, dir.text]}>{label}</Text>;
+  return (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={label}
+      hitSlop={8}
+      onPress={() => router.push({ pathname: '/profile/[username]', params: { username } })}
+      style={({ pressed }) => [styles.hoursPress, pressed && styles.pressed]}
+    >
+      <Text style={[styles.hours, dir.text]}>{`${label} ${dir.rtl ? '\u2039' : '\u203A'}`}</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  hours: { fontFamily: fonts.ui, fontSize: 13, color: tide.textDim, opacity: 0.8 },
+  hoursPress: { alignSelf: 'flex-start' },
+  pressed: { opacity: 0.6 },
   wrap: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   left: { flex: 1, minWidth: 0, gap: 7 },
   row: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },

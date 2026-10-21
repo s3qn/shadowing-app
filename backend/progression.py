@@ -11,6 +11,7 @@ ledger row keyed by (owner, key), so a replayed request pays nothing.
 
 import json
 import logging
+import math
 import os
 import sqlite3
 import threading
@@ -33,10 +34,13 @@ CATALOG_VERSION = 1
 LEVEL_UP_COINS = 25
 
 DAY_XP, DAY_COINS = 20, 5
-PRACTICED_XP, PRACTICED_COINS = 30, 10
-MINUTE_XP, MINUTE_COINS = 5, 1
-MINUTE_CAP = 20
-TAKE_XP, TAKE_COINS = 10, 2
+PRACTICED_XP, PRACTICED_COINS = 20, 10
+# One key per counted listening minute, owner-wide (all islands together),
+# at most DAILY_MINUTES_MAX a UTC day. In the slow tail a minute pays
+# MINUTE_XP_SLOW instead of MINUTE_XP // SLOW_DIVISOR (which would be 0).
+MINUTE_XP, MINUTE_XP_SLOW, MINUTE_COINS = 2, 1, 1
+DAILY_MINUTES_MAX = 180
+TAKE_XP, TAKE_COINS = 15, 2
 TAKES_PER_DAY = 60
 # A take on a line already paid today (take:...) still pays a little, so every
 # sentence said shows XP: REP_XP_BASE plus 1 per REP_XP_STEP score points, at
@@ -44,8 +48,11 @@ TAKES_PER_DAY = 60
 REP_XP_BASE, REP_XP_STEP, REP_XP_MAX = 2, 25, 6
 
 # Every repeatable source (take, minute, practiced, day, streak, quality,
-# mastery) is clamped to this much XP per UTC day. Milestones are exempt.
+# mastery) pays in two bands per UTC day: the FAST band, DAILY_XP_CAP XP at
+# the full rate, then the SLOW tail at xp // SLOW_DIVISOR with no coins.
+# Mastery waits for a day with fast room instead. Milestones are exempt.
 DAILY_XP_CAP = 120
+SLOW_DIVISOR = 10
 QUALITY_GOOD = 0.5
 QUALITY_GREAT = 0.8
 QUALITY_MIN_WORDS = 3
@@ -69,6 +76,57 @@ MILESTONES = {
     "level_5": (0, 30),
     "level_10": (0, 60),
     "level_20": (0, 100),
+    # Listening hours (lifetime, uncapped): each rung also grants its item.
+    "hours_1": (40, 10),
+    "hours_10": (60, 15),
+    "hours_25": (80, 20),
+    "hours_50": (100, 25),
+    "hours_100": (200, 50),
+    "hours_250": (250, 60),
+    "hours_500": (300, 80),
+    "hours_1000": (500, 120),
+    # Secret awards, evaluated on long media only (see schedule.py).
+    "replay_10": (60, 15),
+    "marathon_60": (100, 25),
+    "three_channels": (60, 15),
+}
+HOURS_RUNGS = (1, 10, 25, 50, 100, 250, 500, 1000)
+HOURS_ITEMS = {
+    1: "accessory.bell_sprout",
+    10: "accessory.bowtie_tide",
+    25: "head.beanie_night",
+    50: "body.scarf_lantern",
+    100: "face.whiskers_shiny",
+    250: "accessory.collar_moon",
+    500: "face.mask_kitsune",
+    1000: "head.crown_hours",
+}
+SECRET_AWARDS = ("replay_10", "marathon_60", "three_channels")
+# The owned share of an hours item is shown only once this many users exist.
+RARITY_MIN_USERS = 200
+# Display names for every MILESTONES id. A secret one shows no name until earned.
+ACHIEVEMENTS = {
+    "first_take": {"secret": False, "en": "First take", "he": "הקלטה ראשונה"},
+    "first_island": {"secret": False, "en": "First island", "he": "אי ראשון"},
+    "perfect_take": {"secret": False, "en": "Perfect take", "he": "הקלטה מושלמת"},
+    "full_speed": {"secret": False, "en": "Full speed", "he": "מהירות מלאה"},
+    "first_mastery": {"secret": False, "en": "First mastery", "he": "שליטה ראשונה"},
+    "streak_7": {"secret": False, "en": "7 day streak", "he": "רצף של 7 ימים"},
+    "streak_30": {"secret": False, "en": "30 day streak", "he": "רצף של 30 ימים"},
+    "level_5": {"secret": False, "en": "Level 5", "he": "שלב 5"},
+    "level_10": {"secret": False, "en": "Level 10", "he": "שלב 10"},
+    "level_20": {"secret": False, "en": "Level 20", "he": "שלב 20"},
+    "hours_1": {"secret": False, "en": "1 hour listened", "he": "שעה של האזנה"},
+    "hours_10": {"secret": False, "en": "10 hours listened", "he": "10 שעות של האזנה"},
+    "hours_25": {"secret": False, "en": "25 hours listened", "he": "25 שעות של האזנה"},
+    "hours_50": {"secret": False, "en": "50 hours listened", "he": "50 שעות של האזנה"},
+    "hours_100": {"secret": False, "en": "100 hours listened", "he": "100 שעות של האזנה"},
+    "hours_250": {"secret": False, "en": "250 hours listened", "he": "250 שעות של האזנה"},
+    "hours_500": {"secret": False, "en": "500 hours listened", "he": "500 שעות של האזנה"},
+    "hours_1000": {"secret": False, "en": "1000 hours listened", "he": "1000 שעות של האזנה"},
+    "replay_10": {"secret": True, "en": "Heard it ten times", "he": "שמעתי עשר פעמים"},
+    "marathon_60": {"secret": True, "en": "Marathon listener", "he": "מאזין מרתון"},
+    "three_channels": {"secret": True, "en": "Three channels in a day", "he": "שלושה ערוצים ביום"},
 }
 
 # Daily review (BL-51). Outside DAILY_XP_CAP, like milestones.
@@ -115,6 +173,7 @@ CREATE TABLE IF NOT EXISTS day_xp (
   owner TEXT NOT NULL,
   day TEXT NOT NULL,
   xp INTEGER NOT NULL,
+  slow INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY(owner, day)
 );
 CREATE TABLE IF NOT EXISTS line_best (
@@ -151,6 +210,10 @@ def init() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with connect() as conn:
         conn.executescript(SCHEMA)
+        # Databases from before the slow tail lack its per-day column.
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(day_xp)")}
+        if "slow" not in cols:
+            conn.execute("ALTER TABLE day_xp ADD COLUMN slow INTEGER NOT NULL DEFAULT 0")
 
 
 # --- the curve ---
@@ -193,8 +256,94 @@ def _pick(entry: dict, field: str, suffix: str) -> str | None:
     return entry.get(field)
 
 
-def catalog(ui: str = "en") -> dict:
+def rarity() -> dict[str, int | None]:
+    """{hours item id: percent of users who own it}, every value None while
+    fewer than RARITY_MIN_USERS users exist."""
+    ids = [i["id"] for i in _CATALOG["items"] if "hours_req" in i]
+    if not ids:
+        return {}
+    conn = connect()
+    users = conn.execute("SELECT COUNT(DISTINCT owner) AS n FROM progress").fetchone()["n"]
+    if users < RARITY_MIN_USERS:
+        return {i: None for i in ids}
+    marks = ",".join("?" * len(ids))
+    counts = {
+        r["item_id"]: r["n"]
+        for r in conn.execute(
+            f"SELECT item_id, COUNT(*) AS n FROM owned WHERE item_id IN ({marks}) GROUP BY item_id",
+            ids,
+        )
+    }
+    return {i: round(100 * counts.get(i, 0) / users) for i in ids}
+
+
+# Requirement copy per unlock source: (short caption, sentence, profile group).
+# The server owns every string, so a new source needs no client release.
+# `grant` has no group: the profile never lists it.
+_UNLOCK_COPY = {
+    "en": {
+        "level": ("Lv {n}", "Reach level {n}", "By level"),
+        "hours": ("{n} h", "Listen for {n} hours", "By listening hours"),
+        "hours_one": "Listen for 1 hour",
+        "achievement": ("{name}", "Earn: {name}", "By achievement"),
+        "grant": ("Beta", "Given to beta testers", ""),
+    },
+    "he": {
+        "level": ("רמה {n}", "הגיעו לרמה {n}", "לפי רמה"),
+        "hours": ("{n} ש׳", "האזינו {n} שעות", "לפי שעות האזנה"),
+        "hours_one": "האזינו שעה אחת",
+        "achievement": ("{name}", "השיגו: {name}", "לפי הישג"),
+        "grant": ("בטא", "ניתן לבודקי בטא", ""),
+    },
+}
+UNLOCK_SOURCES = ("level", "hours", "achievement", "grant")
+
+
+def unlock_source(item: dict) -> tuple[str, int | str]:
+    """(source, need) of a catalog item. One source per item, precedence
+    grant_only > achievement_req > hours_req > level_req."""
+    if item.get("grant_only"):
+        return "grant", "beta"
+    if "achievement_req" in item:
+        return "achievement", item["achievement_req"]
+    if "hours_req" in item:
+        return "hours", item["hours_req"]
+    return "level", item["level_req"]
+
+
+def unlock_of(item: dict, ui: str = "en") -> dict:
+    """How an item unlocks: the source, what it needs, and the caption,
+    sentence and profile group the client shows verbatim."""
+    lang = "he" if ui == "he" else "en"
+    copy = _UNLOCK_COPY[lang]
+    source, need = unlock_source(item)
+    short, text, group = copy[source]
+    if source == "achievement":
+        name = ACHIEVEMENTS[need][lang]
+        short, text = name, text.format(name=name)
+    elif source == "hours" and need == 1:
+        short, text = short.format(n=need), copy["hours_one"]
+    else:
+        short, text = short.format(n=need), text.format(n=need)
+    return {"source": source, "need": need, "short": short, "text": text, "group": group}
+
+
+def unlock_met(item: dict, level: int, hours: float, earned: set[str]) -> bool:
+    """Whether the owner meets the item's one requirement. A grant item is
+    never met here: it is owned or it is not."""
+    source, need = unlock_source(item)
+    if source == "grant":
+        return False
+    if source == "achievement":
+        return need in earned
+    if source == "hours":
+        return hours >= need
+    return level >= need
+
+
+def catalog(ui: str = "en", with_rarity: bool = True) -> dict:
     suffix = "He" if ui == "he" else ""
+    pct = rarity() if with_rarity else {}
     items = []
     for item in _CATALOG["items"]:
         items.append(
@@ -205,7 +354,12 @@ def catalog(ui: str = "en") -> dict:
                 "level_req": item["level_req"],
                 "price": item["price"],
                 "art": item["art"],
+                "unlock": unlock_of(item, ui),
                 **({"grant_only": True} if item.get("grant_only") else {}),
+                **(
+                    {"hours_req": item["hours_req"], "owned_pct": pct.get(item["id"])}
+                    if "hours_req" in item else {}
+                ),
             }
         )
     return {
@@ -217,6 +371,14 @@ def catalog(ui: str = "en") -> dict:
 
 
 # --- reading ---
+
+
+def _earned(conn: sqlite3.Connection, owner: str) -> list[str]:
+    """Achievement ids in the owner's ledger, sorted."""
+    return sorted(
+        r["key"][3:]
+        for r in conn.execute("SELECT key FROM awards WHERE owner=? AND key LIKE 'ms:%'", (owner,))
+    )
 
 
 def _read(conn: sqlite3.Connection, owner: str) -> dict:
@@ -234,7 +396,9 @@ def _read(conn: sqlite3.Connection, owner: str) -> dict:
         if r["slot"] in equipped:
             equipped[r["slot"]] = r["item_id"]
     today = _today()
-    used = conn.execute("SELECT xp FROM day_xp WHERE owner=? AND day=?", (owner, today)).fetchone()
+    used = conn.execute(
+        "SELECT xp, slow FROM day_xp WHERE owner=? AND day=?", (owner, today)
+    ).fetchone()
     days = _day_keys(conn, owner)
     end = date.fromisoformat(today)
     if today not in days:
@@ -254,6 +418,7 @@ def _read(conn: sqlite3.Connection, owner: str) -> dict:
     return {
         "xp": xp,
         "xp_today": used["xp"] if used else 0,
+        "xp_today_slow": used["slow"] if used else 0,
         "xp_today_cap": DAILY_XP_CAP,
         "streak_days": streak,
         "review_streak_days": review_streak,
@@ -263,6 +428,7 @@ def _read(conn: sqlite3.Connection, owner: str) -> dict:
         "xp_to_next": to_next,
         "owned": owned,
         "equipped": equipped,
+        "earned": _earned(conn, owner),
         "catalog_version": CATALOG_VERSION,
     }
 
@@ -343,12 +509,7 @@ def stats(owner: str) -> dict:
         " FROM line_best WHERE owner=?",
         (QUALITY_GREAT, owner),
     ).fetchone()
-    milestones = [
-        r["key"][3:]
-        for r in conn.execute(
-            "SELECT key FROM awards WHERE owner=? AND key LIKE 'ms:%' ORDER BY key", (owner,)
-        )
-    ]
+    milestones = _earned(conn, owner)
     return {
         "longest_streak": longest,
         "days_active": len(days),
@@ -367,31 +528,36 @@ def stats(owner: str) -> dict:
 
 def _apply(
     conn: sqlite3.Connection, owner: str, key: str, xp: int, coins: int, day: str, capped: bool,
-    defer_if_capped: bool = False,
+    defer_if_capped: bool = False, slow_xp: int | None = None,
 ) -> tuple[bool, int, int]:
     """Pays one ledger key inside the caller's open transaction. Returns
     (paid, xp granted, coins granted), level-up coins included. `paid` is False
-    for a replayed key, which changes nothing. When `capped` the XP is clamped
-    to what is left of DAILY_XP_CAP for `day`; the row keeps the XP actually
-    granted, so progress.xp always equals the sum of the owner's ledger.
+    for a replayed key, which changes nothing. When `capped` the XP pays in the
+    day's bands: the part that fits in what is left of DAILY_XP_CAP for `day`
+    (fast), and the rest at 1 / SLOW_DIVISOR (slow), or `slow_xp` flat when the
+    fast band is already full. The row keeps the XP actually granted, so
+    progress.xp always equals the sum of the owner's ledger.
 
-    Coins track the XP actually granted: when the cap clamps the grant to 0 the
-    key pays 0 coins too, so coins stop at the cap. With `defer_if_capped`, a
-    grant the cap clamps to 0 is not recorded at all (returns False), so a
-    non-repeatable source such as island mastery pays on a later day with room
-    instead of being consumed at the cap and lost."""
-    granted = xp
+    Coins pay only with fast XP, so coins stop at the fast band. With
+    `defer_if_capped`, a grant with no fast room is not recorded at all
+    (returns False) and pays no slow XP, so a non-repeatable source such as
+    island mastery pays on a later day with room instead of being lost."""
+    fast, slow = xp, 0
     coins_granted = coins
     if capped and xp > 0:
         row = conn.execute(
             "SELECT xp FROM day_xp WHERE owner=? AND day=?", (owner, day)
         ).fetchone()
         used = row["xp"] if row else 0
-        granted = max(0, min(xp, DAILY_XP_CAP - used))
-        if granted == 0:
+        fast = max(0, min(xp, DAILY_XP_CAP - used))
+        if fast == 0:
             coins_granted = 0
             if defer_if_capped:
                 return False, 0, 0
+            slow = slow_xp if slow_xp is not None else xp // SLOW_DIVISOR
+        elif not defer_if_capped:
+            slow = (xp - fast) // SLOW_DIVISOR
+    granted = fast + slow
     cur = conn.execute(
         "INSERT OR IGNORE INTO awards (owner, key, xp, coins, created_at) VALUES (?, ?, ?, ?, ?)",
         (owner, key, granted, coins_granted, _now()),
@@ -400,9 +566,10 @@ def _apply(
         return False, 0, 0
     if capped and xp > 0:
         conn.execute(
-            "INSERT INTO day_xp (owner, day, xp) VALUES (?, ?, ?)"
-            " ON CONFLICT(owner, day) DO UPDATE SET xp = xp + excluded.xp",
-            (owner, day, granted),
+            "INSERT INTO day_xp (owner, day, xp, slow) VALUES (?, ?, ?, ?)"
+            " ON CONFLICT(owner, day) DO UPDATE SET"
+            " xp = xp + excluded.xp, slow = slow + excluded.slow",
+            (owner, day, fast, slow),
         )
     conn.execute(
         "INSERT OR IGNORE INTO progress (owner, xp, coins, updated_at) VALUES (?, 0, 0, ?)",
@@ -504,11 +671,93 @@ def _milestones(conn: sqlite3.Connection, owner: str, day: str, ctx: dict) -> tu
     ):
         if hit:
             pay(name)
+    hours = ctx.get("hours") or 0
+    for rung in HOURS_RUNGS:
+        if hours < rung:
+            break
+        pay(f"hours_{rung}")
+        _grant_hours_item(conn, owner, rung)
+    for name in SECRET_AWARDS:
+        if ctx.get(name):
+            pay(name)
     for level, name in ((5, "level_5"), (10, "level_10"), (20, "level_20")):
         row = conn.execute("SELECT xp FROM progress WHERE owner=?", (owner,)).fetchone()
         if level_for(row["xp"] if row else 0) >= level:
             pay(name)
     return got_xp, got_coins, names
+
+
+def _grant_hours_item(conn: sqlite3.Connection, owner: str, rung: int) -> None:
+    """Owns the rung's item for good (never equipped), like the beta hat."""
+    item_id = HOURS_ITEMS.get(rung)
+    if item_id in _ITEMS:
+        conn.execute(
+            "INSERT OR IGNORE INTO owned (owner, item_id, bought_at) VALUES (?, ?, ?)",
+            (owner, item_id, _now()),
+        )
+
+
+def grant_hours(owner: str, total_seconds: float) -> None:
+    """Heals the hours rungs on read from `total_seconds` (the counted
+    lifetime, schedule.counted_seconds, never the uncapped sum): pays every reached rung not yet in the
+    ledger and owns its item, so hours from before the ladder count. Writes
+    nothing when the owner already has every reached rung and item."""
+    hours = max(0.0, float(total_seconds)) / 3600
+    reached = [r for r in HOURS_RUNGS if hours >= r]
+    if not reached:
+        return
+    conn = connect()
+    paid = {
+        r["key"]
+        for r in conn.execute("SELECT key FROM awards WHERE owner=? AND key LIKE 'ms:hours_%'", (owner,))
+    }
+    owned = {r["item_id"] for r in conn.execute("SELECT item_id FROM owned WHERE owner=?", (owner,))}
+    if all(
+        f"ms:hours_{r}" in paid and (HOURS_ITEMS[r] in owned or HOURS_ITEMS[r] not in _ITEMS)
+        for r in reached
+    ):
+        return
+    _run_awards(owner, [], _today(), ctx={"hours": hours})
+
+
+def earned_milestones(owner: str) -> set[str]:
+    return set(_earned(connect(), owner))
+
+
+def achievements(owner: str, ui: str = "en") -> list[dict]:
+    """Every achievement in MILESTONES order with its earn time. A secret one
+    not yet earned has no name."""
+    lang = "he" if ui == "he" else "en"
+    earned = {
+        r["key"][3:]: r["created_at"]
+        for r in connect().execute(
+            "SELECT key, created_at FROM awards WHERE owner=? AND key LIKE 'ms:%'", (owner,)
+        )
+    }
+    out = []
+    for name in MILESTONES:
+        meta = ACHIEVEMENTS[name]
+        at = earned.get(name)
+        out.append({
+            "id": name,
+            "secret": meta["secret"],
+            "name": None if meta["secret"] and at is None else meta[lang],
+            "earned_at": at,
+        })
+    return out
+
+
+def hours_next(total_seconds: float) -> dict | None:
+    """The next hours rung above `total_seconds` (the counted lifetime, each
+    day capped), or None past the last."""
+    for rung in HOURS_RUNGS:
+        if total_seconds < rung * 3600:
+            return {
+                "hours": rung,
+                "item_id": HOURS_ITEMS[rung],
+                "seconds_left": rung * 3600 - total_seconds,
+            }
+    return None
 
 
 def _run_awards(
@@ -529,6 +778,10 @@ def _run_awards(
     try:
         before = conn.execute("SELECT xp FROM progress WHERE owner=?", (owner,)).fetchone()
         old_level = level_for(before["xp"] if before else 0)
+        used_before = conn.execute(
+            "SELECT xp FROM day_xp WHERE owner=? AND day=?", (owner, day)
+        ).fetchone()
+        full_before = bool(used_before and used_before["xp"] >= DAILY_XP_CAP)
         got_xp = got_coins = 0
         any_paid = False
         take_blocked = False
@@ -551,7 +804,10 @@ def _run_awards(
             # when the cap leaves no room: it stays unrecorded and pays on a
             # later day instead of being lost at the cap.
             is_mastery = key.startswith("mastery:")
-            paid, gx, gc = _apply(conn, owner, key, xp, coins, day, True, defer_if_capped=is_mastery)
+            slow_xp = MINUTE_XP_SLOW if key.startswith("minute:") else None
+            paid, gx, gc = _apply(
+                conn, owner, key, xp, coins, day, True, defer_if_capped=is_mastery, slow_xp=slow_xp
+            )
             if paid:
                 any_paid = True
                 got_xp += gx
@@ -588,10 +844,10 @@ def _run_awards(
             "SELECT xp FROM day_xp WHERE owner=? AND day=?", (owner, day)
         ).fetchone()
         capped = bool(used and used["xp"] >= DAILY_XP_CAP)
-        # A take the cap paid nothing for says so, once a day: the zero-XP
-        # capnote key records that the note went out.
+        # The first take after the fast band filled says so, once a day (its
+        # slow XP may be above 0): the zero-XP capnote key records the note.
         cap_note = False
-        if note_cap and capped and got_xp == 0:
+        if note_cap and full_before:
             cap_note = _apply(conn, owner, f"capnote:{day}", 0, 0, day, False)[0]
         conn.commit()
     except BaseException:
@@ -638,19 +894,47 @@ def _run_awards_plain(owner: str, key: str, xp: int, coins: int) -> dict:
     return {"xp": gx, "coins": gc, "level": level, "leveled_up": level > old_level}
 
 
-def award_practice(owner: str, island_id: str, seconds_today: float) -> dict:
-    """Milestones for one island's playback today: the practiced bonus once
-    seconds_today reaches the spacing threshold, and 5 XP per full minute up
-    to 20. The day bonus rides along with the first paid key of the day."""
+def award_practice(
+    owner: str,
+    island_id: str,
+    seconds_today: float,
+    owner_seconds_today: float | None = None,
+    total_seconds: float | None = None,
+    secrets: dict | None = None,
+) -> dict:
+    """Awards for playback today: the practiced bonus once this island's
+    seconds_today reaches the spacing threshold, and one `minute:{day}:{m}` key
+    per counted minute across every island (owner_seconds_today; this island's
+    seconds when not given), at most DAILY_MINUTES_MAX. The day bonus rides
+    along with the first paid key of the day. `total_seconds` (lifetime, each
+    day capped at the daily max) pays the hours rungs and `secrets` the secret awards whose flag is true."""
     day = _today()
     entries: list[tuple[str, int, int]] = []
     if seconds_today >= spacing.PRACTICED_MIN_SECONDS:
         entries.append((f"practiced:{island_id}:{day}", PRACTICED_XP, PRACTICED_COINS))
-    for m in range(1, min(MINUTE_CAP, int(seconds_today // 60)) + 1):
-        entries.append((f"minute:{island_id}:{day}:{m}", MINUTE_XP, MINUTE_COINS))
-    if not entries:
+    counted = seconds_today if owner_seconds_today is None else owner_seconds_today
+    minutes = min(DAILY_MINUTES_MAX, int(max(0.0, counted) // 60))
+    ctx: dict = dict(secrets or {})
+    if total_seconds is not None:
+        ctx["hours"] = total_seconds / 3600
+    if minutes:
+        ctx["note_cap"] = True
+
+    def prepare(conn: sqlite3.Connection) -> list[tuple[str, int, int]]:
+        # Minute keys are paid in order, so only the ones past the count are new.
+        paid = conn.execute(
+            "SELECT COUNT(*) AS n FROM awards WHERE owner=? AND key LIKE ?",
+            (owner, f"minute:{day}:%"),
+        ).fetchone()["n"]
+        return [(f"minute:{day}:{m}", MINUTE_XP, MINUTE_COINS) for m in range(paid + 1, minutes + 1)]
+
+    if not entries and not minutes and not _has_milestone_work(ctx):
         return {"xp": 0, "coins": 0, "level": level_for(snapshot(owner)["xp"]), "leveled_up": False}
-    return _run_awards(owner, entries, day)
+    return _run_awards(owner, entries, day, prepare=prepare, ctx=ctx)
+
+
+def _has_milestone_work(ctx: dict) -> bool:
+    return (ctx.get("hours") or 0) >= HOURS_RUNGS[0] or any(ctx.get(n) for n in SECRET_AWARDS)
 
 
 def award_take(
@@ -797,6 +1081,13 @@ def _err(status: int, **body) -> HTTPException:
     return HTTPException(status, body)
 
 
+def _locked(item: dict) -> HTTPException:
+    """level_locked {level_req}, hours_locked {hours_req} or
+    achievement_locked {achievement_req}, by the item's one source."""
+    source, need = unlock_source(item)
+    return _err(400, code=f"{source}_locked", **{f"{source}_req": need})
+
+
 def buy(owner: str, item_id: str) -> dict:
     item = _ITEMS.get(item_id)
     if item is None:
@@ -811,14 +1102,16 @@ def buy(owner: str, item_id: str) -> dict:
         ).fetchone():
             conn.rollback()
             return snapshot(owner)
+        row = conn.execute("SELECT xp, coins FROM progress WHERE owner=?", (owner,)).fetchone()
+        xp, coins = (row["xp"], row["coins"]) if row else (0, 0)
+        # Hours pass as 0: hours items are earned by listening, never bought.
+        if not unlock_met(item, level_for(xp), 0.0, set(_earned(conn, owner))):
+            conn.rollback()
+            raise _locked(item)
         conn.execute(
             "INSERT OR IGNORE INTO progress (owner, xp, coins, updated_at) VALUES (?, 0, 0, ?)",
             (owner, _now()),
         )
-        row = conn.execute("SELECT xp, coins FROM progress WHERE owner=?", (owner,)).fetchone()
-        if level_for(row["xp"]) < item["level_req"]:
-            conn.rollback()
-            raise _err(400, code="level_locked", level_req=item["level_req"])
         price = item["price"]
         cur = conn.execute(
             "UPDATE progress SET coins = coins - ?, updated_at = ? WHERE owner=? AND coins >= ?",
@@ -826,7 +1119,7 @@ def buy(owner: str, item_id: str) -> dict:
         )
         if cur.rowcount != 1:
             conn.rollback()
-            raise _err(400, code="not_enough_coins", price=price, coins=row["coins"])
+            raise _err(400, code="not_enough_coins", price=price, coins=coins)
         conn.execute(
             "INSERT OR IGNORE INTO owned (owner, item_id, bought_at) VALUES (?, ?, ?)",
             (owner, item_id, _now()),
@@ -923,5 +1216,62 @@ def leaderboard(owner: str, limit: int, handles) -> dict:
             "rank": rank,
             "level": level_for(own["xp"] if own else 0),
             "username": names.get(owner),
+        },
+    }
+
+
+def weekly_leaderboard(
+    owner: str, limit: int, handles, week_start: str, minutes: dict, island_lang: dict,
+    language: str,
+) -> dict:
+    """This week's board for one language: score = counted minutes (the
+    caller's `minutes` {owner: n}) plus the lines first taken since
+    `week_start` on islands in `language` (`island_lang` {island id: language}).
+    Only named owners with a score above 0 are ranked."""
+    limit = max(1, min(int(limit), LEADERBOARD_MAX))
+    conn = connect()
+    names = handles()
+    lines: dict[str, int] = {}
+    for r in conn.execute(
+        "SELECT owner, key FROM awards WHERE key LIKE 'take:%' AND created_at >= ?", (week_start,)
+    ):
+        parts = r["key"].split(":")
+        if len(parts) >= 4 and island_lang.get(":".join(parts[1:-2])) == language:
+            lines[r["owner"]] = lines.get(r["owner"], 0) + 1
+    xp_by = {r["owner"]: r["xp"] for r in conn.execute("SELECT owner, xp FROM progress")}
+
+    def row(o: str) -> dict:
+        m, n = int(minutes.get(o, 0)), lines.get(o, 0)
+        return {"minutes": m, "lines": n, "score": m + n}
+
+    ranked = sorted(
+        ((o, row(o)) for o in names if row(o)["score"] > 0),
+        key=lambda t: (-t[1]["score"], -t[1]["minutes"], names[t[0]]),
+    )
+    top = ranked[:limit]
+    slots: dict[str, dict] = {o: {slot: None for slot in SLOTS} for o, _ in top}
+    if top:
+        marks = ",".join("?" * len(top))
+        for r in conn.execute(
+            f"SELECT owner, slot, item_id FROM equipped WHERE owner IN ({marks})",
+            [o for o, _ in top],
+        ):
+            if r["slot"] in slots[r["owner"]]:
+                slots[r["owner"]][r["slot"]] = r["item_id"]
+    entries = [
+        {"username": names[o], "level": level_for(xp_by.get(o, 0)), "equipped": slots[o], **v}
+        for o, v in top
+    ]
+    rank = next((i + 1 for i, (o, _) in enumerate(ranked) if o == owner), None)
+    return {
+        "week_start": week_start[:10],
+        "language": language,
+        "entries": entries,
+        "me": {
+            "rank": rank,
+            "username": names.get(owner),
+            "level": level_for(xp_by.get(owner, 0)),
+            **row(owner),
+            "top_pct": math.ceil(rank / len(ranked) * 100) if rank else None,
         },
     }

@@ -74,7 +74,8 @@ const SWAP_IN_MS = 180;
  */
 function guessPt(chars: number, enLines: number, w: number, h: number): number {
   for (let pt = LINE_PT; pt > LINE_MIN; pt -= LINE_STEP) {
-    const perRow = Math.max(1, Math.floor(w / pt));
+    // A glyph measures about 1.17x its size once the ruby word spacing is in (8 chars at 36pt ran 331px).
+    const perRow = Math.max(1, Math.floor(w / (pt * 1.17)));
     const rows = Math.ceil(Math.max(chars, 1) / perRow);
     if (rows * pt * 1.6 + enLines * EN_H + CARD_PAD_V <= h) return pt;
   }
@@ -334,10 +335,21 @@ function Card({ p, frame, hidden, maxH }: { p: LadderStageProps; frame: Frame; h
   if (fit.key !== key) setFit(regap(fit));
   const onSize = (_w: number, h: number) => {
     if (fit.key !== key || fit.done || !(h > 0)) return;
-    if (h + 2 <= textMax - fit.room) setFit({ ...fit, done: true, h });
+    if (h + 2 <= textMax - fit.room) setFit((f) => (f.pt === fit.pt && f.key === fit.key ? { ...f, done: true, h } : f));
     else if (fit.pt > LINE_MIN) setFit({ ...fit, pt: Math.max(LINE_MIN, fit.pt - LINE_STEP) });
     else if (fit.room > 0) setFit(start(0, fit.shown, fit.shown ? fit.pt : LINE_PT));
     else setFit({ ...fit, done: true, h });
+  };
+  // A unit never wraps, so a long one (a whole greeting) can be wider than the card while its height
+  // still fits. Each unit reports its width; a wider one steps the size down to the width that fits.
+  const onUnit = (uw: number) => {
+    if (fit.key !== key || !(uw > innerW + 0.5) || fit.pt <= LINE_MIN) return;
+    // Functional, so a height pass reporting in the same batch cannot overwrite the step.
+    setFit((f) => {
+      if (f.key !== key || f.pt <= LINE_MIN) return f;
+      const next = Math.max(LINE_MIN, Math.floor((f.pt * innerW) / uw / LINE_STEP) * LINE_STEP);
+      return { ...f, pt: Math.min(next, f.pt - LINE_STEP), done: false, h: 0 };
+    });
   };
   const pt = fit.pt;
   const rowH = pt * 1.9;
@@ -377,7 +389,7 @@ function Card({ p, frame, hidden, maxH }: { p: LadderStageProps; frame: Frame; h
           {words ? (
             <View style={styles.units}>
               {units.map((unit) => (
-                <View key={unit[0]} style={styles.unit}>
+                <View key={unit[0]} style={styles.unit} onLayout={(e) => onUnit(e.nativeEvent.layout.width)}>
                   {unit.map((wi) => (
                     <RubyWord
                       key={wi}
@@ -523,7 +535,7 @@ function XpPop({ beside, inline }: { beside: boolean; inline?: boolean }) {
   if (!live) return null;
   return (
     <Animated.View style={[inline ? (dir.rtl ? styles.xpInlineRtl : styles.xpInline) : beside ? (dir.rtl ? styles.xpBesideRtl : styles.xpBeside) : styles.xpAlone, style]}>
-      <Text style={[styles.xpText, beside && dir.text]}>{isolate(t('review.xpEarned', { n: cap ? 0 : n }))}</Text>
+      <Text style={[styles.xpText, beside && dir.text]}>{isolate(t('review.xpEarned', { n }))}</Text>
       {cap ? <Text style={[styles.xpCap, beside ? dir.text : { textAlign: 'center' }, dir.writing]}>{t('ladder.xpCap')}</Text> : null}
     </Animated.View>
   );

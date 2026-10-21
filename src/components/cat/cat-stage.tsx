@@ -223,7 +223,7 @@ export function CatStage({ equipped, preview, dipKey = 0, gaze, onCatRect }: Cat
   const RL = width / 2 - 165;
   const moonX = width * 0.56 + 32;
   return (
-    <View style={{ width, height: STAGE_H + WATER_H }} pointerEvents="box-none">
+    <View style={{ width, height: STAGE_H + WATER_H, overflow: 'hidden' }} pointerEvents="box-none">
       <View style={[styles.sky, { height: STAGE_H, experimental_backgroundImage: 'linear-gradient(180deg, #080b1c 0%, #131a40 55%, #262c63 100%)' }]} />
       {STARS.map(([x, y, a], i) => (
         <View key={i} style={[styles.star, { left: x * width, top: y, opacity: a }]} />

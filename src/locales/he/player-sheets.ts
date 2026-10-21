@@ -16,6 +16,6 @@ export const he = {
 
   'player.saveTakeFailed': 'לא ניתן לשמור את הטייק.',
   'player.recordingStoppedUnexpectedly': 'ההקלטה נעצרה באופן בלתי צפוי.',
-  'player.micAccessOff': 'הגישה למיקרופון כבויה. יש להפעיל אותה בהגדרות ולנסות שוב.',
-  'player.startRecordingFailed': 'לא ניתן להתחיל בהקלטה.',
+  'player.micAccessOff': 'הגישה למיקרופון כבויה. הפעילו אותה בהגדרות ונסו שוב.',
+  'player.startRecordingFailed': 'לא ניתן להתחיל להקליט.',
 } satisfies Record<keyof typeof enPlayerSheets, string>;

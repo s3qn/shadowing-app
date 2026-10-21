@@ -295,5 +295,5 @@ const styles = StyleSheet.create({
     color: tide.pos.verb,
   },
   // The score sits in the corner the copy ends at, so Hebrew puts it left.
-  keptRtl: { right: undefined, left: Spacing.lg },
+  keptRtl: { right: 'auto', left: Spacing.lg },
 });

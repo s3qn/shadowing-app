@@ -722,6 +722,116 @@
     "accent": "#2A2833",
     "pattern": "stripe"
    }
+  },
+  {
+   "id": "accessory.bell_sprout",
+   "slot": "accessory",
+   "name": "Sprout Bell",
+   "nameHe": "פעמון נבט",
+   "level_req": 1,
+   "price": 0,
+   "hours_req": 1,
+   "art": {
+    "shape": "bell",
+    "color": "#8BC34A"
+   }
+  },
+  {
+   "id": "accessory.bowtie_tide",
+   "slot": "accessory",
+   "name": "Tide Bowtie",
+   "nameHe": "עניבת פרפר גאות",
+   "level_req": 1,
+   "price": 0,
+   "hours_req": 10,
+   "art": {
+    "shape": "bowtie",
+    "color": "#3A8FB7",
+    "accent": "#F2F0E6"
+   }
+  },
+  {
+   "id": "head.beanie_night",
+   "slot": "head",
+   "name": "Night Beanie",
+   "nameHe": "כובע גרב לילי",
+   "level_req": 1,
+   "price": 0,
+   "hours_req": 25,
+   "art": {
+    "shape": "beanie",
+    "color": "#2B3A67",
+    "accent": "#C9D3F2"
+   }
+  },
+  {
+   "id": "body.scarf_lantern",
+   "slot": "body",
+   "name": "Lantern Scarf",
+   "nameHe": "צעיף פנס",
+   "level_req": 1,
+   "price": 0,
+   "hours_req": 50,
+   "art": {
+    "shape": "scarf",
+    "color": "#E07A3A",
+    "accent": "#F6D28B"
+   }
+  },
+  {
+   "id": "face.whiskers_shiny",
+   "slot": "face",
+   "name": "Shiny Whiskers",
+   "nameHe": "שפם נוצץ",
+   "level_req": 1,
+   "price": 0,
+   "hours_req": 100,
+   "art": {
+    "shape": "blush",
+    "color": "#F3E6B5"
+   }
+  },
+  {
+   "id": "accessory.collar_moon",
+   "slot": "accessory",
+   "name": "Moon Collar",
+   "nameHe": "קולר ירח",
+   "level_req": 1,
+   "price": 0,
+   "hours_req": 250,
+   "art": {
+    "shape": "collar",
+    "color": "#C9CEDD",
+    "accent": "#F5E9A8"
+   }
+  },
+  {
+   "id": "face.mask_kitsune",
+   "slot": "face",
+   "name": "Kitsune Mask",
+   "nameHe": "מסכת קיטסונה",
+   "level_req": 1,
+   "price": 0,
+   "hours_req": 500,
+   "art": {
+    "shape": "mask",
+    "color": "#F7F4EE",
+    "accent": "#D9442B"
+   }
+  },
+  {
+   "id": "head.crown_hours",
+   "slot": "head",
+   "name": "Hours Crown",
+   "nameHe": "כתר השעות",
+   "level_req": 1,
+   "price": 0,
+   "hours_req": 1000,
+   "art": {
+    "shape": "crown",
+    "color": "#E8B93A",
+    "accent": "#7A4FD1"
+   }
   }
  ]
 }

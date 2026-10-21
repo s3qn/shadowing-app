@@ -102,6 +102,7 @@ import * as api from '@/lib/api';
 import { isDownloaded, offlineGloss, offlineWordAudio, preloadOfflineGlosses, snapOffline } from '@/lib/offline-islands'; // offline-islands
 import {
   applyPlaybackMode,
+  lockArtwork,
   releaseAudioSession,
   scheduleAudioSessionRelease,
   startPlayback,
@@ -1658,9 +1659,10 @@ export default function IslandScreen() {
   function lockMeta(): AudioMetadata {
     const pos = t('player.lineOfTotal', { index: idx + 1, total: island!.lines.length });
     const artist = island!.title || t('player.island');
+    const artworkUrl = lockArtwork();
     return hidden
-      ? { title: pos, artist }
-      : { title: phrase.label ?? line!.ja, artist, albumTitle: pos };
+      ? { title: pos, artist, artworkUrl }
+      : { title: phrase.label ?? line!.ja, artist, albumTitle: pos, artworkUrl };
   }
 
   // The line player is the lock screen / notification's active player. It
@@ -3068,7 +3070,9 @@ export default function IslandScreen() {
         // Only this finished Compare moves the guide on: a Pause, a background stop or a failed take keeps the step.
         advanceHoldRef.current = setTimeout(() => {
           advanceHoldRef.current = null;
-          setEchoStep('done');
+          // Idle, not done: done turns the record button into Start again, which jumps back to line 1
+          // instead of running the line the guide just moved to.
+          setEchoStep('idle');
           const step = getGuideStep();
           if (step === 'solo') {
             setGuideStep('topics');

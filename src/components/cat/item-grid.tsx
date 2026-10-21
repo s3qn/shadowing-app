@@ -92,6 +92,8 @@ function Cell({ item, state, selected, index, size, animate, onPress }: CellProp
 
   const unaffordable = state === 'unaffordable';
   const locked = state === 'locked';
+  // Owned hours items show how rare they are; the sheet tells the rest.
+  const rarity = item.hours_req && !locked && item.owned_pct != null ? wornByPct(item.owned_pct) : null;
   const band =
     state === 'equipped' ? (
       <View style={[styles.band, { backgroundColor: CYAN }]}>
@@ -104,7 +106,7 @@ function Cell({ item, state, selected, index, size, animate, onPress }: CellProp
     ) : locked ? (
       <View style={[styles.band, dir.row, { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
         <LockGlyph color={tide.textDim} style={dir.rtl ? { marginLeft: 5 } : { marginRight: 5 }} />
-        <Text style={[styles.bandText, { color: tide.textDim }]}>{t('wardrobe.lv', { n: item.level_req })}</Text>
+        <Text style={[styles.bandText, { color: tide.textDim }]}>{item.unlock?.short ?? t('wardrobe.lv', { n: item.level_req })}</Text>
       </View>
     ) : item.price === 0 ? (
       <View style={[styles.band, { backgroundColor: GOLD }]}>
@@ -139,18 +141,7 @@ function Cell({ item, state, selected, index, size, animate, onPress }: CellProp
           ) : null}
           {wornFade.mounted ? <Animated.View pointerEvents="none" style={[styles.wornRim, wornStyle]} /> : null}
           <View style={[styles.discRing, worn && styles.discRingWorn, unaffordable && { opacity: 0.75 }]}>
-            <View style={[styles.disc, locked && { backgroundColor: '#27306A' }]}>
-              <View style={{ width: SHAPE_BOX.w * ART_SCALE, height: SHAPE_BOX.h * ART_SCALE, opacity: locked ? 0.45 : 1 }}>
-                <View style={{ width: SHAPE_BOX.w, height: SHAPE_BOX.h, transform: [{ translateX: -(SHAPE_BOX.w * (1 - ART_SCALE)) / 2 }, { translateY: -(SHAPE_BOX.h * (1 - ART_SCALE)) / 2 }, { scale: ART_SCALE }] }}>
-                  <CosmeticArt art={item.art} />
-                </View>
-              </View>
-              {locked ? (
-                <View pointerEvents="none" style={styles.veil}>
-                  <LockGlyph color="#E8EAF6" style={{ transform: [{ scale: 1.15 }] }} />
-                </View>
-              ) : null}
-            </View>
+            <ItemDisc item={item} locked={locked} />
           </View>
           {item.grant_only ? (
             <View pointerEvents="none" style={[styles.betaTag, dir.rtl ? { right: 0 } : { left: 0 }]}>
@@ -160,6 +151,7 @@ function Cell({ item, state, selected, index, size, animate, onPress }: CellProp
           <Text numberOfLines={1} style={[styles.name, locked && { opacity: 0.55 }, unaffordable && { opacity: 0.7 }]}>
             {item.name}
           </Text>
+          {rarity ? <Text numberOfLines={1} style={[styles.rarity, dir.text]}>{t('wardrobe.wornBy', { n: rarity })}</Text> : null}
           <View style={styles.bandClip} pointerEvents="none">
             {band}
           </View>
@@ -171,6 +163,35 @@ function Cell({ item, state, selected, index, size, animate, onPress }: CellProp
         </View>
       </Pressable>
     </Animated.View>
+  );
+}
+
+/** The `{n}` for `wardrobe.wornBy`: whole percent, `<1` under one. */
+export function wornByPct(pct: number): string {
+  return pct < 1 ? '<1' : String(Math.round(pct));
+}
+
+/**
+ * An item's art on its disc, scaled from the 48 pt cell size. Locked: dim art
+ * under the lock veil. Shared by the grid cell, the profile reward cells (44)
+ * and the item sheet (96). Never the cat: the art alone.
+ */
+export function ItemDisc({ item, locked, size = DISC }: { item: CosmeticItem; locked: boolean; size?: number }) {
+  const art = ART_SCALE * (size / DISC);
+  const round = { width: size, height: size, borderRadius: size / 2 };
+  return (
+    <View style={[styles.disc, round, locked && { backgroundColor: '#27306A' }]}>
+      <View style={{ width: SHAPE_BOX.w * art, height: SHAPE_BOX.h * art, opacity: locked ? 0.45 : 1 }}>
+        <View style={{ width: SHAPE_BOX.w, height: SHAPE_BOX.h, transform: [{ translateX: -(SHAPE_BOX.w * (1 - art)) / 2 }, { translateY: -(SHAPE_BOX.h * (1 - art)) / 2 }, { scale: art }] }}>
+          <CosmeticArt art={item.art} />
+        </View>
+      </View>
+      {locked ? (
+        <View pointerEvents="none" style={[styles.veil, { borderRadius: size / 2 }]}>
+          <LockGlyph color="#E8EAF6" style={{ transform: [{ scale: Math.max(1.15, size / DISC) }] }} />
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -201,6 +222,7 @@ type Shown = { key: string; items: CosmeticItem[]; animate: boolean };
  */
 export function ItemGrid({ items, progress, selectedId, slotKey, onSelect, bottomPad = 0 }: ItemGridProps) {
   const { width } = useWindowDimensions();
+  const dir = useDir();
   const size = Math.floor((width - 2 * Spacing.lg - GAP * (COLUMNS - 1)) / COLUMNS);
   const reduced = useReducedMotion();
   const [shown, setShown] = useState<Shown>({ key: slotKey, items, animate: true });
@@ -250,7 +272,7 @@ export function ItemGrid({ items, progress, selectedId, slotKey, onSelect, botto
           data={shown.items}
           keyExtractor={(i) => i.id}
           numColumns={COLUMNS}
-          columnWrapperStyle={styles.columns}
+          columnWrapperStyle={[styles.columns, dir.row]}
           contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
           showsVerticalScrollIndicator={false}
           initialNumToRender={STAGGER_CELLS}
@@ -291,7 +313,7 @@ function GridLayer({ leaving, children }: { leaving: boolean; children: ReactNod
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   content: { gap: GAP },
-  columns: { gap: GAP },
+  columns: { flexDirection: 'row', gap: GAP },
   cell: {
     alignItems: 'center',
     paddingTop: 12,
@@ -327,6 +349,7 @@ const styles = StyleSheet.create({
     experimental_backgroundImage: 'linear-gradient(160deg, rgba(190,200,255,0.22), rgba(120,130,200,0.08))',
     boxShadow: 'inset 0 0 0 1px rgba(200,210,255,0.30)',
   },
+  rarity: { fontFamily: fonts.ui, fontSize: 9, lineHeight: 11, fontWeight: '600', color: tide.textDim, maxWidth: '100%', marginTop: -4 },
   name: { fontFamily: fonts.ui, fontSize: 12.5, lineHeight: 16, fontWeight: '500', color: tide.text, maxWidth: '100%' },
   bandClip: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 28, borderBottomLeftRadius: 20, borderBottomRightRadius: 20, overflow: 'hidden' },
   band: { height: 28, borderBottomLeftRadius: 20, borderBottomRightRadius: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },

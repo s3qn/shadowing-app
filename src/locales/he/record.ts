@@ -5,16 +5,16 @@ import { isolate } from '@/lib/bidi';
 export const he = {
   'record.close': 'סגירה',
 
-  'record.title.idle': 'לספר על היום שלך, בערך 30 שניות.',
-  'record.title.recording': 'להמשיך לספר על היום שלך.',
-  'record.title.review': 'ההקלטה שלך',
-  'record.topic.title.idle': 'להגיד נושא',
+  'record.title.idle': 'ספרו על היום שלכם, בערך 30 שניות.',
+  'record.title.recording': 'המשיכו לספר על היום שלכם.',
+  'record.title.review': 'ההקלטה שלכם',
+  'record.topic.title.idle': 'אמרו נושא',
   'record.topic.title.recording': 'בהאזנה…',
-  'record.topic.title.review': 'הנושא שלך',
-  'record.topic.hint': "להגיד נושא, למשל 'ביטויים לחדר כושר', או נקודת דקדוק, למשל ながら",
+  'record.topic.title.review': 'הנושא שלכם',
+  'record.topic.hint': 'אמרו נושא, למשל ״ביטויים לחדר כושר״, או נקודת דקדוק, למשל ながら',
   'record.topic.build': 'בניית ביטויים',
   'record.promptHint':
-    'אפשר לדבר בעברית או באנגלית, איך שנוח. מה שאומרים הופך למשפטים ב{language} על החיים שלך, אז כדאי להשתמש בשמות ובמקומות אמיתיים.',
+    'דברו בעברית או באנגלית, איך שנוח לכם. מה שתגידו יהפוך למשפטים ב{language} על החיים שלכם, אז כדאי להשתמש בשמות ובמקומות אמיתיים.',
   'record.language.ja': 'יפנית',
   'record.language.es': 'ספרדית',
   'record.language.en': 'אנגלית',
@@ -27,7 +27,7 @@ export const he = {
   'record.complexity.simple.label': 'אחד בכל פעם',
   'record.complexity.simple.description': 'שורות קצרות ונפרדות, רעיון אחד בכל שורה.',
   'record.complexity.complex.label': 'מורכב',
-  'record.complexity.complex.description': 'משפטי משנה ודיבור מחובר.',
+  'record.complexity.complex.description': 'משפטים מורכבים ודיבור רציף.',
 
   'record.styleLabel': 'סגנון',
   'record.register.polite.label': 'מנומס',
@@ -37,9 +37,9 @@ export const he = {
 
   'record.startRecording': 'התחלת הקלטה',
   'record.stopRecording': 'עצירת ההקלטה',
-  'record.tapToStart': 'הקשה כדי להתחיל',
-  'record.tapToStop': 'הקשה כדי לעצור',
-  'record.keepGoing': 'להמשיך, עוד {seconds} שניות',
+  'record.tapToStart': 'לחצו כדי להתחיל',
+  'record.tapToStop': 'לחצו כדי לעצור',
+  'record.keepGoing': 'המשיכו, עוד {seconds} שניות',
 
   'record.buildIsland': 'בניית האי',
   'record.recordAgain': 'הקלטה מחדש',
@@ -49,7 +49,7 @@ export const he = {
   'record.podcastBuildHint': 'זה לוקח כמה דקות. אפשר לסגור את המסך הזה, האי ממשיך להיבנות ומופיע ברשימה כשהוא מוכן.',
   'record.defaultEpisodeTitle': 'פרק פודקאסט',
 
-  'record.micOff': 'הגישה למיקרופון כבויה. יש להפעיל אותה בהגדרות ולנסות שוב.',
+  'record.micOff': 'הגישה למיקרופון כבויה. הפעילו אותה בהגדרות ונסו שוב.',
   'record.backgroundStopped': 'ההקלטה נעצרה כשהאפליקציה עברה לרקע.',
   'record.uploadFailed': 'ההעלאה נכשלה',
   'record.episodeDownloadFailed': 'הורדת הפרק נכשלה.',

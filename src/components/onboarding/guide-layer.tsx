@@ -39,8 +39,8 @@ export type GuideLayerProps = {
   holes: GuideHole[];
   /** Extra lit areas that are for reading only: no touch gap and no say in the bubble's place. */
   seeThrough?: GuideHole[];
-  /** Where the H04 tap hint sits. Omit for no hint. */
-  hint?: { x: number; y: number };
+  /** Where the H04 tap hint sits. Omit for no hint. `scale` shrinks its rings (default 1), for a small control with a label beside it. */
+  hint?: { x: number; y: number; scale?: number };
   /** The hint has been used: the mid ring dips once and the group fades. */
   stopped?: boolean;
   /** One bubble, or the moment's pages in order: a tap outside the holes turns to the next. */
@@ -74,6 +74,10 @@ const MID_R = 23;
 const BUBBLE_SIDE = 60;
 /** The "next:" chip's height: 12 pt text, 4 pt padding a side, a 1 pt border. */
 const CHIP_H = 26;
+/** What a 'below' chip takes under its bubble: its 4 pt gap and its height. A bubble parked at the bottom leaves this much room. */
+export const GUIDE_CHIP_ROOM = 4 + CHIP_H;
+/** The chip's least gap above the home indicator (or the bottom edge where there is none). */
+const CHIP_EDGE = 8;
 /** The outgoing page's fade while the next page's bubble rises in (GuideBubble's own 260 ms entrance). */
 const PAGE_OUT_MS = 160;
 /** The rim and hint fading in on the page that says what to tap. */
@@ -254,6 +258,8 @@ export function GuideLayer(p: GuideLayerProps) {
   const hx = p.hint?.x;
   const hy = p.hint?.y;
   const haveHint = hx !== undefined && hy !== undefined && Number.isFinite(hx) && Number.isFinite(hy);
+  const hs = p.hint?.scale;
+  const ringK = hs !== undefined && Number.isFinite(hs) && hs > 0 ? hs : 1;
   const cx = useSharedValue(0);
   const cy = useSharedValue(0);
   const placedHint = useRef(false);
@@ -347,8 +353,8 @@ export function GuideLayer(p: GuideLayerProps) {
   const bubbleLeft = lead && lead.x > W / 2 ? 50 : 10;
   const bubbleTop = p.bubble.top ?? (lead ? (lead.y > 400 ? lead.y - bh - 24 : lead.y + lead.height + 22) : 300);
   const chipLeft = bubbleLeft + 0.46 * bw;
-  // The chip never leaves the screen: a bubble parked at the bottom keeps it above the home indicator.
-  const chipTop = Math.min(p.chip?.place === 'above' ? bubbleTop - 34 : bubbleTop + bh + 4, H - insets.bottom - CHIP_H);
+  // The chip never leaves the screen: a bubble parked at the bottom keeps it clear of the home indicator and the bottom edge.
+  const chipTop = Math.min(p.chip?.place === 'above' ? bubbleTop - 34 : bubbleTop + bh + 4, H - insets.bottom - CHIP_H - CHIP_EDGE);
   const dimA = p.dimOpacity !== undefined && Number.isFinite(p.dimOpacity) ? p.dimOpacity : 0.45;
 
   return (
@@ -377,22 +383,22 @@ export function GuideLayer(p: GuideLayerProps) {
           <Canvas style={StyleSheet.absoluteFill}>
             <Group opacity={hintOp}>
               <Group opacity={glowOp}>
-                <Circle c={centre} r={GLOW_R}>
+                <Circle c={centre} r={GLOW_R * ringK}>
                   <RadialGradient
                     c={centre}
-                    r={GLOW_R}
+                    r={GLOW_R * ringK}
                     colors={['rgba(160,220,255,0.5)', 'rgba(160,220,255,0)']}
                     positions={[0, 0.7]}
                   />
                 </Circle>
               </Group>
               <Group transform={spinXf}>
-                <Circle c={{ x: 0, y: 0 }} r={OUTER_R} style="stroke" strokeWidth={1.5} color="rgba(160,220,255,0.55)">
+                <Circle c={{ x: 0, y: 0 }} r={OUTER_R * ringK} style="stroke" strokeWidth={1.5} color="rgba(160,220,255,0.55)">
                   <DashPathEffect intervals={[4, 4]} />
                 </Circle>
               </Group>
               <Group transform={midXf}>
-                <Circle c={{ x: 0, y: 0 }} r={MID_R} style="stroke" strokeWidth={2} color="rgba(210,240,255,0.9)" />
+                <Circle c={{ x: 0, y: 0 }} r={MID_R * ringK} style="stroke" strokeWidth={2} color="rgba(210,240,255,0.9)" />
               </Group>
             </Group>
           </Canvas>

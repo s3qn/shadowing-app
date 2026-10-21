@@ -2,7 +2,9 @@
  * The practice log the app keeps on the device, as one JSON file next to
  * settings.json in the app's document directory. Tracks seconds shadowed per
  * calendar day (for the streak) and per island (for "least practiced" sort
- * and the minutes shown on a card). Nothing here talks to `backend/`.
+ * and the minutes shown on a card). Each flush also posts the new seconds to
+ * the server; seconds a post could not deliver wait in `unsent` and go with
+ * the next flush, so offline listening is never dropped.
  */
 
 import {
@@ -13,8 +15,9 @@ import {
   readAsStringAsync,
   writeAsStringAsync,
 } from 'expo-file-system/legacy';
+import { AppState } from 'react-native';
 
-import { postPracticeEvent } from './api';
+import { PracticeRefused, postPracticeEvent } from './api';
 import { noteAward } from './progression';
 
 export type PracticeLog = {
@@ -22,7 +25,12 @@ export type PracticeLog = {
   islands: Record<string, { seconds: number; lastAt: number }>; // islandId -> total seconds, Date.now() of last count
   passes: Record<string, number>; // 'YYYY-MM-DD' -> count of full plays + takes
   ladders: Record<string, number>; // 'YYYY-MM-DD' -> count of finished five-pass ladders
+  // islandId -> seconds not yet accepted by the server; read() always fills it.
+  unsent?: Record<string, number>;
 };
+
+// The most one practice post may carry (the server refuses more).
+const POST_CHUNK_SECONDS = 3600;
 
 // A day with no `passes` entry (every day logged before this counter
 // existed) still counts toward the streak by this old rule: at least this
@@ -49,7 +57,7 @@ const FILE = `${documentDirectory ?? ''}practice.json`;
 const TMP_FILE = `${FILE}.tmp`;
 
 function emptyLog(): PracticeLog {
-  return { days: {}, islands: {}, passes: {}, ladders: {} };
+  return { days: {}, islands: {}, passes: {}, ladders: {}, unsent: {} };
 }
 
 // Returns undefined for anything that isn't a parseable PracticeLog shell
@@ -92,7 +100,14 @@ function normalize(parsed: Partial<PracticeLog>): PracticeLog {
       if (typeof value === 'number') ladders[key] = value;
     }
   }
-  return { days, islands, passes, ladders };
+  // A log written before the outbox existed has no `unsent`: nothing waits.
+  const unsent: Record<string, number> = {};
+  if (parsed.unsent && typeof parsed.unsent === 'object') {
+    for (const [id, value] of Object.entries(parsed.unsent)) {
+      if (typeof value === 'number' && Number.isFinite(value) && value > 0) unsent[id] = value;
+    }
+  }
+  return { days, islands, passes, ladders, unsent };
 }
 
 // Defaults when there is no file yet, or when it is genuinely empty. A file
@@ -156,6 +171,14 @@ let buffer: {
   ladders: {},
 };
 let unflushed = 0;
+// Seconds per island that were counted while the app was not active, so a late
+// send still tags them 'background'. Memory only, like the buffer.
+const backgroundSecs: Record<string, number> = {};
+// One send pass at a time; a flush during a pass asks for another one after.
+let sending = false;
+let sendAgain = false;
+// Unknown at launch: the file may hold seconds a killed app never sent.
+let mayHaveUnsent = true;
 
 /** Local calendar date, zero padded ('YYYY-MM-DD'). */
 export function dayKey(d: Date): string {
@@ -176,6 +199,7 @@ export function addPractice(islandId: string, seconds: number): void {
   const key = dayKey(new Date());
   buffer.days[key] = (buffer.days[key] ?? 0) + seconds;
   buffer.islands[islandId] = (buffer.islands[islandId] ?? 0) + seconds;
+  if (AppState.currentState !== 'active') backgroundSecs[islandId] = (backgroundSecs[islandId] ?? 0) + seconds;
   unflushed += seconds;
   if (unflushed >= FLUSH_THRESHOLD_SECONDS) void flushPractice();
 }
@@ -205,9 +229,85 @@ export function addLadder(islandId: string): void {
 }
 
 /**
+ * Posts every island's `unsent` seconds in chunks of at most
+ * POST_CHUNK_SECONDS, then takes what the server accepted out of the file.
+ * A network failure keeps the rest for the next flush; a refusal (unknown
+ * island, bad seconds) drops that island's seconds. Never rejects.
+ */
+async function sendUnsent(): Promise<void> {
+  if (sending) {
+    sendAgain = true;
+    return;
+  }
+  sending = true;
+  try {
+    do {
+      sendAgain = false;
+      let snapshot: Record<string, number> = {};
+      await (pending = pending.then(async () => {
+        try {
+          snapshot = { ...(await read()).unsent };
+        } catch {
+          snapshot = {};
+        }
+      }).catch(() => {}));
+      const done: Record<string, number> = {};
+      let offline = false;
+      for (const [id, total] of Object.entries(snapshot)) {
+        let left = total;
+        while (left > 0.0001 && !offline) {
+          const bgLeft = backgroundSecs[id] ?? 0;
+          const chunk = Math.min(POST_CHUNK_SECONDS, left, bgLeft > 0.0001 ? bgLeft : left);
+          const appState = bgLeft > 0.0001 ? 'background' : 'active';
+          try {
+            const r = await postPracticeEvent(id, chunk, appState);
+            noteAward(r.award);
+          } catch (e) {
+            if (e instanceof PracticeRefused) {
+              delete backgroundSecs[id];
+              done[id] = total;
+              break;
+            }
+            offline = true;
+            break;
+          }
+          if (bgLeft > 0) backgroundSecs[id] = Math.max(0, bgLeft - chunk);
+          left -= chunk;
+          done[id] = (done[id] ?? 0) + chunk;
+        }
+        if (offline) break;
+      }
+      if (Object.keys(done).length === 0) {
+        mayHaveUnsent = Object.keys(snapshot).length > 0;
+        continue;
+      }
+      await (pending = pending.then(async () => {
+        let current: PracticeLog;
+        try {
+          current = await read();
+        } catch {
+          return;
+        }
+        const unsent = { ...(current.unsent ?? {}) };
+        for (const [id, seconds] of Object.entries(done)) {
+          const rest = (unsent[id] ?? 0) - seconds;
+          if (rest > 0.0001) unsent[id] = rest;
+          else delete unsent[id];
+        }
+        mayHaveUnsent = Object.keys(unsent).length > 0;
+        await write({ ...current, unsent });
+      }).catch(() => {}));
+    } while (sendAgain);
+  } finally {
+    sending = false;
+  }
+}
+
+/**
  * Merges the buffer into the file (days and islands both += seconds,
- * lastAt = Date.now() for any island touched, passes += count) and clears
- * the buffer. Never rejects, so a caller never needs to catch it.
+ * lastAt = Date.now() for any island touched, passes += count, and the new
+ * island seconds into `unsent`), clears the buffer, then posts `unsent`.
+ * Never rejects, so a caller never needs to catch it.
  */
 export function flushPractice(): Promise<void> {
   const toMerge = buffer;
@@ -220,7 +320,10 @@ export function flushPractice(): Promise<void> {
     Object.keys(toMerge.ladders).length > 0;
   const run = pending
     .then(async () => {
-      if (!hasWork) return;
+      if (!hasWork) {
+        if (mayHaveUnsent) void sendUnsent();
+        return;
+      }
       let current: PracticeLog;
       try {
         current = await read();
@@ -246,12 +349,14 @@ export function flushPractice(): Promise<void> {
       for (const [key, count] of Object.entries(toMerge.ladders)) {
         ladders[key] = (ladders[key] ?? 0) + count;
       }
-      await write({ days, islands, passes, ladders });
+      // On disk before any post, so seconds survive a kill mid-send.
+      const unsent = { ...(current.unsent ?? {}) };
       for (const [id, seconds] of Object.entries(toMerge.islands)) {
-        void postPracticeEvent(id, seconds)
-          .then((r) => noteAward(r.award))
-          .catch(() => {});
+        unsent[id] = (unsent[id] ?? 0) + seconds;
       }
+      await write({ days, islands, passes, ladders, unsent });
+      mayHaveUnsent = true;
+      void sendUnsent();
     })
     .catch(() => {});
   pending = run;
@@ -279,10 +384,13 @@ export function forgetIsland(islandId: string): Promise<void> {
       } catch {
         return;
       }
-      if (!(islandId in current.islands)) return;
+      if (!(islandId in current.islands) && !(islandId in (current.unsent ?? {}))) return;
       const islands = { ...current.islands };
       delete islands[islandId];
-      await write({ ...current, islands });
+      // A deleted island's seconds can no longer be posted.
+      const unsent = { ...(current.unsent ?? {}) };
+      delete unsent[islandId];
+      await write({ ...current, islands, unsent });
     })
     .catch(() => {});
   pending = run;

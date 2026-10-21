@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import Animated, { interpolate, useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 
 import { tide } from '@/constants/theme';
+import { useDir } from '@/lib/i18n';
 import type { LineTier } from '@/lib/takes';
 
 // A shadowing island this long does not exist; the cap just keeps the row
@@ -53,6 +54,7 @@ export type LanternRowProps = {
  * values, so a card re-rendering for its index or meta leaves the lanterns
  * alone. */
 export const LanternRow = memo(function LanternRow({ count, tiers, holdColours, weakest, litMs, flick, power }: LanternRowProps) {
+  const dir = useDir();
   const shown = Math.min(count, MAX_LANTERNS);
   const gap = shown > 14 ? 4 : 9;
   // A card losing the light gets tiers=null on the same render its fade
@@ -66,7 +68,7 @@ export const LanternRow = memo(function LanternRow({ count, tiers, holdColours, 
   const shownWeakest = tiers ? weakest : holdColours ? cache.weakest : -1;
 
   return (
-    <View style={[styles.row, { gap }]}>
+    <View style={[styles.row, dir.row, { gap }]}>
       {Array.from({ length: shown }, (_, i) => {
         const tier = shownTiers[i] ?? 'none';
         const isWeakest = i === shownWeakest;

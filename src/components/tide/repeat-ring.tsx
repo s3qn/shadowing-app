@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   // Hebrew pins the pill to the card's other corner, the reading edge.
-  pillRtl: { right: undefined, left: 16 },
+  pillRtl: { right: 'auto', left: 16 },
   dots: { flexDirection: 'row', gap: 5 },
   dot: { width: 10, height: 10, borderRadius: 5 },
   count: { color: '#fff', fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] },

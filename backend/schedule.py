@@ -29,8 +29,16 @@ log = logging.getLogger("shadow.schedule")
 
 # The most playback one post may claim. A real client flushes a few seconds at
 # a time; anything past an hour in a single post is a forged award, not a
-# sitting, so it is refused rather than paid.
+# sitting, so it is refused rather than paid. The outbox posts its offline
+# backlog in chunks of this size back to back, so a post is not also held to
+# the wall time since the last one: the daily max below bounds what pays.
 MAX_PRACTICE_SECONDS = 3600.0
+# The most listening one owner is rewarded for in a UTC day (XP minutes, the
+# weekly league and the hours ladder). The hours shown stay uncapped.
+DAILY_MAX_SECONDS = 10800.0
+APP_STATES = frozenset({"", "active", "background"})
+# Sources the secret awards are evaluated on: long media, not drills.
+SECRET_SOURCES = frozenset({"youtube", "podcast", "import"})
 
 DATA_DIR = Path(os.getenv("SHADOW_DATA_DIR", Path(__file__).parent / "data"))
 DB_PATH = DATA_DIR / "schedule.db"
@@ -113,6 +121,29 @@ def init() -> None:
                     "UPDATE practice_events SET source=? WHERE island_id=? AND source=''",
                     (src, island_id),
                 )
+        # The island's learning language and whether the app was in front when
+        # the seconds were heard (stats only: background seconds always count).
+        if "language" not in events_cols:
+            conn.execute("ALTER TABLE practice_events ADD COLUMN language TEXT NOT NULL DEFAULT ''")
+        if "app_state" not in events_cols:
+            conn.execute("ALTER TABLE practice_events ADD COLUMN app_state TEXT NOT NULL DEFAULT ''")
+        # Progress reads and every practice post sum one device's rows.
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_practice_events_device_created"
+            " ON practice_events(device, created_at)"
+        )
+        missing = [
+            r["island_id"]
+            for r in conn.execute("SELECT DISTINCT island_id FROM practice_events WHERE language=''")
+        ]
+        if missing:
+            langs = store.island_languages()
+            for island_id in missing:
+                if langs.get(island_id):
+                    conn.execute(
+                        "UPDATE practice_events SET language=? WHERE island_id=? AND language=''",
+                        (langs[island_id], island_id),
+                    )
         state_cols = {row["name"] for row in conn.execute("PRAGMA table_info(schedule_state)")}
         if "device" not in state_cols:
             conn.execute("ALTER TABLE schedule_state ADD COLUMN device TEXT NOT NULL DEFAULT ''")
@@ -167,16 +198,110 @@ def claim_unowned(device: str) -> int:
         return n
 
 
+def counted_seconds(conn: sqlite3.Connection, device: str) -> float:
+    """Lifetime seconds for `device` with each UTC day capped at
+    DAILY_MAX_SECONDS, the same rule weekly_minutes uses. The hours ladder
+    pays on this, so forged posts cannot buy more than a day's worth a day."""
+    rows = conn.execute(
+        "SELECT SUM(seconds) AS s FROM practice_events WHERE device = ?"
+        " GROUP BY substr(created_at, 1, 10)",
+        (device,),
+    ).fetchall()
+    return sum(min(float(r["s"]), DAILY_MAX_SECONDS) for r in rows)
+
+
 def immersion(device: str) -> dict:
-    """Total practice seconds for `device` and the split by island source."""
+    """Total practice seconds for `device`, the split by island source and by
+    language, today's seconds and today's counted seconds (after the daily max),
+    and the lifetime counted seconds the hours ladder pays on."""
     with connect() as conn:
         rows = conn.execute(
             "SELECT source, COALESCE(SUM(seconds), 0) AS s FROM practice_events"
             " WHERE device=? GROUP BY source",
             (device,),
         ).fetchall()
+        langs = conn.execute(
+            "SELECT language, COALESCE(SUM(seconds), 0) AS s FROM practice_events"
+            " WHERE device=? GROUP BY language",
+            (device,),
+        ).fetchall()
+        today = conn.execute(
+            "SELECT COALESCE(SUM(seconds), 0) AS s FROM practice_events"
+            " WHERE device=? AND substr(created_at, 1, 10) = ?",
+            (device, _today()),
+        ).fetchone()["s"]
+        counted_total = counted_seconds(conn, device)
     by_source = {r["source"]: float(r["s"]) for r in rows}
-    return {"total": sum(by_source.values()), "by_source": by_source}
+    return {
+        "total": sum(by_source.values()),
+        "by_source": by_source,
+        "by_language": {r["language"]: float(r["s"]) for r in langs if r["language"]},
+        "today": float(today),
+        "counted_today": min(float(today), DAILY_MAX_SECONDS),
+        "counted_total": counted_total,
+    }
+
+
+def weekly_minutes(language: str, since: str) -> dict[str, int]:
+    """{device: counted minutes} in `language` since `since` (YYYY-MM-DD):
+    each UTC day's seconds capped at DAILY_MAX_SECONDS, summed, floored."""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT device, substr(created_at, 1, 10) AS day, SUM(seconds) AS s"
+            " FROM practice_events WHERE language = ? AND created_at >= ? AND device != ''"
+            " GROUP BY device, day",
+            (language, since),
+        ).fetchall()
+    seconds: dict[str, float] = {}
+    for r in rows:
+        seconds[r["device"]] = seconds.get(r["device"], 0.0) + min(float(r["s"]), DAILY_MAX_SECONDS)
+    return {d: int(s // 60) for d, s in seconds.items()}
+
+
+def _secret_flags(conn: sqlite3.Connection, device: str, island_id: str, today: str) -> dict:
+    """The secret awards this post may have earned, skipping ones already paid."""
+    earned = progression.earned_milestones(device)
+    flags: dict = {}
+    length = store.island_length(island_id)
+    if "replay_10" not in earned and length >= 60:
+        heard = conn.execute(
+            "SELECT COALESCE(SUM(seconds), 0) AS s FROM practice_events"
+            " WHERE island_id = ? AND device = ?",
+            (island_id, device),
+        ).fetchone()["s"]
+        flags["replay_10"] = heard >= 10 * length
+    if "marathon_60" not in earned and length >= 3600:
+        rows = conn.execute(
+            "SELECT seconds, created_at FROM practice_events"
+            " WHERE island_id = ? AND device = ? AND substr(created_at, 1, 10) = ?"
+            " ORDER BY created_at, id",
+            (island_id, device, today),
+        ).fetchall()
+        best = run = 0.0
+        prev = None
+        for r in rows:
+            at = datetime.fromisoformat(r["created_at"])
+            run = run + r["seconds"] if prev is not None and (at - prev).total_seconds() <= 600 \
+                else r["seconds"]
+            best = max(best, run)
+            prev = at
+        flags["marathon_60"] = best >= 0.9 * length
+    if "three_channels" not in earned:
+        heard = {
+            r["island_id"]
+            for r in conn.execute(
+                "SELECT island_id FROM practice_events WHERE device = ?"
+                " AND substr(created_at, 1, 10) = ? GROUP BY island_id HAVING SUM(seconds) >= 300",
+                (device, today),
+            )
+        }
+        if len(heard) >= 3:
+            channels = {
+                i["source_name"] for i in store.list_islands(device)
+                if i["id"] in heard and i["source_name"]
+            }
+            flags["three_channels"] = len(channels) >= 3
+    return flags
 
 
 def delete_owner(device: str) -> None:
@@ -192,18 +317,20 @@ router = APIRouter(prefix="/shadow/schedule")
 async def log_practice(
     island_id: str = Form(...),
     seconds: float = Form(...),
+    app_state: str = Form(""),
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
     # The sqlite work and the award are blocking, so the body runs on a worker
     # thread and never stalls the event loop.
     return await asyncio.to_thread(
-        _log_practice_sync, island_id, seconds, authorization, x_shadow_device
+        _log_practice_sync, island_id, seconds, authorization, x_shadow_device, app_state
     )
 
 
 def _log_practice_sync(
-    island_id: str, seconds: float, authorization: str | None, x_shadow_device: str
+    island_id: str, seconds: float, authorization: str | None, x_shadow_device: str,
+    app_state: str = "",
 ) -> dict:
     require_token(authorization)
     device = _require_device(x_shadow_device)
@@ -219,11 +346,15 @@ def _log_practice_sync(
     today = _today()
     today_date = date.fromisoformat(today)
     source = store.island_source(island_id) or ""
+    language = store.island_language(island_id) or ""
+    if not isinstance(app_state, str) or app_state not in APP_STATES:
+        app_state = ""
     with connect() as conn:
         conn.execute(
-            "INSERT INTO practice_events (island_id, seconds, created_at, device, source)"
-            " VALUES (?, ?, ?, ?, ?)",
-            (island_id, seconds, _now(), device, source),
+            "INSERT INTO practice_events"
+            " (island_id, seconds, created_at, device, source, language, app_state)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (island_id, seconds, _now(), device, source, language, app_state),
         )
         # Every second this phone has posted for this island today, this post
         # included. The client only counts line playback (usePracticeClock),
@@ -233,6 +364,25 @@ def _log_practice_sync(
             " WHERE island_id = ? AND device = ? AND substr(created_at, 1, 10) = ?",
             (island_id, device, today),
         ).fetchone()["total"]
+        # Every island together, today and lifetime: the minute keys and the
+        # daily max are owner-wide. The hours ladder pays on lifetime seconds
+        # with each day capped; total_seconds is the uncapped figure shown.
+        owner_today = conn.execute(
+            "SELECT COALESCE(SUM(seconds), 0) AS total FROM practice_events"
+            " WHERE device = ? AND substr(created_at, 1, 10) = ?",
+            (device, today),
+        ).fetchone()["total"]
+        total_seconds = conn.execute(
+            "SELECT COALESCE(SUM(seconds), 0) AS total FROM practice_events WHERE device = ?",
+            (device,),
+        ).fetchone()["total"]
+        counted_total = counted_seconds(conn, device)
+        secret_flags: dict = {}
+        if source in SECRET_SOURCES:
+            try:
+                secret_flags = _secret_flags(conn, device, island_id, today)
+            except Exception:
+                log.exception("secret award check failed")
         row = conn.execute(
             "SELECT level, due_on, moved_on FROM schedule_state"
             " WHERE island_id = ? AND device = ?",
@@ -272,9 +422,18 @@ def _log_practice_sync(
         "level": level,
         "due_on": due_on,
         "seconds_today": seconds_today,
+        "counted_today_seconds": min(float(owner_today), DAILY_MAX_SECONDS),
+        "daily_max_seconds": DAILY_MAX_SECONDS,
+        "total_seconds": float(total_seconds),
+        "counted_total_seconds": counted_total,
     }
     try:
-        result["award"] = progression.award_practice(device, island_id, seconds_today)
+        result["award"] = progression.award_practice(
+            device, island_id, seconds_today,
+            owner_seconds_today=min(float(owner_today), DAILY_MAX_SECONDS),
+            total_seconds=counted_total,
+            secrets=secret_flags,
+        )
     except Exception:
         log.exception("practice award failed")
     return result

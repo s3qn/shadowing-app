@@ -40,6 +40,11 @@ function toRomajiReading(gloss: Gloss): string {
   return kanaToRomaji(gloss.reading);
 }
 
+/** Katakana to hiragana, so ウィ and うぃ compare equal. */
+function foldKana(s: string): string {
+  return s.replace(/[\u30a1-\u30f6]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60));
+}
+
 /**
  * Yomitan-style popover under a tapped word: reading, meaning, a button to
  * hear the word again. Absolutely positioned so the sentence never moves.
@@ -49,6 +54,10 @@ export function WordPanel({ word, gloss, context, left, top, romaji = false, dic
   const { t } = useT();
   const dir = useDir();
   const shownReading = gloss ? (romaji ? toRomajiReading(gloss) : gloss.reading) : '';
+  // An all-kana word has a reading equal to its surface form (katakana folded to hiragana): skip the repeat.
+  const surface = word.replace(/[、。！？]/g, '');
+  const showReading = !!gloss?.reading && (romaji || foldKana(gloss.reading) !== foldKana(surface));
+  const showBase = !!gloss?.base && gloss.base !== surface;
   return (
     <View style={[styles.pop, { left, top }]}>
       <GlassFill radius={Radius.md} />
@@ -57,10 +66,10 @@ export function WordPanel({ word, gloss, context, left, top, romaji = false, dic
           <Text style={styles.word} numberOfLines={1}>
             {word}
           </Text>
-          {gloss?.reading ? (
+          {gloss?.reading && (showReading || showBase) ? (
             <Text style={styles.reading} numberOfLines={1}>
-              {shownReading}
-              {gloss.base && gloss.base !== word.replace(/[、。！？]/g, '') ? `  ·  ${gloss.base}` : ''}
+              {showReading ? shownReading : ''}
+              {showBase ? `${showReading ? '  ·  ' : ''}${gloss.base}` : ''}
             </Text>
           ) : null}
         </View>

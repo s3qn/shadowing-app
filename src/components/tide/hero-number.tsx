@@ -18,7 +18,8 @@ const base: TextStyle = { padding: PAD, margin: -PAD, fontFamily: fonts.ui, font
 /** The soft gold radial glow behind a hero number, sized for the 88pt digits. */
 export function HeroGlow() {
   return (
-    <Canvas style={styles.glow} pointerEvents="none">
+    <View style={styles.glow} pointerEvents="none">
+    <Canvas style={StyleSheet.absoluteFill}>
       {/* closest-side ellipse: a circle squashed to 186 high */}
       <Group transform={[{ scaleY: GLOW_H / GLOW_W }]}>
         <Rect x={0} y={0} width={GLOW_W} height={GLOW_W}>
@@ -32,6 +33,7 @@ export function HeroGlow() {
         </Rect>
       </Group>
     </Canvas>
+    </View>
   );
 }
 
@@ -44,7 +46,8 @@ export function HeroNumber({ value, label: text, color = '#FFFFFF', size = SIZE 
   const sized = size === SIZE ? null : { fontSize: size, lineHeight: size };
   const { rtl } = useDir();
   return (
-    <View style={[styles.box, sized && { height: size }, rtl && styles.boxRtl]}>
+    // Decoration only: the glow and the padded shadow layers reach past the digits and must not take a tap from the controls around them.
+    <View style={[styles.box, sized && { height: size }, rtl && styles.boxRtl]} pointerEvents="none">
       <HeroGlow />
       <Text accessible={false} style={[base, sized, styles.layer, { textShadowColor: 'rgba(10,40,120,0.45)', textShadowOffset: { width: 0, height: 10 }, textShadowRadius: 18 }]}>
         {label}

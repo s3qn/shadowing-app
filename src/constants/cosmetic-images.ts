@@ -1,7 +1,7 @@
 /**
  * Item PNGs for the Rive cat, keyed by catalog item id. Files live in
  * assets/cosmetics/, drawn by the Rive session and fitted to Kageneko.
- * All 53 items. Tail bows (accessory.tailbow_*) inject into the v3 tail slot;
+ * All 53 shop items plus the 8 hours items. Tail bows (accessory.tailbow_*) inject into the v3 tail slot;
  * see kageneko-view.tsx for the accessory->tail routing.
  */
 export const ITEM_IMAGES: Readonly<Partial<Record<string, number>>> = {
@@ -58,4 +58,14 @@ export const ITEM_IMAGES: Readonly<Partial<Record<string, number>>> = {
   'accessory.collar_gold': require('../../assets/cosmetics/accessory.collar_gold.png'),
   'accessory.badge_teal': require('../../assets/cosmetics/accessory.badge_teal.png'),
   'accessory.bowtie_gold': require('../../assets/cosmetics/accessory.bowtie_gold.png'),
+  // Listening-hours rungs: placeholder recolours, see assets/cosmetics/HOURS-ART.md.
+  // To swap in real art, replace the PNG with the same name. No code change.
+  'accessory.bell_sprout': require('../../assets/cosmetics/accessory.bell_sprout.png'),
+  'accessory.bowtie_tide': require('../../assets/cosmetics/accessory.bowtie_tide.png'),
+  'head.beanie_night': require('../../assets/cosmetics/head.beanie_night.png'),
+  'body.scarf_lantern': require('../../assets/cosmetics/body.scarf_lantern.png'),
+  'face.whiskers_shiny': require('../../assets/cosmetics/face.whiskers_shiny.png'),
+  'accessory.collar_moon': require('../../assets/cosmetics/accessory.collar_moon.png'),
+  'face.mask_kitsune': require('../../assets/cosmetics/face.mask_kitsune.png'),
+  'head.crown_hours': require('../../assets/cosmetics/head.crown_hours.png'),
 };

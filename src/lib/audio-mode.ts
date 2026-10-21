@@ -1,4 +1,6 @@
 import { type AudioPlayer, setAudioModeAsync, setIsAudioActiveAsync } from 'expo-audio';
+import { Asset } from 'expo-asset';
+import { isRunningInExpoGo } from 'expo';
 import { useEffect } from 'react';
 import { AppState, Platform } from 'react-native';
 
@@ -6,20 +8,44 @@ import { AppState, Platform } from 'react-native';
 // `AudioRecords.swift`: `shouldPlayInBackground = false`), so a partial call
 // to setAudioModeAsync anywhere would silently turn background playback off
 // again. The helpers below are the only callers of setAudioModeAsync in
-// the app (playback, recording and drive); every screen goes through one of them instead of calling it
-// directly.
+// the app (playback, recording and exclusive playback); every screen goes through one of them instead of
+// calling it directly. setExclusivePlayback switches the interruption mode for the podcast and Drive;
+// LOCK_SCREEN_AVAILABLE and lockArtwork serve every lock screen card.
+
+/** True where expo-audio has lock screen controls: iOS, and Android outside Expo Go. False on web. */
+export const LOCK_SCREEN_AVAILABLE = Platform.OS === 'ios' || (Platform.OS === 'android' && !isRunningInExpoGo());
+
+let artworkUri: string | undefined;
+if (LOCK_SCREEN_AVAILABLE) {
+  const cat = Asset.fromModule(require('../../assets/images/cat.png'));
+  void cat
+    .downloadAsync()
+    .then((a) => {
+      artworkUri = a.localUri ?? undefined;
+    })
+    .catch(() => {});
+}
+
+/** The cat PNG as a local file URI for lock screen cards; undefined until it has loaded. */
+export function lockArtwork(): string | undefined {
+  return artworkUri;
+}
 
 const BASE = {
   playsInSilentMode: true,
   shouldPlayInBackground: true,
-  // Other apps' audio dips under a line and comes back; it is never stopped.
-  interruptionMode: 'duckOthers',
 } as const;
+
+// Other apps' audio dips under a line and comes back. Exclusive playback (the podcast, Drive) stops it
+// instead, so iOS keeps our lock screen card instead of another app's.
+// A mount counter: a second podcast screen pushed over the first must not drop the flag when it pops.
+let exclusiveHolders = 0;
+const interruptionMode = () => (exclusiveHolders > 0 ? 'doNotMix' : 'duckOthers') as 'doNotMix' | 'duckOthers';
 
 /** Playback only: lines, words, takes, previews. Keeps playing when the app is backgrounded. */
 export function applyPlaybackMode(): Promise<void> {
   recordingOpen = false;
-  return setAudioModeAsync({ ...BASE, allowsRecording: false });
+  return setAudioModeAsync({ ...BASE, interruptionMode: interruptionMode(), allowsRecording: false });
 }
 
 /** Microphone open: a take, a calibration, a new island. Recording never runs in the background
@@ -27,14 +53,15 @@ export function applyPlaybackMode(): Promise<void> {
 export function applyRecordingMode(): Promise<void> {
   cancelAudioSessionRelease();
   recordingOpen = true;
-  return setAudioModeAsync({ ...BASE, allowsRecording: true });
+  return setAudioModeAsync({ ...BASE, interruptionMode: interruptionMode(), allowsRecording: true });
 }
 
-/** Drive Mode: playback only, and other apps' audio is stopped rather than ducked, so iOS keeps
- * our lock screen card instead of another app's. Leaving Drive goes back through applyPlaybackMode. */
-export function applyDriveMode(): Promise<void> {
-  recordingOpen = false;
-  return setAudioModeAsync({ ...BASE, interruptionMode: 'doNotMix', allowsRecording: false });
+/** The podcast and Drive: other apps' audio is stopped rather than ducked. Sets the flag, then re-applies the
+ * current mode, so a later applyPlaybackMode (a take) keeps it. Each true must be paired with one false
+ * when leaving; the mode stays exclusive while any holder remains. */
+export function setExclusivePlayback(on: boolean): Promise<void> {
+  exclusiveHolders = Math.max(0, exclusiveHolders + (on ? 1 : -1));
+  return recordingOpen ? applyRecordingMode() : applyPlaybackMode();
 }
 
 // Deactivating the session pauses every player natively, and a release is

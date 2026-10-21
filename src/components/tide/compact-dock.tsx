@@ -578,7 +578,8 @@ function TrayPill({
 
 const styles = StyleSheet.create({
   root: { alignItems: 'center', paddingTop: GAP, paddingBottom: GAP },
-  slot: { alignItems: 'center', marginBottom: GAP },
+  // zIndex: a cat perched in the slot draws over the capsule's top edge, not behind it.
+  slot: { alignItems: 'center', marginBottom: GAP, zIndex: 1 },
   capsuleWrap: { height: CAPSULE_H },
   capsule: { height: CAPSULE_H },
   capsuleRow: {

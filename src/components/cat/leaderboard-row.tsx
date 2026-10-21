@@ -70,13 +70,14 @@ const Medallion = memo(function Medallion({ size, equipped }: { size: number; eq
   );
 });
 
-export function LevelChip({ level, tone }: { level: number; tone: 'gold' | 'plain' }) {
+/** The tier chip: "LV 12" by default, or another small caps label (PTS) over the number. */
+export function LevelChip({ level, tone, label }: { level: number; tone: 'gold' | 'plain'; label?: string }) {
   const { t } = useT();
   const c = tone === 'gold' ? GOLD : tide.text;
   const bg = tone === 'gold' ? 'rgba(255,200,87,0.14)' : 'rgba(255,255,255,0.08)';
   return (
     <View style={[styles.chip, { borderColor: c, backgroundColor: bg }]}>
-      <Text style={[styles.chipLv, { color: c }]}>{t('leaderboard.lv')}</Text>
+      <Text style={[styles.chipLv, { color: c }]}>{label ?? t('leaderboard.lv')}</Text>
       <Text style={[styles.chipNum, { color: c }]}>{level}</Text>
     </View>
   );
@@ -96,12 +97,14 @@ export type RowProps = {
   index?: number;
   /** Stable callback shared by every row, called with this row's username. */
   onOpen?: (username: string) => void;
+  /** Replaces the level chip, e.g. the weekly board's points. */
+  chip?: { label: string; value: number };
 };
 
 const STAGGER_MS = 50;
 const STAGGER_CAP = 6;
 
-export const LeaderboardRow = memo(function LeaderboardRow({ rank, username, level, equipped, mine, pinned, nextLine, index = 99, onOpen }: RowProps) {
+export const LeaderboardRow = memo(function LeaderboardRow({ rank, username, level, equipped, mine, pinned, nextLine, index = 99, onOpen, chip }: RowProps) {
   const { t } = useT();
   const dir = useDir();
   const reduced = useReducedMotion();
@@ -142,13 +145,13 @@ export const LeaderboardRow = memo(function LeaderboardRow({ rank, username, lev
             @{username}
             {pinned ? <Text style={styles.you}>{`  ${t('leaderboard.you')}`}</Text> : null}
           </Text>
-          {pinned && nextLine ? (
+          {(pinned || mine) && nextLine ? (
             <Text numberOfLines={1} style={[styles.next, dir.text]}>
               {nextLine}
             </Text>
           ) : null}
         </View>
-        <LevelChip level={level} tone={tone} />
+        {chip ? <LevelChip level={chip.value} label={chip.label} tone={tone} /> : <LevelChip level={level} tone={tone} />}
       </Pressable>
     </Animated.View>
   );

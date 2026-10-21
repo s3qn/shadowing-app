@@ -13,8 +13,8 @@ const RULER_W = 302;
 const HEAD_H = 28;
 const POP_W = RULER_W + 2 * PAD_X;
 const POP_H = 2 * PAD_Y + HEAD_H + TICK_RULER_H;
-/** Distance between ticks: 15 per 0.05. */
-const TICK_STEP = 15;
+/** Distance between ticks: 11 per 0.05, so the 0.5 and 1.5 labels clear the fade edges. */
+const TICK_STEP = 11;
 
 const SPEED_STEP = 0.05;
 export const SPEED_STEPS = Math.round((SPEED_MAX - SPEED_MIN) / SPEED_STEP) + 1;
@@ -74,6 +74,7 @@ export function SpeedPopover({ anchorX, anchorTop, width, speed, onSpeed, onSett
         index={Math.round((speed - SPEED_MIN) / SPEED_STEP)}
         step={TICK_STEP}
         fadeColor={POP.surface}
+        fadeWidth={24}
         onIndexChange={(i) => onSpeed(speedAt(i))}
         onSettle={(i) => onSettle(speedAt(i))}
         isMajor={(i) => i % 5 === 0}

@@ -487,12 +487,27 @@ export async function revoice(id: string, speaker: number): Promise<void> {
   await json<unknown>(res);
 }
 
-export async function postPracticeEvent(islandId: string, seconds: number): Promise<{ award?: { xp: number } }> {
+export type PracticeReply = {
+  award?: { xp: number; cap_note?: boolean };
+  /** Owner-wide seconds today after the daily max. */
+  counted_today_seconds?: number;
+  daily_max_seconds?: number;
+  /** Lifetime seconds, uncapped. */
+  total_seconds?: number;
+};
+
+/** Thrown when the server refused a practice post for good (unknown island,
+ * bad seconds): the outbox drops it instead of retrying forever. */
+export class PracticeRefused extends Error {}
+
+export async function postPracticeEvent(islandId: string, seconds: number, appState: '' | 'active' | 'background' = ''): Promise<PracticeReply> {
   const form = new FormData();
   form.append('island_id', islandId);
   form.append('seconds', String(seconds));
+  form.append('app_state', appState);
   const res = await expoFetch(`${BASE}/schedule/practice`, { method: 'POST', headers: headers(), body: form });
-  return json<{ award?: { xp: number } }>(res);
+  if (res.status === 400 || res.status === 404) throw new PracticeRefused(String(res.status));
+  return json<PracticeReply>(res);
 }
 
 // --- bl58-easy-for-me ---
@@ -1048,9 +1063,11 @@ export async function listVideos(): Promise<VideoListItem[]> {
 export type { ArtSpec, Slot };
 export type Progress = {
   xp: number;
-  /** Capped XP earned today (UTC day), 0..xp_today_cap. */
+  /** Fast-band XP earned today (UTC day), 0..xp_today_cap. */
   xp_today: number;
   xp_today_cap: number;
+  /** XP paid today after the fast band filled (the slow tail). */
+  xp_today_slow?: number;
   /** Consecutive practice days; not shown yet. */
   streak_days: number;
   /** Consecutive local days with a paid daily review. */
@@ -1065,6 +1082,24 @@ export type Progress = {
   catalog_version: number;
   /** bl58-easy-for-me: lines marked Easy for me across every island. */
   known_lines?: number;
+  /** Lifetime listening seconds (immersion lane 1). */
+  listened_seconds?: number;
+  /** Achievement ids earned, sorted. Gates `achievement` unlocks. */
+  earned?: string[];
+};
+
+/** How an item unlocks. The server writes every string in the catalog's `ui` language, so a new source needs no client copy. */
+export type ItemUnlock = {
+  /** `level`, `hours`, `achievement`, `grant`, or a source this build does not know (treated as locked). */
+  source: string;
+  /** The level, the hours, or the achievement id. */
+  need: number | string;
+  /** Band and caption text: `Lv 6`, `50 h`. */
+  short: string;
+  /** The sheet's first row: `Reach level 6`. */
+  text: string;
+  /** The profile's Rewards card title: `By level`. */
+  group: string;
 };
 
 export type CosmeticItem = {
@@ -1076,9 +1111,22 @@ export type CosmeticItem = {
   art: ArtSpec;
   /** Granted by the server only (beta hat). Never for sale. */
   grant_only?: boolean;
+  /** Listening hours that grant this item. Hours items cannot be bought. */
+  hours_req?: number;
+  /** Share of cats that own it, 0 to 100. Null under ~200 users. */
+  owned_pct?: number | null;
+  /** Missing on an old server: the client falls back to `hours_req` and `level_req`. */
+  unlock?: ItemUnlock;
 };
 
-export type CosmeticsCatalog = { version: number; slots: Slot[]; shapes: Record<string, string[]>; items: CosmeticItem[] };
+export type CosmeticsCatalog = {
+  version: number;
+  slots: Slot[];
+  shapes: Record<string, string[]>;
+  items: CosmeticItem[];
+  /** The user's lifetime listening hours. */
+  listened_hours?: number;
+};
 
 export async function getProgress(): Promise<Progress> {
   return json<Progress>(await fetch(`${BASE}/progress`, { headers: headers() }));
@@ -1209,6 +1257,30 @@ export async function getLeaderboard(): Promise<Leaderboard> {
   return json<Leaderboard>(await expoFetch(`${BASE}/leaderboard`, { headers: headers() }));
 }
 
+export type WeeklyEntry = LeaderboardEntry & { minutes: number; lines: number; score: number };
+export type WeeklyLeaderboard = {
+  /** Monday (UTC), YYYY-MM-DD. */
+  week_start: string;
+  language: string;
+  entries: WeeklyEntry[];
+  me: {
+    rank: number | null;
+    username: string | null;
+    level: number;
+    minutes: number;
+    lines: number;
+    score: number;
+    /** Percent from the top, null when unranked. */
+    top_pct: number | null;
+  };
+};
+
+export async function getWeeklyLeaderboard(language: string): Promise<WeeklyLeaderboard> {
+  return json<WeeklyLeaderboard>(await expoFetch(`${BASE}/leaderboard/weekly?language=${encodeURIComponent(language)}`, { headers: headers() }));
+}
+
+export type Achievement = { id: string; secret: boolean; name: string | null; earned_at: string | null };
+
 export type Profile = {
   username: string;
   serial: number;
@@ -1235,10 +1307,14 @@ export type Profile = {
   milestones_total: number;
   cosmetics_owned: number;
   cosmetics_total: number;
+  /** Missing on a server from before immersion lane 1. */
+  by_language?: Record<string, number>;
+  hours_next?: { hours: number; item_id: string; seconds_left: number } | null;
+  achievements?: Achievement[];
 };
 
-export async function getProfile(username: string): Promise<Profile> {
-  return json<Profile>(await expoFetch(`${BASE}/profile/${encodeURIComponent(username)}`, { headers: headers() }));
+export async function getProfile(username: string, ui = 'en'): Promise<Profile> {
+  return json<Profile>(await expoFetch(`${BASE}/profile/${encodeURIComponent(username)}?ui=${encodeURIComponent(ui)}`, { headers: headers() }));
 }
 
 // --- review-deck ---

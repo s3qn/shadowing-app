@@ -62,17 +62,17 @@ export function StarterFinish({
     <View style={styles.root}>
       <OnboardingSky />
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
-        <Text style={styles.kicker}>{leveled ? t('intro.finish.levelUp') : t('intro.finish.level', { n: after.level })}</Text>
-        <Text style={styles.heading}>{leveled ? isolate(`${before.level} → ${after.level}`) : isolate(String(after.level))}</Text>
+        <Text style={[styles.kicker, dir.rtl && styles.kickerRtl]}>{leveled ? t('intro.finish.levelUp') : t('intro.finish.level', { n: after.level })}</Text>
+        <Text style={styles.heading}>{leveled ? isolate(dir.rtl ? `${after.level} ← ${before.level}` : `${before.level} → ${after.level}`) : isolate(String(after.level))}</Text>
 
-        <View style={styles.cats}>
+        <View style={[styles.cats, dir.row]}>
           <View style={styles.catCol}>
             <View style={[styles.disc, disc(130)]}>
               <CatAvatar size={130} equipped={beforeArt} />
             </View>
             <Text style={[styles.caption, { color: tide.textDim }]}>{t('intro.finish.before')}</Text>
           </View>
-          <Text style={styles.arrow}>→</Text>
+          <Text style={styles.arrow}>{dir.rtl ? '←' : '→'}</Text>
           <View style={styles.catCol}>
             <View style={[styles.disc, disc(140)]}>
               <CatAvatar size={140} equipped={afterArt} emotion="proud" />
@@ -105,6 +105,8 @@ const styles = StyleSheet.create({
   root: { ...StyleSheet.absoluteFill, backgroundColor: tide.water },
   content: { paddingHorizontal: 24, gap: 0 },
   kicker: { fontFamily: fonts.uiMedium, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', color: verb.read.c1, textAlign: 'center' },
+  // Hebrew has no capitals and reads oddly letter-spaced.
+  kickerRtl: { letterSpacing: 0 },
   heading: { fontFamily: fonts.ui, fontSize: 40, fontWeight: '700', color: tide.text, textAlign: 'center', marginTop: 8 },
   cats: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14, marginTop: 28 },
   catCol: { alignItems: 'center', gap: 8 },

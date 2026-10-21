@@ -13,4 +13,11 @@ export const en = {
   'leaderboard.failed': 'Could not load the leaderboard.',
   'leaderboard.retry': 'Retry',
   'leaderboard.open': 'Open the leaderboard',
+  'leaderboard.tabLevel': 'Level',
+  'leaderboard.tabWeek': 'This week',
+  'leaderboard.weekTop': 'This week',
+  'leaderboard.pts': 'PTS',
+  'leaderboard.topPct': 'Top {n}%',
+  'leaderboard.weeklyEmpty': 'No minutes this week yet. Listen to a podcast and your cat joins.',
+  'leaderboard.weeklyJoin': 'Your cat joins after one counted minute.',
 };

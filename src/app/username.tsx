@@ -1,6 +1,6 @@
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { OnboardingSky } from '@/components/onboarding/onboarding-sky';
@@ -112,8 +112,10 @@ export default function UsernameScreen() {
   return (
     <View style={styles.fill}>
       <OnboardingSky />
-      <SafeAreaView style={styles.fill}>
-        <View style={styles.body}>
+      {/* The keyboard used to cover Save, and with first=1 there is no other way out. */}
+      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <SafeAreaView style={styles.fill}>
+          <Pressable style={styles.body} onPress={Keyboard.dismiss} accessible={false}>
           <Text style={[styles.title, dir.text]}>{t('username.title')}</Text>
           <View style={styles.field}>
             <Text style={styles.at}>@</Text>
@@ -126,11 +128,16 @@ export default function UsernameScreen() {
               maxLength={20}
               textAlign="left"
               selectTextOnFocus
+              returnKeyType="done"
+              onSubmitEditing={() => {
+                if (status === 'available' && !saving) void save();
+                else Keyboard.dismiss();
+              }}
               accessibilityLabel={t('username.title')}
             />
           </View>
           <Text style={[styles.status, dir.text, { color: colour }]}>{message}</Text>
-        </View>
+          </Pressable>
         <View style={styles.footer}>
           <PrismButton
             shape="pill"
@@ -146,7 +153,8 @@ export default function UsernameScreen() {
             <PrismButton shape="pill" verb="tools" on={false} width={240} height={52} label={t('common.cancel')} onPress={leave} />
           )}
         </View>
-      </SafeAreaView>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
     </View>
   );
 }

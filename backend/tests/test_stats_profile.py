@@ -10,6 +10,7 @@ from fastapi import HTTPException
 import main
 import progression
 import schedule
+import stats
 import store
 import user_profile
 
@@ -22,6 +23,7 @@ KEYS = {
     "islands_started", "islands_mastered", "lines_practiced", "lines_mastered",
     "average_accuracy", "milestones", "milestones_total",
     "cosmetics_owned", "cosmetics_total",
+    "by_language", "hours_next", "achievements",
 }
 
 
@@ -180,3 +182,29 @@ def test_profile_without_progress_is_zeros(monkeypatch):
     assert res["average_accuracy"] is None
     assert res["immersion_seconds"] == 0
     assert res["serial"] == 1
+    assert res["by_language"] == {}
+    assert res["hours_next"] == {"hours": 1, "item_id": "accessory.bell_sprout", "seconds_left": 3600}
+    ach = {a["id"]: a for a in res["achievements"]}
+    assert set(ach) == set(progression.MILESTONES)
+    for a in res["achievements"]:
+        assert set(a) == {"id", "secret", "name", "earned_at"}
+        assert a["earned_at"] is None
+    secret = [a for a in res["achievements"] if a["secret"]]
+    assert len(secret) == 3 and all(a["name"] is None for a in secret)
+    assert ach["first_take"]["name"] == "First take"
+
+
+def test_profile_by_language_and_earned_achievement(monkeypatch):
+    monkeypatch.setattr(main, "_all_handles", lambda: user_profile.all_usernames())
+    owner = f"user_{_id()}"
+    user_profile.set_username(owner, "lang_cat")
+    isl = _id()
+    _own(isl, owner, "podcast")
+    with store.connect() as conn:
+        conn.execute("UPDATE islands SET language='es' WHERE id=?", (isl,))
+    _post(isl, owner, 120)
+    res = stats.profile("lang_cat", user_profile.all_usernames, "he")
+    assert res["by_language"] == {"es": 120}
+    assert res["hours_next"]["seconds_left"] == 3600 - 120
+    first = next(a for a in res["achievements"] if a["id"] == "first_island")
+    assert first["earned_at"] is not None and first["name"] == "אי ראשון"

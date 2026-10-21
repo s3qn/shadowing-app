@@ -34,6 +34,8 @@ export type CatAvatarProps = {
   frameRate?: number;
   /** Rive cat only: follow the live gaze from useGaze. */
   gaze?: boolean;
+  /** Draw nothing when Rive is unavailable (web, Expo Go) or failed, instead of the Views placeholder cat. */
+  riveOnly?: boolean;
 };
 
 const PREVIEW_OPACITY = 0.55;
@@ -153,7 +155,7 @@ function LeavingLayer({ slot, leave, origin }: { slot: Slot; leave: Leaving; ori
  * The only prop surface of the cat. A later Rive cat takes the same props.
  * Layers draw in Z_ORDER inside a CAT_BOX that is scaled to `size`.
  */
-export function CatAvatar({ size, equipped, preview, mode, emotion, petKey, frameRate, gaze }: CatAvatarProps) {
+export function CatAvatar({ size, equipped, preview, mode, emotion, petKey, frameRate, gaze, riveOnly }: CatAvatarProps) {
   const [riveFailed, setRiveFailed] = useState(false);
   const scale = size / CAT_BOX.w;
   const h = CAT_BOX.h * scale;
@@ -173,6 +175,7 @@ export function CatAvatar({ size, equipped, preview, mode, emotion, petKey, fram
       </View>
     );
   }
+  if (riveOnly) return null;
   return (
     <View style={{ width: size, height: h }}>
       <View

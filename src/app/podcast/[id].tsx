@@ -1,4 +1,4 @@
-import { useAudioPlayer } from 'expo-audio';
+import { useAudioPlayer, type AudioMetadata } from 'expo-audio';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -17,6 +17,7 @@ import { SpeedPopover } from '@/components/tide/speed-popover';
 import { BlindIcon, ReadingIcon } from '@/components/tide/toolbar-icons';
 import { TappableSentence, type ExplainSelection } from '@/components/tide/tappable-sentence';
 import { TideScene } from '@/components/tide/tide-scene';
+import { useListeningCat } from '@/components/cat/listening-cat';
 import { SaveStar } from '@/components/save-star';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
@@ -24,12 +25,22 @@ import { snapRate, takeWatchSec, type useLadder } from '@/hooks/use-ladder';
 import { useDockPopovers } from '@/hooks/use-dock-popovers';
 import { useLadderWiring } from '@/hooks/use-ladder-wiring';
 import { autoPlaceOf, endAutoPractice } from '@/lib/auto-practice';
+import { parsePick, pickBestBits } from '@/lib/best-bits';
+import { confirmSheet } from '@/lib/confirm-sheet';
 import { useSavedCards } from '@/hooks/use-saved-cards';
 import { useTake } from '@/hooks/use-take';
 import { usePracticeClock } from '@/hooks/use-practice-clock';
 import { useTrackHighlight } from '@/hooks/use-track-highlight';
 import * as api from '@/lib/api';
-import { scheduleAudioSessionRelease, startPlayback, stopPlayback, useSessionPlayer } from '@/lib/audio-mode';
+import {
+  LOCK_SCREEN_AVAILABLE,
+  lockArtwork,
+  scheduleAudioSessionRelease,
+  setExclusivePlayback,
+  startPlayback,
+  stopPlayback,
+  useSessionPlayer,
+} from '@/lib/audio-mode';
 import { useT } from '@/lib/i18n';
 import { getLastLine, resumeLine, setLastLine } from '@/lib/last-line';
 import { TAKE_VOICE_VOLUME } from '@/lib/pass-programme';
@@ -49,7 +60,7 @@ type StopAt = { at: number; armAt: number; armed: boolean };
 export default function PodcastScreen() {
   const { t } = useT();
   const router = useRouter();
-  const { id, line, review, session } = useLocalSearchParams<{ id: string; line?: string; review?: string; session?: string }>();
+  const { id, line, review, session, pick } = useLocalSearchParams<{ id: string; line?: string; review?: string; session?: string; pick?: string }>();
   // A practice session hops here with the lines the plan picked; a stale param with no live session is ignored.
   const [inSession] = useState(() => session === '1' && autoPlaceOf(id) !== null);
   useEffect(() => () => endAutoPractice(id), [id]); // leaving mid-session reports the lines done
@@ -57,7 +68,9 @@ export default function PodcastScreen() {
   const [island, setIsland] = useState<api.Island | null>(null);
   const [error, setError] = useState(false);
   // review-deck: saved sentences of this island, line idx to card id.
-  const { savedCards, saveError, reviewSet, loadReviewCards, toggleSaved, gradeOnce } = useSavedCards(island?.id, id, !!review, inSession);
+  // "Shadow the best bits" hops here as a review of three picked lines.
+  const picked = useMemo(() => parsePick(pick), [pick]);
+  const { savedCards, saveError, reviewSet, loadReviewCards, toggleSaved, gradeOnce } = useSavedCards(island?.id, id, !!review, inSession, picked);
   const [loaded, setLoaded] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -96,6 +109,21 @@ export default function PodcastScreen() {
   }, [take.phase, player]);
   const stopAt = useRef<StopAt | null>(null);
 
+  // Exclusive while mounted: other apps' audio stops, so iOS keeps our lock screen card.
+  useEffect(() => {
+    void setExclusivePlayback(true);
+    return () => void setExclusivePlayback(false);
+  }, []);
+
+  // Lock screen / notification card, set once per screen and updated per line.
+  const lockOn = useRef(false);
+  const lockMeta = (title: string, total: number, index: number): AudioMetadata => ({
+    title,
+    artist: 'Echo Tail',
+    albumTitle: t('player.lineOfTotal', { index: index + 1, total }),
+    artworkUrl: lockArtwork(),
+  });
+
   useEffect(() => {
     let alive = true;
     Promise.all([api.getIsland(id), review ? api.listReviewCards(id) : null])
@@ -104,6 +132,14 @@ export default function PodcastScreen() {
         if (cards) loadReviewCards(cards);
         setIsland(i);
         player.replace({ uri: api.withUser(api.episodeAudioUrl(id)) });
+        if (LOCK_SCREEN_AVAILABLE && !lockOn.current) {
+          try {
+            player.setActiveForLockScreen(true, lockMeta(i.title, i.lines.length, 0), { showSeekForward: true, showSeekBackward: true });
+            lockOn.current = true;
+          } catch {
+            // Released with the screen.
+          }
+        }
       })
       .catch(() => alive && setError(true));
     return () => {
@@ -118,6 +154,8 @@ export default function PodcastScreen() {
   // Set each render below: stamps where the line starts in a headphone take
   // (see markLineStart), so the backend can time its words without an echo.
   const markTakeLine = useRef<(trackSec: number, rate: number) => void>(() => {});
+  // Set once the ladder exists: the status listener below calls it when the episode ends.
+  const offerRef = useRef<() => void>(() => {});
   useEffect(() => {
     const sub = player.addListener('playbackStatusUpdate', (s) => {
       if (s.playing) markTakeLine.current(s.currentTime, s.playbackRate);
@@ -130,13 +168,18 @@ export default function PodcastScreen() {
       if (stop && stop.armed && (s.currentTime >= stop.at || s.didJustFinish)) {
         stopAt.current = null;
         stopPlayback(player);
-        if (s.didJustFinish) ended.current = true;
+        if (s.didJustFinish) {
+          ended.current = true;
+          scheduleAudioSessionRelease();
+        }
         if (ladderRef.current?.active) ladderRef.current.lineFinished();
         return;
       }
       if (s.didJustFinish) {
         ended.current = true;
+        scheduleAudioSessionRelease();
         setPlaying(false);
+        offerRef.current();
       }
     });
     return () => sub.remove();
@@ -180,6 +223,13 @@ export default function PodcastScreen() {
     if (!review && started.current) setLastLine(id, activeLine);
     setExplainOpen(false);
     setGeneration((g) => g + 1);
+    if (lockOn.current && island) {
+      try {
+        player.updateLockScreenMetadata(lockMeta(island.title, lines.length, activeLine));
+      } catch {
+        // Released with the screen.
+      }
+    }
   }, [id, activeLine, review]);
 
   useEffect(() => {
@@ -188,8 +238,21 @@ export default function PodcastScreen() {
 
   const pause = useCallback(() => {
     stopPlayback(player);
-    scheduleAudioSessionRelease();
   }, [player]);
+
+  // A second podcast screen pushed over this one takes the lock screen card and clears it on pop:
+  // put this episode back when focus returns.
+  useFocusEffect(
+    useCallback(() => {
+      if (!LOCK_SCREEN_AVAILABLE || !lockOn.current || !island) return;
+      try {
+        player.setActiveForLockScreen(true, lockMeta(island.title, lines.length, lineRef.current), { showSeekForward: true, showSeekBackward: true });
+      } catch {
+        // Released with the screen.
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [player, island, lines.length]),
+  );
 
   useFocusEffect(
     useCallback(
@@ -263,6 +326,47 @@ export default function PodcastScreen() {
       seekToLine(next);
       startPlayback(player);
     },
+  });
+
+  // Lines heard twice (a replay or a repeat), for the end-of-episode offer.
+  const seen = useRef(new Set<number>());
+  const replayed = useRef(new Set<number>());
+  useEffect(() => {
+    const idx = lines[activeLine]?.idx;
+    if (review || idx === undefined) return;
+    if (seen.current.has(idx)) replayed.current.add(idx);
+    else seen.current.add(idx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLine]);
+  // The episode ended in plain listening: offer the three easiest lines on the ladder, once per visit.
+  const offered = useRef(false);
+  const offerBestBits = () => {
+    if (offered.current || review || inSession || ladder.active || !island) return;
+    const picks = pickBestBits(island.lines, new Set(savedCards.keys()), replayed.current);
+    if (picks.length === 0) return;
+    offered.current = true;
+    const n = String(picks.length);
+    void confirmSheet({
+      title: t('podcast.bestBits.title', { n }),
+      message: t('video.bestBits.body', { n }),
+      actions: [{ label: t('video.bestBits.go', { n }), verb: 'speak' }, { label: t('video.bestBits.notNow'), verb: 'tools' }],
+    }).then((i) => {
+      if (i === 0) router.push({ pathname: '/podcast/[id]', params: { id, review: '1', pick: picks.join(',') } });
+    });
+  };
+  useEffect(() => {
+    offerRef.current = offerBestBits;
+  });
+
+  // The cat that listens along (Rive only; hidden under the stage view and with no transcript).
+  const [saveTick, setSaveTick] = useState(0);
+  const { cat: listeningCat, noteTouch } = useListeningCat({
+    playing,
+    line: lines[activeLine] ?? null,
+    rate: speedLive,
+    saved: savedCards.has(lines[activeLine]?.idx ?? -1),
+    saveTick,
+    hidden: !!ladder.stage || lines.length === 0,
   });
   const openLadder = () => ladder.start();
   openLadderRef.current = openLadder;
@@ -380,7 +484,7 @@ export default function PodcastScreen() {
   // The dock floats over the transcript's bottom, above the home indicator;
   // the transcript runs on under it to the screen's edge.
   return (
-    <View style={[styles.fill, { backgroundColor: tide.sky[0] }]}>
+    <View style={[styles.fill, { backgroundColor: tide.sky[0] }]} onTouchStart={noteTouch}>
       <StatusBar style="light" />
       <Stack.Screen
         options={{
@@ -423,7 +527,11 @@ export default function PodcastScreen() {
                       blind={blind}
                       englishShown={englishShown}
                     />
-                    <SaveStar saved={savedCards.has(lines[activeLine]!.idx)} onToggle={() => toggleSaved(lines[activeLine]!.idx)} />
+                    <SaveStar saved={savedCards.has(lines[activeLine]!.idx)} onToggle={() => {
+                      if (!savedCards.has(lines[activeLine]!.idx)) setSaveTick((n) => n + 1);
+                      toggleSaved(lines[activeLine]!.idx);
+                    }}
+                  />
                   </View>
                 ) : null
               }
@@ -477,11 +585,12 @@ export default function PodcastScreen() {
                   onTrayToggle={() => setTrayOpen((v) => !v)}
                   onAnchor={onAnchor}
                   slot={
-                    take.error || saveError ? (
-                      <View style={styles.bottom} pointerEvents="box-none">
-                        {take.error ? <Text style={styles.error}>{take.error}</Text> : null}
-                        {saveError ? <Text style={styles.hint}>{saveError}</Text> : null}
-                      </View>
+                    take.error || saveError || listeningCat ? (
+                    <View style={styles.bottom} pointerEvents="box-none">
+                      {take.error ? <Text style={styles.error}>{take.error}</Text> : null}
+                      {saveError ? <Text style={styles.hint}>{saveError}</Text> : null}
+                      {listeningCat}
+                    </View>
                     ) : undefined
                   }
                 />

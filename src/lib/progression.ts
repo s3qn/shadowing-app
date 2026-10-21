@@ -6,6 +6,7 @@ import { SLOTS } from '@/constants/cosmetics';
 import { ITEM_IMAGES } from '@/constants/cosmetic-images';
 import { getCosmeticsCatalog, getProgress, type CosmeticItem, type Progress, type ReviewFinished } from '@/lib/api';
 import { useT } from '@/lib/i18n';
+import { persistedMap } from '@/lib/persisted-map';
 import { hasInlineXp, isSessionActive, pushCelebration, pushInlineXp, pushLevelUp, pushXpToast, type Celebration } from '@/lib/level-up-store';
 
 export type { CosmeticItem, Progress };
@@ -15,9 +16,23 @@ export type ItemState = 'equipped' | 'owned' | 'buyable' | 'locked' | 'unafforda
 export function itemState(item: CosmeticItem, progress: Progress): ItemState {
   if (progress.equipped[item.slot] === item.id) return 'equipped';
   if (progress.owned.includes(item.id)) return 'owned';
-  if (progress.level < item.level_req) return 'locked';
+  if (!unlockMet(item, progress)) return 'locked';
   if (progress.coins < item.price) return 'unaffordable';
   return 'buyable';
+}
+
+/**
+ * Whether an unowned item's requirement is met. Hours items are granted by
+ * the server, never bought, so they read unmet until owned; a grant or a
+ * source this build does not know is unmet too. Without `unlock` (an old
+ * server) the `hours_req` and `level_req` fields decide.
+ */
+export function unlockMet(item: CosmeticItem, progress: Progress): boolean {
+  const u = item.unlock;
+  if (!u) return !item.hours_req && progress.level >= item.level_req;
+  if (u.source === 'level') return typeof u.need === 'number' && progress.level >= u.need;
+  if (u.source === 'achievement') return progress.earned?.includes(String(u.need)) ?? false;
+  return false;
 }
 
 /** An item's art, plus its Rive image when one is registered in ITEM_IMAGES. */
@@ -45,7 +60,7 @@ export function equippedArtFromIds(equipped: Partial<Record<Slot, string | null>
 // Memory cache shared by the wardrobe and Home's badge, so an equip shows on
 // Home on the way back without a refetch.
 let progressCache: Progress | null = null;
-let catalogCache: { ui: string; items: CosmeticItem[] } | null = null;
+let catalogCache: { ui: string; items: CosmeticItem[]; listenedHours: number } | null = null;
 let lastLevel: number | null = null;
 // The progress before a session's first toasted award, so its summary's bar
 // still starts where the session did.
@@ -56,6 +71,32 @@ const listeners = new Set<() => void>();
 // level pays none. A jump over several levels sums the milestones crossed.
 const LEVEL_COINS: Record<number, number> = { 5: 30, 10: 60, 20: 100 };
 
+// Owned hours items already celebrated. The first run seeds it with whatever is
+// owned, so an update does not replay old unlocks.
+const hoursSeen = persistedMap<true>('hours-unlocks-seen.json', (v) => (v === true ? true : undefined));
+let hoursChecking = false;
+
+/** Queues the unlock moment for each newly owned hours item. */
+async function checkHoursUnlocks(p: Progress) {
+  const hours = catalogCache?.items.filter((i) => i.hours_req && p.owned.includes(i.id));
+  if (!hours || hoursChecking) return;
+  hoursChecking = true;
+  try {
+    const seen = { ...(await hoursSeen.load()) };
+    const seed = !seen._init;
+    seen._init = true;
+    const fresh = hours.filter((i) => !seen[i.id]);
+    for (const i of fresh) seen[i.id] = true;
+    if (!seed && fresh.length === 0) return;
+    hoursSeen.save(seen);
+    if (seed || fresh.length === 0) return;
+    const lvl = progressCache?.level ?? p.level;
+    pushLevelUp({ level: lvl, prevLevel: lvl, coins: 0, hoursItem: fresh[fresh.length - 1].id });
+  } finally {
+    hoursChecking = false;
+  }
+}
+
 /** Stores a fresh response and queues a level-up if the level rose. */
 function setProgress(p: Progress) {
   if (lastLevel !== null && p.level > lastLevel) {
@@ -65,7 +106,18 @@ function setProgress(p: Progress) {
   }
   if (lastLevel === null || p.level > lastLevel) lastLevel = p.level;
   if (progressCache && p.xp > progressCache.xp) pushXpToast(p.xp - progressCache.xp);
-  progressCache = p;
+  const prev = progressCache;
+  // Buy and equip replies are bare snapshots: keep the fields they lack.
+  progressCache = prev
+    ? {
+        ...p,
+        listened_seconds: p.listened_seconds ?? prev.listened_seconds,
+        earned: p.earned ?? prev.earned,
+        known_lines: p.known_lines ?? prev.known_lines,
+        xp_today_slow: p.xp_today_slow ?? prev.xp_today_slow,
+      }
+    : p;
+  void checkHoursUnlocks(p);
 }
 
 /**
@@ -78,8 +130,9 @@ function setProgress(p: Progress) {
 export function noteAward(award: { xp?: number; cap_note?: boolean } | null | undefined) {
   const xp = award?.xp;
   if (typeof xp !== 'number' || !Number.isFinite(xp) || xp < 0) return;
+  const cap = award?.cap_note === true;
   if (xp === 0) {
-    if (award?.cap_note === true) {
+    if (cap) {
       if (hasInlineXp()) pushInlineXp(0, true);
       else pushXpToast(0, true);
     }
@@ -87,8 +140,9 @@ export function noteAward(award: { xp?: number; cap_note?: boolean } | null | un
   }
   if (!isSessionActive()) sessionBase = null;
   else if (!sessionBase) sessionBase = progressCache;
-  if (hasInlineXp()) pushInlineXp(xp);
-  else pushXpToast(xp);
+  // The first take after the fast band fills carries the note with its slow XP.
+  if (hasInlineXp()) pushInlineXp(xp, cap);
+  else pushXpToast(xp, cap);
   if (progressCache) progressCache = { ...progressCache, xp: progressCache.xp + xp };
   getProgress()
     .then((p) => {
@@ -158,14 +212,22 @@ export type UseProgress = {
   /** Fetches again; resolves when done. */
   reload: () => Promise<void>;
   apply: (next: Progress) => void;
+  /** Lifetime listening hours. */
+  listenedHours: number;
 };
 
+/** Lifetime listening hours: the fresh progress field, else the catalog's. */
+function hoursOf(p: Progress | null): number {
+  if (p?.listened_seconds != null) return p.listened_seconds / 3600;
+  return catalogCache?.listenedHours ?? 0;
+}
+
 /** The cached progress and catalog without fetching, for code outside a screen. */
-export function useProgressCache(): { progress: Progress | null; catalog: CosmeticItem[] | null } {
+export function useProgressCache(): { progress: Progress | null; catalog: CosmeticItem[] | null; listenedHours: number } {
   const { lang } = useT();
   const progress = useSyncExternalStore(subscribe, () => progressCache);
   const catalog = useSyncExternalStore(subscribe, () => (catalogCache && catalogCache.ui === lang ? catalogCache.items : null));
-  return { progress, catalog };
+  return { progress, catalog, listenedHours: hoursOf(progress) };
 }
 
 /** Cached progress and catalog, refreshed on every focus. */
@@ -187,7 +249,10 @@ export function useProgress(): UseProgress {
       const needCatalog = !(catalogCache && catalogCache.ui === lang);
       const [p, c] = await Promise.all([getProgress(), needCatalog ? getCosmeticsCatalog(lang) : Promise.resolve(null)]);
       setProgress(p);
-      if (c) catalogCache = { ui: lang, items: c.items };
+      if (c) {
+        catalogCache = { ui: lang, items: c.items, listenedHours: c.listened_hours ?? 0 };
+        void checkHoursUnlocks(p);
+      }
       emit();
       if (alive.current) setError(false);
     } catch {
@@ -201,5 +266,5 @@ export function useProgress(): UseProgress {
     }, [reload]),
   );
 
-  return { progress, catalog, error, reload, apply: applyProgress };
+  return { progress, catalog, error, reload, apply: applyProgress, listenedHours: hoursOf(progress) };
 }

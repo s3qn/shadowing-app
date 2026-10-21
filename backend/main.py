@@ -2769,7 +2769,14 @@ async def get_progress(
 ) -> dict:
     require_token(authorization)
     device = _require_device(x_shadow_device)
+    imm = await asyncio.to_thread(schedule.immersion, device)
+    listened = imm["total"]
+    # Heal the hours ladder on read, so listening from before it existed pays.
+    # The ladder pays on counted seconds (each day capped); the display does not.
+    await asyncio.to_thread(progression.grant_hours, device, imm["counted_total"])
     snap = await asyncio.to_thread(progression.snapshot, device)
+    snap["listened_seconds"] = listened
+    snap["counted_seconds"] = imm["counted_total"]
     snap["known_lines"] = await asyncio.to_thread(store.count_known, device)
     if energy.ON:
         snap["energy"] = await asyncio.to_thread(energy.status, device, _is_owner(device))
@@ -2804,8 +2811,14 @@ async def cosmetics_catalog(
     x_shadow_device: str = Header(""),
 ) -> dict:
     require_token(authorization)
-    _require_device(x_shadow_device)
-    return progression.catalog(ui)
+    device = _require_device(x_shadow_device)
+    imm = await asyncio.to_thread(schedule.immersion, device)
+    listened = imm["total"]
+    await asyncio.to_thread(progression.grant_hours, device, imm["counted_total"])
+    out = await asyncio.to_thread(progression.catalog, ui)
+    out["listened_hours"] = round(listened / 3600, 1)
+    out["counted_hours"] = round(imm["counted_total"] / 3600, 1)
+    return out
 
 
 @app.post("/shadow/cosmetics/buy")
@@ -2884,12 +2897,14 @@ async def username_set(
 @app.get("/shadow/profile/{username}")
 async def profile_get(
     username: str,
+    ui: str = Query("en"),
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
     require_token(authorization)
     _require_device(x_shadow_device)
-    res = await asyncio.to_thread(stats.profile, username, _all_handles)
+    lang = ui if isinstance(ui, str) else "en"
+    res = await asyncio.to_thread(stats.profile, username, _all_handles, lang)
     if res is None:
         raise HTTPException(404, {"code": "profile_not_found"})
     return res
@@ -3302,3 +3317,18 @@ async def energy_grant(
     return await asyncio.to_thread(
         energy.grant, device, target, username, amount, note, _is_owner(target)
     )
+
+
+# --- immersion ---
+
+
+@app.get("/shadow/leaderboard/weekly")
+async def leaderboard_weekly(
+    language: str = Query("ja"),
+    limit: int = Query(progression.LEADERBOARD_MAX),
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    return await asyncio.to_thread(stats.weekly_league, device, language, limit, _all_handles)

@@ -43,7 +43,8 @@ const SUCCESS = Haptics.NotificationFeedbackType.Success;
 const INOUT_QUAD = Easing.inOut(Easing.quad);
 const OUT_QUAD = Easing.out(Easing.quad);
 
-// The celebration word is in the language being learned, never the UI one.
+// The session cheer is in the language being learned. The level-up cheer is Japanese only for ja
+// learners (flavour); everyone else gets it in the UI language.
 const CHEER: Record<string, { done: string; level: string }> = {
   ja: { done: 'よくできました', level: 'レベルアップ！' },
   es: { done: '¡Bien hecho!', level: '¡Subiste de nivel!' },
@@ -138,7 +139,8 @@ export function SessionCelebration({ c, levelUp }: Props) {
   const xp = c?.xp ?? 0;
   const level = c?.after.level ?? levelUp?.level ?? 1;
   const prevLevel = c?.before.level ?? levelUp?.prevLevel ?? level - 1;
-  const leveled = levelOnly || level > prevLevel;
+  const hoursOnly = levelOnly && !!levelUp?.hoursItem && levelUp.level === levelUp.prevLevel;
+  const leveled = hoursOnly ? false : levelOnly || level > prevLevel;
   const [catEmotion, fireEmotion] = useEmotionPulse();
   const avgScore = c?.avgScore ?? null;
   useEffect(() => {
@@ -147,9 +149,14 @@ export function SessionCelebration({ c, levelUp }: Props) {
   const beforeFrac = c ? frac(c.before.into, c.before.toNext) : 0;
   const afterFrac = c ? frac(c.after.into, c.after.toNext) : progress ? frac(progress.xp_into_level, progress.xp_to_next) : 0;
   const equipped = useMemo(() => (progress && catalog ? equippedArt(progress, catalog) : {}), [progress, catalog]);
+  const hoursItem = levelUp?.hoursItem;
   const unlocked = useMemo(
-    () => (leveled && catalog ? catalog.find((it) => !it.grant_only && it.level_req > prevLevel && it.level_req <= level) ?? null : null),
-    [leveled, catalog, prevLevel, level],
+    () => {
+      if (!catalog) return null;
+      if (hoursItem) return catalog.find((it) => it.id === hoursItem) ?? null;
+      return leveled ? catalog.find((it) => !it.grant_only && !it.hours_req && it.level_req > prevLevel && it.level_req <= level) ?? null : null;
+    },
+    [leveled, catalog, prevLevel, level, hoursItem],
   );
 
   const rows = useMemo(() => {
@@ -186,7 +193,7 @@ export function SessionCelebration({ c, levelUp }: Props) {
     base.value = leveled ? 0 : beforeFrac;
     refl.value = 1;
     rc.value = 1;
-    lvl.value = leveled ? 1 : 0;
+    lvl.value = leveled || levelOnly ? 1 : 0;
     reward.value = 1;
   };
 
@@ -197,7 +204,7 @@ export function SessionCelebration({ c, levelUp }: Props) {
       v.value = xp;
       bar.value = afterFrac;
       base.value = leveled ? 0 : beforeFrac;
-      if (stage === 'xp' && (xp > 0 || leveled)) {
+      if (stage === 'xp' && (xp > 0 || leveled || hoursOnly)) {
         if (leveled) void hapticNotify(SUCCESS);
         else void hapticImpact();
       }
@@ -210,7 +217,8 @@ export function SessionCelebration({ c, levelUp }: Props) {
     flo.value = withTiming(1, { duration: 220, easing: OUT_CUBIC });
     if (stage === 'summary') return () => all.forEach(cancelAnimation);
     if (levelOnly) {
-      void hapticNotify(SUCCESS);
+      if (hoursOnly) void hapticImpact();
+      else void hapticNotify(SUCCESS);
       bar.value = withDelay(250, withTiming(afterFrac, { duration: 350, easing: OUT_CUBIC }));
       reward.value = withDelay(400, withTiming(1, { duration: 220, easing: OUT_CUBIC }));
       return () => all.forEach(cancelAnimation);
@@ -289,8 +297,8 @@ export function SessionCelebration({ c, levelUp }: Props) {
           <Text style={styles.closeGlyph}>✕</Text>
         </Pressable>
         <View style={styles.headTitle}>
-          <Text style={[styles.title, dir.writing]}>{t('summary.title')}</Text>
-          <Text style={[styles.sub, dir.writing]}>{t('summary.sub')}</Text>
+          <Text style={[styles.title, dir.writing]}>{levelOnly ? (hoursOnly ? t('summary.newItem') : t('summary.levelWord')) : t('summary.title')}</Text>
+          {levelOnly ? null : <Text style={[styles.sub, dir.writing]}>{t('summary.sub')}</Text>}
         </View>
         <View style={styles.close} />
       </View>
@@ -352,10 +360,10 @@ export function SessionCelebration({ c, levelUp }: Props) {
               </View>
             </Animated.View>
           ) : null}
-          {leveled ? (
+          {leveled || hoursOnly ? (
             <Animated.View style={[StyleSheet.absoluteFill, styles.body, lvlLayer]} pointerEvents="none">
-              <Animated.Text style={[styles.flourish, dir.content, floStyle]}>{cheer.level}</Animated.Text>
-              <View style={[styles.levelRow, dir.row]}>
+              {hoursOnly ? null : <Animated.Text style={[styles.flourish, dir.content, floStyle]}>{getSettingsSync().learningLanguage === 'ja' ? cheer.level : t('summary.cheerLevel')}</Animated.Text>}
+              {hoursOnly ? null : <View style={[styles.levelRow, dir.row]}>
                 <View>
                   <Text style={[styles.lbl, dir.text, { color: GOLD }]}>{t('summary.levelWord').toUpperCase()}</Text>
                   <View style={{ marginTop: 6 }}>
@@ -363,10 +371,12 @@ export function SessionCelebration({ c, levelUp }: Props) {
                   </View>
                 </View>
                 <CatAvatar size={150} equipped={equipped} emotion={catEmotion} />
-              </View>
-              <View style={[styles.track, { marginTop: 26 }]}>
-                <XpFill bar={bar} base={base} ghost={leveled ? 0 : beforeFrac} />
-              </View>
+              </View>}
+              {hoursOnly ? null : (
+                <View style={[styles.track, { marginTop: 26 }]}>
+                  <XpFill bar={bar} base={base} ghost={leveled ? 0 : beforeFrac} />
+                </View>
+              )}
               {c ? (
                 <Text style={[styles.caption, dir.text, { marginTop: 8 }]}>
                   {t('summary.levelLine', { xp, into: c.after.into.toLocaleString(locale), l: level })}
@@ -375,7 +385,7 @@ export function SessionCelebration({ c, levelUp }: Props) {
               ) : null}
               {unlocked || (levelUp?.coins ?? 0) > 0 ? (
                 <Animated.View style={[styles.reward, dir.row, rewardStyle]}>
-                  <Tile emoji={unlocked ? (unlocked.slot === 'head' ? '🎩' : '🎁') : '🪙'} tint="255,200,87" size={44} />
+                  <Tile emoji={unlocked ? (unlocked.hours_req ? '✨' : unlocked.slot === 'head' ? '🎩' : '🎁') : '🪙'} tint="255,200,87" size={44} />
                   <View style={styles.fill}>
                     <Text style={[styles.rewardTitle, dir.text]}>{unlocked ? t('summary.unlocked', { name: unlocked.name }) : t('summary.coins', { n: levelUp?.coins ?? 0 })}</Text>
                     {unlocked ? <Text style={[styles.caption, dir.text]}>{t('summary.wardrobe')}</Text> : null}
@@ -490,7 +500,7 @@ export function XpToast() {
   if (n <= 0 && !cap) return null;
   return (
     <Animated.View pointerEvents="none" style={[styles.toast, { top: insets.top + 8 }, style]}>
-      <Text style={[styles.toastText, dir.writing]}>{cap ? `${isolate(t('review.xpEarned', { n: 0 }))} · ${t('ladder.xpCap')}` : isolate(t('review.xpEarned', { n }))}</Text>
+      <Text style={[styles.toastText, dir.writing]}>{cap ? `${isolate(t('review.xpEarned', { n }))} · ${t('ladder.xpCap')}` : isolate(t('review.xpEarned', { n }))}</Text>
     </Animated.View>
   );
 }
@@ -527,7 +537,7 @@ const styles = StyleSheet.create({
   barFillRtl: { transformOrigin: 'right' },
   barNew: { shadowColor: 'rgb(255,210,120)', shadowOpacity: 0.55, shadowRadius: 12, shadowOffset: { width: 0, height: 0 } },
   ghost: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRightWidth: 2, borderStyle: 'dashed', borderColor: 'rgba(255,200,87,0.45)' },
-  ghostRtl: { left: undefined, right: 0, borderRightWidth: 0, borderLeftWidth: 2 },
+  ghostRtl: { left: 'auto', right: 0, borderRightWidth: 0, borderLeftWidth: 2 },
   barCaption: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   caption: { fontFamily: fonts.ui, fontSize: 13, color: tide.textDim },
   rows: { marginTop: 28 },

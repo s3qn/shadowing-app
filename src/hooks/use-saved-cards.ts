@@ -7,11 +7,13 @@ import { autoPlaceOf } from '@/lib/auto-practice';
 import { celebrateReview } from '@/lib/progression';
 import { resetSessionScores, useSessionScore } from '@/lib/take-scores';
 
+const NO_PICK: number[] = [];
+
 /**
  * The saved sentences of one island for the track-span players (video, podcast):
  * line idx to card id, the star toggle, and the review set frozen at load.
  */
-export function useSavedCards(islandId: string | undefined, id: string, review: boolean, session = false) {
+export function useSavedCards(islandId: string | undefined, id: string, review: boolean, session = false, pickedIdx: number[] = NO_PICK) {
   const [savedCards, setSavedCards] = useState<Map<number, string>>(new Map());
   const [saveError, setSaveError] = useState('');
   // Review mode: only the saved lines, frozen at load, due ones decide the start.
@@ -47,7 +49,8 @@ export function useSavedCards(islandId: string | undefined, id: string, review: 
     const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     setSavedCards(new Map(cards.map((c) => [c.idx, c.id])));
     // A session picks the lines (weakest first) and owns the scores and the XP.
-    const picked = session ? autoPlaceOf(id)?.idx : undefined;
+    // A session picks the weakest lines; "shadow the best bits" passes the easiest ones.
+    const picked = session ? autoPlaceOf(id)?.idx : pickedIdx.length ? pickedIdx : undefined;
     if (picked) {
       const set = new Set(picked);
       setReviewSet({ idx: set, due: set });
@@ -57,7 +60,7 @@ export function useSavedCards(islandId: string | undefined, id: string, review: 
     run.current = { id: randomUUID(), start: Date.now(), done: false };
     dueIdx.current = new Set(cards.filter((c) => c.due_on <= today).map((c) => c.idx));
     setReviewSet({ idx: new Set(cards.map((c) => c.idx)), due: dueIdx.current });
-  }, [session, id]);
+  }, [session, id, pickedIdx]);
 
   const toggleSaved = useCallback(
     (idx: number) => {

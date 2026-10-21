@@ -20,6 +20,7 @@ import { SpeedPopover } from '@/components/tide/speed-popover';
 import { BlindIcon, ReadingIcon, RepeatIcon } from '@/components/tide/toolbar-icons';
 import { TappableSentence, type ExplainSelection } from '@/components/tide/tappable-sentence';
 import { TideScene } from '@/components/tide/tide-scene';
+import { useListeningCat } from '@/components/cat/listening-cat';
 import { SaveStar } from '@/components/save-star';
 import { PassHelpSheet } from '@/components/tide/pass-help-sheet';
 import { LadderHelpButton, LadderStageView } from '@/components/tide/ladder-stage';
@@ -29,6 +30,8 @@ import { snapRate, takeWatchSec, type useLadder } from '@/hooks/use-ladder';
 import { useDockPopovers } from '@/hooks/use-dock-popovers';
 import { useLadderWiring } from '@/hooks/use-ladder-wiring';
 import { autoPlaceOf, endAutoPractice } from '@/lib/auto-practice';
+import { parsePick, pickBestBits } from '@/lib/best-bits';
+import { confirmSheet } from '@/lib/confirm-sheet';
 import { useSavedCards } from '@/hooks/use-saved-cards';
 import { useTake } from '@/hooks/use-take';
 import { useWatchClock } from '@/hooks/use-watch-clock';
@@ -45,12 +48,13 @@ export default function VideoScreen() {
   const { t } = useT();
   const router = useRouter();
   const win = useWindowDimensions();
-  const { id, line, preview, review, session } = useLocalSearchParams<{
+  const { id, line, preview, review, session, pick } = useLocalSearchParams<{
     id: string;
     line?: string;
     preview?: string;
     review?: string;
     session?: string;
+    pick?: string;
   }>();
   // A practice session hops here with the lines the plan picked; a stale param with no live session is ignored.
   const [inSession] = useState(() => session === '1' && autoPlaceOf(id) !== null);
@@ -108,7 +112,9 @@ export default function VideoScreen() {
   const [video, setVideo] = useState<api.IslandVideo | null>(null);
   const [error, setError] = useState('');
   // review-deck: saved sentences of this island, line idx to card id.
-  const { savedCards, saveError, reviewSet, loadReviewCards, toggleSaved, gradeOnce } = useSavedCards(island?.id, id, !!review, inSession);
+  // "Shadow the best bits" hops here as a review of three picked lines.
+  const picked = useMemo(() => parsePick(pick), [pick]);
+  const { savedCards, saveError, reviewSet, loadReviewCards, toggleSaved, gradeOnce } = useSavedCards(island?.id, id, !!review, inSession, picked);
   const [playing, setPlaying] = useState(false);
   const stateRef = useRef('unstarted');
   const [cannotPlay, setCannotPlay] = useState(false);
@@ -307,6 +313,44 @@ export default function VideoScreen() {
   });
   const openLadder = () => ladder.start();
   useEffect(() => setLadderOn(ladder.active), [ladder.active]);
+
+  // Lines the viewer heard twice (a replay or a repeat), for the end-of-video offer.
+  const seen = useRef(new Set<number>());
+  const replayed = useRef(new Set<number>());
+  useEffect(() => {
+    const idx = lines[activeLine]?.idx;
+    if (review || idx === undefined) return;
+    if (seen.current.has(idx)) replayed.current.add(idx);
+    else seen.current.add(idx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLine]);
+  // The video ended in plain watch mode: offer the three easiest lines on the ladder, once per visit.
+  const offered = useRef(false);
+  const offerBestBits = () => {
+    if (offered.current || review || preview || inSession || ladder.active || !island) return;
+    const picks = pickBestBits(island.lines, new Set(savedCards.keys()), replayed.current);
+    if (picks.length === 0) return;
+    offered.current = true;
+    const n = String(picks.length);
+    void confirmSheet({
+      title: t('video.bestBits.title', { n }),
+      message: t('video.bestBits.body', { n }),
+      actions: [{ label: t('video.bestBits.go', { n }), verb: 'speak' }, { label: t('video.bestBits.notNow'), verb: 'tools' }],
+    }).then((i) => {
+      if (i === 0) router.push({ pathname: '/video/[id]', params: { id, review: '1', pick: picks.join(',') } });
+    });
+  };
+
+  // The cat that listens along (Rive only; hidden in fullscreen, under the stage view and with no transcript).
+  const [saveTick, setSaveTick] = useState(0);
+  const { cat: listeningCat, noteTouch } = useListeningCat({
+    playing,
+    line: lines[activeLine] ?? null,
+    rate: speedLive,
+    saved: savedCards.has(lines[activeLine]?.idx ?? -1),
+    saveTick,
+    hidden: fs || !!ladder.stage || lines.length === 0,
+  });
 
   // A take that ends stops the embed too.
   const recording = take.phase === 'recording';
@@ -623,7 +667,7 @@ export default function VideoScreen() {
   }, [helpOpen, explainOpen, ladder.active]);
 
   return (
-    <View style={[styles.fill, { backgroundColor: tide.sky[0] }]}>
+    <View style={[styles.fill, { backgroundColor: tide.sky[0] }]} onTouchStart={noteTouch}>
       <StatusBar style="light" hidden={fs} />
       <Stack.Screen
         options={{
@@ -666,6 +710,7 @@ export default function VideoScreen() {
                 stateRef.current = s;
                 setPlaying((p) => playIntent(p, s));
                 onChangeState(s);
+                if (s === 'ended') offerBestBits();
                 if (s === 'playing' && takeRef.current.phase === 'recording') stampLineStart();
               }}
               onPlaybackRateChange={onPlaybackRateChange}
@@ -712,7 +757,11 @@ export default function VideoScreen() {
                       variant="video"
                       repeat={repeat}
                     />
-                    <SaveStar saved={savedCards.has(lines[activeLine]!.idx)} onToggle={() => toggleSaved(lines[activeLine]!.idx)} />
+                    <SaveStar saved={savedCards.has(lines[activeLine]!.idx)} onToggle={() => {
+                        if (!savedCards.has(lines[activeLine]!.idx)) setSaveTick((n) => n + 1);
+                        toggleSaved(lines[activeLine]!.idx);
+                      }}
+                    />
                     </View>
                   ) : null
                 }
@@ -773,6 +822,7 @@ export default function VideoScreen() {
                         {review || video.captions_only ? null : (
                           <PrismButton shape="pill" verb="speak" label={t('video.shadowLine')} onPress={shadow} />
                         )}
+                        {listeningCat}
                       </View>
                     }
                   />

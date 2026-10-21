@@ -26,7 +26,7 @@ export const en = {
   'ladder.startsAfter': 'Starts after {n}',
   'ladder.tapStop': 'Tap to stop',
   'ladder.scoring': 'Scoring…',
-  'ladder.xpCap': 'daily cap reached',
+  'ladder.xpCap': 'fast XP done',
   'ladder.again': 'Again',
   'ladder.ready': 'Ready',
   'ladder.peek': 'Peek',

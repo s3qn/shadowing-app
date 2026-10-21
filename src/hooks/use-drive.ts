@@ -6,8 +6,9 @@ import { Easing, useReducedMotion, useSharedValue, withTiming, type SharedValue 
 import { usePracticeClock } from '@/hooks/use-practice-clock';
 import * as api from '@/lib/api';
 import {
-  applyDriveMode,
-  applyPlaybackMode,
+  LOCK_SCREEN_AVAILABLE,
+  lockArtwork,
+  setExclusivePlayback,
   scheduleAudioSessionRelease,
   startPlayback,
   stopPlayback,
@@ -150,6 +151,7 @@ export function useDrive(start: { id?: string; line?: number }): {
       title: it.line.ja,
       artist: it.island.title || t('player.island'),
       albumTitle: t('player.lineOfTotal', { index: it.line.idx + 1, total: it.island.lines.length }),
+      artworkUrl: lockArtwork(),
     };
   }, []);
 
@@ -201,7 +203,9 @@ export function useDrive(start: { id?: string; line?: number }): {
       replaceAt.current = Date.now();
       try {
         player.replace({ uri: localLineAudio(it.url, it.tag) ?? api.withUser(it.url) });
-        if (!lockOn.current) {
+        if (!LOCK_SCREEN_AVAILABLE) {
+          // Web and Android Expo Go have no lock screen controls.
+        } else if (!lockOn.current) {
           lockOn.current = true;
           player.setActiveForLockScreen(true, lockMeta(it), { showSeekForward: true, showSeekBackward: true });
         } else {
@@ -310,7 +314,7 @@ export function useDrive(start: { id?: string; line?: number }): {
     let alive = true;
     void (async () => {
       try {
-        await applyDriveMode();
+        await setExclusivePlayback(true);
         const all = await api.listIslands();
         if (!alive) return;
         const s = getSettingsSync();
@@ -345,12 +349,14 @@ export function useDrive(start: { id?: string; line?: number }): {
       busy.current = true;
       clearTimers();
       stopPlayback(player);
-      try {
-        player.clearLockScreenControls();
-      } catch {
-        // Already released.
+      if (LOCK_SCREEN_AVAILABLE) {
+        try {
+          player.clearLockScreenControls();
+        } catch {
+          // Already released.
+        }
       }
-      void applyPlaybackMode();
+      void setExclusivePlayback(false);
       scheduleAudioSessionRelease();
     };
   }, [player, clearTimers]);

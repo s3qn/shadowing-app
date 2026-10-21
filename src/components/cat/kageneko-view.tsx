@@ -13,7 +13,7 @@ import {
 import { useIsFocused } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGazeValue } from '@/hooks/use-gaze';
-import { Image, View } from 'react-native';
+import { AppState, Image, View } from 'react-native';
 
 import { CAT_BOX, SLOTS, type Equipped, type KagenekoEmotion, type KagenekoMode, type Slot } from '@/constants/cosmetics';
 
@@ -69,7 +69,14 @@ function useKagenekoFile(onFail?: () => void): RiveFile | undefined {
 
 export function KagenekoView({ size, equipped, mode, emotion, petKey, frameRate, gaze = false, instanceName, onFail }: KagenekoViewProps) {
   const file = useKagenekoFile(onFail);
-  const focused = useIsFocused();
+  const isFocused = useIsFocused();
+  // Backgrounded apps pause the cat too: Rive keeps drawing otherwise.
+  const [active, setActive] = useState(AppState.currentState === 'active');
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => setActive(s === 'active'));
+    return () => sub.remove();
+  }, []);
+  const focused = isFocused && active;
   const { instance } = useViewModelInstance(file, {
     async: true,
     viewModelName: 'Kageneko',
@@ -81,8 +88,8 @@ export function KagenekoView({ size, equipped, mode, emotion, petKey, frameRate,
     setMode(mode ?? 'idle');
   }, [mode, setMode, instance]);
 
-  const viewRef = useRef<{ play: () => Promise<void> } | null>(null);
-  const hybridRef = useMemo(() => ({ f: (r: { play: () => Promise<void> } | null) => (viewRef.current = r) }), []);
+  const viewRef = useRef<{ play: () => Promise<void>; pause: () => void } | null>(null);
+  const hybridRef = useMemo(() => ({ f: (r: { play: () => Promise<void>; pause: () => void } | null) => (viewRef.current = r) }), []);
   const play = () => {
     try {
       void viewRef.current?.play().catch(() => {});
@@ -90,6 +97,15 @@ export function KagenekoView({ size, equipped, mode, emotion, petKey, frameRate,
       // The view is not ready yet.
     }
   };
+  // Off screen or backgrounded: stop the state machine; it resumes when both return.
+  useEffect(() => {
+    try {
+      if (focused) void viewRef.current?.play().catch(() => {});
+      else viewRef.current?.pause();
+    } catch {
+      // The view is not ready yet.
+    }
+  }, [focused]);
   // Start the state machine explicitly once the file and instance are bound.
   useEffect(() => {
     if (file && instance) play();

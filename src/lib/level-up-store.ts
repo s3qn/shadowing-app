@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
-export type PendingLevelUp = { level: number; prevLevel: number; coins: number };
+/** `hoursItem`: a listening-hours cosmetic just granted (level unchanged). */
+export type PendingLevelUp = { level: number; prevLevel: number; coins: number; hoursItem?: string };
 
 // A level-up is detected where progress is fetched, but shown only once the
 // practice session is over, so it waits here in between.
@@ -19,9 +20,15 @@ function subscribe(l: () => void) {
 
 /** Queues a level-up. If one is pending, the two merge into the highest level. */
 export function pushLevelUp(next: PendingLevelUp) {
-  if (pending && pending.level >= next.level) return;
+  if (pending && pending.level >= next.level) {
+    if (next.hoursItem && !pending.hoursItem) {
+      pending = { ...pending, hoursItem: next.hoursItem };
+      emit();
+    }
+    return;
+  }
   pending = pending
-    ? { level: next.level, prevLevel: pending.prevLevel, coins: pending.coins + next.coins }
+    ? { level: next.level, prevLevel: pending.prevLevel, coins: pending.coins + next.coins, hoursItem: pending.hoursItem ?? next.hoursItem }
     : next;
   emit();
 }
@@ -89,7 +96,8 @@ export function isSessionActive(): boolean {
 export function pushXpToast(n: number, cap = false) {
   if (celebration || !(n > 0 || cap)) return;
   if (n > 0) toastXp += n;
-  toastCap = cap && toastXp === 0;
+  // The fast-band note stays on the toast until it clears, slow XP and all.
+  toastCap = cap || toastCap;
   toastId += 1;
   emit();
 }
@@ -126,7 +134,7 @@ export function hasInlineXp(): boolean {
 /** Pops "+N XP" (or the cap note with n 0) on the mounted stage view. */
 export function pushInlineXp(n: number, cap = false) {
   if (!(n > 0 || cap)) return;
-  inline = { n, id: inline.id + 1, cap: cap && n === 0 };
+  inline = { n, id: inline.id + 1, cap };
   emit();
 }
 export function useInlineXp(): { n: number; id: number; cap: boolean } {

@@ -1,6 +1,7 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PILL_TAB_BAR_REACH } from '@/components/pill-tab-bar';
@@ -9,6 +10,7 @@ import { Spacing, prism, tide } from '@/constants/theme';
 import { alertSheet, confirmSheet } from '@/lib/confirm-sheet';
 import * as api from '@/lib/api';
 import { provider, signOut, signOutLocal, usingDevBypass } from '@/lib/auth';
+import { getGuideStep } from '@/lib/guide';
 import { LOCALES, type Lang, useT } from '@/lib/i18n';
 import { voiceRowLabel } from '@/lib/voice-label';
 import { type AppLanguage, getSettings, getVoice, setHaptics, setShowAllLanguages, setSkyAlwaysNight, toIslandLanguage } from '@/lib/settings';
@@ -95,9 +97,30 @@ export default function SettingsScreen() {
     }, [t]),
   );
 
+  const scrollRef = useRef<ScrollView>(null);
+  const feedbackY = useRef<number | null>(null);
+  const pendingFocus = useRef(false);
+  const glow = useSharedValue(0);
+  const glowStyle = useAnimatedStyle(() => ({ backgroundColor: `rgba(124,200,255,${glow.value * 0.25})` }));
+  // The guide's beta step ends on this tab: scroll the bug and idea row into view once, then glow it for 900ms once the scroll has landed.
+  function revealFeedback() {
+    if (feedbackY.current === null) return;
+    pendingFocus.current = false;
+    scrollRef.current?.scrollTo({ y: Math.max(0, feedbackY.current - Spacing.xl), animated: true });
+    // The animated scrollTo lands at about 400ms; the glow waits for it, rises, holds, then fades.
+    glow.value = withDelay(GLOW_AFTER_SCROLL_MS, withSequence(withTiming(1, { duration: 200 }), withDelay(400, withTiming(0, { duration: 300 }))));
+  }
+  useFocusEffect(
+    useCallback(() => {
+      if (getGuideStep() !== 'beta') return;
+      pendingFocus.current = true;
+      revealFeedback();
+    }, []),
+  );
+
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
-      <ScrollView contentContainerStyle={styles.list}>
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.list}>
         <SettingsSection title={t('settings.section.practice')}>
           <SettingsRow
             label={t(isJapanese ? 'settings.row.practice' : 'settings.row.practiceOther')}
@@ -212,14 +235,21 @@ export default function SettingsScreen() {
           ) : null}
         </SettingsSection>
 
-        <SettingsSection title={t('settings.section.feedback')}>
-          <SettingsRow
-            label={t('settings.row.feedback')}
-            last
-            icon={{ ios: 'ladybug', android: 'bug_report' }}
-            onPress={() => router.push('/settings/feedback')}
-          />
-        </SettingsSection>
+        <Animated.View
+          style={[styles.glowWrap, glowStyle]}
+          onLayout={(e) => {
+            feedbackY.current = e.nativeEvent.layout.y;
+            if (pendingFocus.current) revealFeedback();
+          }}>
+          <SettingsSection title={t('settings.section.feedback')}>
+            <SettingsRow
+              label={t('settings.row.feedback')}
+              last
+              icon={{ ios: 'ladybug', android: 'bug_report' }}
+              onPress={() => router.push('/settings/feedback')}
+            />
+          </SettingsSection>
+        </Animated.View>
 
         <SettingsSection
           title={t('settings.section.account')}
@@ -254,7 +284,11 @@ export default function SettingsScreen() {
   );
 }
 
+/** The guide's animated scrollTo to the bug and idea row lands at about this; the glow starts then. */
+const GLOW_AFTER_SCROLL_MS = 400;
+
 const styles = StyleSheet.create({
+  glowWrap: { borderRadius: 16 },
   fill: { flex: 1 },
   // paddingBottom leaves room for the floating pill tab bar and the offset
   // pane that peeks out past its bottom edge, so the last row never hides

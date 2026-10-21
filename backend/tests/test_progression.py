@@ -85,22 +85,22 @@ def test_practice_at_30s_pays_nothing(owner):
 def test_practice_at_45s_pays_practiced_once_across_two_calls(owner):
     first = progression.award_practice(owner, "isl", 45)
     second = progression.award_practice(owner, "isl", 50)
-    # practiced 30 + day 20 + first_island 40; coins 10 + 5 + 10 + 25 for level 2
-    assert (first["xp"], first["coins"]) == (90, 50)
+    # practiced 20 + day 20 + first_island 40; coins 10 + 5 + 10 + 25 for level 2
+    assert (first["xp"], first["coins"]) == (80, 50)
     assert (second["xp"], second["coins"]) == (0, 0)
 
 
 def test_practice_at_125s_pays_two_minute_keys(owner):
     got = progression.award_practice(owner, "isl", 125)
-    # practiced 30 + 2 minutes of 5 + day 20 + first_island 40 = 100 XP, level 2
-    assert got["xp"] == 30 + 10 + 20 + 40
+    # practiced 20 + 2 minutes of 2 + day 20 + first_island 40 = 84 XP, level 2
+    assert got["xp"] == 20 + 4 + 20 + 40
     assert got["coins"] == 10 + 2 + 5 + 10 + 25
 
 
-def test_the_21st_minute_pays_nothing(owner):
-    progression.award_practice(owner, "isl", 20 * 60)
+def test_the_181st_minute_pays_nothing(owner):
+    progression.award_practice(owner, "isl", 180 * 60)
     before = progression.snapshot(owner)["xp"]
-    got = progression.award_practice(owner, "isl", 21 * 60 + 5)
+    got = progression.award_practice(owner, "isl", 181 * 60 + 5)
     assert got["xp"] == 0
     assert progression.snapshot(owner)["xp"] == before
 
@@ -108,8 +108,8 @@ def test_the_21st_minute_pays_nothing(owner):
 def test_award_take_same_line_again_pays_the_small_repeat(owner):
     first = progression.award_take(owner, "isl", 0)
     again = progression.award_take(owner, "isl", 0)
-    # take 10 + day 20 + first_take 40, then only the repeat: base 2 with no score
-    assert first["xp"] == 10 + 20 + 40
+    # take 15 + day 20 + first_take 40, then only the repeat: base 2 with no score
+    assert first["xp"] == 15 + 20 + 40
     assert again["xp"] == 2
 
 
@@ -128,14 +128,14 @@ def test_every_repeat_of_a_line_pays(owner, day):
     assert total == xp
 
 
-def test_cap_note_comes_once_a_day_when_a_take_pays_nothing(owner, day, monkeypatch):
+def test_cap_note_comes_once_on_the_first_take_after_the_band_fills(owner, day, monkeypatch):
     monkeypatch.setattr(progression, "DAILY_XP_CAP", 30)
-    first = progression.award_take(owner, "isl", 0)  # take 10 + day 20 fills the cap
-    assert first["cap_note"] is False
-    blocked = progression.award_take(owner, "isl", 0)
-    assert blocked["xp"] == 0 and blocked["capped"] is True and blocked["cap_note"] is True
-    again = progression.award_take(owner, "isl", 1)
-    assert again["xp"] == 0 and again["cap_note"] is False
+    first = progression.award_take(owner, "isl", 0)  # take 15 + day 15 of 20 fills the band
+    assert first["cap_note"] is False and first["capped"] is True
+    tail = progression.award_take(owner, "isl", 1)  # a new line in the slow tail pays 1
+    assert tail["xp"] == 1 and tail["capped"] is True and tail["cap_note"] is True
+    again = progression.award_take(owner, "isl", 2)
+    assert again["xp"] == 1 and again["cap_note"] is False
     assert progression.snapshot(owner)["xp_today"] == 30
 
 
@@ -263,6 +263,8 @@ def test_catalog_is_well_formed():
         assert i["price"] >= 0
         assert i["art"]["shape"] in cat["shapes"][i["slot"]]
         assert i["id"].startswith(i["slot"] + ".")
+        assert set(i["unlock"]) == {"source", "need", "short", "text", "group"}
+        assert i["unlock"]["source"] in progression.UNLOCK_SOURCES
     assert {"accessory.collar_red", "head.cap_paper"} <= {i["id"] for i in items if i["price"] == 0 and i["level_req"] == 1}
 
 
@@ -342,9 +344,9 @@ def test_upload_take_scored_pays_quality(owner, monkeypatch, tmp_path):
     _wire_take(monkeypatch, tmp_path)
     monkeypatch.setattr(main, "_run_clean", lambda *a, **k: {"score": {"words": ["ok"] * 4}})
     out = _upload(owner)
-    # take 10 + quality 5 + 5 + day 20 + mastery 60 = 100, all counting toward the cap
+    # take 15 + quality 5 + 5 + day 20 + mastery 60 = 105, all counting toward the cap
     assert out["award"]["milestones"] == ["first_take", "perfect_take", "full_speed", "first_mastery"]
-    assert progression.snapshot(owner)["xp_today"] == 100
+    assert progression.snapshot(owner)["xp_today"] == 105
 
 
 def test_a_failing_award_does_not_fail_the_take(owner, monkeypatch, tmp_path):
@@ -394,34 +396,39 @@ def test_sixty_takes_end_at_the_cap_and_ledger_matches(owner, day):
         progression.award_take(owner, "isl", i)
     snap = progression.snapshot(owner)
     assert snap["xp_today"] == 120 and snap["xp_today_cap"] == 120
-    assert snap["xp"] == 120 + 40  # plus first_take
+    # takes 0 to 6 and the day bonus fill the fast band (take 6 pays 10 of 15,
+    # its 5 left over is below the slow divisor), then 53 tail takes pay 1 each
+    assert snap["xp_today_slow"] == 53
+    assert snap["xp"] == 120 + 53 + 40  # plus first_take
     total, xp = _ledger(owner)
     assert total == xp
 
 
 def test_partial_clamp_and_replay(owner, day, monkeypatch):
-    monkeypatch.setattr(progression, "DAILY_XP_CAP", 35)
-    progression.award_take(owner, "isl", 0)  # take 10 + day 20 (+ first_take 40)
+    monkeypatch.setattr(progression, "DAILY_XP_CAP", 40)
+    progression.award_take(owner, "isl", 0)  # take 15 + day 20 (+ first_take 40)
     got = progression.award_take(owner, "isl", 1)
-    assert got["xp"] == 5
-    assert _row_xp(owner, f"take:isl:1:{day}") == 5
-    assert progression.snapshot(owner)["xp_today"] == 35
+    # 5 fast, and the 10 past the band at 1 / SLOW_DIVISOR
+    assert got["xp"] == 6
+    assert _row_xp(owner, f"take:isl:1:{day}") == 6
+    assert progression.snapshot(owner)["xp_today"] == 40
     # A repeat of the same line at the cap pays nothing and writes no XP.
     again = progression.award_take(owner, "isl", 1)
     assert (again["xp"], again["coins"]) == (0, 0)
-    assert progression.snapshot(owner)["xp_today"] == 35
+    assert progression.snapshot(owner)["xp_today"] == 40
 
 
 def test_coins_stop_at_the_cap_and_milestones_ignore_it(owner, day, monkeypatch):
     monkeypatch.setattr(progression, "DAILY_XP_CAP", 20)
     got = progression.award_take(owner, "isl", 0)
-    # take 10 and the day bonus clamped to 10, both inside the cap of 20
+    # take 15 and the day bonus clamped to 5 fill the band of 20; the day's
+    # other 15 pays 1 in the slow tail
     assert progression.snapshot(owner)["xp_today"] == 20
-    assert got["xp"] == 20 + 40 and got["capped"] is True
-    # A further take at the cap pays no XP, so it pays no coins either: coins
-    # track real XP and stop at the cap.
+    assert got["xp"] == 20 + 1 + 40 and got["capped"] is True
+    # A further take past the band pays slow XP only, and no coins: coins
+    # track fast XP and stop at the band.
     more = progression.award_take(owner, "isl", 1)
-    assert more["xp"] == 0 and more["coins"] == 0
+    assert more["xp"] == 1 and more["coins"] == 0
 
 
 def test_rollover_pays_again(owner, monkeypatch):
@@ -430,7 +437,7 @@ def test_rollover_pays_again(owner, monkeypatch):
     monkeypatch.setattr(progression, "_today", lambda: "2026-01-03")
     assert progression.snapshot(owner)["xp_today"] == 0
     got = progression.award_take(owner, "isl", 0)
-    assert got["xp"] >= 10 + 20
+    assert got["xp"] >= 15 + 20
     assert progression.snapshot(owner)["xp_today"] > 0
 
 
@@ -501,8 +508,8 @@ def test_quality_tiers(owner, day):
     one = {"words": ["ok", "late", "late", "late", "late"]}
     progression.award(owner, f"day:{day}", 0, 0)  # day bonus out of the way
     got = progression.award_take(owner, "a", 0, score=five_ok)
-    # take 10 + quality 5 + 5, first_take 40, perfect_take 60, full_speed 60
-    assert got["xp"] == 20 + 40 + 60 + 60
+    # take 15 + quality 5 + 5, first_take 40, perfect_take 60, full_speed 60
+    assert got["xp"] == 25 + 40 + 60 + 60
     assert _row_xp(owner, f"quality:a:0:{day}:good") == 5
     assert _row_xp(owner, f"quality:a:0:{day}:great") == 5
     progression.award_take(owner, "b", 0, score=three)
@@ -606,7 +613,8 @@ def test_milestones_pay_once_and_speed_matters(owner, day, monkeypatch):
 def test_first_take_pays_in_full_at_the_cap(owner, day, monkeypatch):
     monkeypatch.setattr(progression, "DAILY_XP_CAP", 0)
     got = progression.award_take(owner, "a", 0)
-    assert got["xp"] == 40 and got["milestones"] == ["first_take"]
+    # first_take in full, plus the slow tail: take 15 // 10 and day 20 // 10
+    assert got["xp"] == 40 + 1 + 2 and got["milestones"] == ["first_take"]
     assert progression.snapshot(owner)["xp_today"] == 0
 
 

@@ -1,13 +1,35 @@
 """Profile aggregation for GET /shadow/profile/{username}. Calls the
 per-database helpers and never joins across db files."""
 
+from datetime import datetime, timedelta, timezone
+
 import progression
 import schedule
 import store
 import user_profile
 
 
-def profile(username: str, handles) -> dict | None:
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def week_start() -> str:
+    """This week's Monday (UTC) as YYYY-MM-DD."""
+    today = _now().date()
+    return (today - timedelta(days=today.weekday())).isoformat()
+
+
+def weekly_league(owner: str, language: str, limit: int, handles) -> dict:
+    """The weekly board: minutes from schedule.db, lines from progression.db,
+    island languages from store, joined here in Python."""
+    since = week_start()
+    return progression.weekly_leaderboard(
+        owner, limit, handles, since, schedule.weekly_minutes(language, since),
+        store.island_languages(), language,
+    )
+
+
+def profile(username: str, handles, ui: str = "en") -> dict | None:
     found = user_profile.lookup(username)
     if found is None:
         return None
@@ -43,5 +65,8 @@ def profile(username: str, handles) -> dict | None:
         "milestones": st["milestones"],
         "milestones_total": len(progression.MILESTONES),
         "cosmetics_owned": len(snap["owned"]),
-        "cosmetics_total": len(progression.catalog()["items"]),
+        "cosmetics_total": len(progression.catalog(with_rarity=False)["items"]),
+        "by_language": imm["by_language"],
+        "hours_next": progression.hours_next(imm["counted_total"]),
+        "achievements": progression.achievements(owner, ui if ui == "he" else "en"),
     }
