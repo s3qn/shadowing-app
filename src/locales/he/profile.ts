@@ -14,8 +14,7 @@ export const he = {
   'profile.progress': 'התקדמות',
   'profile.xp': 'סך הכול XP',
   'profile.daysActive': 'ימי פעילות',
-  'profile.streak': 'רצף נוכחי',
-  'profile.longestStreak': 'הרצף הארוך ביותר',
+  'profile.streakNone': 'עדיין אין רצף',
   'profile.bestDay': 'יום ה-XP הטוב ביותר',
   'profile.capDays': 'ימים עם כל ה-XP המהיר',
   'profile.milestones': 'אבני דרך',
@@ -33,5 +32,5 @@ export const he = {
   'profile.secretLeft_two': 'נותרו שני הישגים סודיים',
   'profile.mystery': '???',
   'profile.rewards': 'פרסים',
-  'profile.ownedOf': '{n} / {total} בבעלות',
+  'profile.ownedOf': '{n} מתוך {total} בבעלות',
 };

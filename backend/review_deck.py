@@ -77,6 +77,10 @@ def init() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with connect() as conn:
         conn.executescript(SCHEMA)
+        # BL-63: the grammar tag an AI pick carries. Additive, guarded.
+        cols = {row["name"] for row in conn.execute("PRAGMA table_info(review_cards)")}
+        if "tag" not in cols:
+            conn.execute("ALTER TABLE review_cards ADD COLUMN tag TEXT NOT NULL DEFAULT ''")
 
 
 def clip_path(card_id: str) -> Path:
@@ -108,7 +112,8 @@ def _find(device: str, island_id: str, idx: int) -> sqlite3.Row | None:
         ).fetchone()
 
 
-def create_card(device: str, island: dict, line: dict, video: dict | None) -> dict:
+def create_card(device: str, island: dict, line: dict, video: dict | None,
+                tag: str = "") -> dict:
     """Saves `line` of `island` as a card. An existing card for the same line
     is returned as is. Raises ValueError("no_audio") when the line has no wav
     and the island has no video row, ValueError("full") at MAX_CARDS."""
@@ -136,15 +141,15 @@ def create_card(device: str, island: dict, line: dict, video: dict | None) -> di
             conn.execute(
                 "INSERT INTO review_cards (id, device, island_id, idx, island_title, source,"
                 " language, native, ja, kana, romaji, en, words, duration, kind, video_id,"
-                " start_s, end_s, level, due_on, created_at)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?)",
+                " start_s, end_s, level, due_on, created_at, tag)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?)",
                 (
                     card_id, device, island["id"], line["idx"], island.get("title") or "",
                     island.get("source") or "", island.get("language") or "",
                     island.get("native") or "", line.get("ja") or "", line.get("kana") or "",
                     line.get("romaji") or "", line.get("en") or "",
                     json.dumps(line.get("words") or []), float(line.get("duration") or 0.0),
-                    kind, video_id, start_s, end_s, _today(), _now(),
+                    kind, video_id, start_s, end_s, _today(), _now(), tag,
                 ),
             )
     except sqlite3.IntegrityError:

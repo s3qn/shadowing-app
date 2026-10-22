@@ -6,6 +6,7 @@ export const en = {
   'leaderboard.you': 'you',
   // A row's screen reader label: rank, handle, level.
   'leaderboard.rowLabel': '{rank}. {name}, level {level}',
+  'leaderboard.rowStreak': '{n} day streak',
   'leaderboard.next': 'Next: @{name}, {n} levels up',
   'leaderboard.next_one': 'Next: @{name}, {n} level up',
   'leaderboard.next_two': 'Next: @{name}, {n} levels up',

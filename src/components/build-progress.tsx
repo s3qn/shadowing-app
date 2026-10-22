@@ -15,6 +15,7 @@ import { useT } from '@/lib/i18n';
 export function BuildProgress({
   stage,
   hint,
+  eta,
   error,
   blankTitle,
   onRetry,
@@ -22,6 +23,8 @@ export function BuildProgress({
 }: {
   stage: string;
   hint: string;
+  /** The countdown line. With it the leave notice replaces `hint`. */
+  eta?: string | null;
   error?: string;
   /** Hide the route's header title. */
   blankTitle?: boolean;
@@ -56,7 +59,8 @@ export function BuildProgress({
         ) : (
           <>
             <CatConstellation size={120} label={stage.replace(/…$/, '')} />
-            <Text style={[styles.hint, styles.centerText]}>{hint}</Text>
+            {eta ? <Text style={[styles.hint, styles.centerText]}>{eta}</Text> : null}
+            <Text style={[styles.hint, styles.centerText]}>{eta ? t('eta.leave') : hint}</Text>
           </>
         )}
       </View>

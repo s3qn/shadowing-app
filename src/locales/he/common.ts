@@ -72,6 +72,8 @@ export const he = {
   'api.not_enough_coins': 'אין מספיק מטבעות.',
   'api.not_owned': 'הפריט הזה עדיין לא שלכם.',
   'api.unknown_item': 'הפריט הזה כבר לא קיים.',
+  'api.freeze_cap': 'כבר יש לכם את מספר ההקפאות המרבי.',
+  'api.bad_purchase_id': 'מזהה הרכישה אינו תקין.',
 
   'islandError.import_interrupted': 'הייבוא הופסק.',
   'islandError.build_interrupted': 'הבנייה הופסקה.',
@@ -90,4 +92,11 @@ export const he = {
 
   'api.account_delete_unavailable': 'מחיקת חשבון עדיין לא הוגדרה בשרת.',
   'api.account_delete_failed': 'לא ניתן היה למחוק את החשבון. נסו שוב מאוחר יותר.',
+  'update.title': 'יש גרסה חדשה',
+  'update.body.ios': 'עדכנו את האפליקציה ב-TestFlight כדי להמשיך להשתמש בה.',
+  'update.body.android': 'הורידו את הגרסה החדשה כדי להמשיך להשתמש באפליקציה.',
+  'update.button.ios': 'פתחו את TestFlight',
+  'update.button.android': 'הורידו את העדכון',
+  'error.title': 'משהו השתבש',
+  'error.retry': 'נסו שוב',
 } satisfies Record<keyof typeof enCommon, string>;

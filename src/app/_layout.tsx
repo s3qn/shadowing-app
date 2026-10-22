@@ -3,16 +3,19 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { Platform } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useReducedMotion } from 'react-native-reanimated';
 
+import { PrismButton } from '@/components/prism/prism-button';
 import { CardMorphOverlay } from '@/components/card-morph-overlay';
-import { SessionCelebration, XpToast } from '@/components/session-celebration';
+import { SessionCelebration, StreakUpMoment, XpToast } from '@/components/session-celebration';
+import { StreakBrokenSheet } from '@/components/streak-sheet';
 import { ConfirmSheetHost } from '@/components/confirm-sheet-host';
 import { GuideHost } from '@/components/onboarding/guide-host';
 import { LoadingOverlay } from '@/components/loading-overlay';
 import { ReviewTour } from '@/components/review-tour';
+import { UpdateGate, centerStyles } from '@/components/update-gate';
 import { tide } from '@/constants/theme';
 import { getUsername } from '@/lib/api';
 import { loadSession, onSessionLost } from '@/lib/auth';
@@ -21,8 +24,9 @@ import { noteRoute, useFeedbackFlush } from '@/lib/feedback';
 import { loadOfflineIndex } from '@/lib/offline-islands'; // offline-islands
 import { type GuideStep, guideStartHome, useGuideStep } from '@/lib/guide';
 import { useT } from '@/lib/i18n';
-import { useCelebration, usePendingLevelUp } from '@/lib/level-up-store';
+import { isSessionActive, useCelebration, usePendingLevelUp, useStreakMoment } from '@/lib/level-up-store';
 import { getSettings } from '@/lib/settings';
+import { startStreakReminderSync } from '@/lib/streak-reminder';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -38,6 +42,7 @@ let nextCelebrationKey = 0;
 function LevelUpHost() {
   const pending = usePendingLevelUp();
   const celebration = useCelebration();
+  const streak = useStreakMoment();
   const segments = useSegments() as string[];
   const guideStep = useGuideStep();
   if (GUIDE_QUIET.has(guideStep)) return null;
@@ -49,8 +54,33 @@ function LevelUpHost() {
   const first = segments[0] ?? '';
   // island/[id] is one route name across two segments.
   const route = first === 'island' ? 'island/[id]' : first;
-  if (!pending || PRACTICE_ROUTES.has(route)) return <XpToast />;
-  return <SessionCelebration c={null} levelUp={pending} />;
+  if (PRACTICE_ROUTES.has(route)) return <XpToast />;
+  if (pending) return <SessionCelebration c={null} levelUp={pending} />;
+  // After any level-up: the streak moment (up full screen, broken as a sheet).
+  if (streak && isSessionActive()) return <XpToast />;
+  if (streak?.kind === 'up') return <StreakUpMoment key={`up${streak.streak}`} streak={streak.streak} milestone={streak.milestone} />;
+  if (streak?.kind === 'broken') return <StreakBrokenSheet key={`broken${streak.lost}`} lost={streak.lost} />;
+  return <XpToast />;
+}
+
+/** expo-router renders this for any uncaught render error under the root layout, so a release build shows a message instead of closing. */
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Promise<void> | void }) {
+  const { t } = useT();
+  return (
+    <View style={centerStyles.root}>
+      <Text style={centerStyles.title}>{t('error.title')}</Text>
+      <Text style={centerStyles.detail}>{error?.message ?? ''}</Text>
+      <PrismButton
+        shape="pill"
+        verb="listen"
+        on
+        label={t('error.retry')}
+        onPress={() => void retry()}
+        accessibilityRole="button"
+        containerStyle={centerStyles.button}
+      />
+    </View>
+  );
 }
 
 export default function RootLayout() {
@@ -88,6 +118,9 @@ export default function RootLayout() {
       } catch (err: unknown) {
         console.warn('getSettings failed', err);
       }
+      // Plans the evening streak reminder from the saved settings and keeps
+      // it in step with every practice flush, foreground change and toggle.
+      startStreakReminderSync();
       // A throw counts as no session, so the sign-in screen opens.
       let signedIn = false;
       try {
@@ -273,6 +306,7 @@ export default function RootLayout() {
       <GuideHost />
       <LoadingOverlay />
       <ConfirmSheetHost />
+      <UpdateGate />
     </GestureHandlerRootView>
   );
 }

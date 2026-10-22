@@ -12,6 +12,7 @@ import json
 import os
 import sqlite3
 import threading
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -55,6 +56,7 @@ CREATE TABLE IF NOT EXISTS lines (
   offset      REAL NOT NULL DEFAULT 0,
   tatoeba_id  INTEGER,
   span        TEXT NOT NULL DEFAULT '',
+  sure        INTEGER,
   PRIMARY KEY (island_id, idx),
   FOREIGN KEY (island_id) REFERENCES islands(id) ON DELETE CASCADE
 );
@@ -72,6 +74,12 @@ CREATE TABLE IF NOT EXISTS explain_cache (
   answer      TEXT NOT NULL,
   created_at  TEXT NOT NULL,
   PRIMARY KEY (sentence, marked, question)
+);
+CREATE TABLE IF NOT EXISTS build_stats (
+    kind TEXT NOT NULL,
+    media_s REAL NOT NULL,
+    work_s REAL NOT NULL,
+    at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS builds (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -91,7 +99,19 @@ CREATE TABLE IF NOT EXISTS videos (
   created_at  TEXT NOT NULL,
   align_status   TEXT NOT NULL DEFAULT '',
   align_error    TEXT NOT NULL DEFAULT '',
-  align_attempts INTEGER NOT NULL DEFAULT 0
+  align_attempts INTEGER NOT NULL DEFAULT 0,
+  repair_status   TEXT NOT NULL DEFAULT '',
+  repair_error    TEXT NOT NULL DEFAULT '',
+  repair_attempts INTEGER NOT NULL DEFAULT 0,
+  repair_version  INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS video_repairs (
+  video_id    TEXT PRIMARY KEY,
+  context     TEXT NOT NULL DEFAULT '{}',
+  version     INTEGER NOT NULL DEFAULT 0,
+  lines_hash  TEXT NOT NULL DEFAULT '',
+  result      TEXT NOT NULL DEFAULT '',
+  updated_at  TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS take_scores (
@@ -267,6 +287,12 @@ def init() -> None:
         # Rows without it (device='') belong to nobody until claimed.
         if "device" not in island_cols:
             conn.execute("ALTER TABLE islands ADD COLUMN device TEXT NOT NULL DEFAULT ''")
+        # bl70-eta: databases created before build estimates lack the media
+        # length and the build start time.
+        if "media_s" not in island_cols:
+            conn.execute("ALTER TABLE islands ADD COLUMN media_s REAL NOT NULL DEFAULT 0")
+        if "build_t0" not in island_cols:
+            conn.execute("ALTER TABLE islands ADD COLUMN build_t0 REAL NOT NULL DEFAULT 0")
         # After the ALTER above, since old databases only now have `device`.
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_islands_device_created ON islands(device, created_at)"
@@ -278,6 +304,19 @@ def init() -> None:
             ("align_status", "TEXT NOT NULL DEFAULT ''"),
             ("align_error", "TEXT NOT NULL DEFAULT ''"),
             ("align_attempts", "INTEGER NOT NULL DEFAULT 0"),
+        ):
+            if col not in video_cols:
+                conn.execute(f"ALTER TABLE videos ADD COLUMN {col} {ddl}")
+        # youtube-asr-context-repair: lines from before the repair pass carry
+        # no verdict (NULL = not checked), videos no repair state. Additive
+        # and idempotent like the loop above.
+        if "sure" not in cols:
+            conn.execute("ALTER TABLE lines ADD COLUMN sure INTEGER")
+        for col, ddl in (
+            ("repair_status", "TEXT NOT NULL DEFAULT ''"),
+            ("repair_error", "TEXT NOT NULL DEFAULT ''"),
+            ("repair_attempts", "INTEGER NOT NULL DEFAULT 0"),
+            ("repair_version", "INTEGER NOT NULL DEFAULT 0"),
         ):
             if col not in video_cols:
                 conn.execute(f"ALTER TABLE videos ADD COLUMN {col} {ddl}")
@@ -325,12 +364,55 @@ def set_speaker(island_id: str, speaker: int) -> None:
         conn.execute("UPDATE islands SET speaker=? WHERE id=?", (speaker, island_id))
 
 
+def start_build(island_id: str) -> None:
+    """Stamp the build start (upload or download counts toward the wait)."""
+    with connect() as conn:
+        conn.execute("UPDATE islands SET build_t0=? WHERE id=?", (time.time(), island_id))
+
+
+def set_media(island_id: str, media_s: float) -> None:
+    """Record the media length; stamps the start too if nothing has yet."""
+    with connect() as conn:
+        conn.execute(
+            "UPDATE islands SET media_s=?, build_t0=CASE WHEN build_t0=0 THEN ? ELSE build_t0 END"
+            " WHERE id=?",
+            (media_s, time.time(), island_id),
+        )
+
+
+def build_kind(source: str) -> str | None:
+    return {"import": "import", "podcast": "import", "youtube": "video"}.get(source)
+
+
+def record_build(kind: str, media_s: float, work_s: float) -> None:
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO build_stats(kind, media_s, work_s, at) VALUES (?,?,?,?)",
+            (kind, media_s, work_s, datetime.now(timezone.utc).isoformat()),
+        )
+
+
+def build_history(kind: str, limit: int = 20) -> list[tuple[float, float]]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT media_s, work_s FROM build_stats WHERE kind=? ORDER BY rowid DESC LIMIT ?",
+            (kind, limit),
+        ).fetchall()
+    return [(r["media_s"], r["work_s"]) for r in rows]
+
+
 def set_ready(island_id: str, title: str) -> None:
     with connect() as conn:
         conn.execute(
             "UPDATE islands SET status='ready', stage='', title=? WHERE id=?",
             (title, island_id),
         )
+        row = conn.execute(
+            "SELECT source, media_s, build_t0 FROM islands WHERE id=?", (island_id,)
+        ).fetchone()
+    kind = build_kind(row["source"]) if row else None
+    if kind and row["media_s"] > 0 and row["build_t0"] > 0:
+        record_build(kind, row["media_s"], max(0.0, time.time() - row["build_t0"]))
 
 
 def set_source(island_id: str, source: str, source_name: str) -> None:
@@ -558,7 +640,7 @@ def list_islands(device: str | None = None) -> list[dict]:
     healing relies on. A string filters to that device's own islands."""
     query = (
         "SELECT i.id, i.title, i.status, i.stage, i.complexity, i.language, i.native,"
-        " i.source, i.source_name, i.created_at, i.device, COUNT(l.idx) AS line_count"
+        " i.source, i.source_name, i.created_at, i.device, i.media_s, i.build_t0, COUNT(l.idx) AS line_count"
         " FROM islands i LEFT JOIN lines l ON l.island_id = i.id"
     )
     params: tuple = ()
@@ -1018,6 +1100,129 @@ def get_video(island_id: str) -> dict | None:
     with connect() as conn:
         row = conn.execute("SELECT * FROM videos WHERE island_id=?", (island_id,)).fetchone()
     return dict(row) if row else None
+
+
+# --- youtube-asr-context-repair ---
+def set_line_text(island_id: str, idx: int, ja: str, kana: str, words: list,
+                  sure: int | None, expected_ja: str) -> bool:
+    """Replace one line's text, reading, word times and verdict, only while
+    its text still equals `expected_ja` (checked inside one write lock, like
+    _set_line_json), so a repair computed from an older read never overwrites
+    a line that moved in the meantime. Returns True when a row was written."""
+    conn = connect()
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        row = conn.execute(
+            "SELECT ja FROM lines WHERE island_id=? AND idx=?", (island_id, idx)
+        ).fetchone()
+        if row is None or row["ja"] != expected_ja:
+            conn.rollback()
+            return False
+        cur = conn.execute(
+            "UPDATE lines SET ja=?, kana=?, words=?, sure=? WHERE island_id=? AND idx=?",
+            (ja, kana, json.dumps(words, ensure_ascii=False), sure, island_id, idx),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    except Exception:
+        conn.rollback()
+        raise
+
+
+def set_line_sure(island_id: str, idx: int, sure: int | None) -> None:
+    with connect() as conn:
+        conn.execute("UPDATE lines SET sure=? WHERE island_id=? AND idx=?", (sure, island_id, idx))
+
+
+def set_repair_status(island_id: str, status: str, error: str = "",
+                      version: int | None = None, count_attempt: bool = False) -> None:
+    with connect() as conn:
+        conn.execute(
+            "UPDATE videos SET repair_status=?, repair_error=?,"
+            " repair_attempts=repair_attempts+?, repair_version=COALESCE(?, repair_version)"
+            " WHERE island_id=?",
+            (status, error, 1 if count_attempt else 0, version, island_id),
+        )
+
+
+def claim_repair(island_id: str, max_attempts: int, version: int) -> bool:
+    """Mark the video's repair queued and count the attempt if it is idle
+    ('' or failed, or done at an older version) and has attempts left. One
+    UPDATE, so of two racing callers only one wins."""
+    with connect() as conn:
+        cur = conn.execute(
+            "UPDATE videos SET repair_status='queued', repair_error='',"
+            " repair_attempts=repair_attempts+1"
+            " WHERE island_id=? AND repair_attempts<?"
+            " AND (repair_status IN ('','failed')"
+            "      OR (repair_status='done' AND repair_version<?))",
+            (island_id, max_attempts, version),
+        )
+    return cur.rowcount == 1
+
+
+def list_repair_pending() -> list[str]:
+    """Island ids whose repair was queued or running when the process died."""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT island_id FROM videos WHERE repair_status IN ('queued','running')"
+            " ORDER BY created_at"
+        ).fetchall()
+    return [r["island_id"] for r in rows]
+
+
+def get_repair(video_id: str) -> dict | None:
+    """The per-video repair row with `context` and `result` parsed
+    (`result` is None until a pass has run)."""
+    with connect() as conn:
+        row = conn.execute("SELECT * FROM video_repairs WHERE video_id=?", (video_id,)).fetchone()
+    if row is None:
+        return None
+    out = dict(row)
+    try:
+        out["context"] = json.loads(out["context"] or "{}")
+    except ValueError:
+        out["context"] = {}
+    try:
+        out["result"] = json.loads(out["result"]) if out["result"] else None
+    except ValueError:
+        out["result"] = None
+    return out
+
+
+def _context_is_empty(context: dict | None) -> bool:
+    return not context or not any(context.get(k) for k in
+                                  ("title", "author", "description", "keywords", "chapters"))
+
+
+def set_repair_context(video_id: str, context: dict | None) -> None:
+    """Store the phone's video context. An empty context (web, offline, an
+    old build) keeps whatever an earlier open stored."""
+    now = _now()
+    with connect() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO video_repairs (video_id, context, updated_at) VALUES (?, '{}', ?)",
+            (video_id, now),
+        )
+        if not _context_is_empty(context):
+            conn.execute(
+                "UPDATE video_repairs SET context=?, updated_at=? WHERE video_id=?",
+                (json.dumps(context, ensure_ascii=False), now, video_id),
+            )
+
+
+def set_repair_result(video_id: str, version: int, lines_hash: str, result: dict) -> None:
+    now = _now()
+    with connect() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO video_repairs (video_id, context, updated_at) VALUES (?, '{}', ?)",
+            (video_id, now),
+        )
+        conn.execute(
+            "UPDATE video_repairs SET version=?, lines_hash=?, result=?, updated_at=? WHERE video_id=?",
+            (version, lines_hash, json.dumps(result, ensure_ascii=False), now, video_id),
+        )
+# --- end youtube-asr-context-repair ---
 
 
 def list_videos(device: str) -> list[dict]:

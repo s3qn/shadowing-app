@@ -359,7 +359,8 @@ def reading(text: str) -> str:
     return "".join(out)
 
 
-def align_pieces(text: str, pieces: list[dict], duration: float) -> list[dict]:
+def align_pieces(text: str, pieces: list[dict], duration: float,
+                 speech_end: float | None = None) -> list[dict]:
     """Second input path into word highlighting, alongside align().
 
     align() anchors a line against VOICEVOX's own mora timeline. This anchors
@@ -371,10 +372,14 @@ def align_pieces(text: str, pieces: list[dict], duration: float) -> list[dict]:
     proportionally to mora count between whatever anchors exist. With no
     usable pieces every chunk is spread, which is the same constant mora-rate
     result as when nothing anchors at all: that is the fallback, and only the
-    fallback. Same output shape and guarantees as align(): contiguous
-    [{text, start, end, pos, ruby}], first start 0, last end = duration,
-    whole line as one chunk on any failure. `ruby` here is not checked
-    against a mora timeline (there is none), unlike align()'s `checked_ruby`.
+    fallback. When nothing anchors and `speech_end` is given (see
+    speech_end()), the spread ends there instead of at `duration`: a caption
+    that runs until the next caption has a trailing pause the words must not
+    cover. Same output shape and guarantees as align(): contiguous
+    [{text, start, end, pos, ruby}], first start 0, last end = speech_end when
+    given and nothing anchored, else duration, whole line as one chunk on any
+    failure. `ruby` here is not checked against a mora timeline (there is
+    none), unlike align()'s `checked_ruby`.
     """
     if duration <= 0:
         return []
@@ -435,7 +440,10 @@ def align_pieces(text: str, pieces: list[dict], duration: float) -> list[dict]:
             None if starts[i] is None else [starts[i], ends[i]] for i in range(len(chunks))
         ]
 
-        fill_spans(spans, weights, duration)
+        last_end = duration
+        if speech_end is not None and 0 < speech_end < duration and all(s is None for s in spans):
+            last_end = speech_end
+        fill_spans(spans, weights, last_end)
 
         return [
             {
@@ -464,6 +472,53 @@ def moras_of(text: str) -> list[str]:
                 m = _VOWEL.get(prev[-1] if prev[-1] in _SMALL else prev[0], m)
             out.append(m)
     return out
+
+
+RATE_DEFAULT = 6.0
+RATE_MIN, RATE_MAX = 4.0, 10.0
+RATE_MIN_LINES = 5
+RATE_MIN_LINE_S = 1.0
+SPEECH_MIN_SHARE = 0.4
+SPEECH_MIN_S = 0.3
+SPEECH_KEEP_TAIL_S = 0.1
+
+
+def mora_rate(items: list[tuple[str, float]]) -> float:
+    """Moras per second a speaker keeps up on a caption track, from (text,
+    duration) pairs. Each line's own rate counts when the line lasts at least
+    RATE_MIN_LINE_S and has moras; the result is their 80th percentile (lines
+    at the median already carry a pause, the tight lines sit near p80),
+    clamped to [RATE_MIN, RATE_MAX]. Fewer than RATE_MIN_LINES usable lines
+    give RATE_DEFAULT."""
+    rates = []
+    for text, duration in items:
+        if duration < RATE_MIN_LINE_S:
+            continue
+        n = len(moras_of(text))
+        if n:
+            rates.append(n / duration)
+    if len(rates) < RATE_MIN_LINES:
+        return RATE_DEFAULT
+    rates.sort()
+    p80 = rates[int(0.8 * (len(rates) - 1) + 0.5)]
+    return min(RATE_MAX, max(RATE_MIN, p80))
+
+
+def speech_end(text: str, duration: float, rate: float) -> float | None:
+    """Where the speech of a caption line ends when its words are spread at
+    `rate` moras per second: the mora count over the rate, never under
+    SPEECH_MIN_SHARE of the line or SPEECH_MIN_S. None when the line has no
+    moras or the speech reaches within SPEECH_KEEP_TAIL_S of the end (nothing
+    worth trimming)."""
+    if rate <= 0:
+        return None
+    n = len(moras_of(text))
+    if n == 0:
+        return None
+    end = max(n / rate, SPEECH_MIN_SHARE * duration, SPEECH_MIN_S)
+    if end >= duration - SPEECH_KEEP_TAIL_S:
+        return None
+    return round(end, 3)
 
 
 def reading_distance(a: str, b: str) -> int:

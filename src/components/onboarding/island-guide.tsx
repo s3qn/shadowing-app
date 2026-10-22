@@ -2,6 +2,7 @@ import { type MutableRefObject, useEffect, useRef, useState } from 'react';
 
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
+import { skipGuide } from '@/components/onboarding/guide-host';
 import { GuideLayer, guideBubbleHeight } from '@/components/onboarding/guide-layer';
 import { setGuideStep, useGuideAnchors, useGuideStep } from '@/lib/guide';
 import { useT } from '@/lib/i18n';
@@ -96,6 +97,7 @@ export function IslandGuide(p: IslandGuideProps) {
         bubble={{ kind, text, top: bubbleTop }}
         // Listen lights on "Tap Listen" (page 2); the Easy pages after it keep it lit.
         litPage={step === 'listen' ? 1 : undefined}
+        onSkip={skipGuide}
       />
       {/* While a run is on the dock (no stage view over it) only its Shadow button answers: prev, play, next, speed and
           the gear sit in this band and are swallowed. The stage view's own controls are never covered. */}

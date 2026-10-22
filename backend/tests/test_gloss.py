@@ -62,3 +62,32 @@ def test_gloss_common_word_shape():
     sense = entry["senses"][0]
     assert set(sense.keys()) == {"pos", "glosses"}
     assert any("cat" in g for g in sense["glosses"])
+
+
+def test_lookups_work_on_a_worker_thread_after_the_main_thread():
+    # jamdict's SQLite connection is bound to the thread that opened it; the
+    # repair job and the gloss route run on worker threads.
+    from concurrent.futures import ThreadPoolExecutor
+
+    gloss._WORDS.clear()
+    gloss._CACHE.pop("泥酔", None)
+    assert gloss.is_word("東京")
+    with ThreadPoolExecutor(1) as pool:
+        words = pool.submit(lambda: [gloss.is_word(w) for w in ("泥酔", "東京", "記憶")]).result()
+        found = pool.submit(lambda: gloss.gloss("泥酔")["found"]).result()
+    assert words == [True, True, True] and found is True
+
+
+def test_a_failed_lookup_is_not_cached(monkeypatch):
+    class Broken:
+        def lookup(self, form):
+            raise RuntimeError("db closed")
+
+    gloss._WORDS.pop("記憶", None)
+    gloss._CACHE.pop("記憶", None)
+    monkeypatch.setattr(gloss, "_jam", lambda: Broken())
+    assert gloss.is_word("記憶") is False
+    assert gloss.gloss("記憶")["found"] is False
+    monkeypatch.undo()
+    assert gloss.is_word("記憶") is True
+    assert gloss.gloss("記憶")["found"] is True

@@ -80,6 +80,10 @@ export function clearCelebration() {
 export function useCelebration(): Celebration | null {
   return useSyncExternalStore(subscribe, () => celebration);
 }
+/** A session summary is on screen: Home's streak reminder offer waits for the next focus. */
+export function isCelebrationOpen(): boolean {
+  return celebration !== null;
+}
 
 /** auto-practice marks the running session: its summary and level-up frame wait for the end, the toast does not. */
 export function setSessionActive(on: boolean) {
@@ -139,4 +143,42 @@ export function pushInlineXp(n: number, cap = false) {
 }
 export function useInlineXp(): { n: number; id: number; cap: boolean } {
   return useSyncExternalStore(subscribe, () => inline);
+}
+
+// BL-80: the streak-up moment (the day just started counting) and the
+// streak-broken moment (Home found a lost streak). Memory only, like the
+// level-up: the host shows it once the user is off every practice route.
+// One per streak rung (STREAK_RUNGS in progression.py): the server pays the
+// achievement and its item on the rung's first award.
+export const MILESTONE_DAYS = [7, 14, 30, 60, 100, 180, 365, 500, 1000] as const;
+export type StreakMilestone = (typeof MILESTONE_DAYS)[number];
+export type StreakMoment = { kind: 'up'; streak: number; milestone: StreakMilestone | null } | { kind: 'broken'; lost: number };
+
+export function milestoneOf(n: number): StreakMilestone | null {
+  return (MILESTONE_DAYS as readonly number[]).includes(n) ? (n as StreakMilestone) : null;
+}
+
+let streakMoment: StreakMoment | null = null;
+
+/** A newer moment replaces an older one; an up moment always replaces a broken one. */
+export function pushStreakMoment(m: StreakMoment) {
+  if (streakMoment?.kind === 'up' && m.kind === 'broken') return;
+  streakMoment = m;
+  emit();
+}
+export function clearStreakMoment() {
+  if (!streakMoment) return;
+  streakMoment = null;
+  emit();
+}
+export function useStreakMoment(): StreakMoment | null {
+  return useSyncExternalStore(subscribe, () => streakMoment);
+}
+/** The milestone of a queued or showing up moment, else null: its tile celebrates the rung's item, so the item screen waits for it. */
+export function pendingStreakMilestone(): number | null {
+  return streakMoment?.kind === 'up' ? streakMoment.milestone : null;
+}
+/** A streak moment is pending or on screen: Home's streak reminder offer waits for the next focus. */
+export function isStreakMomentOpen(): boolean {
+  return streakMoment !== null;
 }

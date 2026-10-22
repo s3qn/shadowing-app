@@ -94,6 +94,20 @@ def test_retime_drift_guard_keeps_caption_timing():
     assert [r["idx"] for r in results] == [1]
 
 
+def test_retime_accepts_an_end_well_before_the_caption_end():
+    # The caption runs until the next caption; the speech stopped at 12.5.
+    lines = [line(0, "ab", 10.0, 6.0)]
+    (r,) = align.retime(lines, {0: [piece("a", 10.2, 11.0), piece("b", 11.0, 12.5)]})
+    assert r["offset"] == pytest.approx(10.1)
+    assert r["duration"] == pytest.approx(2.5)
+
+
+def test_retime_still_rejects_a_late_end_and_a_drifted_start():
+    lines = [line(0, "ab", 10.0, 6.0), line(1, "cd", 20.0, 6.0)]
+    pieces = {0: [piece("a", 10.2, 18.0)], 1: [piece("c", 22.0, 23.0)]}
+    assert align.retime(lines, pieces) == []
+
+
 def test_retime_offsets_monotonic_without_overlap_and_min_duration():
     lines = [line(0, "ab", 0.0, 2.0), line(1, "cd", 2.0, 2.0)]
     pieces = {0: [piece("a", 0.2, 2.4)], 1: [piece("c", 2.1, 3.0)]}

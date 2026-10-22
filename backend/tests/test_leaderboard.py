@@ -55,7 +55,7 @@ def test_whitelist(monkeypatch):
     owners, names = _named([1000, 500, 60])
     res = _call(monkeypatch, names, owners[0])
     for e in res["entries"]:
-        assert set(e) == {"username", "level", "equipped"}
+        assert set(e) == {"username", "level", "equipped", "streak_days"}
         assert set(e["equipped"]) == set(progression.SLOTS)
     assert set(res["me"]) == {"rank", "level", "username"}
     blob = json.dumps(res)
@@ -128,7 +128,7 @@ def test_named_without_progress(monkeypatch):
     assert res["me"] == {"rank": 3, "level": 1, "username": names[fresh]}
     # The privacy whitelist still holds: no owner id or xp leaks.
     for e in res["entries"]:
-        assert set(e) == {"username", "level", "equipped"}
+        assert set(e) == {"username", "level", "equipped", "streak_days"}
     blob = json.dumps(res)
     for bad in (*owners, fresh, "xp", "coins", "email"):
         assert bad not in blob
@@ -216,7 +216,7 @@ def test_weekly_ranks_by_minutes_plus_lines(week):
     assert [e["username"] for e in out["entries"]] == ["bob", "ann", "cy"]
     assert [e["score"] for e in out["entries"]] == [12, 10, 7]
     for e in out["entries"]:
-        assert set(e) == {"username", "level", "equipped", "minutes", "lines", "score"}
+        assert set(e) == {"username", "level", "equipped", "streak_days", "minutes", "lines", "score"}
     me = out["me"]
     assert (me["rank"], me["minutes"], me["lines"], me["score"], me["top_pct"]) == (3, 5, 2, 7, 100)
     assert _weekly({a: "ann", b: "bob", c: "cy"}, b, week)["me"]["top_pct"] == 34

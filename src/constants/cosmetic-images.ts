@@ -1,7 +1,7 @@
 /**
  * Item PNGs for the Rive cat, keyed by catalog item id. Files live in
  * assets/cosmetics/, drawn by the Rive session and fitted to Kageneko.
- * All 53 shop items plus the 8 hours items. Tail bows (accessory.tailbow_*) inject into the v3 tail slot;
+ * 57 shop and streak items, the 8 hours items and the 5 streak-rung placeholders. Tail bows (accessory.tailbow_*) inject into the v3 tail slot;
  * see kageneko-view.tsx for the accessory->tail routing.
  */
 export const ITEM_IMAGES: Readonly<Partial<Record<string, number>>> = {
@@ -16,6 +16,7 @@ export const ITEM_IMAGES: Readonly<Partial<Record<string, number>>> = {
   'head.beanie_orange': require('../../assets/cosmetics/head.beanie_orange.png'),
   'head.cap_teal': require('../../assets/cosmetics/head.cap_teal.png'),
   'head.crown_orange': require('../../assets/cosmetics/head.crown_orange.png'),
+  'head.crown_ember': require('../../assets/cosmetics/head.crown_ember.png'),
   'head.tophat_white': require('../../assets/cosmetics/head.tophat_white.png'),
   'head.crown_silver': require('../../assets/cosmetics/head.crown_silver.png'),
   'head.beta_tester_hat': require('../../assets/cosmetics/head.beta_tester_hat.png'),
@@ -31,6 +32,7 @@ export const ITEM_IMAGES: Readonly<Partial<Record<string, number>>> = {
   'face.shades_blue': require('../../assets/cosmetics/face.shades_blue.png'),
   'face.monocle_silver': require('../../assets/cosmetics/face.monocle_silver.png'),
   'face.mask_gold': require('../../assets/cosmetics/face.mask_gold.png'),
+  'face.mask_phoenix': require('../../assets/cosmetics/face.mask_phoenix.png'),
   'face.shades_pink': require('../../assets/cosmetics/face.shades_pink.png'),
   'body.scarf_blue': require('../../assets/cosmetics/body.scarf_blue.png'),
   'body.scarf_red': require('../../assets/cosmetics/body.scarf_red.png'),
@@ -38,6 +40,7 @@ export const ITEM_IMAGES: Readonly<Partial<Record<string, number>>> = {
   'body.hoodie_green': require('../../assets/cosmetics/body.hoodie_green.png'),
   'body.shirt_orange': require('../../assets/cosmetics/body.shirt_orange.png'),
   'body.scarf_gold': require('../../assets/cosmetics/body.scarf_gold.png'),
+  'body.scarf_ember': require('../../assets/cosmetics/body.scarf_ember.png'),
   'body.hoodie_purple': require('../../assets/cosmetics/body.hoodie_purple.png'),
   'body.cape_red': require('../../assets/cosmetics/body.cape_red.png'),
   'body.kimono_pink': require('../../assets/cosmetics/body.kimono_pink.png'),
@@ -51,6 +54,7 @@ export const ITEM_IMAGES: Readonly<Partial<Record<string, number>>> = {
   'accessory.tailbow_pink': require('../../assets/cosmetics/accessory.tailbow_pink.png'),
   'accessory.bowtie_black': require('../../assets/cosmetics/accessory.bowtie_black.png'),
   'accessory.badge_gold': require('../../assets/cosmetics/accessory.badge_gold.png'),
+  'accessory.badge_ember': require('../../assets/cosmetics/accessory.badge_ember.png'),
   'accessory.collar_blue': require('../../assets/cosmetics/accessory.collar_blue.png'),
   'accessory.bowtie_red': require('../../assets/cosmetics/accessory.bowtie_red.png'),
   'accessory.bell_silver': require('../../assets/cosmetics/accessory.bell_silver.png'),
@@ -68,4 +72,11 @@ export const ITEM_IMAGES: Readonly<Partial<Record<string, number>>> = {
   'accessory.collar_moon': require('../../assets/cosmetics/accessory.collar_moon.png'),
   'face.mask_kitsune': require('../../assets/cosmetics/face.mask_kitsune.png'),
   'head.crown_hours': require('../../assets/cosmetics/head.crown_hours.png'),
+  // Streak rungs: placeholder recolours, see assets/cosmetics/STREAK-ART.md.
+  // Sean's art replaces each PNG under the same name. No code change.
+  'face.streak_14': require('../../assets/cosmetics/face.streak_14.png'),
+  'head.streak_60': require('../../assets/cosmetics/head.streak_60.png'),
+  'accessory.streak_180': require('../../assets/cosmetics/accessory.streak_180.png'),
+  'body.streak_500': require('../../assets/cosmetics/body.streak_500.png'),
+  'head.streak_1000': require('../../assets/cosmetics/head.streak_1000.png'),
 };

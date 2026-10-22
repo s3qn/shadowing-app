@@ -1,6 +1,7 @@
 import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { BackHandler, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import Animated, {
   Easing,
   cancelAnimation,
@@ -17,6 +18,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CatAvatar } from '@/components/cat/cat-avatar';
+import { ItemDisc } from '@/components/cat/item-grid';
 import { Frost } from '@/components/frost';
 import { GlassPanel, PrismButton } from '@/components/prism';
 import { HeroGlow, HeroNumber, heroText } from '@/components/tide/hero-number';
@@ -29,8 +31,10 @@ import { tide } from '@/constants/theme';
 import { isolate } from '@/lib/bidi';
 import { hapticImpact, hapticNotify } from '@/lib/haptics';
 import { useDir, useT } from '@/lib/i18n';
-import { clearCelebration, clearLevelUp, clearXpToast, useXpToast, type Celebration, type PendingLevelUp, type RecapLine } from '@/lib/level-up-store';
-import { equippedArt, useProgressCache } from '@/lib/progression';
+import { clearCelebration, clearLevelUp, clearStreakMoment, clearXpToast, useXpToast, type Celebration, type PendingLevelUp, type RecapLine, type StreakMilestone } from '@/lib/level-up-store';
+import { equippedArt, markUnlockSeen, useProgressCache } from '@/lib/progression';
+import { EmberGlow, WEEKDAY_KEY } from '@/components/practice-card';
+import { dayQualifies, devStreakActive, getPracticeLog, lastSevenDays } from '@/lib/practice';
 import { getSettingsSync } from '@/lib/settings';
 
 // BL-51, picked mock .claude/design/S4-r2.html: the session summary, the XP
@@ -130,6 +134,7 @@ export function SessionCelebration({ c, levelUp }: Props) {
   const dir = useDir();
   const reduced = useReducedMotion();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { width } = useWindowDimensions();
   const { progress, catalog } = useProgressCache();
   const cheer = CHEER[getSettingsSync().learningLanguage] ?? CHEER.en;
@@ -300,7 +305,7 @@ export function SessionCelebration({ c, levelUp }: Props) {
           <Text style={[styles.title, dir.writing]}>{levelOnly ? (hoursOnly ? t('summary.newItem') : t('summary.levelWord')) : t('summary.title')}</Text>
           {levelOnly ? null : <Text style={[styles.sub, dir.writing]}>{t('summary.sub')}</Text>}
         </View>
-        <View style={styles.close} />
+        <View style={styles.closeSpacer} />
       </View>
 
       {stage === 'summary' && c?.recap ? (
@@ -361,7 +366,7 @@ export function SessionCelebration({ c, levelUp }: Props) {
             </Animated.View>
           ) : null}
           {leveled || hoursOnly ? (
-            <Animated.View style={[StyleSheet.absoluteFill, styles.body, lvlLayer]} pointerEvents="none">
+            <Animated.View style={[StyleSheet.absoluteFill, styles.body, hoursOnly && styles.bodyCentred, lvlLayer]} pointerEvents="none">
               {hoursOnly ? null : <Animated.Text style={[styles.flourish, dir.content, floStyle]}>{getSettingsSync().learningLanguage === 'ja' ? cheer.level : t('summary.cheerLevel')}</Animated.Text>}
               {hoursOnly ? null : <View style={[styles.levelRow, dir.row]}>
                 <View>
@@ -384,11 +389,11 @@ export function SessionCelebration({ c, levelUp }: Props) {
                 </Text>
               ) : null}
               {unlocked || (levelUp?.coins ?? 0) > 0 ? (
-                <Animated.View style={[styles.reward, dir.row, rewardStyle]}>
-                  <Tile emoji={unlocked ? (unlocked.hours_req ? '✨' : unlocked.slot === 'head' ? '🎩' : '🎁') : '🪙'} tint="255,200,87" size={44} />
-                  <View style={styles.fill}>
-                    <Text style={[styles.rewardTitle, dir.text]}>{unlocked ? t('summary.unlocked', { name: unlocked.name }) : t('summary.coins', { n: levelUp?.coins ?? 0 })}</Text>
-                    {unlocked ? <Text style={[styles.caption, dir.text]}>{t('summary.wardrobe')}</Text> : null}
+                <Animated.View style={[styles.reward, hoursOnly ? styles.rewardBig : dir.row, rewardStyle]}>
+                  {unlocked ? <ItemDisc item={unlocked} locked={false} size={hoursOnly ? 96 : 44} /> : <Tile emoji="🪙" tint="255,200,87" size={44} />}
+                  <View style={hoursOnly ? styles.rewardText : styles.fill}>
+                    <Text style={[styles.rewardTitle, hoursOnly ? dir.writing : dir.text]}>{unlocked ? t('summary.unlocked', { name: unlocked.name }) : t('summary.coins', { n: levelUp?.coins ?? 0 })}</Text>
+                    {unlocked ? <Text style={[styles.caption, hoursOnly ? dir.writing : dir.text]}>{t('summary.wardrobe')}</Text> : null}
                   </View>
                 </Animated.View>
               ) : null}
@@ -400,6 +405,22 @@ export function SessionCelebration({ c, levelUp }: Props) {
       )}
 
       <View style={[styles.cta, { bottom: ctaBottom }]}>
+        {hoursOnly && unlocked ? (
+          <View style={{ marginBottom: 12 }}>
+            <PrismButton
+              shape="pill"
+              verb="tools"
+              on={false}
+              width={width - 40}
+              height={58}
+              label={t('summary.tryOn')}
+              onPress={() => {
+                done();
+                router.push({ pathname: '/wardrobe', params: { item: unlocked.id } });
+              }}
+            />
+          </View>
+        ) : null}
         <PrismButton shape="pill" verb="read" on width={width - 40} height={58} label={cta} onPress={stage === 'summary' && xp > 0 ? () => setStage('xp') : done} />
       </View>
     </View>
@@ -505,6 +526,148 @@ export function XpToast() {
   );
 }
 
+const NUM_H = 100;
+const FLAME_H = 86;
+
+/**
+ * M2-5, the streak went up: the flame fills over its dim copy, the number
+ * rolls from n-1 to n, the week as seven flame discs, the milestone reward
+ * and the cat. Tap above the CTA to jump to the end; the close button and
+ * Keep going close it.
+ */
+export function StreakUpMoment({ streak, milestone }: { streak: number; milestone: StreakMilestone | null }) {
+  const { t } = useT();
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const reducedMotion = useReducedMotion();
+  const { progress, catalog } = useProgressCache();
+  const equipped = useMemo(() => (progress && catalog ? equippedArt(progress, catalog) : {}), [progress, catalog]);
+  const [catEmotion, fireEmotion] = useEmotionPulse();
+  const [week, setWeek] = useState<{ key: string; lit: boolean }[]>(() => lastSevenDays(new Date()).map((key) => ({ key, lit: false })));
+
+  // The milestone's item, from the catalog: owned (the usual case, the server
+  // pays the milestone on the day's first award) shows its name, else the badge.
+  const item = milestone && catalog ? catalog.find((i) => i.unlock?.source === 'achievement' && i.unlock.need === `streak_${milestone}`) : undefined;
+  const owned = !!item && !!progress?.owned.includes(item.id);
+  // First celebration of the item: "X unlocked". A rung reached again after a
+  // break (the item was seen before) reads as a milestone with the disc.
+  const [fresh, setFresh] = useState(false);
+
+  const fill = useSharedValue(0);
+  const roll = useSharedValue(0);
+  useEffect(() => {
+    void hapticNotify(SUCCESS);
+    fireEmotion(milestone ? 'excited' : 'proud', 4000);
+    void getPracticeLog().then((log) => setWeek(lastSevenDays(new Date()).map((key) => ({ key, lit: dayQualifies(log, key) }))));
+    if (reducedMotion) {
+      fill.value = withTiming(1, { duration: 150, easing: Easing.linear });
+      roll.value = 1;
+    } else {
+      fill.value = withDelay(250, withTiming(1, { duration: 700, easing: OUT_CUBIC }));
+      roll.value = withDelay(250, withTiming(1, { duration: 600, easing: OUT_CUBIC }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (owned && item && !devStreakActive()) {
+      void markUnlockSeen(item.id).then((first) => {
+        if (first) setFresh(true);
+      });
+    }
+  }, [owned, item]);
+  // Android back closes the moment instead of leaving the screen behind it.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      clearStreakMoment();
+      return true;
+    });
+    return () => sub.remove();
+  }, []);
+
+  const finals = () => {
+    cancelAnimation(fill);
+    cancelAnimation(roll);
+    fill.set(1);
+    roll.set(1);
+  };
+  const close = () => clearStreakMoment();
+
+  // Bottom-anchored reveal of the lit flame over its dim copy.
+  const revealStyle = useAnimatedStyle(() => ({ height: FLAME_H * fill.value }));
+  const glowStyle = useAnimatedStyle(() => ({ opacity: 0.35 + 0.65 * fill.value }));
+  const ringStyle = useAnimatedStyle(() => ({ opacity: 0.6 * fill.value, transform: [{ scale: 0.8 + 0.2 * fill.value }] }));
+  const rollStyle = useAnimatedStyle(() => ({ transform: [{ translateY: -NUM_H * roll.value }] }));
+
+  return (
+    <View style={StyleSheet.absoluteFill} accessibilityViewIsModal>
+      <Canvas style={StyleSheet.absoluteFill}>
+        <RoundedRect x={0} y={0} width={width} height={height} r={0}>
+          <LinearGradient start={vec(0, 0)} end={vec(0, height)} colors={['#070A12', '#101A2A', '#16243A']} positions={[0, 0.55, 1]} />
+        </RoundedRect>
+      </Canvas>
+      <View style={[styles.header, { marginTop: insets.top }]}>
+        <Pressable style={styles.close} onPress={close} accessibilityRole="button" accessibilityLabel={t('summary.close')} hitSlop={8}>
+          <Text style={styles.closeGlyph}>✕</Text>
+        </Pressable>
+      </View>
+      <View style={styles.upBody}>
+        <View style={styles.upFlameBlock}>
+          <Animated.View style={[styles.upCentre, glowStyle]}>
+            <EmberGlow size={220} colors={['rgba(255,170,70,0.55)', 'rgba(255,140,50,0.18)', 'rgba(255,140,50,0)']} positions={[0, 0.6, 1]} />
+          </Animated.View>
+          {milestone ? <Animated.View style={[styles.upRing, ringStyle]} /> : null}
+          <View style={styles.upFlame}>
+            <Text style={[styles.upEmoji, styles.upEmojiDim]}>🔥</Text>
+            <Animated.View style={[styles.upReveal, revealStyle]}>
+              <Text style={[styles.upEmoji, styles.upEmojiLit]}>🔥</Text>
+            </Animated.View>
+          </View>
+        </View>
+        {/* A score reads left to right in every language, as in the mock. */}
+        <View style={styles.upNumRow}>
+          <View style={styles.upNumClip}>
+            <Animated.View style={reducedMotion ? styles.upRolled : rollStyle}>
+              <Text style={styles.upNum}>{Math.max(0, streak - 1)}</Text>
+              <Text style={styles.upNum}>{streak}</Text>
+            </Animated.View>
+          </View>
+          <View>
+            <Text style={styles.upLabel}>{t('streak.dayStreak', { n: streak })}</Text>
+            {milestone ? <Text style={styles.upMilestone}>{t('streak.milestone', { n: milestone }).toUpperCase()}</Text> : null}
+          </View>
+        </View>
+        <View style={styles.upWeek}>
+          {week.map(({ key, lit }, i) => (
+            <View key={key} style={styles.upDay}>
+              <View style={[styles.upDisc, lit ? styles.upDiscLit : null, lit && i === week.length - 1 ? styles.upDiscToday : null]}>
+                {lit ? <Text style={styles.upDiscEmoji}>🔥</Text> : null}
+              </View>
+              <Text style={styles.upDayLetter}>{t(WEEKDAY_KEY[new Date(`${key}T12:00:00`).getDay()])}</Text>
+            </View>
+          ))}
+        </View>
+        {milestone ? (
+          <View style={styles.upTile}>
+            {owned && item ? <ItemDisc item={item} locked={false} size={44} /> : <Tile emoji="🔥" tint="255,200,87" size={44} />}
+            <View style={styles.fill}>
+              <Text style={styles.upTileTitle}>{owned && item && fresh ? t('summary.unlocked', { name: item.name }) : t('streak.milestone', { n: milestone })}</Text>
+              {owned ? <Text style={styles.upTileSub}>{t('summary.wardrobe')}</Text> : null}
+            </View>
+          </View>
+        ) : null}
+        <View style={styles.fill} />
+        <CatAvatar size={120} equipped={equipped} emotion={catEmotion} />
+        <View style={styles.upCatGap} />
+        {/* Tap anywhere above the CTA to jump to the end state. */}
+        <Pressable style={StyleSheet.absoluteFill} onPress={finals} accessibilityRole="button" accessibilityLabel={t('summary.skip')} />
+      </View>
+      <View style={[styles.upCta, { paddingBottom: insets.bottom + 40 }]}>
+        <PrismButton shape="pill" verb="read" on width={width - 48} height={48} label={t('streak.keepGoing')} onPress={close} />
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { backgroundColor: '#0B1220' },
   fill: { flex: 1 },
@@ -546,6 +709,10 @@ const styles = StyleSheet.create({
   xrValue: { fontFamily: fonts.ui, fontSize: 17, fontWeight: '700', color: tide.text },
   tile: { alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1 },
   levelRow: { marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  closeSpacer: { width: 36, height: 36 },
+  bodyCentred: { justifyContent: 'center', alignItems: 'center', paddingTop: 0, paddingBottom: 160 },
+  rewardBig: { flexDirection: 'column', marginTop: 0, paddingVertical: 24, paddingHorizontal: 24, gap: 16 },
+  rewardText: { alignItems: 'center' },
   reward: { marginTop: 24, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 20, padding: 12, paddingHorizontal: 14, backgroundColor: 'rgba(255,200,87,0.13)', borderWidth: 1.5, borderColor: 'rgba(255,200,87,0.42)' },
   rewardTitle: { fontFamily: fonts.ui, fontSize: 15, fontWeight: '700', color: tide.text },
   stats: { flexDirection: 'row', gap: 22, marginTop: 4, alignItems: 'baseline' },
@@ -559,6 +726,56 @@ const styles = StyleSheet.create({
   bestText: { fontFamily: fonts.ui, fontSize: 20, fontWeight: '600', lineHeight: 28, color: tide.text, marginTop: 4 },
   bestEn: { fontFamily: fonts.ui, fontSize: 14, lineHeight: 21, color: tide.textDim },
   cta: { position: 'absolute', left: 20, right: 20, alignItems: 'center' },
+  upBody: { flex: 1, alignItems: 'center', paddingHorizontal: 22 },
+  upFlameBlock: { width: 200, height: 120, alignItems: 'center', justifyContent: 'center' },
+  upCentre: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
+  upRing: { position: 'absolute', width: 132, height: 132, borderRadius: 66, borderWidth: 2, borderColor: GOLD },
+  upFlame: { width: 100, height: FLAME_H },
+  upEmoji: { fontSize: 72, lineHeight: FLAME_H, height: FLAME_H, textAlign: 'center', includeFontPadding: false },
+  upEmojiDim: { opacity: 0.25 },
+  upEmojiLit: { position: 'absolute', bottom: 0, left: 0, right: 0, textShadowColor: 'rgba(255,150,60,0.55)', textShadowRadius: 22, textShadowOffset: { width: 0, height: 0 } },
+  upReveal: { position: 'absolute', bottom: 0, left: 0, right: 0, overflow: 'hidden' },
+  upNumRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 18, direction: 'ltr' },
+  upNumClip: { height: NUM_H, overflow: 'hidden' },
+  upRolled: { transform: [{ translateY: -NUM_H }] },
+  upNum: {
+    height: NUM_H,
+    lineHeight: NUM_H,
+    fontFamily: fonts.ui,
+    fontSize: 96,
+    fontWeight: '300',
+    color: PALE,
+    fontVariant: ['tabular-nums'],
+    textShadowColor: 'rgba(245,196,81,0.30)',
+    textShadowRadius: 18,
+    textShadowOffset: { width: 0, height: 0 },
+  },
+  upLabel: { fontFamily: fonts.ui, fontSize: 18, fontWeight: '600', color: tide.textDim, textAlign: 'left' },
+  upMilestone: { fontFamily: fonts.ui, fontSize: 12, fontWeight: '700', letterSpacing: 1.2, color: GOLD, marginTop: 4, textAlign: 'left' },
+  upWeek: { alignSelf: 'stretch', flexDirection: 'row', justifyContent: 'space-between', marginTop: 22, paddingHorizontal: 4, direction: 'ltr' },
+  upDay: { alignItems: 'center', gap: 6 },
+  upDisc: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' },
+  upDiscLit: { backgroundColor: 'rgba(255,179,107,0.22)', borderColor: 'rgba(255,179,107,0.6)' },
+  upDiscToday: { shadowColor: 'rgb(255,200,87)', shadowOpacity: 0.6, shadowRadius: 6, shadowOffset: { width: 0, height: 0 } },
+  upDiscEmoji: { fontSize: 14 },
+  upDayLetter: { fontFamily: fonts.ui, fontSize: 11, color: tide.textDim },
+  upTile: {
+    alignSelf: 'stretch',
+    marginTop: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,200,87,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,200,87,0.30)',
+  },
+  upTileTitle: { fontFamily: fonts.ui, fontSize: 15, fontWeight: '700', color: tide.text },
+  upTileSub: { fontFamily: fonts.ui, fontSize: 12.5, color: tide.textDim },
+  upCatGap: { height: 20 },
+  upCta: { alignItems: 'center', paddingHorizontal: 24 },
   toast: { position: 'absolute', alignSelf: 'center', height: 36, paddingHorizontal: 16, borderRadius: 18, justifyContent: 'center', backgroundColor: 'rgba(40,32,12,0.92)', borderWidth: 1, borderColor: 'rgba(255,200,87,0.42)' },
   toastText: { fontFamily: fonts.ui, fontSize: 16, fontWeight: '700', color: GOLD },
 });

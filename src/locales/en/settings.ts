@@ -267,4 +267,14 @@ export const en = {
   'feedback.sent': 'Got it. Thanks, that helps.',
   'feedback.queued': "No connection. Saved; it sends when you're back online.",
   'feedback.error': 'Could not send that. Try again.',
+
+  // Streak reminder: Settings section, permission and build notes, the dev test row.
+  'settings.section.streak': 'Streak',
+  'settings.streak.reminder': 'Evening reminder',
+  'settings.streak.reminderFootnote':
+    'A notification at the hour you pick, only on a day you have not practised yet while a streak is running. One finished sentence ladder or 10 passes count as practice.',
+  'settings.streak.permissionOff': "Notifications are off for Echo Tail. Turn them on in the phone's Settings and try again.",
+  'settings.streak.needsBuild': 'Reminders need the installed app, not Expo Go or the web preview.',
+  'settings.streak.testRow': 'Test reminder in 10 seconds',
+  'settings.streak.channel': 'Streak reminders',
 };

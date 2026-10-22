@@ -19,6 +19,7 @@ import { accessTokenSync } from '@/lib/auth';
 import { deviceIdSync } from '@/lib/device';
 import { t } from '@/lib/i18n';
 import type { StarterLevel } from '@/lib/settings';
+import type { VideoContext } from '@/lib/youtube-captions';
 import { en, type Key } from '@/locales/en';
 
 /** A request that never reached the server (offline, DNS, TLS) rejects with
@@ -88,6 +89,9 @@ export type Line = {
   tatoeba_id?: number | null;
   /** Grammar islands: the exact piece of `ja` that realises the point, '' when none. */
   span?: string;
+  /** Video islands: 1 once the repair pass verified the text, 0 when it is
+   * unsure (catch-the-word skips it), null or absent before the pass. */ // youtube-asr-context-repair
+  sure?: 0 | 1 | null;
 };
 
 export type SpeakerStyle = { id: number; name: string; icon: string };
@@ -112,6 +116,9 @@ export type IslandSummary = {
   source?: IslandSource; // youtube-shadowing
   /** False when line 0 has no audio file (a captions-only island). Absent from an older backend: treat as true. */
   has_audio?: boolean;
+  /** Seconds of media and seconds left of the build. Absent from an older backend. */
+  media_s?: number;
+  eta_s?: number | null;
 };
 
 /** A code the backend sends (`daily_limit`, `no_lines`, `transcribing`) is only
@@ -244,6 +251,8 @@ export type ReviewStep = {
   title: string;
   route: string;
   params?: Record<string, string>;
+  /** Dev only: a key of SIMULATIONS (dev-simulate.ts) run before "Take me there". */
+  simulate?: string;
   checks: string[];
   chips?: string[];
   verdict: ReviewVerdict | null;
@@ -1002,7 +1011,28 @@ export async function importIsland(
 // --- youtube-shadowing ---
 
 export type YouTubeInfo = { video_id: string; url: string; title: string; author: string; thumbnail: string };
-export type IslandVideo = { island_id: string; video_id: string; start_s: number; duration: number; title: string; author: string; /** True when the island has no audio, only captions. */ captions_only?: boolean; /** Forced-alignment job: '' | queued | running | done | failed | closed (no attempts left). */ align?: string; align_error?: string };
+export type IslandVideo = {
+  island_id: string;
+  video_id: string;
+  start_s: number;
+  duration: number;
+  title: string;
+  author: string;
+  /** True when the island has no audio, only captions. */
+  captions_only?: boolean;
+  /** Caption timing job (ASR word onsets onto the manual text): '' | queued |
+   * running | done | failed | closed (no attempts left). */
+  align?: string;
+  /** How the job ended: asr (lines moved), asr_none (no automatic track),
+   * asr_low_match (under 20% of lines anchored), asr_error. */
+  align_error?: string;
+  /** Caption repair job (the AI fixes automatic captions against the video's
+   * context): '' | queued | running | done | failed | closed. */ // youtube-asr-context-repair
+  repair?: string;
+  /** How the job ended: manual (creator track or not ja, no LLM), off
+   * (kill switch), or the error of a failed run. */
+  repair_error?: string;
+};
 export type VideoListItem = {
   island_id: string;
   video_id: string;
@@ -1019,7 +1049,14 @@ export async function youtubeInfo(url: string): Promise<YouTubeInfo> {
   return json<YouTubeInfo>(await fetch(`${BASE}/youtube/info?url=${encodeURIComponent(url)}`, { headers: headers() }));
 }
 
-/** Send the caption events the phone fetched and build an island from them. Poll getIsland until ready. */
+/** The largest caption import body, in characters, that still carries the automatic track. */
+const MAX_ASR_BODY = 4_000_000;
+
+/** Send the caption events the phone fetched and build an island from them.
+ * `asrEvents` is the automatic track (token onsets) when the picked track is
+ * manual; left out of the body when empty. `context` is the watch page's
+ * video details for the repair pass, left out when YouTube gave none. Poll
+ * getIsland until ready. */
 export async function importYouTubeCaptions(
   url: string,
   title: string,
@@ -1027,14 +1064,25 @@ export async function importYouTubeCaptions(
   language: Language,
   native: NativeLanguage,
   events: unknown[],
+  asrEvents: unknown[] = [],
+  context: VideoContext | null = null,
 ): Promise<{ id: string }> {
-  return json<{ id: string }>(
-    await fetch(`${BASE}/youtube/captions`, {
+  const base: Record<string, unknown> = { url, title, speaker, language, native, events };
+  if (context) base.context = context;
+  const post = (body: string) =>
+    fetch(`${BASE}/youtube/captions`, {
       method: 'POST',
       headers: { ...headers(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, title, speaker, language, native, events }),
-    }),
-  );
+      body,
+    });
+  // The automatic track only refines timing: one too big to send, or one the
+  // server refuses, is dropped so the import still goes through without it.
+  const withAsr = asrEvents.length > 0 ? JSON.stringify({ ...base, asr_events: asrEvents }) : '';
+  if (withAsr && withAsr.length <= MAX_ASR_BODY) {
+    const res = await post(withAsr);
+    if (res.status !== 400 && res.status !== 413 && res.status !== 422) return json<{ id: string }>(res);
+  }
+  return json<{ id: string }>(await post(JSON.stringify(base)));
 }
 
 /** The YouTube link behind a video island. */
@@ -1042,16 +1090,33 @@ export async function getIslandVideo(id: string): Promise<IslandVideo> {
   return json<IslandVideo>(await fetch(`${BASE}/islands/${id}/video`, { headers: headers() }));
 }
 
-// --- bl36-align ---
-/** Raw audio stream of a video island, for server-side forced alignment. */
-export async function uploadVideoAudio(islandId: string, uri: string): Promise<{ align: string }> {
-  const form = new FormData();
-  form.append('audio', new File(uri), 'audio');
+/** The automatic caption track of an existing video island, for the server to
+ * retime its lines onto the token onsets. `{ align: 'queued' }` on success;
+ * 409 `align_busy` while a job runs, 409 `align_closed` once it is done or
+ * out of attempts. An empty list closes the job as `asr_none`. */
+export async function postCaptionTiming(islandId: string, asrEvents: unknown[]): Promise<{ align: string }> {
   return json<{ align: string }>(
-    await expoFetch(`${BASE}/islands/${islandId}/video-audio`, { method: 'POST', headers: headers(), body: form }),
+    await fetch(`${BASE}/islands/${islandId}/captions-timing`, {
+      method: 'POST',
+      headers: { ...headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ asr_events: asrEvents }),
+    }),
   );
 }
-// --- /bl36-align ---
+
+/** The video's context for an existing island, so the server can run (or
+ * re-run at a new version) the caption repair pass. `{ repair: 'queued' |
+ * 'running' | 'done' }`; 400 `not_video`, 409 `not_ready` while the island
+ * builds, 409 `repair_closed` once the attempts are spent. */ // youtube-asr-context-repair
+export async function postVideoRepair(islandId: string, context: VideoContext): Promise<{ repair: string }> {
+  return json<{ repair: string }>(
+    await fetch(`${BASE}/islands/${islandId}/repair`, {
+      method: 'POST',
+      headers: { ...headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ context }),
+    }),
+  );
+}
 
 /** Every video island on this device, newest first. */
 export async function listVideos(): Promise<VideoListItem[]> {
@@ -1068,7 +1133,7 @@ export type Progress = {
   xp_today_cap: number;
   /** XP paid today after the fast band filled (the slow tail). */
   xp_today_slow?: number;
-  /** Consecutive practice days; not shown yet. */
+  /** Consecutive practice days (paid `day:` awards). */
   streak_days: number;
   /** Consecutive local days with a paid daily review. */
   review_streak_days: number;
@@ -1086,6 +1151,19 @@ export type Progress = {
   listened_seconds?: number;
   /** Achievement ids earned, sorted. Gates `achievement` unlocks. */
   earned?: string[];
+  /** Streak freezes held (bought, not yet used). Missing on an old server. */
+  freezes_held?: number;
+  freeze_price?: number;
+  freeze_cap?: number;
+  /** 'YYYY-MM-DD' days a freeze was used on, ascending. Missing on an old server. */
+  frozen_days?: string[];
+  /** 'YYYY-MM-DD' each held freeze was bought on, ascending. Missing on an old server. */
+  freezes_bought?: string[];
+  /** The server's (UTC) day this snapshot settled freezes on. */
+  server_day?: string;
+  longest_streak?: number;
+  /** Highest streak rung ever paid (7, 14, 30, ... 1000), 0 when none. Missing on an old server. */
+  streak_rung_best?: number;
 };
 
 /** How an item unlocks. The server writes every string in the catalog's `ui` language, so a new source needs no client copy. */
@@ -1220,6 +1298,25 @@ export async function buyCosmetic(itemId: string): Promise<Progress> {
   return json<Progress>(await expoFetch(`${BASE}/cosmetics/buy`, { method: 'POST', headers: headers(), body: form }));
 }
 
+/** Dev only: grants coins to this device and returns the new snapshot. */
+export async function devGrantCoins(amount: number, clearFreezes = false): Promise<Progress> {
+  return json<Progress>(await expoFetch(`${BASE}/dev/coins`, {
+    method: 'POST',
+    headers: { ...headers(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ amount, clear_freezes: clearFreezes }),
+  }));
+}
+
+/**
+ * Buys one streak freeze. `purchaseId` is fresh per tap: the server answers a
+ * replay of the same id with the current snapshot and no second charge.
+ */
+export async function buyStreakFreeze(purchaseId: string): Promise<Progress> {
+  const form = new FormData();
+  form.append('purchase_id', purchaseId);
+  return json<Progress>(await expoFetch(`${BASE}/streak/freeze/buy`, { method: 'POST', headers: headers(), body: form }));
+}
+
 /** An empty `itemId` (null) unequips the slot. */
 export async function equipCosmetic(slot: Slot, itemId: string | null): Promise<Progress> {
   const form = new FormData();
@@ -1250,7 +1347,7 @@ export async function setUsername(name: string): Promise<string> {
   return r.username;
 }
 
-export type LeaderboardEntry = { username: string; level: number; equipped: Record<Slot, string | null> };
+export type LeaderboardEntry = { username: string; level: number; equipped: Record<Slot, string | null>; streak_days: number };
 export type Leaderboard = { entries: LeaderboardEntry[]; me: { rank: number | null; level: number; username: string | null } };
 
 export async function getLeaderboard(): Promise<Leaderboard> {
@@ -1345,6 +1442,8 @@ export type ReviewCard = {
   reviews: number;
   lapses: number;
   created_at: string;
+  /** BL-63: the grammar point an AI pick practises; empty on a starred line. */
+  tag?: string;
 };
 
 export async function saveReviewCard(islandId: string, idx: number): Promise<ReviewCard> {
@@ -1352,6 +1451,14 @@ export async function saveReviewCard(islandId: string, idx: number): Promise<Rev
   form.append('island_id', islandId);
   form.append('idx', String(idx));
   return json<ReviewCard>(await expoFetch(`${BASE}/review/cards`, { method: 'POST', headers: headers(), body: form }));
+}
+
+/** BL-63: the AI picks 5 to 10 easy lines of a podcast episode and saves them as its practice set. */
+export async function aiPickSentences(islandId: string): Promise<ReviewCard[]> {
+  const r = await json<{ cards: ReviewCard[]; picked: number }>(
+    await expoFetch(`${BASE}/islands/${encodeURIComponent(islandId)}/ai-picks`, { method: 'POST', headers: headers() }),
+  );
+  return r.cards;
 }
 
 export async function removeReviewCard(id: string): Promise<void> {
@@ -1394,4 +1501,52 @@ export function reviewProjects(cards: ReviewCard[]): ReviewProject[] {
     by.set(c.island_id, p);
   }
   return [...by.values()].sort((a, b) => b.due - a.due || (a.latest < b.latest ? 1 : -1));
+}
+
+// --- catch-the-word ---
+
+/** One word to listen for in a video: its first fitting occurrence, timed
+ * like `lines[].words[]` (seconds from the line's start). `ruby` is null for
+ * Spanish. `state` is `due` for a word with a card whose review is due. */
+export type CatchTarget = {
+  id: string;
+  text: string;
+  ruby: RubySegment[] | null;
+  line_idx: number;
+  word_index: number;
+  start: number;
+  end: number;
+  count: number;
+  meaning: string;
+  sentence: string;
+  sentence_translation: string;
+  state: 'new' | 'due';
+};
+
+export type CatchWords = { language: string; native: string; targets: CatchTarget[] };
+
+/** The video's own words heard twice or more, ranked by count, one per line,
+ * at most 60. 409 `no_words` when nothing fits. */
+export async function catchWords(islandId: string): Promise<CatchWords> {
+  return json<CatchWords>(await fetch(`${BASE}/catch/islands/${islandId}/words`, { headers: headers() }));
+}
+
+/** One word's meaning, made on the server if it is not cached yet. Empty when it could not be. */
+export async function catchMeaning(islandId: string, word: string): Promise<string> {
+  const res = await json<{ word: string; meaning: string }>(
+    await fetch(`${BASE}/catch/islands/${islandId}/meaning?word=${encodeURIComponent(word)}`, { headers: headers() }),
+  );
+  return res.meaning ?? '';
+}
+
+export type CatchReview = { word: string; due: string; state: string; reviews: number };
+
+/** One graded catch: the server schedules the word's next review. */
+export async function catchReview(islandId: string, word: string, caught: boolean, knew: boolean): Promise<CatchReview> {
+  const form = new FormData();
+  form.append('island_id', islandId);
+  form.append('word', word);
+  form.append('caught', caught ? '1' : '0');
+  form.append('knew', knew ? '1' : '0');
+  return json<CatchReview>(await expoFetch(`${BASE}/catch/review`, { method: 'POST', headers: headers(), body: form }));
 }

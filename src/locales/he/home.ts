@@ -56,7 +56,6 @@ export const he = {
 
   // Practice card
   'home.practiceToday': 'היום',
-  'home.practiceStreak': 'רצף',
   // Isolated: the run is all neutral ("/" and digits), so without it the
   // slash takes the line's right to left direction and drifts off the
   // numbers it joins.
@@ -116,4 +115,44 @@ export const he = {
   'phrases.grammarSearchClear': 'ניקוי החיפוש',
   'phrases.grammarNoMatch': 'אין נקודת דקדוק שמתאימה',
   'home.phrasesBuildHint': 'זה לוקח פחות מדקה. אפשר לסגור את המסך הזה, האי ממשיך להיבנות ומופיע ברשימה כשהוא מוכן.',
+
+  // Streak reminder: the one-time offer on Home and the notification itself.
+  'streak.offerTitle': 'להמשיך את הרצף?',
+  'streak.offerBody': `${isolate('Echo Tail')} יכול להזכיר לכם ב${isolate('{hour}:00')} ביום שעוד לא תרגלתם בו. אפשר לשנות את השעה בהגדרות.`,
+  'streak.offerYes': 'תזכירו לי',
+  'streak.offerNo': 'לא עכשיו',
+  'streak.notifyTitle': 'הרצף שלך בסכנה',
+  'streak.notifyBody': '{count} ימים ברצף. סולם משפטים אחד היום שומר עליו.',
+  'streak.notifyBody_one': 'יום אחד ברצף. סולם משפטים אחד היום שומר עליו.',
+  'streak.notifyBody_two': 'יומיים ברצף. סולם משפטים אחד היום שומר עליו.',
+  'streak.notifyBody_other': '{count} ימים ברצף. סולם משפטים אחד היום שומר עליו.',
+  'streak.buyTitle': 'לקנות הקפאת רצף?',
+  'streak.buyBody': 'יום חופש שומר על הרצף. {price} מטבעות, יש לכם {coins}.',
+  'streak.buyFor': 'קנייה ב-{n}',
+  'streak.buyFailed': 'לא ניתן היה לקנות את ההקפאה',
+  'home.streakStart': 'התחילו רצף',
+  'home.streakDays': 'רצף של {n} ימים',
+  'home.streakDays_one': 'יום אחד',
+  'home.streakDays_two': 'רצף של יומיים',
+  'home.streakKeep': 'תרגלו היום כדי לשמור עליו',
+  'streak.title': 'רצף',
+  'streak.dayStreak': 'ימים ברצף',
+  'streak.dayStreak_one': 'יום ברצף',
+  'streak.dayStreak_two': 'ימים ברצף',
+  'streak.longest': 'הארוך ביותר: {n}',
+  'streak.held': '{held} מתוך {cap} הקפאות',
+  'streak.lastUsed': 'נוצלה ב־{date}',
+  'streak.buy': 'קנו הקפאה · {n} מטבעות',
+  'streak.buyLabel': 'קנו הקפאה',
+  'streak.needCoins': 'חסרים {n} מטבעות',
+  'streak.atCap': 'יש לכם את המספר המרבי של הקפאות',
+  'streak.how': 'הקפאה נצרכת מעצמה כשמפספסים יום. היא לא מוסיפה יום.',
+  'streak.keepGoing': 'המשך כך',
+  'streak.milestone': 'אבן דרך של {n} ימים',
+  'streak.endedTitle': 'רצף של {n} ימים הסתיים',
+  'streak.freezeTip': 'הקפאת רצף שומרת על הרצף ביום חופש.',
+  'streak.startNew': 'להתחיל רצף חדש',
+  'streak.buyFreeze': 'קנו הקפאה · {n} 🪙',
+  'streak.freezeReady': 'הקפאה אחת שמורה לרצף החדש',
+  'streak.notNow': 'לא עכשיו',
 } satisfies Record<keyof typeof enHome, string>;

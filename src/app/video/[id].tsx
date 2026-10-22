@@ -10,6 +10,7 @@ import { Easing, cancelAnimation, useSharedValue, withTiming } from 'react-nativ
 import YoutubePlayer, { type YoutubeIframeRef } from 'react-native-youtube-iframe';
 
 import { CatConstellation } from '@/components/cat-constellation';
+import { CatchCard, CatchHud } from '@/components/catch-card';
 import { PrismButton } from '@/components/prism';
 import { ExplainSheet } from '@/components/explain-sheet';
 import { BlindPopover, blindValueLabel } from '@/components/tide/blind-popover';
@@ -27,6 +28,7 @@ import { LadderHelpButton, LadderStageView } from '@/components/tide/ladder-stag
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
 import { snapRate, takeWatchSec, type useLadder } from '@/hooks/use-ladder';
+import { useCatch, type CatchDeps } from '@/hooks/use-catch';
 import { useDockPopovers } from '@/hooks/use-dock-popovers';
 import { useLadderWiring } from '@/hooks/use-ladder-wiring';
 import { autoPlaceOf, endAutoPractice } from '@/lib/auto-practice';
@@ -37,11 +39,12 @@ import { useTake } from '@/hooks/use-take';
 import { useWatchClock } from '@/hooks/use-watch-clock';
 import { playIntent, useVideoHighlight } from '@/hooks/use-video-highlight';
 import * as api from '@/lib/api';
-import { syncVideoAudio } from '@/lib/video-audio';
+import { devRepairPending, devRepairPhase } from '@/lib/dev-simulate';
+import { syncVideoRepair, syncVideoTiming } from '@/lib/video-timing';
 import { useT } from '@/lib/i18n';
 import { getLastLine, resumeLine, setLastLine } from '@/lib/last-line';
 import { getSettingsSync, TIMES_MAX } from '@/lib/settings';
-import { CC_OFF_SCRIPT, PLAYER_BRIDGE_SCRIPT, fullscreenPlayerSize, watchUrl } from '@/lib/youtube';
+import { CC_OFF_SCRIPT, PLAYER_BRIDGE_SCRIPT, fullscreenPlayerSize, isBackChannel, watchUrl } from '@/lib/youtube';
 
 /** The video on top, the Tide scene under it: water, the current line on the waterline with tappable words, the other lines faded around it. */
 export default function VideoScreen() {
@@ -114,18 +117,24 @@ export default function VideoScreen() {
   // review-deck: saved sentences of this island, line idx to card id.
   // "Shadow the best bits" hops here as a review of three picked lines.
   const picked = useMemo(() => parsePick(pick), [pick]);
-  const { savedCards, saveError, reviewSet, loadReviewCards, toggleSaved, gradeOnce } = useSavedCards(island?.id, id, !!review, inSession, picked);
+  const { savedCards, saveError, reviewSet, loadReviewCards, toggleSaved, autoSave, gradeOnce } = useSavedCards(island?.id, id, !!review, inSession, picked);
   const [playing, setPlaying] = useState(false);
   const stateRef = useRef('unstarted');
   const [cannotPlay, setCannotPlay] = useState(false);
 
   const playerRef = useRef<YoutubeIframeRef>(null);
   const scrollRef = useRef<ScrollView>(null);
+  // Back-channels (うん。 そう。) are hidden so the speaker's card holds and
+  // prev/next never land on them; a review deck keeps whatever was saved.
   const lines = useMemo(() => {
     const all = island?.lines ?? [];
-    return reviewSet ? all.filter((l) => reviewSet.idx.has(l.idx)) : all;
+    return reviewSet ? all.filter((l) => reviewSet.idx.has(l.idx)) : all.filter((l) => !isBackChannel(l));
   }, [island, reviewSet]);
   const sceneLines = useMemo(() => lines.map((l) => l.ja), [lines]);
+  /** Where server line n (a route param or the saved last line, shared with
+   * the island player) sits in `lines`: a hidden back-channel lands on the
+   * line after it. -1 when n is past the last shown line. */
+  const lineAt = useCallback((n: number) => lines.findIndex((l) => l.idx >= n), [lines]);
   const [generation, setGeneration] = useState(0);
 
   // Dock state, the same shape as the audio player's. Speed starts at the
@@ -142,6 +151,9 @@ export default function VideoScreen() {
     trayOpen, setTrayOpen, anchors, dockY, dockH, onAnchor, onDockLayout,
   } = useDockPopovers();
   const insets = useSafeAreaInsets();
+  // Server jobs the player waits on: caption timing and caption repair.
+  const [alignWait, setAlignWait] = useState(false);
+  const [repairWait, setRepairWait] = useState(false);
 
   useEffect(() => {
     if (preview) return;
@@ -152,10 +164,19 @@ export default function VideoScreen() {
         if (cards) loadReviewCards(cards);
         setIsland(i);
         setVideo(v);
-        // bl36-align: kick off forced alignment once, then poll below.
+        // Caption timing: an island built before the ASR transfer (or whose
+        // job failed) posts the automatic track once, then polls below.
         if (v.align === '' || v.align === 'failed') {
-          void syncVideoAudio(id, v.video_id).then((ok) => ok && alive && setAlignWait(true));
+          void syncVideoTiming(id, v.video_id, i.language).then((ok) => ok && alive && setAlignWait(true));
         } else if (v.align === 'queued' || v.align === 'running') setAlignWait(true);
+        // Caption repair: an island built before the repair pass (or whose
+        // job failed, while attempts remain) posts the video's context once.
+        if (v.repair === '' || v.repair === 'failed') {
+          void syncVideoRepair(id, v.video_id).then(
+            (r) => (r === 'queued' || r === 'running') && alive && setRepairWait(true),
+          );
+        } else if (v.repair === 'queued' || v.repair === 'running') setRepairWait(true);
+        if (devRepairPending()) setRepairWait(true);
       })
       .catch((e) => alive && setError(e instanceof Error ? e.message : t('video.loadFailed')));
     return () => {
@@ -164,31 +185,48 @@ export default function VideoScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, preview]);
 
-  // --- bl36-align ---
-  // Poll while the server aligns the audio; reload the lines when it lands.
-  const [alignWait, setAlignWait] = useState(false);
+  // Poll while the server retimes or repairs the lines; reload them in place
+  // when a job lands (one reload when both land on the same tick). The
+  // active line index and the catch state live outside `island`, so they
+  // carry over to the new text.
   useEffect(() => {
-    if (!alignWait) return;
+    if (!alignWait && !repairWait) return;
     let alive = true;
     const t0 = Date.now();
     const timer = setInterval(async () => {
-      if (Date.now() - t0 > 15 * 60 * 1000) return setAlignWait(false);
+      if (Date.now() - t0 > 15 * 60 * 1000) {
+        setAlignWait(false);
+        setRepairWait(false);
+        return;
+      }
       try {
         const v = await api.getIslandVideo(id);
         if (!alive) return;
-        if (v.align === 'done') {
-          setAlignWait(false);
+        let landed = false;
+        if (alignWait) {
+          if (v.align === 'done') {
+            setAlignWait(false);
+            landed = true;
+          } else if (v.align === 'failed' || v.align === 'closed') setAlignWait(false);
+        }
+        if (repairWait) {
+          const repair = devRepairPhase() ?? v.repair;
+          if (repair === 'done') {
+            setRepairWait(false);
+            landed = true;
+          } else if (repair === 'failed' || repair === 'closed') setRepairWait(false);
+        }
+        if (landed) {
           const i = await api.getIsland(id);
           if (alive) setIsland(i);
-        } else if (v.align === 'failed' || v.align === 'closed') setAlignWait(false);
+        }
       } catch {}
     }, 5000);
     return () => {
       alive = false;
       clearInterval(timer);
     };
-  }, [alignWait, id]);
-  // --- /bl36-align ---
+  }, [alignWait, repairWait, id]);
 
   // Repeat. The highlight clock stops at the end of each line and calls
   // onLineEnd before the next line shows: a count left seeks back to the
@@ -217,7 +255,14 @@ export default function VideoScreen() {
     }
     endPauseUi();
   };
+  // Catch the word (beta): the game owns every line end while it runs, so
+  // Repeat and Pause wait until it is off. Its controls land in the ref below
+  // once jump and releaseLine exist.
+  const catchDeps = useRef<CatchDeps>({ jump: () => {}, releaseLine: () => {}, setPlaying: () => {}, onStart: () => {}, now: () => null });
+  const catchGame = useCatch(island?.id, lines, video?.start_s ?? 0, catchDeps);
+  const { phase: catchPhase, start: catchStart, stop: catchStop } = catchGame;
   const onLineEnd = (i: number) => {
+    if (catchGame.onLineEnd(i)) return;
     if (ladder.active) {
       setPlaying(false);
       ladder.lineFinished();
@@ -257,11 +302,11 @@ export default function VideoScreen() {
   };
   // A running ladder needs each line's end too, so it holds the line between passes.
   const [ladderOn, setLadderOn] = useState(false);
-  const { highlight, activeLine, onChangeState, onPlaybackRateChange, seekToLine, releaseLine } = useVideoHighlight(
+  const { highlight, activeLine, onChangeState, onPlaybackRateChange, seekToLine, releaseLine, timeNow } = useVideoHighlight(
     playerRef,
     lines,
     video?.start_s ?? 0,
-    { on: !!review || ladderOn || times > 1 || pauseMs > 0, onLineEnd, ownEnds: !!review },
+    { on: !!review || ladderOn || times > 1 || pauseMs > 0 || catchGame.phase !== 'off', onLineEnd, ownEnds: !!review },
   );
   const seekToLineRef = useRef(seekToLine);
   seekToLineRef.current = seekToLine;
@@ -273,6 +318,14 @@ export default function VideoScreen() {
   const take = useTake(island?.id, lines[activeLine]?.idx ?? 0, generation, undefined, undefined, { localOnly: video?.captions_only !== false, countPass: true });
   const takeRef = useRef(take);
   takeRef.current = take;
+
+  // A finished shadow take saves its line (BL-63 follow-up): the star turns on by itself.
+  const autoIdx = lines[activeLine]?.idx;
+  useEffect(() => {
+    if (take.phase === 'ready' && autoIdx !== undefined) autoSave(autoIdx);
+    // Only a take finishing counts, not the line moving under an old take.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [take.phase]);
 
   // The video stops when this screen loses focus (Shadow, Watch back and forth).
   const ladderRef = useRef<ReturnType<typeof useLadder> | null>(null);
@@ -312,7 +365,11 @@ export default function VideoScreen() {
     },
   });
   const openLadder = () => ladder.start();
-  useEffect(() => setLadderOn(ladder.active), [ladder.active]);
+  // A ladder started from the dock takes the line ends, so a running game stops.
+  useEffect(() => {
+    setLadderOn(ladder.active);
+    if (ladder.active) catchStop();
+  }, [ladder.active, catchStop]);
 
   // Lines the viewer heard twice (a replay or a repeat), for the end-of-video offer.
   const seen = useRef(new Set<number>());
@@ -328,7 +385,7 @@ export default function VideoScreen() {
   const offered = useRef(false);
   const offerBestBits = () => {
     if (offered.current || review || preview || inSession || ladder.active || !island) return;
-    const picks = pickBestBits(island.lines, new Set(savedCards.keys()), replayed.current);
+    const picks = pickBestBits(lines, new Set(savedCards.keys()), replayed.current);
     if (picks.length === 0) return;
     offered.current = true;
     const n = String(picks.length);
@@ -341,7 +398,7 @@ export default function VideoScreen() {
     });
   };
 
-  // The cat that listens along (Rive only; hidden in fullscreen, under the stage view and with no transcript).
+  // The cat that listens along (Rive only; hidden in fullscreen, under the stage view, with no transcript and while catch the word runs, whose HUD sits in the same slot).
   const [saveTick, setSaveTick] = useState(0);
   const { cat: listeningCat, noteTouch } = useListeningCat({
     playing,
@@ -349,7 +406,7 @@ export default function VideoScreen() {
     rate: speedLive,
     saved: savedCards.has(lines[activeLine]?.idx ?? -1),
     saveTick,
-    hidden: fs || !!ladder.stage || lines.length === 0,
+    hidden: fs || !!ladder.stage || lines.length === 0 || catchPhase !== 'off',
   });
 
   // A take that ends stops the embed too.
@@ -387,6 +444,19 @@ export default function VideoScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [seekToLine, times],
   );
+  // After each render: the game's taps and line ends always reach the current jump.
+  useEffect(() => {
+    catchDeps.current = {
+      jump,
+      releaseLine,
+      setPlaying,
+      onStart: () => {
+        ladder.stop();
+        setFull(false);
+      },
+      now: timeNow,
+    };
+  }, [jump, releaseLine, ladder, timeNow]);
 
   // A new line means the open Explain thread is about the old sentence.
   useEffect(() => {
@@ -410,7 +480,8 @@ export default function VideoScreen() {
   const onReady = useCallback(() => {
     const n = Number(line);
     if (line !== undefined && Number.isFinite(n)) {
-      seekToLine(Math.max(0, Math.floor(n)));
+      const at = lineAt(Math.max(0, Math.floor(n)));
+      seekToLine(at < 0 ? Math.max(0, lines.length - 1) : at);
       resumed.current = true;
       return;
     }
@@ -426,16 +497,17 @@ export default function VideoScreen() {
       return;
     }
     void getLastLine(id).then((saved) => {
-      const at = resumeLine(saved, lines.length);
+      const at = resumeLine(Math.max(0, lineAt(saved)), lines.length);
       if (at > 0) seekToLine(at);
       resumed.current = true;
     });
-  }, [line, id, lines, review, reviewSet, seekToLine]);
+  }, [line, id, lines, review, reviewSet, seekToLine, lineAt]);
   // The ref keeps the mount's line 0 from overwriting the saved line before onReady has read it.
   const resumed = useRef(false);
   useEffect(() => {
-    if (!review && resumed.current && lines.length > 0) setLastLine(id, activeLine);
-  }, [id, activeLine, lines.length, review]);
+    const idx = lines[activeLine]?.idx;
+    if (!review && resumed.current && idx !== undefined) setLastLine(id, idx);
+  }, [id, activeLine, lines, review]);
 
   const repeat = useMemo(
     () =>
@@ -584,8 +656,23 @@ export default function VideoScreen() {
       selected: blindPopOpen,
       onPress: open('blind'),
     });
+    // Catch the word: a beta pill, off in review and in a practice session.
+    if (!review && !inSession) {
+      const catchOn = catchPhase !== 'off';
+      pills.push({
+        key: 'catch',
+        icon: <SymbolView name={{ ios: 'hand.tap', android: 'touch_app' }} size={15} tintColor={ink(catchOn)} />,
+        value: t('video.catch.pill'),
+        on: catchOn,
+        onPress: () => {
+          setTrayOpen(false);
+          if (catchOn) catchStop();
+          else catchStart();
+        },
+      });
+    }
     return pills;
-  }, [t, times, pauseMs, readingMode, blind, englishShown, island, repeatPopOpen, readingPopOpen, blindPopOpen]);
+  }, [t, times, pauseMs, readingMode, blind, englishShown, island, repeatPopOpen, readingPopOpen, blindPopOpen, review, inSession, catchPhase, catchStart, catchStop, setTrayOpen]);
 
   const onSpeedChip = () => {
     setRepeatPopOpen(false);
@@ -598,7 +685,7 @@ export default function VideoScreen() {
     setPlaying(false);
     router.push({
       pathname: '/island/[id]',
-      params: { id, line: String(activeLine) },
+      params: { id, line: String(lines[activeLine]?.idx ?? 0) },
     });
   }
 
@@ -663,8 +750,8 @@ export default function VideoScreen() {
   const dockBottom = fs ? 0 : insets.bottom;
   // Sheets and the ladder's stage view are laid out for portrait, so leave fullscreen when one opens.
   useEffect(() => {
-    if (helpOpen || explainOpen || ladder.active) setFull(false);
-  }, [helpOpen, explainOpen, ladder.active]);
+    if (helpOpen || explainOpen || ladder.active || catchPhase !== 'off') setFull(false);
+  }, [helpOpen, explainOpen, ladder.active, catchPhase]);
 
   return (
     <View style={[styles.fill, { backgroundColor: tide.sky[0] }]} onTouchStart={noteTouch}>
@@ -735,7 +822,8 @@ export default function VideoScreen() {
                 lineIndex={activeLine}
                 lineCount={lines.length}
                 lines={sceneLines}
-                blind={blind}
+                blind={blind || catchGame.hideText}
+                rowsHidden={catchGame.hideText}
                 busy={playing || ladder.prelude !== null}
                 countdown={ladder.beat}
                 sentence={
@@ -752,8 +840,8 @@ export default function VideoScreen() {
                       onExplain={onExplain}
                       onInteract={pauseVideo}
                       readingMode={readingMode}
-                      blind={blind}
-                      englishShown={englishShown}
+                      blind={blind || catchGame.hideText}
+                      englishShown={englishShown && !catchGame.hideText}
                       variant="video"
                       repeat={repeat}
                     />
@@ -786,10 +874,10 @@ export default function VideoScreen() {
                   />
                 ) : null}
                 <View
-                  // Hidden, not only covered, while the stage view is up.
-                  style={[styles.dock, { bottom: dockBottom }, ladder.stage && styles.underStage]}
+                  // Hidden, not only covered, while the stage view or the catch card is up.
+                  style={[styles.dock, { bottom: dockBottom }, (ladder.stage || catchPhase === 'card') && styles.underStage]}
                   onLayout={onDockLayout}
-                  pointerEvents={ladder.stage ? 'none' : 'box-none'}>
+                  pointerEvents={ladder.stage || catchPhase === 'card' ? 'none' : 'box-none'}>
                   <CompactDock
                     playMode={playing ? 'playing' : 'idle'}
                     onToggle={onToggle}
@@ -819,7 +907,18 @@ export default function VideoScreen() {
                       <View style={styles.bottom} pointerEvents="box-none">
                         {take.error ? <Text style={styles.error}>{take.error}</Text> : null}
                         {saveError ? <Text style={styles.hint}>{saveError}</Text> : null}
-                        {review || video.captions_only ? null : (
+                        {catchGame.error && catchPhase === 'off' ? <Text style={styles.hint}>{catchGame.error}</Text> : null}
+                        {catchPhase === 'loading' ? (
+                          <CatConstellation size={48} label={t('video.catch.loading')} />
+                        ) : catchPhase !== 'off' && catchGame.target ? (
+                          <CatchHud
+                            target={catchGame.target}
+                            ja={ja}
+                            disabled={!playing || catchGame.disarmed || catchPhase !== 'armed'}
+                            flash={catchGame.flash}
+                            onTap={() => catchGame.tap(timeNow())}
+                          />
+                        ) : review || video.captions_only ? null : (
                           <PrismButton shape="pill" verb="speak" label={t('video.shadowLine')} onPress={shadow} />
                         )}
                         {listeningCat}
@@ -907,6 +1006,18 @@ export default function VideoScreen() {
           whole={explainWhole}
           generation={generation}
           onPlaySentence={onExplainPlay}
+        />
+      ) : null}
+      {island ? (
+        <CatchCard
+          open={catchPhase === 'card'}
+          target={catchGame.cardTarget}
+          hit={catchGame.hit}
+          ja={ja}
+          onClose={catchGame.skip}
+          onDismissed={catchGame.onCardDismissed}
+          onHearAgain={catchGame.hearAgain}
+          onGrade={catchGame.grade}
         />
       ) : null}
     </View>

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { BuildProgress } from '@/components/build-progress';
 import { useFollowBuild } from '@/hooks/use-follow-build';
 import * as api from '@/lib/api';
+import { etaText } from '@/lib/eta';
 import { useT } from '@/lib/i18n';
 import { getSettings, getVoice, toIslandLanguage, toNativeLanguage } from '@/lib/settings';
 
@@ -13,7 +14,7 @@ export default function PodcastBuildScreen() {
   const { audioUrl, title } = useLocalSearchParams<{ audioUrl: string; title?: string }>();
 
   const [error, setError] = useState('');
-  const { stage, follow, stop } = useFollowBuild('/podcast/[id]', setError);
+  const { stage, etaS, follow, stop } = useFollowBuild('/podcast/[id]', setError);
   const started = useRef(false);
 
   useEffect(() => {
@@ -44,5 +45,13 @@ export default function PodcastBuildScreen() {
     router.back();
   }
 
-  return <BuildProgress stage={api.stageLabel(stage)} hint={t('record.podcastBuildHint')} error={error} onClose={cancel} />;
+  return (
+    <BuildProgress
+      stage={api.stageLabel(stage)}
+      hint={t('record.podcastBuildHint')}
+      eta={etaText(etaS)}
+      error={error}
+      onClose={cancel}
+    />
+  );
 }

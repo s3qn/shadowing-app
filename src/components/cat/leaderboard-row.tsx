@@ -93,6 +93,8 @@ export type RowProps = {
   /** Pinned copy: adds the "you" tag and the next-rank line. */
   pinned?: boolean;
   nextLine?: string | null;
+  /** Practice-day streak; shown from 2 days up. */
+  streak?: number;
   /** List position, drives the entrance stagger (first few rows only). */
   index?: number;
   /** Stable callback shared by every row, called with this row's username. */
@@ -104,7 +106,7 @@ export type RowProps = {
 const STAGGER_MS = 50;
 const STAGGER_CAP = 6;
 
-export const LeaderboardRow = memo(function LeaderboardRow({ rank, username, level, equipped, mine, pinned, nextLine, index = 99, onOpen, chip }: RowProps) {
+export const LeaderboardRow = memo(function LeaderboardRow({ rank, username, level, equipped, mine, pinned, nextLine, streak = 0, index = 99, onOpen, chip }: RowProps) {
   const { t } = useT();
   const dir = useDir();
   const reduced = useReducedMotion();
@@ -126,6 +128,8 @@ export const LeaderboardRow = memo(function LeaderboardRow({ rank, username, lev
     transform: [{ translateY: (1 - lift.value) * (pinned ? 36 : 14) }],
   }));
 
+  const showStreak = streak >= 2;
+  const showNext = (pinned || mine) && !!nextLine;
   const gold = rank <= 3;
   const tone = mine || gold ? 'gold' : 'plain';
   const rankColour = mine || gold ? GOLD : tide.textDim;
@@ -134,7 +138,7 @@ export const LeaderboardRow = memo(function LeaderboardRow({ rank, username, lev
       <Pressable
         accessible
         accessibilityRole="button"
-        accessibilityLabel={t('leaderboard.rowLabel', { rank, name: `@${username}`, level })}
+        accessibilityLabel={t('leaderboard.rowLabel', { rank, name: `@${username}`, level }) + (showStreak ? `, ${t('leaderboard.rowStreak', { n: streak })}` : '')}
         onPress={onOpen ? () => onOpen(username) : undefined}
         style={({ pressed }) => [styles.row, mine && styles.rowMine, pinned && styles.rowPinned, dir.row, pressed && { opacity: 0.8 }]}
       >
@@ -145,9 +149,11 @@ export const LeaderboardRow = memo(function LeaderboardRow({ rank, username, lev
             @{username}
             {pinned ? <Text style={styles.you}>{`  ${t('leaderboard.you')}`}</Text> : null}
           </Text>
-          {(pinned || mine) && nextLine ? (
+          {showStreak || showNext ? (
             <Text numberOfLines={1} style={[styles.next, dir.text]}>
-              {nextLine}
+              {showStreak ? <Text style={styles.streak}>{`🔥 ${streak}`}</Text> : null}
+              {showStreak && showNext ? '  ' : null}
+              {showNext ? nextLine : null}
             </Text>
           ) : null}
         </View>
@@ -177,6 +183,7 @@ const styles = StyleSheet.create({
   name: { fontFamily: fonts.ui, fontSize: 18, color: tide.text },
   you: { fontSize: 13, color: GOLD },
   next: { fontFamily: fonts.ui, fontSize: 12, color: tide.textDim, marginTop: 2 },
+  streak: { color: '#FFB36B' },
   chip: { minWidth: 52, alignItems: 'center', paddingVertical: 2, paddingHorizontal: Spacing.sm, borderRadius: Radius.lg, borderWidth: 1.5 },
   chipLv: { fontFamily: fonts.uiMedium, fontSize: 9, letterSpacing: 1 },
   chipNum: { fontFamily: fonts.uiMedium, fontSize: 20, lineHeight: 22 },

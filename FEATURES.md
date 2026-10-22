@@ -280,6 +280,12 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - BL-66 tester feedback inbox (wave-1017c)
 - wave-1021 (build 21): immersion features, achievements and unlock sheet,
   Hebrew pass, ET-17
+- BL-63 AI picks
+- YouTube precise timing and caption lumps
+- Catch the word beta (BL-71, BL-81, BL-82)
+- Streaks BL-80: gem ladder, tier achievements, freezes, reminder
+- Subtitle repair for YouTube-only videos
+- Guided intro arrow and loop fix
 
 ## Next (approved, in order)
 

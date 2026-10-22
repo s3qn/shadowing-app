@@ -14,8 +14,9 @@ from voicevox import to_hiragana
 
 log = logging.getLogger(__name__)
 
-_JAM = None
-_LOCK = threading.Lock()
+# jamdict's SQLite connection works only on the thread that opened it, and the
+# repair job and the gloss route run on worker threads: one Jamdict per thread.
+_LOCAL = threading.local()
 _CACHE: dict[str, dict] = {}
 _SKIP_TOP = ("記号", "補助記号", "助動詞")
 MAX_ENTRIES = 3
@@ -54,13 +55,12 @@ PARTICLES = {
 
 
 def _jam():
-    global _JAM
-    with _LOCK:
-        if _JAM is None:
-            from jamdict import Jamdict
+    jam = getattr(_LOCAL, "jam", None)
+    if jam is None:
+        from jamdict import Jamdict
 
-            _JAM = Jamdict()
-    return _JAM
+        jam = _LOCAL.jam = Jamdict()
+    return jam
 
 
 def _headword(word: str) -> tuple[str, str]:
@@ -80,6 +80,26 @@ def _headword(word: str) -> tuple[str, str]:
 def _exact(entries, form: str) -> list:
     return [e for e in entries
             if any(k.text == form for k in e.kanji_forms) or any(k.text == form for k in e.kana_forms)]
+
+
+_WORDS: dict[str, bool] = {}
+
+
+def is_word(form: str) -> bool:
+    """True when `form` is an exact kanji or kana headword in JMdict. Cached
+    for the life of the process, except when the lookup raised; never raises."""
+    form = (form or "").strip()
+    if not form:
+        return False
+    hit = _WORDS.get(form)
+    if hit is None:
+        try:
+            hit = bool(_exact(_jam().lookup(form).entries, form))
+        except Exception:
+            log.exception("is_word failed for %r", form)
+            return False
+        _WORDS[form] = hit
+    return hit
 
 
 def gloss(word: str) -> dict:
@@ -130,7 +150,8 @@ def gloss(word: str) -> dict:
             )
         out = {"word": word, "base": base, "reading": reading, "entries": entries, "found": bool(entries)}
     except Exception:
+        # Not cached: a failed lookup must not stick for the life of the process.
         log.exception("gloss failed for %r", word)
-        out = {"word": word, "base": base, "reading": reading, "entries": [], "found": False}
+        return {"word": word, "base": base, "reading": reading, "entries": [], "found": False}
     _CACHE[word] = out
     return out

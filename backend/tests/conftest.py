@@ -21,6 +21,8 @@ os.environ["SHADOW_WHISPER_WARM"] = "0"
 # (the prod worktree) and never uses a real token. load_dotenv() does not
 # override it.
 os.environ["SHADOW_TOKEN"] = "test-token"
+# The repair pass's model seam answers None in tests unless a test fakes it.
+os.environ["SHADOW_LLM"] = "off"
 
 
 import subprocess

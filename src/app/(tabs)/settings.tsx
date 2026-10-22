@@ -1,10 +1,11 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PILL_TAB_BAR_REACH } from '@/components/pill-tab-bar';
+import { Segmented } from '@/components/segmented';
 import { SettingsRow, SettingsSection } from '@/components/tide/settings-row';
 import { Spacing, prism, tide } from '@/constants/theme';
 import { alertSheet, confirmSheet } from '@/lib/confirm-sheet';
@@ -13,7 +14,20 @@ import { provider, signOut, signOutLocal, usingDevBypass } from '@/lib/auth';
 import { getGuideStep } from '@/lib/guide';
 import { LOCALES, type Lang, useT } from '@/lib/i18n';
 import { voiceRowLabel } from '@/lib/voice-label';
-import { type AppLanguage, getSettings, getVoice, setHaptics, setShowAllLanguages, setSkyAlwaysNight, toIslandLanguage } from '@/lib/settings';
+import {
+  type AppLanguage,
+  getSettings,
+  getSettingsSync,
+  getVoice,
+  setHaptics,
+  setShowAllLanguages,
+  setSkyAlwaysNight,
+  setStreakReminder,
+  setStreakReminderHour,
+  STREAK_REMINDER_HOURS,
+  toIslandLanguage,
+} from '@/lib/settings';
+import { type EnableResult, enableStreakReminder, reconcileStreakReminder, scheduleTestReminder } from '@/lib/streak-reminder';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -26,6 +40,10 @@ export default function SettingsScreen() {
   const [showAllLanguages, setShowAllLanguagesState] = useState(false);
   const [appLanguage, setAppLanguageState] = useState<AppLanguage>('auto');
   const [username, setUsernameState] = useState<string | null | undefined>(undefined);
+  // Streak reminder: the switch only turns on once permission is granted.
+  const [streakOn, setStreakOnState] = useState(false);
+  const [streakHour, setStreakHourState] = useState(20);
+  const streakBusy = useRef(false);
 
   async function confirmSignOut() {
     try {
@@ -55,9 +73,39 @@ export default function SettingsScreen() {
     }
   }
 
+  // 'denied' and 'unavailable' explain themselves in an alert; the switch stays off.
+  function explainReminder(result: EnableResult) {
+    if (result === 'denied') void alertSheet(t('settings.streak.permissionOff'));
+    else if (result === 'unavailable') void alertSheet(t('settings.streak.needsBuild'));
+  }
+
+  async function toggleStreakReminder(next: boolean) {
+    if (!next) {
+      setStreakOnState(false);
+      await setStreakReminder(false);
+      return;
+    }
+    // A second tap while the system prompt is up must not ask twice.
+    if (streakBusy.current) return;
+    streakBusy.current = true;
+    try {
+      const result = await enableStreakReminder();
+      setStreakOnState(result === 'on');
+      explainReminder(result);
+    } finally {
+      streakBusy.current = false;
+    }
+  }
+
+  const hourChoices = STREAK_REMINDER_HOURS.map((h) => ({ value: String(h), label: `${h}:00` }));
+
   useFocusEffect(
     useCallback(() => {
       let alive = true;
+      // Permission revoked in the phone's Settings turns the reminder off, so the switch tells the truth.
+      void reconcileStreakReminder().then(() => {
+        if (alive) setStreakOnState(getSettingsSync().streakReminder);
+      });
       (async () => {
         // Read independently of the speaker list: that call needs the
         // backend and can fail or hang offline, and coupling it to
@@ -69,6 +117,8 @@ export default function SettingsScreen() {
         setSkyAlwaysNightState(settings.skyAlwaysNight);
         setShowAllLanguagesState(settings.showAllLanguages);
         setAppLanguageState(settings.appLanguage);
+        setStreakOnState(settings.streakReminder);
+        setStreakHourState(settings.streakReminderHour);
         setIsJapanese(toIslandLanguage(settings.learningLanguage) === 'ja');
 
         try {
@@ -128,6 +178,34 @@ export default function SettingsScreen() {
             icon={{ ios: 'book.closed', android: 'menu_book' }}
             onPress={() => router.push('/settings/practice')}
           />
+        </SettingsSection>
+
+        <SettingsSection title={t('settings.section.streak')} footnote={t('settings.streak.reminderFootnote')}>
+          <SettingsRow
+            label={t('settings.streak.reminder')}
+            icon={{ ios: 'bell', android: 'notifications' }}
+            switchValue={streakOn}
+            onSwitchChange={(next) => void toggleStreakReminder(next)}
+          />
+          <View style={styles.segBox}>
+            <Segmented
+              options={hourChoices}
+              value={String(streakHour)}
+              onChange={(next) => {
+                setStreakHourState(Number(next));
+                void setStreakReminderHour(Number(next));
+              }}
+            />
+          </View>
+          {/* Dev-only: the real notification in 10 s, to check the glyph, channel and count on a locked phone. */}
+          {__DEV__ ? (
+            <SettingsRow
+              label={t('settings.streak.testRow')}
+              last
+              icon={{ ios: 'bell.badge', android: 'notifications_active' }}
+              onPress={() => void scheduleTestReminder().then(explainReminder)}
+            />
+          ) : null}
         </SettingsSection>
 
         <SettingsSection title={t('settings.section.playback')}>
@@ -289,6 +367,7 @@ const GLOW_AFTER_SCROLL_MS = 400;
 
 const styles = StyleSheet.create({
   glowWrap: { borderRadius: 16 },
+  segBox: { padding: Spacing.md },
   fill: { flex: 1 },
   // paddingBottom leaves room for the floating pill tab bar and the offset
   // pane that peeks out past its bottom edge, so the last row never hides

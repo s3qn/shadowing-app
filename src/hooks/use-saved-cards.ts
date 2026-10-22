@@ -9,6 +9,8 @@ import { resetSessionScores, useSessionScore } from '@/lib/take-scores';
 
 const NO_PICK: number[] = [];
 
+const tagMap = (cards: api.ReviewCard[]) => new Map(cards.filter((c) => c.tag).map((c): [number, string] => [c.idx, c.tag!]));
+
 /**
  * The saved sentences of one island for the track-span players (video, podcast):
  * line idx to card id, the star toggle, and the review set frozen at load.
@@ -16,6 +18,8 @@ const NO_PICK: number[] = [];
 export function useSavedCards(islandId: string | undefined, id: string, review: boolean, session = false, pickedIdx: number[] = NO_PICK) {
   const [savedCards, setSavedCards] = useState<Map<number, string>>(new Map());
   const [saveError, setSaveError] = useState('');
+  // BL-63: the grammar tag of each saved line (line idx to tag), only for AI-picked cards.
+  const [tags, setTags] = useState<Map<number, string>>(new Map());
   // Review mode: only the saved lines, frozen at load, due ones decide the start.
   const [reviewSet, setReviewSet] = useState<{ idx: Set<number>; due: Set<number> } | null>(null);
   // Line idx already graded 'got' this session: a line repeated in the ladder grades once.
@@ -35,7 +39,11 @@ export function useSavedCards(islandId: string | undefined, id: string, review: 
     let alive = true;
     api
       .listReviewCards(islandId)
-      .then((cards) => alive && setSavedCards(new Map(cards.map((c) => [c.idx, c.id]))))
+      .then((cards) => {
+        if (!alive) return;
+        setSavedCards(new Map(cards.map((c) => [c.idx, c.id])));
+        setTags(tagMap(cards));
+      })
       .catch(() => {});
     return () => {
       alive = false;
@@ -48,6 +56,7 @@ export function useSavedCards(islandId: string | undefined, id: string, review: 
     const d = new Date();
     const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     setSavedCards(new Map(cards.map((c) => [c.idx, c.id])));
+    setTags(tagMap(cards));
     // A session picks the lines (weakest first) and owns the scores and the XP.
     // A session picks the weakest lines; "shadow the best bits" passes the easiest ones.
     const picked = session ? autoPlaceOf(id)?.idx : pickedIdx.length ? pickedIdx : undefined;
@@ -61,6 +70,12 @@ export function useSavedCards(islandId: string | undefined, id: string, review: 
     dueIdx.current = new Set(cards.filter((c) => c.due_on <= today).map((c) => c.idx));
     setReviewSet({ idx: new Set(cards.map((c) => c.idx)), due: dueIdx.current });
   }, [session, id, pickedIdx]);
+
+  /** Cards saved in bulk (the AI picks): the stars fill in and the tags show. */
+  const addCards = useCallback((cards: api.ReviewCard[]) => {
+    setSavedCards((m) => new Map([...m, ...cards.map((c): [number, string] => [c.idx, c.id])]));
+    setTags((m) => new Map([...m, ...tagMap(cards)]));
+  }, []);
 
   const toggleSaved = useCallback(
     (idx: number) => {
@@ -102,6 +117,27 @@ export function useSavedCards(islandId: string | undefined, id: string, review: 
     [savedCards, id],
   );
 
+  /** A finished shadow take saves its line, once per line, never unsaves, errors stay quiet. */
+  const autoTried = useRef(new Set<number>());
+  const autoSave = useCallback(
+    (idx: number) => {
+      if (autoTried.current.has(idx) || cardsRef.current.has(idx)) return;
+      autoTried.current.add(idx);
+      setSavedCards((m) => new Map(m).set(idx, 'pending'));
+      api
+        .saveReviewCard(id, idx)
+        .then((c) => setSavedCards((m) => new Map(m).set(idx, c.id)))
+        .catch(() =>
+          setSavedCards((m) => {
+            const next = new Map(m);
+            if (next.get(idx) === 'pending') next.delete(idx);
+            return next;
+          }),
+        );
+    },
+    [id],
+  );
+
   /** Marks the line's card reviewed, once per session. */
   const gradeOnce = useCallback((idx: number) => {
     const card = cardsRef.current.get(idx);
@@ -121,5 +157,5 @@ export function useSavedCards(islandId: string | undefined, id: string, review: 
     }
   }, [session]);
 
-  return { savedCards, saveError, reviewSet, loadReviewCards, toggleSaved, gradeOnce };
+  return { savedCards, tags, addCards, saveError, reviewSet, loadReviewCards, toggleSaved, autoSave, gradeOnce };
 }

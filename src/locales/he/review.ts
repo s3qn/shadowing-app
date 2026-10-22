@@ -67,6 +67,7 @@ export const he = {
   'summary.level': 'רמה {n}',
   'summary.levelWord': 'רמה',
   'summary.newItem': 'פריט חדש נפתח',
+  'summary.tryOn': 'למדוד עכשיו',
   'summary.cheerLevel': 'עלית רמה!',
   'summary.xpSession': 'XP בסבב הזה',
   'summary.toNext': 'עוד {n} לרמה {l}',

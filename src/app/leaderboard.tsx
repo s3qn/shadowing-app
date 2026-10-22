@@ -12,6 +12,7 @@ import { ITEM_IMAGES } from '@/constants/cosmetic-images';
 import { SLOTS, type Equipped } from '@/constants/cosmetics';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, prism, tide } from '@/constants/theme';
+import { getPracticeLog, streakDays } from '@/lib/practice';
 import { getLeaderboard, getWeeklyLeaderboard, type Leaderboard, type WeeklyEntry, type WeeklyLeaderboard } from '@/lib/api';
 import { useGuideAnchor, useGuideStep } from '@/lib/guide';
 import { useDir, useT } from '@/lib/i18n';
@@ -59,9 +60,12 @@ export default function LeaderboardScreen() {
     }
   }, []);
 
+  // The viewer's own streak comes from the local log so it matches Home.
+  const [myStreak, setMyStreak] = useState<number | null>(null);
   useFocusEffect(
     useCallback(() => {
       void load(tabRef.current);
+      void getPracticeLog().then((log) => setMyStreak(streakDays(log, new Date())), () => {});
       return () => requestLoader(false);
     }, [load]),
   );
@@ -202,6 +206,7 @@ export default function LeaderboardScreen() {
             equipped={item.rank === myRank ? mineEquipped : item.equipped}
             mine={item.rank === myRank}
             nextLine={item.rank === myRank ? nextLine : null}
+            streak={item.rank === myRank ? (myStreak ?? item.streak_days) : item.streak_days}
             index={index}
             onOpen={openProfile}
             chip={item.score !== null ? { label: ptsLabel, value: item.score } : undefined}
@@ -247,6 +252,7 @@ export default function LeaderboardScreen() {
             mine
             pinned
             nextLine={nextLine}
+            streak={myStreak ?? 0}
             onOpen={openProfile}
             chip={week && weekly ? { label: ptsLabel, value: weekly.me.score } : undefined}
           />

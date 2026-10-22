@@ -1,6 +1,5 @@
 import { type AudioPlayer, setAudioModeAsync, setIsAudioActiveAsync } from 'expo-audio';
 import { Asset } from 'expo-asset';
-import { isRunningInExpoGo } from 'expo';
 import { useEffect } from 'react';
 import { AppState, Platform } from 'react-native';
 
@@ -12,8 +11,8 @@ import { AppState, Platform } from 'react-native';
 // calling it directly. setExclusivePlayback switches the interruption mode for the podcast and Drive;
 // LOCK_SCREEN_AVAILABLE and lockArtwork serve every lock screen card.
 
-/** True where expo-audio has lock screen controls: iOS, and Android outside Expo Go. False on web. */
-export const LOCK_SCREEN_AVAILABLE = Platform.OS === 'ios' || (Platform.OS === 'android' && !isRunningInExpoGo());
+/** True where the app uses expo-audio lock screen controls: iOS only. Android's media session can throw on the main thread (duplicate session id), so it stays off there. */
+export const LOCK_SCREEN_AVAILABLE = Platform.OS === 'ios';
 
 let artworkUri: string | undefined;
 if (LOCK_SCREEN_AVAILABLE) {

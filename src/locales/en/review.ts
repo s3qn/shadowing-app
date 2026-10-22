@@ -65,6 +65,7 @@ export const en = {
   'summary.level': 'Level {n}',
   'summary.levelWord': 'Level',
   'summary.newItem': 'New item unlocked',
+  'summary.tryOn': 'Try it on',
   'summary.cheerLevel': 'Level up!',
   'summary.xpSession': 'XP this session',
   'summary.toNext': '{n} to Level {l}',

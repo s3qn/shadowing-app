@@ -1,4 +1,3 @@
-import { isRunningInExpoGo } from 'expo';
 import {
   type AudioMetadata,
   type AudioStatus,
@@ -167,7 +166,7 @@ import { useDir, useT } from '@/lib/i18n'; // offline-islands: useDir
 // never hands Now Playing to a mixable session, so on iOS this shows nothing
 // until the mode is `doNotMix`; the calls below stay in place because that
 // switch is then a one-line change in audio-mode.ts.
-const lockScreen = Platform.OS === 'ios' || !isRunningInExpoGo();
+const lockScreen = Platform.OS === 'ios';
 
 // How long Auto Echo holds on a finished line before moving on, so its score
 // and the XP it paid have time to be seen.

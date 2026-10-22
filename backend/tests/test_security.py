@@ -204,3 +204,14 @@ def test_security_headers_on_a_guard_401():
     r = client.get("/shadow/islands")
     assert r.status_code == 401
     assert r.headers["x-content-type-options"] == "nosniff"
+
+
+def test_dev_upload_page_csp_allows_inline_script_only_there():
+    up = client.get("/shadow/dev/upload")
+    assert up.status_code == 200
+    csp = up.headers["content-security-policy"]
+    assert "script-src 'unsafe-inline'" in csp and "connect-src 'self'" in csp
+    other = [r for r in (client.get("/shadow/privacy"), client.get("/shadow/terms"))
+             if r.headers.get("content-type", "").startswith("text/html")]
+    assert other, "no other HTML route found"
+    assert "script-src" not in other[0].headers["content-security-policy"]

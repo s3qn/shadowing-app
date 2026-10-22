@@ -13,6 +13,7 @@ import asyncio
 import math
 import shutil
 import socket
+import threading
 from pathlib import Path
 
 import httpx
@@ -402,3 +403,122 @@ def test_build_podcast_fails_the_island_when_the_download_errors(tmp_path, monke
     island = store.get_island(island_id)
     assert island["status"] == "failed"
     assert not tmp_path.exists()
+
+
+# --- BL-63 ai-picks ---
+
+import json as _json
+import sqlite3 as _sqlite3
+
+import generate
+import review_deck
+import schedule
+
+PICK_DEV = "eeeeeeee-0000-4000-8000-0000000000c1"
+PICK_AUTH = f"Bearer {main.SHADOW_TOKEN}"
+
+
+def _pick_island(source="podcast", device=PICK_DEV, count=12):
+    review_deck.init()
+    schedule.init()
+    with review_deck.connect() as conn:
+        conn.execute("DELETE FROM review_cards")
+    island_id = store.create_island("simple", count, source=source, device=device)
+    for i in range(count):
+        store.add_line(island_id, i, {"ja": f"line{i}", "kana": "a", "romaji": "a", "en": "a"},
+                       2.0, [], words=[], offset=float(i))
+        path = store.line_audio_path(island_id, i)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"RIFFfake")
+    store.set_ready(island_id, "Title")
+    return island_id
+
+
+def _picks(island_id, device=PICK_DEV):
+    return asyncio.run(main.ai_picks(
+        island_id=island_id, authorization=PICK_AUTH, x_shadow_device=device))
+
+
+def _cli(monkeypatch, payload):
+    monkeypatch.setattr(generate, "_run_cli", lambda prompt, tag: payload if payload is None else _json.dumps(payload))
+
+
+def _code(fn, *a, **kw):
+    with pytest.raises(HTTPException) as e:
+        fn(*a, **kw)
+    return e.value
+
+
+def test_ai_picks_happy_path(monkeypatch):
+    iid = _pick_island()
+    _cli(monkeypatch, {"picks": [{"n": n, "tag": f"point {n}"} for n in (1, 3, 5, 7, 9)]})
+    out = _picks(iid)
+    assert out["picked"] == len(out["cards"]) == 5
+    assert [c["idx"] for c in out["cards"]] == [0, 2, 4, 6, 8]
+    assert all(c["tag"] and c["kind"] == "clip" for c in out["cards"])
+    assert review_deck.clip_path(out["cards"][0]["id"]).exists()
+
+
+def test_ai_picks_drops_bad_and_duplicate_n(monkeypatch):
+    iid = _pick_island()
+    picks = [{"n": 0, "tag": "x"}, {"n": 99, "tag": "x"}, {"n": 2, "tag": "a"}, {"n": 2, "tag": "b"},
+             {"n": True, "tag": "x"}, {"n": "3", "tag": "x"}, {"n": 4, "tag": " " + "t" * 60},
+             {"n": 5, "tag": "c"}]
+    _cli(monkeypatch, {"picks": picks})
+    out = _picks(iid)
+    assert [c["idx"] for c in out["cards"]] == [1, 3, 4]
+    assert out["cards"][0]["tag"] == "a"
+    assert len(out["cards"][1]["tag"]) <= generate.PICK_TAG_MAX
+
+
+def test_ai_picks_too_few_is_502_and_free(monkeypatch):
+    iid = _pick_island()
+    _cli(monkeypatch, {"picks": [{"n": 1, "tag": "a"}, {"n": 1, "tag": "b"}, {"n": 2, "tag": "c"}]})
+    assert _code(_picks, iid).detail == {"code": "pick_failed"}
+    _cli(monkeypatch, None)
+    assert _code(_picks, iid).status_code == 502
+    assert review_deck.list_cards(PICK_DEV, iid) == []
+
+
+def test_ai_picks_refunds_energy_on_failure(monkeypatch):
+    iid = _pick_island()
+    calls = []
+    monkeypatch.setattr(main, "_take_use_slot", lambda d, k, c="": calls.append(("take", k, c)))
+    monkeypatch.setattr(main, "_refund_use_slot", lambda d, k, c: calls.append(("refund", k, c)))
+    _cli(monkeypatch, {"picks": []})
+    assert _code(_picks, iid).status_code == 502
+    assert calls == [("take", "pick_sentences", "pick"), ("refund", "pick_sentences", "pick")]
+
+
+def test_ai_picks_second_call_has_cards(monkeypatch):
+    iid = _pick_island()
+    _cli(monkeypatch, {"picks": [{"n": n, "tag": "t"} for n in (1, 2, 3)]})
+    _picks(iid)
+    assert _code(_picks, iid).detail == {"code": "has_cards"}
+
+
+def test_ai_picks_not_podcast_and_other_device(monkeypatch):
+    _cli(monkeypatch, {"picks": []})
+    assert _code(_picks, _pick_island(source="record")).detail == {"code": "not_podcast"}
+    iid = _pick_island()
+    assert _code(_picks, iid, "eeeeeeee-0000-4000-8000-0000000000c2").status_code == 404
+
+
+def test_ai_picks_daily_cap(monkeypatch):
+    iid = _pick_island()
+    _cli(monkeypatch, {"picks": [{"n": n, "tag": "t"} for n in (1, 2, 3)]})
+    monkeypatch.setitem(main.DAILY_CAPS, "pick_sentences", 0)
+    err = _code(_picks, iid)
+    assert err.status_code == 429
+    assert err.detail["code"] == "daily_limit" and err.detail["kind"] == "pick_sentences"
+
+
+def test_review_init_adds_tag_column(tmp_path, monkeypatch):
+    db = tmp_path / "old.db"
+    with _sqlite3.connect(db) as conn:
+        conn.executescript(review_deck.SCHEMA)  # the base schema has no tag column
+    monkeypatch.setattr(review_deck, "DB_PATH", db)
+    monkeypatch.setattr(review_deck, "_local", threading.local())
+    review_deck.init()
+    with review_deck.connect() as conn:
+        assert "tag" in {r["name"] for r in conn.execute("PRAGMA table_info(review_cards)")}

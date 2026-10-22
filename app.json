@@ -69,6 +69,14 @@
       ],
       "expo-apple-authentication",
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#FF9E80"
+        }
+      ],
+      "./plugins/without-aps-environment",
+      [
         "@react-native-google-signin/google-signin",
         {
           "iosUrlScheme": "com.googleusercontent.apps.788400158570-vqc9qvd0dc1hti80o9ch7k4qofk75a6l"

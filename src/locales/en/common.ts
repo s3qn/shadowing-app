@@ -62,6 +62,9 @@ export const en = {
   'api.not_enough_coins': 'Not enough coins for that.',
   'api.not_owned': 'You do not own that yet.',
   'api.unknown_item': 'That item no longer exists.',
+  'api.freeze_cap': 'You already hold the most freezes you can.',
+  // Developer error: the client always sends a well-formed id.
+  'api.bad_purchase_id': 'That purchase id is not valid.',
 
   // Error codes an island can be marked failed with (`store.set_failed`'s `code`).
   'islandError.import_interrupted': 'Import was interrupted.',
@@ -81,4 +84,11 @@ export const en = {
 
   'api.account_delete_unavailable': 'Account deletion is not set up on the server yet.',
   'api.account_delete_failed': 'The account could not be deleted. Try again later.',
+  'update.title': 'A new version is ready',
+  'update.body.ios': 'Update Echo Tail in TestFlight to keep using the app.',
+  'update.body.android': 'Download the newest version to keep using the app.',
+  'update.button.ios': 'Open TestFlight',
+  'update.button.android': 'Download update',
+  'error.title': 'Something went wrong',
+  'error.retry': 'Try again',
 };

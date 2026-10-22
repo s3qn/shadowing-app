@@ -3,8 +3,9 @@ import { useWindowDimensions } from 'react-native';
 
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
 import { SheetAction, type SheetIcon } from '@/components/sheet/sheet-rows';
+import { skipGuide } from '@/components/onboarding/guide-host';
 import { GuideLayer, guideBubbleHeight } from '@/components/onboarding/guide-layer';
-import { setGuideStep, useGuideAnchor, useGuideAnchors, useGuideStep } from '@/lib/guide';
+import { getGuideStep, setGuideStep, useGuideAnchor, useGuideAnchors, useGuideStep } from '@/lib/guide';
 import { useT } from '@/lib/i18n';
 
 type Row = {
@@ -43,6 +44,9 @@ export function AddIslandSheet({ open, onClose }: { open: boolean; onClose: () =
     <BottomSheet
       open={open}
       onClose={() => {
+        // While the add moment is up the sheet stays open (State table: back is blocked); a tap outside is a miss.
+        // Before the Phrases row is measured there is no overlay, so a close then hands the guide back to Home's +.
+        if (guide && box) return;
         if (guide) setGuideStep('home');
         onClose();
       }}
@@ -57,10 +61,8 @@ export function AddIslandSheet({ open, onClose }: { open: boolean; onClose: () =
             // The cat ends on the sheet's top edge and the chip sits above it, so neither covers the sheet title (375x667 included).
             bubble={{ kind: 'record', text: [t('guide.add'), t('guide.add.b2')], top: box.y - SHEET_HEAD - guideBubbleHeight('record', width) - 4 }}
             chip={{ text: t('guide.chip.island'), place: 'above' }}
-            onTapOutside={() => {
-              setGuideStep('home');
-              onClose();
-            }}
+            // A confirmed skip lands on Home, so the sheet closes with it.
+            onSkip={() => void skipGuide().then(() => getGuideStep() === 'done' && onClose())}
           />
         ) : null
       }>

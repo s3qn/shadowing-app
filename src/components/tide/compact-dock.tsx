@@ -31,7 +31,7 @@ export type DockAnchorKey = 'speed' | 'repeat' | 'reading' | 'blind' | 'play' | 
 /** A control's box, relative to the dock's root View. Tray pills sit above the capsule, so their y is negative. */
 export type DockAnchor = { x: number; y: number; width: number };
 export type DockPill = {
-  key: 'repeat' | 'reading' | 'blind';
+  key: 'repeat' | 'reading' | 'blind' | 'catch';
   /** 17 pt icon. The screen colours it: `DOCK_GOLD_INK` when on, `tide.textDim` when off. */
   icon: ReactNode;
   value: string;
@@ -87,7 +87,7 @@ export const DOCK_GOLD_INK = POP.goldInk;
 const CAPSULE_H = 56;
 const HIT = 44;
 const GAP = 8;
-const MAX_PILLS = 3;
+const MAX_PILLS = 4;
 const OPEN_SPRING = { damping: 20, stiffness: 220 } as const;
 const GOLD_FILL = withAlpha(verb.read.c1, 0.12);
 const GOLD_RING = withAlpha(verb.read.c1, 0.4);
@@ -389,7 +389,8 @@ export const CompactDock = memo(function CompactDock({
   const p0 = useSharedValue(0);
   const p1 = useSharedValue(0);
   const p2 = useSharedValue(0);
-  const pillT = [p0, p1, p2];
+  const p3 = useSharedValue(0);
+  const pillT = [p0, p1, p2, p3];
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (closeTimer.current) {
@@ -416,7 +417,7 @@ export const CompactDock = memo(function CompactDock({
     return () => {
       if (closeTimer.current) clearTimeout(closeTimer.current);
     };
-    // pillT is three stable shared values.
+    // pillT is MAX_PILLS stable shared values.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, showGear, reduced]);
   const trayStyle = useAnimatedStyle(() => {

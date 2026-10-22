@@ -5,7 +5,7 @@ export const he = {
   'wardrobe.pet': 'ללטף את החתול',
   'wardrobe.level': 'רמה {n}',
   'wardrobe.maxLevel': 'רמה מקסימלית',
-  'wardrobe.xp': '{into} / {total} XP',
+  'wardrobe.xp': '\u2066{into} / {total} XP\u2069',
   'wardrobe.today': '\u2066{used} / {cap} XP\u2069 מהיר היום',
   'wardrobe.todayFull': 'ה-XP המהיר להיום נגמר. כל פעולה עדיין מוסיפה קצת.',
   'wardrobe.coins': '{n} מטבעות',

@@ -12,8 +12,11 @@ import type { Line } from '@/lib/api';
  * player gives no continuous clock, only an async `getCurrentTime`, so it is
  * polled single-flight and the position between polls is predicted on every
  * frame at the playback rate. A new sample corrects the prediction softly (a
- * late clock slews, an early one runs slower, never backwards) and a seek
- * re-anchors it hard. Replies sent before the latest seek are dropped by epoch.
+ * late clock slews, an early one runs slower, one more than BACK_S ahead steps
+ * back) and a seek re-anchors it hard: the clock freezes at the target until
+ * the player's first reply lands. Slow replies are dropped, a forward jump
+ * needs two agreeing samples, and an overdue sample holds the clock. Replies
+ * sent before the latest seek are dropped by epoch.
  */
 
 /** How often the player is asked for its time while playing or buffering. */
@@ -49,6 +52,21 @@ const END_TAIL_S = 0.25;
 const END_LEAD_S = 0.15;
 /** A line shorter than this to its end point never loops (no seek storm). */
 const MIN_LOOP_S = 0.3;
+/** A sample this far behind the estimate steps the clock back to it. */
+const BACK_S = 0.15;
+/** A reply slower than this is dropped, unless it is the fastest of the window. */
+const RTT_MAX_MS = 150;
+/** How many recent round trips the drop rule looks at. */
+const RTT_WINDOW = 4;
+/** A sample this long overdue freezes the estimate where it got to, so a
+ * stalled player is not run past, and the clock never steps back for it. */
+const STALE_MS = 400;
+/** Two samples this close (after elapsed time) agree on a forward jump. */
+const CONFIRM_S = 0.3;
+/** Dev counter: the last round trips kept for the median in the log line. */
+const RTT_LOG_KEEP = 200;
+/** Captured once on the JS side so the frame worklet never reads a global. */
+const DEV = __DEV__;
 
 /** Anchor: JS to UI thread. `hard` jumps to `time` and gates to 0, `hold` freezes at the current estimate. */
 type Anchor = {
@@ -73,6 +91,17 @@ type Clock = {
 /** The line's word boundaries in absolute player seconds (each word's start,
  * then the last word's end) and each boundary's crossfade width. */
 type WordTable = { from: number; to: number; c: number[]; w: number[] };
+
+/** The predicted player time at `now`: the clock run on at its rate, at most
+ * MAX_AHEAD_S past the last sample and frozen once a sample is STALE_MS
+ * overdue. It only grows within a run, so a late sample never steps it back. */
+function estimate(c: Clock, now: number): number {
+  'worklet';
+  if (!c.advancing) return c.time;
+  const run = Math.min(Math.max(0, now - c.at), STALE_MS) / 1000;
+  const est = Math.min(c.time + run * c.rate, c.native + MAX_AHEAD_S);
+  return Number.isFinite(est) ? est : c.time;
+}
 
 export type VideoStateName = 'unstarted' | 'ended' | 'playing' | 'paused' | 'buffering' | 'video cued';
 
@@ -145,6 +174,8 @@ export function useVideoHighlight(
   onPlaybackRateChange: (rate: string | number) => void;
   seekToLine: (index: number) => void;
   releaseLine: () => void;
+  /** The player's time now on the JS side, or null before its first reply after a seek. */
+  timeNow: () => number | null;
 } {
   const anchor = useSharedValue<Anchor>({
     seq: 0,
@@ -187,6 +218,20 @@ export function useVideoHighlight(
 
   const starting = useMemo(() => lines.map((l) => startS + (l.offset ?? 0)), [lines, startS]);
   const ownEnds = loop?.ownEnds ?? false;
+  // A reloaded list (retimed lines, a back-channel shown or hidden) keeps the
+  // line on screen by its server idx, even while frames are idle.
+  const prevLines = useRef(lines);
+  useEffect(() => {
+    const prev = prevLines.current;
+    prevLines.current = lines;
+    if (prev === lines || lines.length === 0) return;
+    setActiveLine((cur) => {
+      const keep = prev[cur]?.idx;
+      if (keep === undefined) return cur;
+      const i = lines.findIndex((l) => l.idx >= keep);
+      return i < 0 ? lines.length - 1 : i;
+    });
+  }, [lines]);
   useEffect(() => {
     const built = lines.map((l, i) => buildWords(l, starting[i]!));
     starts.value = starting;
@@ -225,6 +270,20 @@ export function useVideoHighlight(
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seekTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** A seek is out and the player has not answered yet: the clock stays frozen. */
+  const seekPending = useRef(false);
+  /** The last written sample (player time, and when it was asked); null until
+   * the player has answered once. */
+  const lastSample = useRef<{ time: number; at: number } | null>(null);
+  /** A sample well ahead of the expected time, waiting for a second one to agree. */
+  const candidate = useRef<{ time: number; at: number } | null>(null);
+  const rttWindow = useRef<number[]>([]);
+  /** Dev counter, logged as [yt-clock] when polling stops. */
+  const stats = useRef({ samples: 0, dropped: 0, back: 0, fwd: 0, rtts: [] as number[] });
+  /** Backward snaps are decided on the UI thread; dev builds count them here. */
+  const countBack = useCallback(() => {
+    stats.current.back += 1;
+  }, []);
 
   const onFrame = useCallback(
     (info: FrameInfo) => {
@@ -233,7 +292,7 @@ export function useVideoHighlight(
       const a = anchor.value;
       let c = clock.value;
       if (a.seq !== c.seq) {
-        const est = c.advancing ? Math.min(c.time + ((now - c.at) / 1000) * c.rate, c.native + MAX_AHEAD_S) : c.time;
+        const est = estimate(c, now);
         let time = a.time;
         let r = a.rate;
         let native = a.time;
@@ -244,8 +303,10 @@ export function useVideoHighlight(
           native = c.native;
         } else if (a.advancing && c.advancing) {
           const err = a.time - est;
-          if (Math.abs(err) > SNAP_S) {
+          if (err < -BACK_S) {
+            // Running ahead of the player: step back to the sample, no gate drop.
             time = a.time;
+            if (DEV) scheduleOnRN(countBack);
           } else if (err > JITTER_S) {
             time = est + SLEW * err;
           } else if (err < -JITTER_S) {
@@ -258,7 +319,7 @@ export function useVideoHighlight(
         c = { seq: a.seq, time, at: now, rate: r, advancing: a.advancing, lit: a.lit, native };
         clock.value = c;
       }
-      const est = c.advancing ? Math.min(c.time + ((now - c.at) / 1000) * c.rate, c.native + MAX_AHEAD_S) : c.time;
+      const est = estimate(c, now);
       let pos = est + LEAD_S;
 
       const dt = Math.min(34, info.timeSincePreviousFrame ?? 16);
@@ -307,7 +368,7 @@ export function useVideoHighlight(
         highlight.value = next;
       }
     },
-    [anchor, clock, gate, starts, tables, lastLine, shownLine, highlight, ends, looping, heldLine, firedLine, lineEnded],
+    [anchor, clock, gate, starts, tables, lastLine, shownLine, highlight, ends, looping, heldLine, firedLine, lineEnded, countBack],
   );
   const frame = useFrameCallback(onFrame, false);
   const setFrames = frame.setActive;
@@ -332,16 +393,19 @@ export function useVideoHighlight(
   const write = useCallback(
     (a: { time: number; advancing: boolean; lit: boolean; hard?: boolean; hold?: boolean }) => {
       seq.current += 1;
+      // Until the player answers a seek the clock stays frozen and nothing lights.
+      const pending = seekPending.current;
+      const lit = pending ? false : a.lit;
       anchor.value = {
         seq: seq.current,
         time: a.time,
         rate: rate.current,
-        advancing: a.advancing,
-        lit: a.lit,
+        advancing: pending ? false : a.advancing,
+        lit,
         hard: a.hard ?? false,
         hold: a.hold ?? false,
       };
-      wake(a.lit);
+      wake(lit);
     },
     [anchor, wake],
   );
@@ -370,7 +434,54 @@ export function useVideoHighlight(
           const advancing = state.current === 'playing';
           const lit = advancing || state.current === 'buffering';
           const rtt = performance.now() - sent;
-          write({ time: time + (advancing ? (rtt / 2 / 1000) * rate.current : 0), advancing, lit, hard });
+          const s = stats.current;
+          s.samples += 1;
+          if (__DEV__) {
+            s.rtts.push(rtt);
+            if (s.rtts.length > RTT_LOG_KEEP) s.rtts.shift();
+          }
+          const win = rttWindow.current;
+          win.push(rtt);
+          if (win.length > RTT_WINDOW) win.shift();
+          // A re-anchor (rate change, foreground, the first reply after a seek) is
+          // never dropped: a late one is slewed by the next samples, a missing one
+          // would leave the clock frozen.
+          // The very first answer anchors a clock that has only ever been at 0.
+          if (hard || seekPending.current || lastSample.current === null) {
+            seekPending.current = false;
+            candidate.current = null;
+            lastSample.current = { time, at: sent };
+            write({ time, advancing, lit, hard: true });
+            return;
+          }
+          if (rtt > RTT_MAX_MS && rtt > Math.min(...win)) {
+            s.dropped += 1;
+            return;
+          }
+          if (!advancing) {
+            lastSample.current = { time, at: sent };
+            candidate.current = null;
+            write({ time, advancing, lit });
+            return;
+          }
+          const r = rate.current;
+          const cand = candidate.current;
+          const prev = lastSample.current;
+          if (cand) {
+            // A forward jump needs two samples that agree; one outlier is slewed.
+            candidate.current = null;
+            if (Math.abs(time - (cand.time + ((sent - cand.at) / 1000) * r)) <= CONFIRM_S) {
+              s.fwd += 1;
+              lastSample.current = { time, at: sent };
+              write({ time, advancing, lit, hard: true });
+              return;
+            }
+          } else if (time - (prev.time + ((sent - prev.at) / 1000) * r) > SNAP_S) {
+            candidate.current = { time, at: sent };
+            return;
+          }
+          lastSample.current = { time, at: sent };
+          write({ time, advancing, lit });
         })
         .catch(() => {
           inflight.current = false;
@@ -384,6 +495,17 @@ export function useVideoHighlight(
     if (timer.current) {
       clearInterval(timer.current);
       timer.current = null;
+    }
+    if (__DEV__) {
+      const s = stats.current;
+      if (s.samples > 0) {
+        const sorted = [...s.rtts].sort((x, y) => x - y);
+        const rttMed = sorted.length > 0 ? Math.round(sorted[Math.floor(sorted.length / 2)] ?? 0) : 0;
+        console.log(
+          `[yt-clock] samples=${s.samples} dropped=${s.dropped} back=${s.back} fwd=${s.fwd} rttMed=${rttMed}ms`,
+        );
+      }
+      stats.current = { samples: 0, dropped: 0, back: 0, fwd: 0, rtts: [] };
     }
   }, []);
   const startPolling = useCallback(() => {
@@ -431,8 +553,13 @@ export function useVideoHighlight(
       playerRef.current?.seekTo(at, true);
       setActiveLine(index);
       lastLine.value = index;
-      const playing = state.current === 'playing';
-      write({ time: at, advancing: playing, lit: playing || state.current === 'buffering', hard: true });
+      // Freeze at the line start with nothing lit until the player's first reply
+      // of this epoch lands (read writes it hard); state changes in between keep
+      // the freeze through write.
+      seekPending.current = true;
+      candidate.current = null;
+      lastSample.current = null;
+      write({ time: at, advancing: false, lit: false, hard: true });
       // After the anchor, so no frame sees the hold lifted on the old clock.
       heldLine.value = -1;
       firedLine.value = -1;
@@ -470,5 +597,15 @@ export function useVideoHighlight(
     [stopPolling],
   );
 
-  return { highlight, activeLine, onChangeState, onPlaybackRateChange, seekToLine, releaseLine };
+  /** The player's time now on the JS side (catch-the-word's tap time): the
+   * last reply plus the run since it at the current rate. Null until the
+   * player has answered once after a seek, so a tap then counts as outside. */
+  const timeNow = useCallback((): number | null => {
+    const s = lastSample.current;
+    if (!s) return null;
+    if (state.current !== 'playing') return s.time;
+    return s.time + ((performance.now() - s.at) / 1000) * rate.current;
+  }, []);
+
+  return { highlight, activeLine, onChangeState, onPlaybackRateChange, seekToLine, releaseLine, timeNow };
 }

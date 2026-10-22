@@ -30,7 +30,7 @@ DB_PATH = DATA_DIR / "progression.db"
 CATALOG_PATH = Path(__file__).parent / "cosmetics_catalog.json"
 
 MAX_LEVEL = 50
-CATALOG_VERSION = 1
+CATALOG_VERSION = 2
 LEVEL_UP_COINS = 25
 
 DAY_XP, DAY_COINS = 20, 5
@@ -63,15 +63,27 @@ MASTERY_XP, MASTERY_COINS = 60, 20
 # it at 180 XP a day.
 KNOWN_XP, KNOWN_COINS = 3, 1
 # (minimum streak days, xp, coins), longest first.
-STREAK_TIERS = ((30, 30, 8), (7, 20, 5), (3, 10, 3))
+STREAK_TIERS = ((365, 50, 12), (100, 40, 10), (30, 30, 8), (7, 20, 5), (3, 10, 3))
+# Streak freeze: bought with coins, used on its own for a missed day. A frozen
+# day bridges the run without adding to it. Sent in every snapshot.
+FREEZE_PRICE = 150
+FREEZE_CAP = 2
 MILESTONES = {
     "first_take": (40, 10),
     "first_island": (40, 10),
     "perfect_take": (60, 15),
     "full_speed": (60, 15),
     "first_mastery": (80, 20),
+    # Streak rungs (tier floors T2 to T10): each also grants its item.
     "streak_7": (60, 15),
+    "streak_14": (100, 25),
     "streak_30": (150, 40),
+    "streak_60": (200, 50),
+    "streak_100": (250, 60),
+    "streak_180": (350, 80),
+    "streak_365": (500, 120),
+    "streak_500": (600, 150),
+    "streak_1000": (1000, 250),
     # Level milestones pay coins only: XP for a level would feed itself.
     "level_5": (0, 30),
     "level_10": (0, 60),
@@ -101,6 +113,22 @@ HOURS_ITEMS = {
     500: "face.mask_kitsune",
     1000: "head.crown_hours",
 }
+# Each streak milestone also grants its item (free, never equipped).
+STREAK_ITEMS = {
+    7: "accessory.badge_ember",
+    14: "face.streak_14",
+    30: "body.scarf_ember",
+    60: "head.streak_60",
+    100: "head.crown_ember",
+    180: "accessory.streak_180",
+    365: "face.mask_phoenix",
+    500: "body.streak_500",
+    1000: "head.streak_1000",
+}
+# Streak tier floors, ascending: rung N is the floor of tier T2..T10. Each
+# pays ms:streak_N once and grants STREAK_ITEMS[N]. Distinct from
+# STREAK_TIERS, the daily bonus table.
+STREAK_RUNGS = (7, 14, 30, 60, 100, 180, 365, 500, 1000)
 SECRET_AWARDS = ("replay_10", "marathon_60", "three_channels")
 # The owned share of an hours item is shown only once this many users exist.
 RARITY_MIN_USERS = 200
@@ -112,7 +140,14 @@ ACHIEVEMENTS = {
     "full_speed": {"secret": False, "en": "Full speed", "he": "מהירות מלאה"},
     "first_mastery": {"secret": False, "en": "First mastery", "he": "שליטה ראשונה"},
     "streak_7": {"secret": False, "en": "7 day streak", "he": "רצף של 7 ימים"},
+    "streak_14": {"secret": False, "en": "14 day streak", "he": "רצף של 14 ימים"},
     "streak_30": {"secret": False, "en": "30 day streak", "he": "רצף של 30 ימים"},
+    "streak_60": {"secret": False, "en": "60 day streak", "he": "רצף של 60 ימים"},
+    "streak_100": {"secret": False, "en": "100 day streak", "he": "רצף של 100 ימים"},
+    "streak_180": {"secret": False, "en": "180 day streak", "he": "רצף של 180 ימים"},
+    "streak_365": {"secret": False, "en": "365 day streak", "he": "רצף של 365 ימים"},
+    "streak_500": {"secret": False, "en": "500 day streak", "he": "רצף של 500 ימים"},
+    "streak_1000": {"secret": False, "en": "1000 day streak", "he": "רצף של 1000 ימים"},
     "level_5": {"secret": False, "en": "Level 5", "he": "שלב 5"},
     "level_10": {"secret": False, "en": "Level 10", "he": "שלב 10"},
     "level_20": {"secret": False, "en": "Level 20", "he": "שלב 20"},
@@ -183,6 +218,16 @@ CREATE TABLE IF NOT EXISTS line_best (
   best REAL NOT NULL,
   updated_at TEXT,
   PRIMARY KEY(owner, island_id, idx)
+);
+CREATE TABLE IF NOT EXISTS streak_freezes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner TEXT NOT NULL,
+  purchase_id TEXT NOT NULL,
+  bought_on TEXT NOT NULL,
+  used_on TEXT,
+  created_at TEXT NOT NULL,
+  UNIQUE(owner, purchase_id),
+  UNIQUE(owner, used_on)
 );
 """
 
@@ -382,6 +427,14 @@ def _earned(conn: sqlite3.Connection, owner: str) -> list[str]:
 
 
 def _read(conn: sqlite3.Connection, owner: str) -> dict:
+    """The snapshot. May write (settles freezes, heals streak items) without
+    committing: snapshot() commits, a caller inside a transaction does."""
+    today = _today()
+    _settle_freezes(conn, owner, today)
+    earned = _earned(conn, owner)
+    _heal_streak_items(conn, owner, earned, [
+        r["item_id"] for r in conn.execute("SELECT item_id FROM owned WHERE owner=?", (owner,))
+    ])
     row = conn.execute("SELECT xp, coins FROM progress WHERE owner=?", (owner,)).fetchone()
     xp, coins = (row["xp"], row["coins"]) if row else (0, 0)
     level, into, to_next = _split(xp)
@@ -395,18 +448,15 @@ def _read(conn: sqlite3.Connection, owner: str) -> dict:
     for r in conn.execute("SELECT slot, item_id FROM equipped WHERE owner=?", (owner,)):
         if r["slot"] in equipped:
             equipped[r["slot"]] = r["item_id"]
-    today = _today()
     used = conn.execute(
         "SELECT xp, slow FROM day_xp WHERE owner=? AND day=?", (owner, today)
     ).fetchone()
     days = _day_keys(conn, owner)
+    frozen = _frozen_days(conn, owner)
     end = date.fromisoformat(today)
     if today not in days:
         end -= timedelta(days=1)
-    streak = 0
-    while end.isoformat() in days:
-        streak += 1
-        end -= timedelta(days=1)
+    streak = _run_back(days, frozen, end)
     review_days = _review_days(conn, owner)
     rend = date.fromisoformat(today)
     if today not in review_days:
@@ -428,8 +478,29 @@ def _read(conn: sqlite3.Connection, owner: str) -> dict:
         "xp_to_next": to_next,
         "owned": owned,
         "equipped": equipped,
-        "earned": _earned(conn, owner),
+        "earned": earned,
         "catalog_version": CATALOG_VERSION,
+        "freezes_held": _held(conn, owner),
+        "freeze_price": FREEZE_PRICE,
+        "freeze_cap": FREEZE_CAP,
+        "frozen_days": sorted(frozen),
+        # When each held freeze was bought and the day this answer settled:
+        # the client covers a missed yesterday offline only with a freeze
+        # bought on or before it, and only until a snapshot settled it.
+        "freezes_bought": [
+            r["bought_on"]
+            for r in conn.execute(
+                "SELECT bought_on FROM streak_freezes WHERE owner=? AND used_on IS NULL ORDER BY bought_on, id",
+                (owner,),
+            )
+        ],
+        "server_day": today,
+        "longest_streak": _longest(days, frozen),
+        # Highest streak rung ever paid (the ms:streak_N ledger row), 0 when
+        # none. A rung re-reached after a break pays nothing twice.
+        "streak_rung_best": max(
+            (rung for rung in STREAK_RUNGS if f"streak_{rung}" in earned), default=0
+        ),
     }
 
 
@@ -478,20 +549,20 @@ def grant_starter(owner: str) -> dict:
 def snapshot(owner: str) -> dict:
     conn = connect()
     _grant_beta(conn, owner)
-    return _read(conn, owner)
+    try:
+        snap = _read(conn, owner)
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+    return snap
 
 
 def stats(owner: str) -> dict:
     """Public counters for the profile screen, all derived from the ledger."""
     conn = connect()
-    days = sorted(_day_keys(conn, owner))
-    longest = run = 0
-    prev = None
-    for d in days:
-        cur = date.fromisoformat(d)
-        run = run + 1 if prev is not None and cur - prev == timedelta(days=1) else 1
-        longest = max(longest, run)
-        prev = cur
+    days = _day_keys(conn, owner)
+    longest = _longest(days, _frozen_days(conn, owner))
     xp_row = conn.execute("SELECT MAX(xp) AS m FROM day_xp WHERE owner=?", (owner,)).fetchone()
     cap_days = conn.execute(
         "SELECT COUNT(*) AS n FROM day_xp WHERE owner=? AND xp >= ?", (owner, DAILY_XP_CAP)
@@ -612,15 +683,100 @@ def _review_streak(conn: sqlite3.Connection, owner: str, end_day: str) -> int:
     return n
 
 
-def _streak_days(conn: sqlite3.Connection, owner: str, end_day: str) -> int:
-    """Consecutive paid `day:` keys ending at `end_day`."""
-    days = _day_keys(conn, owner)
-    cur = date.fromisoformat(end_day)
+def _run_back(days: set[str], frozen: set[str], end: date) -> int:
+    """The run ending at `end`: real days count, frozen days bridge."""
     n = 0
-    while cur.isoformat() in days:
-        n += 1
-        cur -= timedelta(days=1)
+    while (d := end.isoformat()) in days or d in frozen:
+        n += d in days
+        end -= timedelta(days=1)
     return n
+
+
+def _longest(days: set[str], frozen: set[str]) -> int:
+    """The longest run over real and frozen days; only real days count."""
+    longest = run = 0
+    prev = None
+    for d in sorted(days | frozen):
+        cur = date.fromisoformat(d)
+        if prev is None or cur - prev != timedelta(days=1):
+            run = 0
+        run += d in days
+        longest = max(longest, run)
+        prev = cur
+    return longest
+
+
+def _streak_days(conn: sqlite3.Connection, owner: str, end_day: str) -> int:
+    """The run of paid `day:` keys ending at `end_day`, frozen days bridging."""
+    return _run_back(_day_keys(conn, owner), _frozen_days(conn, owner), date.fromisoformat(end_day))
+
+
+# --- streak freeze ---
+
+
+def _frozen_days(conn: sqlite3.Connection, owner: str) -> set[str]:
+    return {
+        r["used_on"]
+        for r in conn.execute(
+            "SELECT used_on FROM streak_freezes WHERE owner=? AND used_on IS NOT NULL", (owner,)
+        )
+    }
+
+
+def _held(conn: sqlite3.Connection, owner: str) -> int:
+    return conn.execute(
+        "SELECT COUNT(*) AS n FROM streak_freezes WHERE owner=? AND used_on IS NULL", (owner,)
+    ).fetchone()["n"]
+
+
+def _plan_freezes(conn: sqlite3.Connection, owner: str, today: str) -> list[tuple[int, str]]:
+    """(freeze id, day) pairs that bridge the gap ending yesterday, or [] when
+    nothing should be used: yesterday counts already, the gap is longer than
+    FREEZE_CAP, no run sits before it, or some day has no freeze bought on or
+    before it (all or nothing: never burn a freeze on a streak that breaks)."""
+    q = _day_keys(conn, owner) | _frozen_days(conn, owner)
+    cur = date.fromisoformat(today) - timedelta(days=1)
+    gap: list[str] = []
+    while cur.isoformat() not in q and len(gap) < FREEZE_CAP:
+        gap.append(cur.isoformat())
+        cur -= timedelta(days=1)
+    if not gap or cur.isoformat() not in q:
+        return []
+    held = [
+        (r["id"], r["bought_on"])
+        for r in conn.execute(
+            "SELECT id, bought_on FROM streak_freezes WHERE owner=? AND used_on IS NULL"
+            " ORDER BY bought_on, id",
+            (owner,),
+        )
+    ]
+    plan = []
+    for day in reversed(gap):
+        pick = next((f for f in held if f[1] <= day), None)
+        if pick is None:
+            return []
+        held.remove(pick)
+        plan.append((pick[0], day))
+    return plan
+
+
+def _settle_freezes(conn: sqlite3.Connection, owner: str, today: str) -> None:
+    """Uses held freezes on the missed days before `today` (never today
+    itself). Takes the write lock only when there is work; the caller commits."""
+    if not _plan_freezes(conn, owner, today):
+        return
+    if not conn.in_transaction:
+        conn.execute("BEGIN IMMEDIATE")
+    for fid, day in _plan_freezes(conn, owner, today):
+        conn.execute("UPDATE streak_freezes SET used_on=? WHERE id=?", (day, fid))
+
+
+def _heal_streak_items(conn: sqlite3.Connection, owner: str, earned: list[str], owned: list[str]) -> None:
+    """Owns the item of every streak milestone already earned (milestones paid
+    before the items existed). The caller commits."""
+    for rung, item_id in STREAK_ITEMS.items():
+        if f"streak_{rung}" in earned and item_id in _ITEMS and item_id not in owned:
+            _grant_item(conn, owner, item_id)
 
 
 def _ok_ratio(score) -> tuple[float, int] | None:
@@ -666,17 +822,20 @@ def _milestones(conn: sqlite3.Connection, owner: str, day: str, ctx: dict) -> tu
         ("perfect_take", ctx.get("perfect")),
         ("full_speed", ctx.get("full_speed")),
         ("first_mastery", ctx.get("mastered")),
-        ("streak_7", streak >= 7),
-        ("streak_30", streak >= 30),
     ):
         if hit:
             pay(name)
+    for rung in STREAK_RUNGS:
+        if streak < rung:
+            break
+        pay(f"streak_{rung}")
+        _grant_item(conn, owner, STREAK_ITEMS.get(rung))
     hours = ctx.get("hours") or 0
     for rung in HOURS_RUNGS:
         if hours < rung:
             break
         pay(f"hours_{rung}")
-        _grant_hours_item(conn, owner, rung)
+        _grant_item(conn, owner, HOURS_ITEMS.get(rung))
     for name in SECRET_AWARDS:
         if ctx.get(name):
             pay(name)
@@ -687,9 +846,8 @@ def _milestones(conn: sqlite3.Connection, owner: str, day: str, ctx: dict) -> tu
     return got_xp, got_coins, names
 
 
-def _grant_hours_item(conn: sqlite3.Connection, owner: str, rung: int) -> None:
-    """Owns the rung's item for good (never equipped), like the beta hat."""
-    item_id = HOURS_ITEMS.get(rung)
+def _grant_item(conn: sqlite3.Connection, owner: str, item_id: str | None) -> None:
+    """Owns a milestone's item for good (never equipped), like the beta hat."""
     if item_id in _ITEMS:
         conn.execute(
             "INSERT OR IGNORE INTO owned (owner, item_id, bought_at) VALUES (?, ?, ?)",
@@ -826,6 +984,7 @@ def _run_awards(
             got_xp += gx
             got_coins += gc
             if paid:
+                _settle_freezes(conn, owner, day)
                 streak = _streak_days(conn, owner, day)
                 ctx["streak"] = streak
                 for min_days, sxp, scoins in STREAK_TIERS:
@@ -1138,6 +1297,61 @@ def buy(owner: str, item_id: str) -> dict:
     return snapshot(owner)
 
 
+def buy_freeze(owner: str, purchase_id: str) -> dict:
+    """Buys one streak freeze for FREEZE_PRICE coins, debit and row in one
+    transaction. A replayed purchase_id returns the snapshot, no second debit."""
+    conn = connect()
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        if conn.execute(
+            "SELECT 1 FROM streak_freezes WHERE owner=? AND purchase_id=?", (owner, purchase_id)
+        ).fetchone():
+            conn.rollback()
+            return snapshot(owner)
+        if _held(conn, owner) >= FREEZE_CAP:
+            conn.rollback()
+            raise _err(400, code="freeze_cap", cap=FREEZE_CAP)
+        row = conn.execute("SELECT coins FROM progress WHERE owner=?", (owner,)).fetchone()
+        coins = row["coins"] if row else 0
+        cur = conn.execute(
+            "UPDATE progress SET coins = coins - ?, updated_at = ? WHERE owner=? AND coins >= ?",
+            (FREEZE_PRICE, _now(), owner, FREEZE_PRICE),
+        )
+        if cur.rowcount != 1:
+            conn.rollback()
+            raise _err(400, code="not_enough_coins", price=FREEZE_PRICE, coins=coins)
+        conn.execute(
+            "INSERT INTO streak_freezes (owner, purchase_id, bought_on, created_at)"
+            " VALUES (?, ?, ?, ?)",
+            (owner, purchase_id, _today(), _now()),
+        )
+        conn.commit()
+    except HTTPException:
+        raise
+    except BaseException:
+        conn.rollback()
+        raise
+    return snapshot(owner)
+
+
+def grant_coins(owner: str, amount: int, clear_freezes: bool = False) -> dict:
+    """Dev only (see the /shadow/dev/coins route): adds coins, optionally drops the
+    unused freezes so a test can buy again, returns the snapshot."""
+    conn = connect()
+    with conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO progress (owner, xp, coins, updated_at) VALUES (?, 0, 0, ?)",
+            (owner, _now()),
+        )
+        conn.execute(
+            "UPDATE progress SET coins = coins + ?, updated_at = ? WHERE owner=?",
+            (amount, _now(), owner),
+        )
+        if clear_freezes:
+            conn.execute("DELETE FROM streak_freezes WHERE owner=? AND used_on IS NULL", (owner,))
+    return snapshot(owner)
+
+
 def equip(owner: str, slot: str, item_id: str) -> dict:
     if slot not in SLOTS:
         raise _err(400, code="bad_slot")
@@ -1165,8 +1379,35 @@ def equip(owner: str, slot: str, item_id: str) -> dict:
 
 def delete_owner(owner: str) -> None:
     with connect() as conn:
-        for table in ("progress", "awards", "owned", "equipped", "day_xp", "line_best"):
+        for table in (
+            "progress", "awards", "owned", "equipped", "day_xp", "line_best", "streak_freezes",
+        ):
             conn.execute(f"DELETE FROM {table} WHERE owner=?", (owner,))
+
+
+def _streaks_for(conn: sqlite3.Connection, owners: list[str]) -> dict[str, int]:
+    """Current `day:` streak per owner in one query. Counts back from today,
+    or from yesterday when today is not paid yet (same rule as the snapshot)."""
+    out = {o: 0 for o in owners}
+    if not owners:
+        return out
+    marks = ",".join("?" * len(owners))
+    days: dict[str, set[str]] = {o: set() for o in owners}
+    for r in conn.execute(
+        f"SELECT owner, key FROM awards WHERE key LIKE 'day:%' AND owner IN ({marks})", owners
+    ):
+        days[r["owner"]].add(r["key"][4:])
+    today = _today()
+    for o in owners:
+        end = date.fromisoformat(today)
+        if today not in days[o]:
+            end -= timedelta(days=1)
+        n = 0
+        while end.isoformat() in days[o]:
+            n += 1
+            end -= timedelta(days=1)
+        out[o] = n
+    return out
 
 
 # --- leaderboard ---
@@ -1204,8 +1445,10 @@ def leaderboard(owner: str, limit: int, handles) -> dict:
         ):
             if r["slot"] in slots[r["owner"]]:
                 slots[r["owner"]][r["slot"]] = r["item_id"]
+    streaks = _streaks_for(conn, [o for o, _ in top])
     entries = [
-        {"username": names[o], "level": level_for(xp), "equipped": slots[o]}
+        {"username": names[o], "level": level_for(xp), "equipped": slots[o],
+         "streak_days": streaks[o]}
         for o, xp in top
     ]
     own = conn.execute("SELECT xp FROM progress WHERE owner=?", (owner,)).fetchone()
@@ -1258,8 +1501,10 @@ def weekly_leaderboard(
         ):
             if r["slot"] in slots[r["owner"]]:
                 slots[r["owner"]][r["slot"]] = r["item_id"]
+    streaks = _streaks_for(conn, [o for o, _ in top])
     entries = [
-        {"username": names[o], "level": level_for(xp_by.get(o, 0)), "equipped": slots[o], **v}
+        {"username": names[o], "level": level_for(xp_by.get(o, 0)), "equipped": slots[o],
+         "streak_days": streaks[o], **v}
         for o, v in top
     ]
     rank = next((i + 1 for i, (o, _) in enumerate(ranked) if o == owner), None)

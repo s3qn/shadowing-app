@@ -8,6 +8,7 @@ and posts the raw events. Everything here is pure and offline.
 from __future__ import annotations
 
 import difflib
+import json
 import logging
 import math
 import re
@@ -23,8 +24,20 @@ VIDEO_ID_RE = re.compile(r"[A-Za-z0-9_-]{11}")
 HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"}
 PATH_PREFIXES = ("shorts", "live", "embed", "v")
 
-CAPTIONS_MAX_BODY = 3 * 1024 * 1024
+# Body budget. Raw ASR json3 runs about 60 bytes a token
+# ({"utf8", "tOffsetMs", "acAsrConf"}) at up to 4 tokens a second of fast
+# Japanese: about 1 MB an hour, so a 4 h video (CAPTIONS_MAX_SECONDS) at
+# ASR_MAX_TOKENS is about 4.5 MB with its events. A manual track is about
+# 150 KB an hour. The body fits both caps; an ASR track over its own caps is
+# dropped and the manual track imports alone.
+CAPTIONS_MANUAL_BYTES = 2 * 1024 * 1024
+ASR_MAX_BYTES = 5 * 1024 * 1024
+CAPTIONS_MAX_BODY = CAPTIONS_MANUAL_BYTES + ASR_MAX_BYTES
 CAPTIONS_MAX_EVENTS = 6000
+ASR_MAX_EVENTS = 12000
+ASR_MAX_SEGS_PER_EVENT = 100
+ASR_MAX_TOKENS = 60000
+TOKEN_MAX_S = 1.5
 CAPTIONS_MAX_LINES = 1000
 CAPTION_MAX_CHARS = 300
 CAPTIONS_MAX_SECONDS = 4 * 3600
@@ -187,6 +200,81 @@ def json3_to_lines(events) -> list[dict]:
     return out[:CAPTIONS_MAX_LINES]
 
 
+def stretch_lumps(lines: list[dict]) -> list[dict]:
+    """yt-lump: the ASR track sometimes packs 10 s or more of speech into one
+    seg with no offsets and a 3 s dDurationMs, while the caption stays on
+    screen until the next event. A ja line with no pieces whose moras cannot
+    fit at segment.RATE_MAX gets its end moved to the next line's start (at
+    most its moras at RATE_MIN), so the split spreads it over the voice
+    instead of cramming it into the first seconds. Run before mora_rate: a
+    lump would read as the fastest speaker on the track."""
+    import segment
+
+    out = []
+    for i, ln in enumerate(lines):
+        dur = ln["end"] - ln["start"]
+        if not ln.get("pieces") and dur > 0:
+            n = len(segment.moras_of(ln["text"]))
+            if n / dur > segment.RATE_MAX:
+                nxt = lines[i + 1]["start"] if i + 1 < len(lines) else math.inf
+                end = min(nxt, ln["start"] + n / segment.RATE_MIN)
+                if end > ln["end"]:
+                    ln = {**ln, "end": round(end, 3)}
+        out.append(ln)
+    return out
+
+
+def asr_tokens(events) -> list[dict]:
+    """The ASR track's json3 events to `[{text, start, end}]` in absolute
+    seconds, sorted by onset: one token per seg with text, onset = tStartMs +
+    tOffsetMs. YouTube omits a zero tOffsetMs (the first seg of an event, a
+    one-seg event), so a missing offset is 0. A token ends at the next onset,
+    at most TOKEN_MAX_S later and never after its own event. Raises
+    CaptionsInvalid for the wrong shape, a bad timestamp or offset, or a
+    track over its caps (events, segs per event, tokens, ASR_MAX_BYTES)."""
+    if not isinstance(events, list) or len(events) > ASR_MAX_EVENTS:
+        raise CaptionsInvalid("asr events must be a list of at most %d" % ASR_MAX_EVENTS)
+    seen = 0
+    raw: list[tuple[float, float, str]] = []
+    for ev in events:
+        if not isinstance(ev, dict):
+            raise CaptionsInvalid("event is not an object")
+        segs = ev.get("segs")
+        if segs is None:
+            continue
+        if not isinstance(segs, list):
+            raise CaptionsInvalid("segs is not a list")
+        seen += len(segs)
+        if len(segs) > ASR_MAX_SEGS_PER_EVENT or seen > ASR_MAX_TOKENS:
+            raise CaptionsInvalid("asr track over %d segs an event or %d in all"
+                                  % (ASR_MAX_SEGS_PER_EVENT, ASR_MAX_TOKENS))
+        start_ms = _num(ev.get("tStartMs", 0))
+        dur_ms = _num(ev.get("dDurationMs", 0))
+        for seg in segs:
+            if not isinstance(seg, dict):
+                raise CaptionsInvalid("seg is not an object")
+            u = seg.get("utf8", "")
+            if not isinstance(u, str):
+                raise CaptionsInvalid("utf8 is not a string")
+            off_ms = _num(seg["tOffsetMs"]) if "tOffsetMs" in seg else 0.0
+            text = u.strip()
+            if not text or _MARKER_RE.match(text) or text.startswith("♪"):
+                continue
+            raw.append(((start_ms + off_ms) / 1000.0, (start_ms + dur_ms) / 1000.0, text))
+    size = len(json.dumps(events, ensure_ascii=False, separators=(",", ":")).encode()) if events else 0
+    if size > ASR_MAX_BYTES:
+        raise CaptionsInvalid("asr track over %d bytes" % ASR_MAX_BYTES)
+    raw.sort(key=lambda r: r[0])
+    out = []
+    for i, (onset, event_end, text) in enumerate(raw):
+        if i + 1 < len(raw):
+            end = min(raw[i + 1][0], event_end, onset + TOKEN_MAX_S)
+        else:
+            end = event_end
+        out.append({"text": text, "start": onset, "end": max(end, onset)})
+    return out
+
+
 def cues_from_lines(lines: list[dict]) -> list[dict]:
     """Lines to the cue shape the build uses. `pieces` are seg onsets relative
     to the line start, clamped to the line; empty when the track has none."""
@@ -211,28 +299,6 @@ SPLIT_HARD_CHARS = 40
 SPLIT_MIN_CHILD = 2
 CLAUSE_ENDS = ("けど", "から", "とか", "って", "ので")
 _PUNCT_END = "、。？！,.?!"
-
-
-def apply_corrections(lines: list[dict], candidates: dict[int, str]) -> tuple[list[dict], list[dict]]:
-    """Apply the candidates that pass the kana guard. Pure: returns new lines
-    and a QA entry per candidate, accepted or not. Pieces are kept as they are."""
-    import segment
-
-    out = [dict(ln) for ln in lines]
-    qa = []
-    for idx, cand in sorted(candidates.items()):
-        if not 0 <= idx < len(out):
-            continue
-        before = lines[idx]["text"]
-        ok, reason = segment.sound_alike(before, cand)
-        if ok:
-            out[idx]["text"] = cand.strip()
-            log.info("correction %d accepted (%s): %r -> %r", idx, reason, before, cand)
-        else:
-            log.info("correction %d rejected (%s): %r -> %r", idx, reason, before, cand)
-        qa.append({"idx": idx, "start": lines[idx]["start"], "before": before,
-                   "after": cand, "accepted": ok, "reason": reason})
-    return out, qa
 
 
 def _char_clock(text: str, pieces: list[dict] | None, start: float, end: float,
@@ -285,21 +351,57 @@ def _is_boundary(chunk_text: str) -> bool:
     return t.rstrip(_PUNCT_END).endswith(CLAUSE_ENDS)
 
 
-def _split_one(ln: dict, max_chars: int, max_s: float) -> list[dict]:
+def _mora_clock(text: str, chunks: list[dict], start: float, end: float, rate: float) -> list[float]:
+    """One time per character of `text` from the mora clock: each chunk takes
+    its mora count over `rate` seconds (characters inside a chunk linear), the
+    whole squeezed to fit the line when the speech would overrun it. A chunk
+    with no reading counts its letters as moras; punctuation takes no time."""
+    n = len(text)
+    weights = []
+    for c in chunks:
+        w = len(c["moras"])
+        if w == 0:
+            w = sum(1 for ch in c["text"] if ch.isalnum())
+        weights.append(w)
+    total = sum(weights)
+    if total == 0 or rate <= 0:
+        return [start + (end - start) * i / max(n, 1) for i in range(n)]
+    scale = min(1.0, (end - start) / (total / rate))
+    out: list[float] = []
+    before = 0.0
+    for c, w in zip(chunks, weights):
+        m = max(len(c["text"]), 1)
+        for k in range(len(c["text"])):
+            out.append(start + (before + w * k / m) / rate * scale)
+        before += w
+    return out
+
+
+def _split_one(ln: dict, max_chars: int, max_s: float, rate: float | None = None) -> list[dict]:
     import segment
 
     text = ln["text"]
     chunks = segment.tokenize(text)
     if "".join(c["text"] for c in chunks) != text:
         return [ln]
-    ends, pos = [], 0
+    # A chunk can end in the digits of a number whose counter opens the next
+    # chunk ("か。7" | "時"): cut after the punctuation, never inside a number.
+    split: list[str] = []
     for c in chunks:
-        pos += len(c["text"])
+        m = re.match(r"^(.*[{}])(\d+)$".format(_PUNCT_END), c["text"])
+        split.extend(m.groups() if m else [c["text"]])
+    ends, pos = [], 0
+    for t in split:
+        pos += len(t)
         ends.append(pos)
     ends = ends[:-1]
-    bounds = [(e, _is_boundary(c["text"])) for e, c in zip(ends, chunks)]
+    bounds = [(e, _is_boundary(t)) for e, t in zip(ends, split)]
+    bounds = [(e, b) for e, b in bounds if not text[e - 1:e].isdigit()]
     owners: list[int | None] = []
-    clock = _char_clock(text, ln.get("pieces"), ln["start"], ln["end"], owners)
+    if rate is not None and not ln.get("pieces"):
+        clock = _mora_clock(text, chunks, ln["start"], ln["end"], rate)
+    else:
+        clock = _char_clock(text, ln.get("pieces"), ln["start"], ln["end"], owners)
     size = lambda a, b: len(re.sub(r"\s", "", text[a:b]))
 
     def t_at(k: int) -> float:
@@ -398,13 +500,16 @@ def _child_pieces(text: str, s: int, e: int, owners: list[int | None], clock: li
     return out
 
 
-def split_lines(lines: list[dict], max_chars: int = SPLIT_MAX_CHARS, max_s: float = SPLIT_MAX_S) -> list[dict]:
-    """Split long ja lines at clause ends, never inside a janome chunk. Pure."""
+def split_lines(lines: list[dict], max_chars: int = SPLIT_MAX_CHARS, max_s: float = SPLIT_MAX_S,
+                rate: float | None = None) -> list[dict]:
+    """Split long ja lines at clause ends, never inside a janome chunk. Pure.
+    Cut times come from the pieces when a line has them, else from the mora
+    clock at `rate` moras per second (segment.mora_rate), else linear."""
     out: list[dict] = []
     for ln in lines:
         text = ln["text"]
         if len(re.sub(r"\s", "", text)) <= max_chars and ln["end"] - ln["start"] <= max_s:
             out.append(ln)
         else:
-            out.extend(_split_one(ln, max_chars, max_s))
+            out.extend(_split_one(ln, max_chars, max_s, rate))
     return out

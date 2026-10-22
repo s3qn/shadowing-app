@@ -5,6 +5,8 @@ by hand from the moras that tokenize() itself reports for a sentence, which
 keeps these tests independent of what any live engine would actually speak.
 """
 
+import pytest
+
 import segment
 
 
@@ -371,6 +373,49 @@ def test_align_pieces_every_word_has_pos_and_ruby():
     for w in words:
         assert isinstance(w["pos"], str) and w["pos"]
         assert w["ruby"] == segment.ruby(w["text"])
+
+
+def test_align_pieces_speech_end_ends_the_last_word_early():
+    words = segment.align_pieces("今日は学校に行きます。", [], 1.2, speech_end=0.8)
+
+    assert words[0]["start"] == 0.0
+    assert words[-1]["end"] == 0.8
+    for a, b in zip(words, words[1:]):
+        assert a["end"] == b["start"]
+
+
+def test_align_pieces_speech_end_is_ignored_when_a_piece_anchors():
+    pieces = [{"text": "学校に", "start": 0.7, "end": 1.2}]
+    words = segment.align_pieces("今日は学校に行きます。", pieces, 2.2, speech_end=1.5)
+
+    assert {w["text"]: w for w in words}["学校"]["start"] == 0.7
+    _assert_contiguous(words, 2.2)
+
+
+def test_mora_rate_is_the_p80_of_usable_lines():
+    text = "ありがとうございます"
+    n = len(segment.moras_of(text))
+    items = [(text, n / r) for r in range(2, 11)]  # rates 2 to 10, every line >= 1.0 s
+
+    assert segment.mora_rate(items) == pytest.approx(8.0)
+
+
+def test_mora_rate_clamps_and_defaults():
+    text = "ありがとうございます"
+    n = len(segment.moras_of(text))
+    assert segment.mora_rate([(text, n / 2.0)] * 6) == 4.0
+    assert segment.mora_rate([(text * 3, 1.0)] * 6) == 10.0
+    assert segment.mora_rate([(text, n / 8.0)] * 4) == 6.0  # fewer than 5 usable lines
+    assert segment.mora_rate([(text, 0.5)] * 6) == 6.0  # lines under 1.0 s do not count
+
+
+def test_speech_end_trims_a_slow_line_and_keeps_a_tight_one():
+    text = "今日は学校に行きます。"  # 12 moras
+    assert segment.speech_end(text, 4.0, 6.0) == pytest.approx(2.0)
+    assert segment.speech_end(text, 10.0, 6.0) == pytest.approx(4.0)  # the 0.4 * duration floor
+    assert segment.speech_end(text, 2.05, 6.0) is None  # within 0.1 s of the end
+    assert segment.speech_end(text, 1.2, 6.0) is None  # spoken faster than the rate
+    assert segment.speech_end("。", 2.0, 6.0) is None  # no moras
 
 
 def test_reading_gives_hiragana_and_keeps_unreadable_surface():

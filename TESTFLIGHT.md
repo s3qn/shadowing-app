@@ -83,6 +83,17 @@ eas build -p ios --profile production
 eas submit -p ios --latest
 ```
 
+## Update gate (after Sean accepts)
+
+Builds 22 and newer block themselves when the backend lists a higher build.
+Never run these before Sean accepts, and never as part of `release`:
+
+- iOS: `python3 tools/asc-testflight.py publish --build N` (set `SHADOW_DATA_DIR`
+  to `/home/sean/shadow-prod/data` first).
+- Android: `python3 tools/set-latest-build.py --android N --url <expo.dev artifact url>`
+  right before `tools/android-release-mail.py` with the same build and apk.
+- Rollback: the same command with the old number.
+
 ## Known loose end
 
 `src/app/(tabs)/settings.tsx` hides the "Prism lab" row behind `__DEV__`, so

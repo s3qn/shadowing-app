@@ -32,6 +32,18 @@ export function thumbUrl(id: string): string {
   return `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
 }
 
+const BACK_CHANNEL_MAX_S = 1.2;
+const BACK_CHANNEL_RE = /^[ぁ-ゖー]{1,3}$/;
+const BACK_CHANNEL_STRIP_RE = /[、。！？!?…\s]/g;
+
+/** A listener's back-channel (うん, そう, わあ, はい): at most 1.2 s and one to
+ * three hiragana once punctuation is stripped. なるほど (four), 2時 (a digit)
+ * and 大阪を (kanji) stay. The video screen hides these lines so the speaker's
+ * card holds instead of blinking for half a second. */
+export function isBackChannel(line: { ja: string; duration: number }): boolean {
+  return line.duration <= BACK_CHANNEL_MAX_S && BACK_CHANNEL_RE.test(line.ja.replace(BACK_CHANNEL_STRIP_RE, ''));
+}
+
 /**
  * Injected into the embed page to switch YouTube's own captions off, since the
  * route draws the active line itself. `cc_load_policy=0` only means "do not

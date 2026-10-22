@@ -7,7 +7,8 @@ import { GUIDE_CHIP_ROOM, GuideLayer, type GuideHole, guideBubbleHeight } from '
 import { StarterFinish } from '@/components/onboarding/starter-finish';
 import * as api from '@/lib/api';
 import { getGuideBefore, getGuideStep, guideStartHome, setGuideStep, useGuideAnchors, useGuideStep, type GuideBox } from '@/lib/guide';
-import { useT } from '@/lib/i18n';
+import { confirmSheet } from '@/lib/confirm-sheet';
+import { t as tr, useT } from '@/lib/i18n';
 import { clearCelebration, clearLevelUp } from '@/lib/level-up-store';
 import { applyProgress, type Progress, useProgressCache } from '@/lib/progression';
 import { getSettingsSync, setBetaNoteSeen, subscribeSettings } from '@/lib/settings';
@@ -137,6 +138,7 @@ export function GuideHost() {
         holes={[grow(a.addFab, 8)]}
         hint={centre(a.addFab)}
         bubble={{ kind: 'welcome', text: [t('guide.home'), t('guide.home.b2'), t(a.homeEmpty ? 'guide.home.b3' : 'guide.home.b3Have')], top }}
+        onSkip={skipGuide}
       />
     );
   }
@@ -149,6 +151,7 @@ export function GuideHost() {
         hint={a.topicFirstTile ? centre(a.topicFirstTile) : undefined}
         bubble={{ kind: 'welcome', text: [t('guide.topics'), t('guide.topics.b2')], top: bottomTop }}
         chip={{ text: t('guide.chip.practice'), place: 'above' }}
+        onSkip={skipGuide}
       />
     );
   }
@@ -159,6 +162,7 @@ export function GuideHost() {
         hint={centre(a.sizeRetry)}
         // Above the error line (two lines of 20 pt) so the cat never covers it.
         bubble={{ kind: 'record', text: t('guide.size.offline'), top: Math.max(insets.top + 44, a.sizeRetry.y - guideBubbleHeight('record', screenW) - 24 - 56) }}
+        onSkip={skipGuide}
       />
     );
   }
@@ -172,6 +176,7 @@ export function GuideHost() {
         hint={target ? centre(target) : undefined}
         // Below the count, its label and the bar: the cat never covers the big digit.
         bubble={{ kind: 'record', text: [t('guide.size'), t('guide.size.b2'), t('guide.size.b3')], top: next ? undefined : a.sizeTray.y + a.sizeTray.height + 185 }}
+        onSkip={skipGuide}
       />
     );
   }
@@ -199,6 +204,7 @@ export function GuideHost() {
         holes={[grow(b, 6, 40)]}
         hint={cat}
         bubble={{ kind: 'proud', text: [t('guide.cat'), t('guide.cat.b2'), t('guide.cat.b3')], top: underStats(b.y + HOME_PROFILE_H) }}
+        onSkip={skipGuide}
       />
     );
   }
@@ -211,6 +217,7 @@ export function GuideHost() {
         seeThrough={stage ? [{ ...stage, radius: 0 }] : undefined}
         hint={centre(a.wardrobeTrophy)}
         bubble={{ kind: 'welcome', text: [t('guide.wardrobe'), t('guide.wardrobe.b2'), t('guide.wardrobe.b3'), t('guide.wardrobe.b4')], top: stage ? stage.y + stage.height - 24 : undefined }}
+        onSkip={skipGuide}
       />
     );
   }
@@ -243,6 +250,7 @@ export function GuideHost() {
         dimOpacity={0.55}
         bubble={{ kind: 'record', text: [t('guide.beta'), t('guide.beta.b2'), t('guide.beta.b3'), t('guide.beta.b4')], top: 300 }}
         onTapOutside={finishBeta}
+        onSkip={skipGuide}
       />
     );
   }
@@ -252,6 +260,24 @@ export function GuideHost() {
 function finishBeta() {
   setGuideStep('done');
   setBetaNoteSeen(true);
+}
+
+/**
+ * The late exit (intro-clarity): asks first, then ends the guide and lands on Home.
+ * Settings > "Replay onboarding" brings it back.
+ */
+export async function skipGuide() {
+  const pick = await confirmSheet({
+    title: tr('guide.skip.title'),
+    message: tr('guide.skip.body'),
+    actions: [
+      { label: tr('guide.skip.keep'), verb: 'listen' },
+      { label: tr('guide.skip.go'), verb: 'tools' },
+    ],
+  });
+  if (pick !== 1) return;
+  finishBeta();
+  if (router.canDismiss()) router.dismissAll();
 }
 
 /** Moment 6: pays the starter gift, then shows 1 → 2 with the blush. A failed request skips ahead. */

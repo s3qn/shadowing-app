@@ -72,4 +72,12 @@ export const en = {
   'guide.beta.b2': 'Found a bug or have an idea? Send it to us.',
   'guide.beta.b3': 'Voice, text or screenshots: all work.',
   'guide.beta.b4': 'Settings, then Report a bug or idea.',
+  // The miss ladder on the action page and the late exit.
+  'guide.tapHere': 'Tap here',
+  'guide.goOn': 'Tap anywhere to go on',
+  'guide.skip': 'Skip the intro',
+  'guide.skip.title': 'Skip the intro?',
+  'guide.skip.body': 'You can run it again from Settings.',
+  'guide.skip.keep': 'Keep going',
+  'guide.skip.go': 'Skip',
 } as const;

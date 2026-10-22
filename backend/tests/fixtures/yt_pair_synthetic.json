@@ -1,0 +1,577 @@
+{
+ "video_id": "synthetic000",
+ "events": [
+  {
+   "tStartMs": 300,
+   "dDurationMs": 2500,
+   "segs": [
+    {
+     "utf8": "おはようございます。"
+    }
+   ]
+  },
+  {
+   "tStartMs": 2800,
+   "dDurationMs": 3000,
+   "segs": [
+    {
+     "utf8": "今日は東京の天気を見ていきましょう。"
+    }
+   ]
+  },
+  {
+   "tStartMs": 5800,
+   "dDurationMs": 2700,
+   "segs": [
+    {
+     "utf8": "朝はよく晴れています。"
+    }
+   ]
+  },
+  {
+   "tStartMs": 8500,
+   "dDurationMs": 500,
+   "segs": [
+    {
+     "utf8": "うん。"
+    }
+   ]
+  },
+  {
+   "tStartMs": 9200,
+   "dDurationMs": 3600,
+   "segs": [
+    {
+     "utf8": "午後からは雲が広がる見込みです。"
+    }
+   ]
+  },
+  {
+   "tStartMs": 12800,
+   "dDurationMs": 2699,
+   "segs": [
+    {
+     "utf8": "傘を持って出かけてください。"
+    }
+   ]
+  },
+  {
+   "tStartMs": 16000,
+   "dDurationMs": 15000,
+   "segs": [
+    {
+     "utf8": "はい。 次です。 放送を始めます。 よろしくお願いします。"
+    }
+   ]
+  },
+  {
+   "tStartMs": 31000,
+   "dDurationMs": 3799,
+   "segs": [
+    {
+     "utf8": "明日も晴れるでしょう。"
+    }
+   ]
+  },
+  {
+   "tStartMs": 34800,
+   "dDurationMs": 3200,
+   "segs": [
+    {
+     "utf8": "気温は二十度くらいです。"
+    }
+   ]
+  },
+  {
+   "tStartMs": 38000,
+   "dDurationMs": 3000,
+   "segs": [
+    {
+     "utf8": "風は弱いです。"
+    }
+   ]
+  },
+  {
+   "tStartMs": 41000,
+   "dDurationMs": 3000,
+   "segs": [
+    {
+     "utf8": "それでは、また明日。"
+    }
+   ]
+  },
+  {
+   "tStartMs": 44000,
+   "dDurationMs": 2500,
+   "segs": [
+    {
+     "utf8": "さようなら。"
+    }
+   ]
+  }
+ ],
+ "asr_events": [
+  {
+   "tStartMs": 500,
+   "dDurationMs": 2000,
+   "segs": [
+    {
+     "utf8": "おは"
+    },
+    {
+     "utf8": "よ",
+     "tOffsetMs": 360
+    },
+    {
+     "utf8": "うご",
+     "tOffsetMs": 802
+    },
+    {
+     "utf8": "ざいま",
+     "tOffsetMs": 1180
+    },
+    {
+     "utf8": "す",
+     "tOffsetMs": 1477
+    }
+   ]
+  },
+  {
+   "tStartMs": 3000,
+   "dDurationMs": 2500,
+   "segs": [
+    {
+     "utf8": "今日"
+    },
+    {
+     "utf8": "は",
+     "tOffsetMs": 267
+    },
+    {
+     "utf8": "東",
+     "tOffsetMs": 476
+    },
+    {
+     "utf8": "京",
+     "tOffsetMs": 771
+    },
+    {
+     "utf8": "の",
+     "tOffsetMs": 1055
+    },
+    {
+     "utf8": "天気",
+     "tOffsetMs": 1271
+    },
+    {
+     "utf8": "を",
+     "tOffsetMs": 1379
+    },
+    {
+     "utf8": "見てい",
+     "tOffsetMs": 1769
+    },
+    {
+     "utf8": "きまし",
+     "tOffsetMs": 1999
+    },
+    {
+     "utf8": "ょう",
+     "tOffsetMs": 2333
+    }
+   ]
+  },
+  {
+   "tStartMs": 6000,
+   "dDurationMs": 2000,
+   "segs": [
+    {
+     "utf8": "朝"
+    },
+    {
+     "utf8": "は",
+     "tOffsetMs": 284
+    },
+    {
+     "utf8": "よく",
+     "tOffsetMs": 556
+    },
+    {
+     "utf8": "晴",
+     "tOffsetMs": 729
+    },
+    {
+     "utf8": "れ",
+     "tOffsetMs": 1042
+    },
+    {
+     "utf8": "ていま",
+     "tOffsetMs": 1559
+    },
+    {
+     "utf8": "す",
+     "tOffsetMs": 1853
+    }
+   ]
+  },
+  {
+   "tStartMs": 8200,
+   "dDurationMs": 300,
+   "aAppend": 1,
+   "segs": [
+    {
+     "utf8": "\n"
+    }
+   ]
+  },
+  {
+   "tStartMs": 8500,
+   "dDurationMs": 500,
+   "segs": [
+    {
+     "utf8": "うん",
+     "tOffsetMs": 22
+    }
+   ]
+  },
+  {
+   "tStartMs": 9500,
+   "dDurationMs": 3000,
+   "segs": [
+    {
+     "utf8": "午後"
+    },
+    {
+     "utf8": "から",
+     "tOffsetMs": 141
+    },
+    {
+     "utf8": "は",
+     "tOffsetMs": 590
+    },
+    {
+     "utf8": "雲",
+     "tOffsetMs": 915
+    },
+    {
+     "utf8": "が",
+     "tOffsetMs": 1057
+    },
+    {
+     "utf8": "広が",
+     "tOffsetMs": 1220
+    },
+    {
+     "utf8": "る",
+     "tOffsetMs": 1537
+    },
+    {
+     "utf8": "見込",
+     "tOffsetMs": 1777
+    },
+    {
+     "utf8": "み",
+     "tOffsetMs": 2071
+    },
+    {
+     "utf8": "で",
+     "tOffsetMs": 2422
+    },
+    {
+     "utf8": "す",
+     "tOffsetMs": 2601
+    }
+   ]
+  },
+  {
+   "tStartMs": 13000,
+   "dDurationMs": 2000,
+   "segs": [
+    {
+     "utf8": "傘"
+    },
+    {
+     "utf8": "を",
+     "tOffsetMs": 401
+    },
+    {
+     "utf8": "持",
+     "tOffsetMs": 467
+    },
+    {
+     "utf8": "って",
+     "tOffsetMs": 777
+    },
+    {
+     "utf8": "出かけ",
+     "tOffsetMs": 1138
+    },
+    {
+     "utf8": "てく",
+     "tOffsetMs": 1357
+    },
+    {
+     "utf8": "ださい",
+     "tOffsetMs": 1690
+    }
+   ]
+  },
+  {
+   "tStartMs": 16200,
+   "dDurationMs": 400,
+   "segs": [
+    {
+     "utf8": "はい"
+    }
+   ]
+  },
+  {
+   "tStartMs": 16700,
+   "dDurationMs": 1300,
+   "segs": [
+    {
+     "utf8": "次です",
+     "tOffsetMs": 135
+    }
+   ]
+  },
+  {
+   "tStartMs": 18100,
+   "dDurationMs": 1899,
+   "segs": [
+    {
+     "utf8": "放送",
+     "tOffsetMs": 89
+    },
+    {
+     "utf8": "を",
+     "tOffsetMs": 445
+    },
+    {
+     "utf8": "はじめ",
+     "tOffsetMs": 990
+    },
+    {
+     "utf8": "ます",
+     "tOffsetMs": 1295
+    }
+   ]
+  },
+  {
+   "tStartMs": 29200,
+   "dDurationMs": 1800,
+   "segs": [
+    {
+     "utf8": "よ",
+     "tOffsetMs": 20
+    },
+    {
+     "utf8": "ろ",
+     "tOffsetMs": 392
+    },
+    {
+     "utf8": "しく",
+     "tOffsetMs": 385
+    },
+    {
+     "utf8": "お願い",
+     "tOffsetMs": 734
+    },
+    {
+     "utf8": "し",
+     "tOffsetMs": 1165
+    },
+    {
+     "utf8": "ま",
+     "tOffsetMs": 1278
+    },
+    {
+     "utf8": "す",
+     "tOffsetMs": 1539
+    }
+   ]
+  },
+  {
+   "tStartMs": 32000,
+   "dDurationMs": 2500,
+   "segs": [
+    {
+     "utf8": "明日"
+    },
+    {
+     "utf8": "も",
+     "tOffsetMs": 456
+    },
+    {
+     "utf8": "晴れ",
+     "tOffsetMs": 571
+    },
+    {
+     "utf8": "る",
+     "tOffsetMs": 1080
+    },
+    {
+     "utf8": "で",
+     "tOffsetMs": 1442
+    },
+    {
+     "utf8": "し",
+     "tOffsetMs": 1794
+    },
+    {
+     "utf8": "ょう",
+     "tOffsetMs": 2252
+    }
+   ]
+  },
+  {
+   "tStartMs": 35000,
+   "dDurationMs": 2500,
+   "segs": [
+    {
+     "utf8": "気温",
+     "tOffsetMs": 84
+    },
+    {
+     "utf8": "は",
+     "tOffsetMs": 229
+    },
+    {
+     "utf8": "二",
+     "tOffsetMs": 770
+    },
+    {
+     "utf8": "十",
+     "tOffsetMs": 1029
+    },
+    {
+     "utf8": "度",
+     "tOffsetMs": 1322
+    },
+    {
+     "utf8": "く",
+     "tOffsetMs": 1568
+    },
+    {
+     "utf8": "らいで",
+     "tOffsetMs": 1734
+    },
+    {
+     "utf8": "す",
+     "tOffsetMs": 2121
+    }
+   ]
+  },
+  {
+   "tStartMs": 38500,
+   "dDurationMs": 2000,
+   "segs": [
+    {
+     "utf8": "風",
+     "tOffsetMs": 93
+    },
+    {
+     "utf8": "は",
+     "tOffsetMs": 455
+    },
+    {
+     "utf8": "弱い",
+     "tOffsetMs": 874
+    },
+    {
+     "utf8": "です",
+     "tOffsetMs": 1491
+    }
+   ]
+  },
+  {
+   "tStartMs": 41000,
+   "dDurationMs": 2500,
+   "segs": [
+    {
+     "utf8": "それ",
+     "tOffsetMs": 123
+    },
+    {
+     "utf8": "では",
+     "tOffsetMs": 543
+    },
+    {
+     "utf8": "また",
+     "tOffsetMs": 886
+    },
+    {
+     "utf8": "明",
+     "tOffsetMs": 1563
+    },
+    {
+     "utf8": "日",
+     "tOffsetMs": 2117
+    }
+   ]
+  },
+  {
+   "tStartMs": 44000,
+   "dDurationMs": 2000,
+   "segs": [
+    {
+     "utf8": "さよう"
+    },
+    {
+     "utf8": "なら",
+     "tOffsetMs": 1067
+    }
+   ]
+  }
+ ],
+ "truth": [
+  {
+   "text": "おはようございます。",
+   "start": 0.5
+  },
+  {
+   "text": "今日は東京の天気を見ていきましょう。",
+   "start": 3.0
+  },
+  {
+   "text": "朝はよく晴れています。",
+   "start": 6.0
+  },
+  {
+   "text": "うん。",
+   "start": 8.5
+  },
+  {
+   "text": "午後からは雲が広がる見込みです。",
+   "start": 9.5
+  },
+  {
+   "text": "傘を持って出かけてください。",
+   "start": 13.0
+  },
+  {
+   "text": "はい。 次です。 放送を始めます。 よろしくお願いします。",
+   "start": 16.2
+  },
+  {
+   "text": "明日も晴れるでしょう。",
+   "start": 32.0
+  },
+  {
+   "text": "気温は二十度くらいです。",
+   "start": 35.0
+  },
+  {
+   "text": "風は弱いです。",
+   "start": 38.5
+  },
+  {
+   "text": "それでは、また明日。",
+   "start": 41.0
+  },
+  {
+   "text": "さようなら。",
+   "start": 44.0
+  }
+ ]
+}

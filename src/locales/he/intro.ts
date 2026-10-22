@@ -71,4 +71,11 @@ export const he = {
   'guide.beta.b2': 'מצאתם באג או יש רעיון? שלחו לנו.',
   'guide.beta.b3': 'קול, טקסט או צילומי מסך: הכול עובד.',
   'guide.beta.b4': 'בהגדרות, תחת ״דיווח על באג או רעיון״.',
+  'guide.tapHere': 'לחצו כאן',
+  'guide.goOn': 'לחצו בכל מקום להמשך',
+  'guide.skip': 'דלגו על ההדרכה',
+  'guide.skip.title': 'לדלג על ההדרכה?',
+  'guide.skip.body': 'אפשר להפעיל אותה שוב מההגדרות.',
+  'guide.skip.keep': 'להמשיך',
+  'guide.skip.go': 'לדלג',
 } as const satisfies Record<keyof typeof enIntro, string>;

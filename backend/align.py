@@ -125,9 +125,12 @@ def split_pieces(window: dict, pieces: list[dict], lines: list[dict]) -> dict[in
 
 def retime(lines: list[dict], per_line: dict[int, list[dict]]) -> list[dict]:
     """New offset, duration and relative pieces for the lines whose aligned
-    span agrees with the caption span to within DRIFT_S at both ends. Other
-    lines are absent from the result and keep their caption timing. Offsets stay
-    monotonic and ends never run into the next line."""
+    start agrees with the caption start to within DRIFT_S and whose aligned
+    end is no later than the caption end plus DRIFT_S. An aligned end well
+    before the caption end is the trailing pause of a caption that runs until
+    the next one, not drift, so it is accepted. Other lines are absent from
+    the result and keep their caption timing. Offsets stay monotonic and ends
+    never run into the next line."""
     chosen: dict[int, tuple[float, float, list[dict]]] = {}
     prev_end = 0.0
     for line in lines:
@@ -136,7 +139,7 @@ def retime(lines: list[dict], per_line: dict[int, list[dict]]) -> list[dict]:
         if pieces:
             a_start = min(p["start"] for p in pieces)
             a_end = max(p["end"] for p in pieces)
-            if abs(a_start - line["offset"]) <= DRIFT_S and abs(a_end - end) <= DRIFT_S:
+            if abs(a_start - line["offset"]) <= DRIFT_S and a_end <= end + DRIFT_S and a_end > a_start:
                 offset = max(prev_end, a_start - LINE_PAD_S)
                 chosen[line["idx"]] = (offset, a_end + LINE_PAD_S, pieces)
                 prev_end = chosen[line["idx"]][1]

@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -33,6 +33,8 @@ export default function WardrobeScreen() {
   const { t } = useT();
   const dir = useDir();
   const router = useRouter();
+  const { item: itemParam } = useLocalSearchParams<{ item?: string }>();
+  const preselected = useRef(false);
   const insets = useSafeAreaInsets();
   const { progress, catalog, error, reload, apply, listenedHours } = useProgress();
   const [slot, setSlot] = useState<Slot>('head');
@@ -133,6 +135,16 @@ export default function WardrobeScreen() {
       if (item.unlock) setSheetOpen(true);
     } else setSelectedId(item.id === selectedId ? null : item.id);
   };
+
+  // `?item=<id>` (from the unlock celebration) opens the wardrobe on that item.
+  useEffect(() => {
+    if (preselected.current || !itemParam || !catalog || !progress) return;
+    const it = catalog.find((i) => i.id === itemParam);
+    preselected.current = true;
+    if (!it) return;
+    setSlot(it.slot);
+    onSelect(it);
+  });
 
   const gaze = useGaze();
   // BL-64: the guide's wardrobe step lights the trophy and keeps the level header and the cat in full light.

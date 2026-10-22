@@ -66,6 +66,7 @@ import {
 import { alertSheet, confirmSheet } from '@/lib/confirm-sheet';
 import { useSkyStyle, isNight } from '@/lib/sky';
 import { getGuideStep, setGuideStep, useGuideAnchor, useGuideStep } from '@/lib/guide';
+import { etaShort } from '@/lib/eta';
 import { useT, useDir } from '@/lib/i18n';
 import * as api from '@/lib/api';
 import { registerCard, startOpen, unregisterCard, useMorphHidesTitle, type CardRect } from '@/lib/card-morph';
@@ -78,7 +79,11 @@ import { forgetRung, getRung, loadLadder, peekRung } from '@/lib/speed-ladder';
 import { speedLabel } from '@/components/tide/speed-popover';
 import { cancelDownload, humanBytes, isDownloaded, offlineSummaries, removeDownload, startDownload, useDownloadState, useDownloadStatus } from '@/lib/offline-islands'; // offline-islands
 import { CatBadge } from '@/components/cat/cat-badge';
-import { forgetIsland, getPracticeLog, minutesOn, type PracticeLog } from '@/lib/practice';
+import { forgetIsland, getPracticeLog, minutesOn, streakDays, type PracticeLog } from '@/lib/practice';
+import { maybeOfferStreakReminder } from '@/lib/streak-reminder';
+import { checkStreakMoments } from '@/lib/streak-moments';
+import { progressNow, useProgressCache } from '@/lib/progression';
+import { StreakSheet } from '@/components/streak-sheet';
 import { getSettingsSync, subscribeSettings, toIslandLanguage } from '@/lib/settings';
 import { getSettings, setHomeWaveDate } from '@/lib/settings';
 import { deleteTakes, keptUpTotal, lineTiers, weakestLine, type LineTier } from '@/lib/takes';
@@ -254,7 +259,7 @@ function SortRow({ sort, onSort, labels }: { sort: Sort; onSort: (s: Sort) => vo
 }
 // pill-tray-tab-bar: sort row end
 
-const EMPTY_LOG: PracticeLog = { days: {}, islands: {}, passes: {}, ladders: {} };
+const EMPTY_LOG: PracticeLog = { days: {}, islands: {}, passes: {}, ladders: {}, freezes: 0, frozen: [], seenStreak: -1 };
 // 20 minutes of shadowing fills an island's ownership band.
 const TIDE_TARGET_SECONDS = 20 * 60;
 
@@ -295,6 +300,12 @@ export default function IslandsScreen() {
   }));
   const [sort, setSort] = useState<Sort>('newest');
   const [log, setLog] = useState<PracticeLog>(EMPTY_LOG);
+  const [streakOpen, setStreakOpen] = useState(false);
+  const { progress: cachedProgress } = useProgressCache();
+  const progressLoaded = cachedProgress !== null;
+  useEffect(() => {
+    if (progressLoaded) checkStreakMoments(true);
+  }, [progressLoaded]);
   // Raw due set from the backend schedule: islands practiced before and now
   // due again. `dueIds` below adds islands never practiced at all, which the
   // backend never lists (schedule.py only tracks islands it has seen).
@@ -648,7 +659,11 @@ export default function IslandsScreen() {
       setTakesEpoch((n) => n + 1);
       void load();
       void getPracticeLog().then((next) => {
-        if (alive) setLog(next);
+        if (!alive) return;
+        setLog(next);
+        // Once per install, after the first day that counts: offers the evening streak reminder.
+        maybeOfferStreakReminder(next);
+        checkStreakMoments(progressNow() !== null);
       });
       void api.getDueToday().then((rows) => {
         if (alive) setFetchedDueIds(new Set(rows.map((r) => r.island_id)));
@@ -878,7 +893,7 @@ export default function IslandsScreen() {
       const meta = item.status === 'failed'
         ? t('home.failed')
         : busy
-          ? api.stageLabel(item.stage)
+          ? `${api.stageLabel(item.stage)}${etaShort(item.eta_s) ? ` · ${etaShort(item.eta_s)}` : ''}`
           : `${t('home.lines', { count: item.line_count })} · ${complexityLabel}${minutes >= 1 ? ` · ${t('home.minutes', { count: minutes })}` : ''}${keptUp && keptUp.total > 0 ? ` · ${t('home.keptUp', { kept: keptUp.kept, total: keptUp.total })}` : ''}${rung ? ` · ${speedLabel(rung.speed)}` : ''}`;
       return (
         <IslandRow
@@ -983,7 +998,13 @@ export default function IslandsScreen() {
       />
       <View ref={headAnchor.ref} onLayout={headAnchor.onLayout} collapsable={false} style={styles.headerFixed}>
         <CatBadge anchorGuide={focused && guideStep === 'cat'} />
-        <PracticeCard log={log} dueCount={dueReady && !loading ? readyDueCount : null} onPractice={() => router.push('/review')} onDrive={startDrive} />
+        <PracticeCard
+          log={log}
+          dueCount={dueReady && !loading ? readyDueCount : null}
+          onPractice={() => router.push('/review')}
+          onDrive={startDrive}
+          onStreak={() => setStreakOpen(true)}
+        />
         {/* pill-tray-tab-bar: sort row start */}
         <SortRow sort={sort} onSort={setSort} labels={SORT_LABEL} />
         {/* pill-tray-tab-bar: sort row end */}
@@ -1074,6 +1095,7 @@ export default function IslandsScreen() {
       </View>
       {/* prism-home: end */}
       <AddIslandSheet open={addOpen} onClose={() => setAddOpen(false)} />
+      <StreakSheet open={streakOpen} onClose={() => setStreakOpen(false)} streak={streakDays(log, new Date())} longest={cachedProgress?.longest_streak ?? 0} />
       <BottomSheet
         open={menuItem !== null}
         onClose={() => setMenuItem(null)}

@@ -11,6 +11,7 @@ import { PILL_LABEL_SIZE } from '@/components/prism/pill-tray';
 import { applyPlaybackMode, applyRecordingMode, scheduleAudioSessionRelease } from '@/lib/audio-mode';
 import { getReview, postReviewDone, postShot, postVerdict, postVoiceNote, type ReviewTour as Tour, type ReviewVerdict } from '@/lib/api';
 import { tide } from '@/constants/theme';
+import { resetSimulation, runSimulation } from '@/lib/dev-simulate';
 import { useGuideStep } from '@/lib/guide';
 
 const DEFAULT_CHIPS = ['slow', 'ugly', 'bug', 'not like the mock', 'confusing'];
@@ -110,8 +111,14 @@ export function ReviewTour() {
     if (!cur) return;
     save(cur.verdict, cur.chips.includes(c) ? cur.chips.filter((x) => x !== c) : [...cur.chips, c]);
   };
-  const go = () => {
+  const go = async () => {
+    // Close the review sheet first and wait out its exit: a simulated moment that is itself a
+    // Modal (the streak-broken sheet) is dropped by iOS while another Modal is still dismissing.
     setOpen(false);
+    if (__DEV__ && step.simulate) {
+      await new Promise((r) => setTimeout(r, 450));
+      await runSimulation(step.simulate);
+    }
     router.push({ pathname: step.route, params: step.params ?? {} } as unknown as Href);
   };
   /** Close the sheet, wait out its exit animation, grab the whole screen and upload it. */
@@ -257,6 +264,7 @@ export function ReviewTour() {
               <Text key={c} style={styles.line}>{`• ${c}`}</Text>
             ))}
             <PrismButton shape="pill" verb="listen" label="Take me there" onPress={go} />
+            {__DEV__ ? <PrismButton shape="pill" verb="tools" label="Reset simulation" onPress={resetSimulation} /> : null}
             <View style={styles.row}>
               {VERDICTS.map((v) => (
                 <PrismButton

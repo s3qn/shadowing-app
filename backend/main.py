@@ -45,15 +45,20 @@ from pydantic import BaseModel, Field
 # from the environment at import time.
 load_dotenv()
 
+import asr_transfer
+import caption_timing
 import corpus  # voice-topic
 import dev_review
+import dev_upload
 import energy
 import grammar
 import cues
+import eta
 import explain
 import export
 import generate
 import gloss as glossary
+import app_version
 import kokoro_tts
 import latin
 import podcast
@@ -69,6 +74,7 @@ import stats
 import store
 import suggest
 import feedback
+import catch
 import transcribe
 import voicevox
 import voices
@@ -110,6 +116,7 @@ VIDEO_AUDIO_MAX_BYTES = 40 * 1024 * 1024
 ALIGN_MAX_SECONDS = 1800
 ALIGN_TIMEOUT_S = 1800
 ALIGN_MAX_ATTEMPTS = 3
+ASR_MIN_ANCHORED = 0.2  # yt-precise: under this share of lines anchored is asr_low_match
 # --- end bl36-align ---
 SRT_MAX_BYTES = 2 * 1024 * 1024
 SLICE_RATE = 24000  # aec.SR: VOICEVOX's rate, which the take cleaner and slicer assume
@@ -129,8 +136,12 @@ app.add_middleware(
 app.include_router(schedule.router)
 app.include_router(suggest.router)
 app.include_router(feedback.router)
+# catch-the-word
+app.include_router(catch.router)
 if dev_review.enabled():
     app.include_router(dev_review.router)
+if dev_upload.enabled():
+    app.include_router(dev_upload.router)
 
 
 def require_token(authorization: str | None) -> None:
@@ -154,6 +165,7 @@ def _startup() -> None:
     progression.init()
     user_profile.init()
     review_deck.init()
+    catch.init()
     _claim_owner()
     log.info("store ready at %s", store.DB_PATH)
     # Background work dies with the process. Anything still marked as working
@@ -203,6 +215,12 @@ def _kokoro_warm_up_wanted() -> bool:
     if flag:
         return flag == "1"
     return any(island.get("language", "ja") != "ja" for island in store.list_islands())
+
+
+@app.get("/shadow/app/latest")
+def app_latest() -> dict:
+    """Newest published build per platform, public like health. Fails open."""
+    return app_version.latest()
 
 
 @app.get("/health")
@@ -800,6 +818,7 @@ async def _build_import(island_id: str, media: Path, srt_text: str | None,
             start_min, end_min = start_s / 60.0, (start_s + total) / 60.0
             title = f"{title} ({start_min:.0f}–{end_min:.0f} min)"
 
+        store.set_media(island_id, total)
         store.set_stage(island_id, "transcribing")
         result = await asyncio.to_thread(transcribe.transcribe, wav, language, True, True)
         if not result.get("ok"):
@@ -911,6 +930,7 @@ async def create_import_island(
         "simple", speaker, language=language, native=native, source="import",
         source_name=audio.filename or "import", device=device,
     )
+    store.start_build(island_id)
     background.add_task(
         _build_import, island_id, media, srt_text, island_title, float(start_min) * 60.0,
         tmp_dir, language, native,
@@ -993,11 +1013,24 @@ async def import_podcast_episode(
         "simple", speaker, language=language, native=native, source="podcast", source_name=title,
         device=device,
     )
+    store.start_build(island_id)
     background.add_task(
         _build_podcast, island_id, audio_url, island_title, float(start_min) * 60.0, tmp_dir,
         language, native,
     )
     return {"id": island_id, "status": "pending"}
+
+
+def _eta_s(island: dict) -> int | None:
+    """Seconds left for a building island, None once it settles or while the
+    media length is unknown (bl70-eta)."""
+    if island.get("status") not in ("pending", "working"):
+        return None
+    kind = store.build_kind(island.get("source", ""))
+    t0 = island.get("build_t0") or 0
+    if not kind or t0 <= 0:
+        return None
+    return eta.estimate(kind, island.get("media_s") or 0, time.time() - t0, store.build_history(kind))
 
 
 @app.get("/shadow/islands")
@@ -1007,6 +1040,7 @@ def list_islands(authorization: str | None = Header(None), device: str = "",
     dev = _require_device(x_shadow_device, device)
     rows = store.list_islands(dev)
     for row in rows:
+        row["eta_s"] = _eta_s(row)
         row["has_audio"] = store.line_audio_path(row["id"], 0).exists()
     return rows
 
@@ -1073,6 +1107,7 @@ async def get_island(island_id: str, authorization: str | None = Header(None),
     device = _require_device(x_shadow_device)
     island = await asyncio.to_thread(_own_island, island_id, device)
     island["known"] = await asyncio.to_thread(store.known_idxs, device, island_id)
+    island["eta_s"] = await asyncio.to_thread(_eta_s, island)
     # A re-voice or regenerate rewrites lines while the phone polls this
     # route, so backfill only a settled island.
     if island["status"] == "ready":
@@ -1962,7 +1997,7 @@ DAILY_CAPS = {
     name: int(os.getenv(f"SHADOW_DAILY_{name.upper()}", str(default)))
     for name, default in (
         ("explain", 100), ("explain_word", 100), ("word_audio", 400),
-        ("podcast_search", 60), ("take", 200),
+        ("podcast_search", 60), ("take", 200), ("pick_sentences", 20),
     )
 }
 
@@ -2039,7 +2074,7 @@ def _signin_required(raw: str | None) -> bool:
 # SHADOW_REQUIRE_SIGNIN=0 to accept device-only requests again.
 REQUIRE_SIGNIN = _signin_required(os.getenv("SHADOW_REQUIRE_SIGNIN"))
 
-PUBLIC_PATHS = ("/health", "/shadow/health", "/shadow", "/shadow/", "/shadow/privacy")
+PUBLIC_PATHS = ("/health", "/shadow/health", "/shadow", "/shadow/", "/shadow/privacy", "/shadow/app/latest")
 
 
 # device-scope: middleware
@@ -2058,6 +2093,13 @@ class DeviceGuard:
             await self.app(scope, receive, send)
             return
         if scope["method"] == "OPTIONS" or scope["path"] in PUBLIC_PATHS:
+            await self.app(scope, receive, send)
+            return
+        # Dev upload page and API: opened in a plain browser, no device id or
+        # sign-in; every API call still needs the bearer token (dev_upload).
+        if dev_upload.enabled() and (
+            scope["path"] == "/shadow/dev/upload" or scope["path"].startswith("/shadow/dev/upload/")
+        ):
             await self.app(scope, receive, send)
             return
         headers = dict(scope["headers"])
@@ -2105,6 +2147,12 @@ _HTML_CSP = (
     b"default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; "
     b"base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 )
+# The dev upload page is one inline script plus inline style that calls its own API.
+_UPLOAD_CSP = (
+    b"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
+    b"connect-src 'self'; img-src 'self' data:; "
+    b"base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+)
 
 
 class SecurityHeaders:
@@ -2126,7 +2174,8 @@ class SecurityHeaders:
                 headers.append((b"referrer-policy", b"no-referrer"))
                 ctype = next((v for k, v in headers if k.lower() == b"content-type"), b"")
                 if ctype.lower().startswith(b"text/html"):
-                    headers.append((b"content-security-policy", _HTML_CSP))
+                    upload = dev_upload.enabled() and scope["path"] == "/shadow/dev/upload"
+                    headers.append((b"content-security-policy", _UPLOAD_CSP if upload else _HTML_CSP))
                 message = {**message, "headers": headers}
             await send(message)
 
@@ -2400,6 +2449,7 @@ async def island_glosses(island_id: str, authorization: str | None = Header(None
 
 # --- youtube-shadowing ---
 import youtube  # noqa: E402
+import repair  # noqa: E402  youtube-asr-context-repair
 
 
 @app.get("/shadow/youtube/info")
@@ -2422,27 +2472,35 @@ async def youtube_info(url: str, authorization: str | None = Header(None),
 
 
 async def _build_from_captions(island_id: str, lines: list[dict], title: str,
-                               language: str = "ja", native: str = "en", asr: bool = False) -> None:
+                               language: str = "ja", native: str = "en", asr: bool = False,
+                               asr_tokens: list[dict] | None = None) -> None:
     """Build a video island from caption lines. No audio exists, so lines get
     their reading and word times from the json3 seg onsets (an even pace when the track has none), with `offset` = the caption start.
-    ASR ja tracks are corrected first, ja lines are split at clause ends."""
+    ja lines are split at clause ends; ASR ja text is repaired after the
+    island is ready (repair.job, below).
+    `asr_tokens` (youtube.asr_tokens of the auto track, when the picked track
+    is manual) move ja lines onto the voice first: see asr_transfer."""
+    asr_report: dict | None = None
     try:
-        if asr and language == "ja":
-            store.set_stage(island_id, "correcting")
-            try:
-                candidates = await asyncio.to_thread(generate.correct_lines, [ln["text"] for ln in lines])
-                fixed, qa = youtube.apply_corrections(lines, candidates)
-                done = sum(1 for q in qa if q["accepted"])
-                log.info("island %s corrections: %d accepted of %d candidates", island_id, done, len(qa))
-                path = store.AUDIO_DIR / island_id / "corrections.json"
-                blob = json.dumps({"island": island_id, "asr": asr, "lines": len(fixed), "entries": qa},
-                                  ensure_ascii=False, indent=1)
-                await asyncio.to_thread(lambda: (path.parent.mkdir(parents=True, exist_ok=True), path.write_text(blob)))
-                lines = fixed
-            except Exception:
-                log.exception("island %s corrections failed, keeping the caption text", island_id)
+        store.set_media(island_id, max((ln["end"] for ln in lines), default=0.0))
+        # yt-drift: a manual caption runs until the next caption, so a ja line
+        # with no pieces ends its speech at mora count / the track's mora rate
+        # and the rest is silence (segment.speech_end); the same clock places
+        # the split cuts.
+        rate = 0.0
+        trimmed_s = 0.0
         if language == "ja":
-            lines = youtube.split_lines(lines)
+            lines = await asyncio.to_thread(youtube.stretch_lumps, lines)
+            rate = await asyncio.to_thread(
+                segment.mora_rate, [(ln["text"], ln["end"] - ln["start"]) for ln in lines])
+            if asr_tokens:
+                lines, asr_report = await asyncio.to_thread(asr_transfer.attach, lines, asr_tokens, rate)
+                log.info("island %s asr transfer: anchored %d of %d, median shift %.2f s, max %.2f s",
+                         island_id, asr_report["anchored"], asr_report["lines"],
+                         asr_report["median_shift_s"], asr_report["max_shift_s"])
+            lines = youtube.split_lines(lines, rate=rate)
+            if asr_report is not None:
+                lines = asr_transfer.trim_tails(lines)
         cue_list = youtube.cues_from_lines(lines)
         store.set_stage(island_id, "aligning")
         ja_texts: list[str] = []
@@ -2451,7 +2509,10 @@ async def _build_from_captions(island_id: str, lines: list[dict], title: str,
             duration = max(cue["end"] - cue["start"], 0.05)
             pieces = cue.get("pieces", [])
             if language == "ja":
-                words = await asyncio.to_thread(segment.align_pieces, cue["text"], pieces, duration)
+                speech_end = None if pieces else segment.speech_end(cue["text"], duration, rate)
+                if speech_end is not None:
+                    trimmed_s += duration - speech_end
+                words = await asyncio.to_thread(segment.align_pieces, cue["text"], pieces, duration, speech_end)
                 kana = segment.reading(cue["text"])
             else:
                 words = await asyncio.to_thread(latin.align, cue["text"], pieces, duration)
@@ -2461,9 +2522,17 @@ async def _build_from_captions(island_id: str, lines: list[dict], title: str,
             ja_texts.append(cue["text"])
             last_end = max(last_end, cue["end"])
         store.set_video_duration(island_id, last_end)
+        # yt-precise: the timing is settled at build; the video screen only
+        # syncs islands whose align status is still empty.
+        store.set_align_status(island_id, "done", _asr_code(asr_report))
+        # youtube-asr-context-repair: claim the text pass before the island
+        # reads as ready, so the player's first open finds it queued and does
+        # not start a second pass that races the translation loop below.
+        repair_claimed = store.claim_repair(island_id, repair.REPAIR_MAX_ATTEMPTS, repair.VERSION)
         store.set_ready(island_id, title)
         _align_resume(island_id)  # bl36-align: an upload that came in mid-build
-        log.info("island %s ready from captions: %d lines", island_id, len(ja_texts))
+        log.info("island %s ready from captions: %d lines, mora rate %.1f/s, trimmed %.1f s of silence",
+                 island_id, len(ja_texts), rate, trimmed_s)
     except Exception as exc:
         log.exception("captions build %s failed", island_id)
         store.set_failed(island_id, str(exc))
@@ -2482,20 +2551,15 @@ async def _build_from_captions(island_id: str, lines: list[dict], title: str,
                     store.set_en(island_id, b + offset, en)
     except Exception:
         log.exception("island %s: translation stopped early, the island stays ready", island_id)
+    # youtube-asr-context-repair: the text pass runs once the English is in,
+    # inside this background task, one video at a time.
+    if repair_claimed:
+        await _repair_job(island_id, asr and language == "ja")
 
 
-@app.post("/shadow/youtube/captions")
-async def import_youtube_captions(
-    request: Request,
-    background: BackgroundTasks,
-    authorization: str | None = Header(None),
-    x_shadow_device: str = Header(""),
-) -> dict:
-    """Build a video island from caption events the phone fetched. The body is
-    untrusted: size, shape and timestamps are checked before a build slot is
-    taken, so a bad request never burns a daily create."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+async def _captions_body(request: Request) -> dict:
+    """A caption request's JSON object, streamed under CAPTIONS_MAX_BODY:
+    413 when bigger, 400 captions_invalid when not a JSON object."""
     declared = request.headers.get("content-length")
     if declared and declared.isdigit() and int(declared) > youtube.CAPTIONS_MAX_BODY:
         raise HTTPException(413, {"code": "captions_invalid"})
@@ -2510,6 +2574,49 @@ async def import_youtube_captions(
         raise HTTPException(400, {"code": "captions_invalid"})
     if not isinstance(body, dict):
         raise HTTPException(400, {"code": "captions_invalid"})
+    return body
+
+
+def _asr_code(report: dict | None) -> str:
+    """The align_error word for a finished transfer: asr_none (no ASR track
+    or no tokens), asr_low_match (under a fifth of the lines anchored), asr."""
+    if not report or not report.get("tokens", 1):
+        return "asr_none"
+    if report["anchored"] < ASR_MIN_ANCHORED * report["lines"]:
+        return "asr_low_match"
+    return "asr"
+
+
+def _write_captions_json(island_id: str, video_id: str, events: list | None, asr_events: list) -> None:
+    """audio/<id>/captions.json: both raw tracks, the retime's input and the
+    fixture source. Keeps the manual events already on disk when the caller
+    has none."""
+    path = store.AUDIO_DIR / island_id / "captions.json"
+    if events is None and path.exists():
+        try:
+            events = json.loads(path.read_text()).get("events")
+        except (OSError, ValueError):
+            events = None
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _write_atomic(path, json.dumps({"video_id": video_id, "events": events or [],
+                                    "asr_events": asr_events}, ensure_ascii=False).encode())
+
+
+@app.post("/shadow/youtube/captions")
+async def import_youtube_captions(
+    request: Request,
+    background: BackgroundTasks,
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    """Build a video island from caption events the phone fetched. The body is
+    untrusted: size, shape and timestamps are checked before a build slot is
+    taken, so a bad request never burns a daily create. `asr_events`, the
+    auto track when the picked track is manual, gives ja lines their word
+    times (yt-precise)."""
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    body = await _captions_body(request)
     url, title = body.get("url"), body.get("title", "")
     speaker = body.get("speaker", voicevox.DEFAULT_SPEAKER)
     language, native = body.get("language", "ja"), body.get("native", "en")
@@ -2532,6 +2639,14 @@ async def import_youtube_captions(
         lines = youtube.json3_to_lines(body.get("events"))
     except youtube.CaptionsInvalid:
         raise HTTPException(400, {"code": "captions_invalid"})
+    # The ASR track only refines timing: a bad or oversized one is dropped
+    # and the manual track imports as it would without it.
+    asr_events = body.get("asr_events") or []
+    try:
+        tokens = youtube.asr_tokens(asr_events)
+    except youtube.CaptionsInvalid as exc:
+        log.warning("youtube import %s: asr track ignored (%s)", video_id, exc)
+        asr_events, tokens = [], []
     if not lines:
         raise HTTPException(400, {"code": "no_captions"})
 
@@ -2542,9 +2657,17 @@ async def import_youtube_captions(
         source_name=video_id, device=device,
     )
     store.add_video(island_id, video_id, 0.0, island_title, "")
+    # youtube-asr-context-repair: the watch page's context rides along with
+    # the captions; an empty one never blocks the import.
+    context = repair.clean_context(body.get("context"))
+    await asyncio.to_thread(store.set_repair_context, video_id, context)
+    log.info("youtube import %s: context title=%r description=%d chars keywords=%d chapters=%d",
+             video_id, context["title"], len(context["description"]), len(context["keywords"]),
+             len(context["chapters"]))
+    await asyncio.to_thread(_write_captions_json, island_id, video_id, body.get("events"), asr_events)
     background.add_task(
         _build_from_captions, island_id, lines, island_title, language, native,
-        any(ln.get("pieces") for ln in lines),
+        any(ln.get("pieces") for ln in lines), asr_tokens=tokens,
     )
     return {"id": island_id, "status": "pending"}
 
@@ -2565,6 +2688,18 @@ async def island_video(island_id: str, authorization: str | None = Header(None),
         status = "closed"
     video.pop("align_attempts", None)
     video["align"] = status
+    # youtube-asr-context-repair: same shape for the text pass.
+    repair_status = video.pop("repair_status", "")
+    if repair_status == "failed" and video.get("repair_attempts", 0) >= repair.REPAIR_MAX_ATTEMPTS:
+        repair_status = "closed"
+    # A pass done at an older VERSION reads as never run, so the player
+    # posts the context again and the island re-queues once.
+    if repair_status == "done" and video.get("repair_version", 0) < repair.VERSION:
+        repair_status = ""
+    video.pop("repair_attempts", None)
+    video.pop("repair_version", None)
+    video["repair"] = repair_status
+    video["repair_error"] = video.pop("repair_error", "")
     return video
 
 
@@ -2629,6 +2764,73 @@ async def upload_video_audio(
     store.set_align_status(island_id, "queued", count_attempt=True)
     _get_align_queue().put_nowait(island_id)
     return {"align": "queued"}
+
+
+@app.post("/shadow/islands/{island_id}/captions-timing")
+async def post_captions_timing(
+    island_id: str,
+    request: Request,
+    background: BackgroundTasks,
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    """The ASR track for an existing video island (yt-precise): its word
+    times are transferred onto the island's lines in the background. Same
+    claim and attempt rules as the audio upload, so the two never run at
+    once and a video gets at most ALIGN_MAX_ATTEMPTS tries. 409 not_ready
+    while the island is still being built."""
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    island = await asyncio.to_thread(_own_island, island_id, device)
+    if island["source"] != "youtube":
+        raise HTTPException(400, {"code": "not_video"})
+    video = await asyncio.to_thread(store.get_video, island_id)
+    if video is None:
+        raise HTTPException(400, {"code": "not_video"})
+    if island["status"] != "ready":
+        raise HTTPException(409, {"code": "not_ready"})
+    body = await _captions_body(request)
+    asr_events = body.get("asr_events")
+    try:
+        youtube.asr_tokens(asr_events)
+    except youtube.CaptionsInvalid:
+        raise HTTPException(400, {"code": "captions_invalid"})
+    if video["align_status"] in ("queued", "running"):
+        raise HTTPException(409, {"code": "align_busy"})
+    if video["align_status"] == "done" or video["align_attempts"] >= ALIGN_MAX_ATTEMPTS:
+        raise HTTPException(409, {"code": "align_closed"})
+    if not await asyncio.to_thread(store.claim_align, island_id, ALIGN_MAX_ATTEMPTS):
+        raise HTTPException(409, {"code": "align_busy"})
+    try:
+        await asyncio.to_thread(_write_captions_json, island_id, video["video_id"], None, asr_events)
+    except BaseException:
+        store.set_align_status(island_id, video["align_status"], video["align_error"])
+        raise
+    store.set_align_status(island_id, "queued", count_attempt=True)
+    background.add_task(_asr_retime, island_id)
+    return {"align": "queued"}
+
+
+async def _asr_retime(island_id: str) -> None:
+    """Retime one video island's lines from the ASR track in captions.json
+    (caption_timing.transfer, which keeps timing-before.json). Any failure
+    leaves the lines as they were and records asr_error."""
+    store.set_align_status(island_id, "running")
+    try:
+        def work() -> dict:
+            path = store.AUDIO_DIR / island_id / "captions.json"
+            data = json.loads(path.read_text()) if path.exists() else {}
+            tokens = youtube.asr_tokens(data.get("asr_events") or [])
+            return caption_timing.transfer(island_id, tokens, apply=True)
+
+        report = await asyncio.to_thread(work)
+        store.set_align_status(island_id, "done", _asr_code(report))
+        log.info("island %s asr transfer: anchored %d of %d, %d lines written, median shift %.2f s, max %.2f s",
+                 island_id, report["anchored"], report["lines"], report["written"],
+                 report["median_shift_s"], report["max_shift_s"])
+    except Exception:
+        log.exception("island %s asr transfer crashed", island_id)
+        store.set_align_status(island_id, "failed", "asr_error")
 
 
 def _align_cleanup(island_id: str) -> None:
@@ -2755,6 +2957,7 @@ async def _align_startup() -> None:
     # A worker from the previous process may still hold 3G: stop it before requeueing.
     await asyncio.to_thread(align.stop_leftover_scopes)
     _align_recover()
+    _repair_recover()  # youtube-asr-context-repair
     asyncio.create_task(_align_consumer())
 # --- end bl36-align ---
 
@@ -3332,3 +3535,153 @@ async def leaderboard_weekly(
     require_token(authorization)
     device = _require_device(x_shadow_device)
     return await asyncio.to_thread(stats.weekly_league, device, language, limit, _all_handles)
+
+
+# --- BL-63 ai-picks ---
+
+
+@app.post("/shadow/islands/{island_id}/ai-picks")
+async def ai_picks(
+    island_id: str,
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    """The AI picks 5 to 10 easy lines of a podcast episode that has no saved
+    sentences and saves them as review cards, each with a grammar tag."""
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    island = await asyncio.to_thread(_own_island, island_id, device)
+    if island.get("source") != "podcast":
+        raise HTTPException(409, {"code": "not_podcast"})
+    if await asyncio.to_thread(review_deck.list_cards, device, island_id):
+        raise HTTPException(409, {"code": "has_cards"})
+    if island.get("status") != "ready":
+        raise HTTPException(409, {"code": "no_lines"})
+    usable = [l for l in island["lines"] if generate.PICK_MIN_S <= float(l.get("duration") or 0) <= generate.PICK_MAX_S]
+    if len(usable) < generate.PICK_MIN_PICKS:
+        raise HTTPException(409, {"code": "no_lines"})
+    await asyncio.to_thread(_take_use_slot, device, "pick_sentences", "pick")
+    picks = await asyncio.to_thread(
+        generate.pick_shadow_lines, island["lines"], island.get("native") or "en"
+    )
+    if len(picks) < generate.PICK_MIN_PICKS:
+        await asyncio.to_thread(_refund_use_slot, device, "pick_sentences", "pick")
+        raise HTTPException(502, {"code": "pick_failed"})
+    by_idx = {l["idx"]: l for l in island["lines"]}
+    video = await asyncio.to_thread(store.get_video, island_id)
+    cards: list[dict] = []
+    for pick in sorted(picks, key=lambda p: p["n"]):
+        try:
+            cards.append(await asyncio.to_thread(
+                review_deck.create_card, device, island, by_idx[pick["n"]], video, pick["tag"]
+            ))
+        except ValueError as exc:
+            if str(exc) == "full":
+                break  # keep what is saved so far
+    if not cards:
+        await asyncio.to_thread(_refund_use_slot, device, "pick_sentences", "pick")
+        raise HTTPException(502, {"code": "pick_failed"})
+    return {"cards": cards, "picked": len(cards)}
+
+
+# --- streak-freeze ---
+
+
+class DevCoinsBody(BaseModel):
+    amount: int = Field(ge=1, le=1_000_000)
+    clear_freezes: bool = False
+
+
+@app.post("/shadow/dev/coins")
+async def dev_coins(
+    body: DevCoinsBody,
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    """Dev only: grants coins to the calling device. 404 in prod."""
+    if not dev_review.enabled():
+        raise HTTPException(404, "not found")
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    return await asyncio.to_thread(progression.grant_coins, device, body.amount, body.clear_freezes)
+
+_PURCHASE_ID = re.compile(r"[A-Za-z0-9-]{8,64}")
+
+
+@app.post("/shadow/streak/freeze/buy")
+async def streak_freeze_buy(
+    purchase_id: str = Form(...),
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    if not _PURCHASE_ID.fullmatch(purchase_id):
+        raise HTTPException(422, {"code": "bad_purchase_id"})
+    return await asyncio.to_thread(progression.buy_freeze, device, purchase_id)
+
+
+# --- youtube-asr-context-repair ---
+# One video repairs at a time: the pass shares the claude CLI with builds and
+# catch meanings. The island is already playable while it waits.
+_repair_gate = asyncio.Semaphore(1)
+
+
+async def _repair_job(island_id: str, asr: bool | None = None) -> None:
+    """Run repair.job for one claimed island under the gate. The job sets
+    the final status itself (done or failed)."""
+    try:
+        async with _repair_gate:
+            await asyncio.to_thread(store.set_repair_status, island_id, "running")
+            await asyncio.to_thread(repair.job, island_id, asr)
+    except Exception:
+        log.exception("repair job %s crashed", island_id)
+        store.set_repair_status(island_id, "failed", "repair_error")
+
+
+def _repair_recover() -> None:
+    """Rows still queued or running died with the old process: run them again."""
+    for island_id in store.list_repair_pending():
+        store.set_repair_status(island_id, "queued")
+        asyncio.get_event_loop().create_task(_repair_job(island_id))
+
+
+@app.post("/shadow/islands/{island_id}/repair")
+async def post_video_repair(
+    island_id: str,
+    request: Request,
+    background: BackgroundTasks,
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    """The phone's video context for an existing video island; queues the
+    text pass when the island has not had one at the current version.
+    Replies {repair: queued | running | done}. 404 not the owner, 400
+    not_video, 409 not_ready while building, 409 repair_closed when the
+    attempts are spent."""
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    island = await asyncio.to_thread(_own_island, island_id, device)
+    if island["source"] != "youtube":
+        raise HTTPException(400, {"code": "not_video"})
+    video = await asyncio.to_thread(store.get_video, island_id)
+    if video is None:
+        raise HTTPException(400, {"code": "not_video"})
+    if island["status"] != "ready":
+        raise HTTPException(409, {"code": "not_ready"})
+    body = await _captions_body(request)
+    context = repair.clean_context(body.get("context"))
+    await asyncio.to_thread(store.set_repair_context, video["video_id"], context)
+    status = video.get("repair_status", "")
+    if status in ("queued", "running"):
+        return {"repair": status}
+    if status == "done" and video.get("repair_version", 0) >= repair.VERSION:
+        return {"repair": "done"}
+    if video.get("repair_attempts", 0) >= repair.REPAIR_MAX_ATTEMPTS:
+        raise HTTPException(409, {"code": "repair_closed"})
+    if not await asyncio.to_thread(store.claim_repair, island_id, repair.REPAIR_MAX_ATTEMPTS, repair.VERSION):
+        # Lost the race to another open of the same island.
+        return {"repair": "queued"}
+    background.add_task(_repair_job, island_id)
+    return {"repair": "queued"}
+# --- end youtube-asr-context-repair ---

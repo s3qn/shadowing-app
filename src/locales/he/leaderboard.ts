@@ -6,6 +6,7 @@ export const he = {
   'leaderboard.lv': 'רמה',
   'leaderboard.you': 'אני',
   'leaderboard.rowLabel': '{rank}. {name}, רמה {level}',
+  'leaderboard.rowStreak': 'רצף של {n} ימים',
   'leaderboard.next': `הבא: ${isolate('@{name}')}, עוד {n} רמות`,
   'leaderboard.next_one': `הבא: ${isolate('@{name}')}, עוד רמה אחת`,
   'leaderboard.next_two': `הבא: ${isolate('@{name}')}, עוד שתי רמות`,

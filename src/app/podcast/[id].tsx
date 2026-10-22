@@ -1,6 +1,7 @@
 import { useAudioPlayer, type AudioMetadata } from 'expo-audio';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import type { ScrollView } from 'react-native-gesture-handler';
@@ -20,7 +21,8 @@ import { TideScene } from '@/components/tide/tide-scene';
 import { useListeningCat } from '@/components/cat/listening-cat';
 import { SaveStar } from '@/components/save-star';
 import { fonts } from '@/constants/fonts';
-import { Spacing, tide } from '@/constants/theme';
+import { GRAMMAR_LILAC } from '@/components/ruby-word';
+import { Spacing, tide, verb } from '@/constants/theme';
 import { snapRate, takeWatchSec, type useLadder } from '@/hooks/use-ladder';
 import { useDockPopovers } from '@/hooks/use-dock-popovers';
 import { useLadderWiring } from '@/hooks/use-ladder-wiring';
@@ -70,8 +72,11 @@ export default function PodcastScreen() {
   // review-deck: saved sentences of this island, line idx to card id.
   // "Shadow the best bits" hops here as a review of three picked lines.
   const picked = useMemo(() => parsePick(pick), [pick]);
-  const { savedCards, saveError, reviewSet, loadReviewCards, toggleSaved, gradeOnce } = useSavedCards(island?.id, id, !!review, inSession, picked);
+  const { savedCards, tags, addCards, saveError, reviewSet, loadReviewCards, toggleSaved, autoSave, gradeOnce } = useSavedCards(island?.id, id, !!review, inSession, picked);
   const [loaded, setLoaded] = useState(false);
+  // BL-63: the AI picks the practice set of an episode that has none.
+  const [picking, setPicking] = useState(false);
+  const [pickError, setPickError] = useState('');
   const [playing, setPlaying] = useState(false);
   const [failed, setFailed] = useState(false);
   // Starts at the Settings default speed, never a rung.
@@ -107,6 +112,14 @@ export default function PodcastScreen() {
   useEffect(() => {
     player.volume = take.phase === 'recording' ? TAKE_VOICE_VOLUME : 1;
   }, [take.phase, player]);
+
+  // A finished shadow take saves its line (BL-63 follow-up): the star turns on by itself.
+  const autoIdx = lines[activeLine]?.idx;
+  useEffect(() => {
+    if (take.phase === 'ready' && autoIdx !== undefined) autoSave(autoIdx);
+    // Only a take finishing counts, not the line moving under an old take.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [take.phase]);
   const stopAt = useRef<StopAt | null>(null);
 
   // Exclusive while mounted: other apps' audio stops, so iOS keeps our lock screen card.
@@ -481,6 +494,28 @@ export default function PodcastScreen() {
   };
   const language = island?.language ?? 'ja';
 
+  const canAiPick = !!island && loaded && !review && !inSession && !picking && savedCards.size === 0 && lines.length > 0;
+  const aiPick = () => {
+    if (!island || picking) return;
+    void confirmSheet({
+      title: t('podcast.aiPick.confirmTitle'),
+      message: t('podcast.aiPick.confirmBody'),
+      actions: [{ label: t('podcast.aiPick.confirm'), verb: 'read' }, { label: t('podcast.aiPick.cancel'), verb: 'tools' }],
+    }).then(async (i) => {
+      if (i !== 0) return;
+      setPicking(true);
+      setPickError('');
+      try {
+        addCards(await api.aiPickSentences(island.id));
+      } catch (e) {
+        setPickError(e instanceof Error ? e.message : t('api.pick_failed'));
+      } finally {
+        setPicking(false);
+      }
+    });
+  };
+  const activeTag = tags.get(lines[activeLine]?.idx ?? -1);
+
   // The dock floats over the transcript's bottom, above the home indicator;
   // the transcript runs on under it to the screen's edge.
   return (
@@ -489,7 +524,16 @@ export default function PodcastScreen() {
       <Stack.Screen
         options={{
           title: island?.title ?? '',
-          headerRight: ladder.stage && onPassHelp ? () => <LadderHelpButton onPress={onPassHelp} /> : undefined,
+          headerRight:
+            ladder.stage && onPassHelp
+              ? () => <LadderHelpButton onPress={onPassHelp} />
+              : canAiPick
+                ? () => (
+                    <Pressable onPress={aiPick} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('podcast.aiPick.label')} style={styles.sparkles}>
+                      <SymbolView name={{ ios: 'sparkles', android: 'auto_awesome' }} size={20} weight="regular" tintColor={verb.read.c1} />
+                    </Pressable>
+                  )
+                : undefined,
         }}
       />
       {error || failed ? (
@@ -532,6 +576,11 @@ export default function PodcastScreen() {
                       toggleSaved(lines[activeLine]!.idx);
                     }}
                   />
+                    {activeTag ? (
+                      <View style={styles.tagChip}>
+                        <Text style={styles.tagText} numberOfLines={1}>{activeTag}</Text>
+                      </View>
+                    ) : null}
                   </View>
                 ) : null
               }
@@ -539,6 +588,16 @@ export default function PodcastScreen() {
               onLineTap={onLineTap}
               bottomInset={lines.length > 0 ? dockH + insets.bottom : insets.bottom}
             />
+            {canAiPick || pickError ? (
+              <View style={styles.aiHint} pointerEvents="none">
+                {pickError ? <Text style={styles.error}>{pickError}</Text> : <Text style={styles.hint}>{t('podcast.aiPick.hint')}</Text>}
+              </View>
+            ) : null}
+            {picking ? (
+              <View style={[StyleSheet.absoluteFill, styles.center, styles.pickVeil]}>
+                <CatConstellation size={120} />
+              </View>
+            ) : null}
             {lines.length === 0 ? (
               <View style={[StyleSheet.absoluteFill, styles.center]} pointerEvents="none">
                 <Text style={styles.hint}>{t('video.noTranscript')}</Text>
@@ -683,6 +742,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   slot: { position: 'relative' },
+  sparkles: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  aiHint: { position: 'absolute', top: 8, left: 0, right: 0, paddingHorizontal: 24 },
+  pickVeil: { backgroundColor: 'rgba(0,0,0,0.45)' },
+  tagChip: {
+    alignSelf: 'center',
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: 'rgba(201,184,255,0.14)',
+  },
+  tagText: { fontSize: 12, lineHeight: 16, color: GRAMMAR_LILAC, fontFamily: fonts.ui },
   bottom: { alignItems: 'center', gap: Spacing.sm },
   error: {
     fontSize: 14,

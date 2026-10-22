@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { BuildProgress } from '@/components/build-progress';
 import { useFollowBuild } from '@/hooks/use-follow-build';
 import * as api from '@/lib/api';
-import { syncVideoAudio } from '@/lib/video-audio';
+import { etaText } from '@/lib/eta';
 import { useT } from '@/lib/i18n';
 import { CaptionsError, fetchCaptions } from '@/lib/youtube-captions';
 import { parseYouTubeId } from '@/lib/youtube';
@@ -17,7 +17,7 @@ export default function VideoBuildScreen() {
   const { url, title, id: existingId } = useLocalSearchParams<{ url?: string; title?: string; id?: string }>();
 
   const [error, setError] = useState('');
-  const { stage, setStage, follow, stop } = useFollowBuild('/video/[id]', setError);
+  const { stage, setStage, etaS, follow, stop } = useFollowBuild('/video/[id]', setError);
   const started = useRef(false);
 
   useEffect(() => {
@@ -37,11 +37,10 @@ export default function VideoBuildScreen() {
         const videoId = parseYouTubeId(url!);
         if (!videoId) throw new Error(t('video.lookupFailed'));
         setStage('reading');
-        const { events } = await fetchCaptions(videoId, language);
+        const { events, asrEvents, context } = await fetchCaptions(videoId, language);
         const { id } = await api.importYouTubeCaptions(
-          url!, title || t('video.title'), voice, language, toNativeLanguage(understoodLanguage), events,
+          url!, title || t('video.title'), voice, language, toNativeLanguage(understoodLanguage), events, asrEvents, context,
         );
-        void syncVideoAudio(id, videoId); // bl36-align
         follow(id);
       } catch (e) {
         if (e instanceof CaptionsError) setError(t(`video.err.${e.code}` as const));
@@ -60,6 +59,7 @@ export default function VideoBuildScreen() {
     <BuildProgress
       stage={stage === 'reading' ? t('video.stageReading') : api.stageLabel(stage)}
       hint={t('video.buildHint')}
+      eta={etaText(etaS)}
       error={error}
       onClose={close}
     />

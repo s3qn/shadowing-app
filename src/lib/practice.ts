@@ -7,6 +7,7 @@
  * the next flush, so offline listening is never dropped.
  */
 
+import { pushStreakMoment, milestoneOf } from '@/lib/level-up-store';
 import {
   deleteAsync,
   documentDirectory,
@@ -27,6 +28,18 @@ export type PracticeLog = {
   ladders: Record<string, number>; // 'YYYY-MM-DD' -> count of finished five-pass ladders
   // islandId -> seconds not yet accepted by the server; read() always fills it.
   unsent?: Record<string, number>;
+  // Streak freezes, owned by the server and copied here on every progress
+  // snapshot: how many are held, and the 'YYYY-MM-DD' days one was used on.
+  freezes: number;
+  frozen: string[];
+  // When each held freeze was bought, ascending, and the server's day on the
+  // snapshot they came from ('' before the first one). A log or a server
+  // without them never gets the offline cover in streakDays().
+  freezesBought?: string[];
+  serverDay?: string;
+  // The streak last shown to the person; -1 until seeded. streak-moments
+  // judges a broken streak against it.
+  seenStreak: number;
 };
 
 // The most one practice post may carry (the server refuses more).
@@ -57,7 +70,7 @@ const FILE = `${documentDirectory ?? ''}practice.json`;
 const TMP_FILE = `${FILE}.tmp`;
 
 function emptyLog(): PracticeLog {
-  return { days: {}, islands: {}, passes: {}, ladders: {}, unsent: {} };
+  return { days: {}, islands: {}, passes: {}, ladders: {}, unsent: {}, freezes: 0, frozen: [], seenStreak: -1 };
 }
 
 // Returns undefined for anything that isn't a parseable PracticeLog shell
@@ -107,7 +120,30 @@ function normalize(parsed: Partial<PracticeLog>): PracticeLog {
       if (typeof value === 'number' && Number.isFinite(value) && value > 0) unsent[id] = value;
     }
   }
-  return { days, islands, passes, ladders, unsent };
+  // A log from before streak freezes has none of these: nothing held, no
+  // frozen day, and a streak not yet shown (streak-moments seeds it quietly).
+  const freezes =
+    typeof parsed.freezes === 'number' && Number.isFinite(parsed.freezes) && parsed.freezes > 0 ? Math.floor(parsed.freezes) : 0;
+  const frozen = Array.isArray(parsed.frozen) ? cleanDays(parsed.frozen) : [];
+  const seenStreak =
+    typeof parsed.seenStreak === 'number' && Number.isInteger(parsed.seenStreak) && parsed.seenStreak >= 0 ? parsed.seenStreak : -1;
+  const freezesBought = Array.isArray(parsed.freezesBought) ? cleanBought(parsed.freezesBought) : [];
+  const serverDay = typeof parsed.serverDay === 'string' && DAY_KEY.test(parsed.serverDay) ? parsed.serverDay : '';
+  return { days, islands, passes, ladders, unsent, freezes, frozen, seenStreak, freezesBought, serverDay };
+}
+
+const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Unique 'YYYY-MM-DD' strings, ascending; anything else is dropped. */
+function cleanDays(raw: unknown[]): string[] {
+  const keys = new Set<string>();
+  for (const value of raw) if (typeof value === 'string' && DAY_KEY.test(value)) keys.add(value);
+  return [...keys].sort();
+}
+
+// Like cleanDays but keeps repeats: two freezes bought on one day are two.
+function cleanBought(raw: unknown[]): string[] {
+  return raw.filter((value): value is string => typeof value === 'string' && DAY_KEY.test(value)).sort();
 }
 
 // Defaults when there is no file yet, or when it is genuinely empty. A file
@@ -303,6 +339,27 @@ async function sendUnsent(): Promise<void> {
   }
 }
 
+// Callers that need the log the moment a flush lands on disk rather than on
+// the next Home focus: the streak reminder cancels today's notification as
+// soon as the 10th pass or the finished ladder counts.
+const logListeners = new Set<(log: PracticeLog) => void>();
+
+/** Runs `listener` with the written log after every flushPractice() write. Returns an unsubscribe function. */
+export function subscribePracticeLog(listener: (log: PracticeLog) => void): () => void {
+  logListeners.add(listener);
+  return () => logListeners.delete(listener);
+}
+
+function notifyPracticeLog(log: PracticeLog): void {
+  for (const listener of logListeners) {
+    try {
+      listener(log);
+    } catch {
+      // A listener's failure must not break the write chain.
+    }
+  }
+}
+
 /**
  * Merges the buffer into the file (days and islands both += seconds,
  * lastAt = Date.now() for any island touched, passes += count, and the new
@@ -354,7 +411,19 @@ export function flushPractice(): Promise<void> {
       for (const [id, seconds] of Object.entries(toMerge.islands)) {
         unsent[id] = (unsent[id] ?? 0) + seconds;
       }
-      await write({ days, islands, passes, ladders, unsent });
+      let next: PracticeLog = { ...current, days, islands, passes, ladders, unsent };
+      // The day just crossed into counting: the streak went up. Recorded as
+      // seen in the same write, so a kill never replays it.
+      const today = new Date();
+      const todayKey = dayKey(today);
+      let up: number | null = null;
+      if (!dayQualifies(current, todayKey) && dayQualifies(next, todayKey)) {
+        up = streakDays(next, today);
+        next = { ...next, seenStreak: up };
+      }
+      await write(next);
+      if (up !== null) pushStreakMoment({ kind: 'up', streak: up, milestone: milestoneOf(up) });
+      notifyPracticeLog(next);
       mayHaveUnsent = true;
       void sendUnsent();
     })
@@ -397,6 +466,64 @@ export function forgetIsland(islandId: string): Promise<void> {
   return run;
 }
 
+/**
+ * Copies the server's freeze state (held count, days a freeze was used on,
+ * when each held one was bought, the server's day) into the log so the
+ * streak bridges offline too. Writes only on a change.
+ */
+export function setStreakSync(held: number, frozen: string[], bought: string[], serverDay: string): Promise<void> {
+  const freezes = Number.isFinite(held) && held > 0 ? Math.floor(held) : 0;
+  const days = cleanDays(frozen);
+  const freezesBought = cleanBought(bought);
+  const day = DAY_KEY.test(serverDay) ? serverDay : '';
+  return updateLog((current) =>
+    current.freezes === freezes &&
+    current.frozen.join() === days.join() &&
+    (current.freezesBought ?? []).join() === freezesBought.join() &&
+    current.serverDay === day
+      ? null
+      : { ...current, freezes, frozen: days, freezesBought, serverDay: day },
+  );
+}
+
+// Dev review tour only: an in-memory streak that streakDays() returns first.
+// Never stored, never sent, gone on reload.
+let devStreak: number | null = null;
+export function setDevStreak(n: number | null): void {
+  if (__DEV__) devStreak = n;
+}
+
+/** True while the dev review tour fakes the streak, so simulations skip storage writes. */
+export function devStreakActive(): boolean {
+  return __DEV__ && devStreak !== null;
+}
+
+/** Records the streak last shown to the person (streak-moments). */
+export function setSeenStreak(n: number): Promise<void> {
+  if (__DEV__ && devStreak !== null) return Promise.resolve();
+  const seenStreak = Number.isInteger(n) && n >= 0 ? n : -1;
+  return updateLog((current) => (current.seenStreak === seenStreak ? null : { ...current, seenStreak }));
+}
+
+// Read-modify-write on the `pending` chain; `change` returns null for "no
+// write". A file that cannot be read is left alone, like forgetIsland().
+function updateLog(change: (current: PracticeLog) => PracticeLog | null): Promise<void> {
+  const run = pending
+    .then(async () => {
+      let current: PracticeLog;
+      try {
+        current = await read();
+      } catch {
+        return;
+      }
+      const next = change(current);
+      if (next) await write(next);
+    })
+    .catch(() => {});
+  pending = run;
+  return run;
+}
+
 /** Rounded minutes for a day key ('YYYY-MM-DD') or an island id, whichever the log holds under that key. */
 export function minutesOn(log: PracticeLog, key: string): number {
   const seconds = log.days[key] ?? log.islands[key]?.seconds ?? 0;
@@ -410,7 +537,7 @@ export function minutesOn(log: PracticeLog, key: string): number {
 // (every day logged before either counter existed) falls back to the old
 // seconds rule, so a streak built before this change stays intact instead of
 // resetting to 0.
-function dayQualifies(log: PracticeLog, key: string): boolean {
+export function dayQualifies(log: PracticeLog, key: string): boolean {
   if (key in log.passes || key in log.ladders) {
     return (log.passes[key] ?? 0) >= STREAK_THRESHOLD_PASSES || (log.ladders[key] ?? 0) >= STREAK_THRESHOLD_LADDERS;
   }
@@ -420,19 +547,52 @@ function dayQualifies(log: PracticeLog, key: string): boolean {
 /**
  * Run of qualifying days (see dayQualifies()) ending today, or ending
  * yesterday if today has not reached the threshold yet (today still in
- * progress does not break it).
+ * progress does not break it). A day in `log.frozen` (a freeze the server
+ * used) continues the run without adding to it. Offline, a missed yesterday
+ * is bridged the same way by offlineCover(); the next snapshot turns that
+ * into a real `frozen` entry, so the number does not change.
  */
 export function streakDays(log: PracticeLog, today: Date): number {
+  if (__DEV__ && devStreak !== null) return devStreak;
+  const frozen = new Set([...log.frozen, ...offlineCover(log, today)]);
   const cursor = new Date(today);
-  if (!dayQualifies(log, dayKey(cursor))) {
-    cursor.setDate(cursor.getDate() - 1);
-  }
+  if (!dayQualifies(log, dayKey(cursor))) cursor.setDate(cursor.getDate() - 1);
   let streak = 0;
-  while (dayQualifies(log, dayKey(cursor))) {
-    streak += 1;
+  for (;;) {
+    const key = dayKey(cursor);
+    if (dayQualifies(log, key)) streak += 1;
+    else if (!frozen.has(key)) break;
     cursor.setDate(cursor.getDate() - 1);
   }
   return streak;
+}
+
+// The days the server will freeze at its next settle, mirroring
+// _plan_freezes in backend/progression.py: the gap ending yesterday, when a
+// qualifying or frozen day sits before it and each day has its own held
+// freeze bought on or before it (all or nothing). Empty once a snapshot from
+// after yesterday has answered (the server froze it or saw no need), and
+// whenever the bought days are unknown.
+function offlineCover(log: PracticeLog, today: Date): string[] {
+  const bought = [...(log.freezesBought ?? [])];
+  const serverDay = log.serverDay ?? '';
+  const frozen = new Set(log.frozen);
+  const bridges = (key: string) => dayQualifies(log, key) || frozen.has(key);
+  const cursor = new Date(today);
+  cursor.setDate(cursor.getDate() - 1);
+  if (!bought.length || !serverDay || serverDay > dayKey(cursor)) return [];
+  const gap: string[] = [];
+  while (gap.length <= bought.length && !bridges(dayKey(cursor))) {
+    gap.push(dayKey(cursor));
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  if (!gap.length || gap.length > bought.length) return [];
+  for (const day of [...gap].reverse()) {
+    const pick = bought.findIndex((on) => on <= day);
+    if (pick < 0) return [];
+    bought.splice(pick, 1);
+  }
+  return gap;
 }
 
 /** The 7 day keys ending on today, oldest to newest. */

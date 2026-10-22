@@ -79,6 +79,9 @@ const SETTINGS_VERSION = 1;
 const DEFAULT_HAPTICS = true;
 const DEFAULT_SKY_ALWAYS_NIGHT = false;
 const DEFAULT_KEEP_AWAKE = true;
+/** Local hours the evening streak reminder can fire at. */
+export const STREAK_REMINDER_HOURS = [18, 19, 20, 21, 22] as const;
+const DEFAULT_STREAK_REMINDER_HOUR = 20;
 
 // The three languages the backend can generate islands and pick a voice for
 // today (kept in sync with `backend/voices.py`'s `default_speaker`). Not the
@@ -166,6 +169,12 @@ export type Settings = {
   /** Home and Practice show every language mixed together (Home with a
    * language pill), instead of only `learningLanguage`. Off by default. */
   showAllLanguages: boolean;
+  /** Evening "streak at risk" notification on a day not practised yet while a streak runs. */
+  streakReminder: boolean;
+  /** Local hour the reminder fires at, one of `STREAK_REMINDER_HOURS`. */
+  streakReminderHour: number;
+  /** Home's one-time reminder offer was answered or dismissed. */
+  streakReminderAsked: boolean;
   /** Format marker, `SETTINGS_VERSION` once this build has written the file. */
   version: number;
 };
@@ -205,6 +214,9 @@ const DEFAULTS: Settings = {
   guideIslandId: '',
   starterLevel: 'new',
   showAllLanguages: DEFAULT_SHOW_ALL_LANGUAGES,
+  streakReminder: false,
+  streakReminderHour: DEFAULT_STREAK_REMINDER_HOUR,
+  streakReminderAsked: false,
   version: SETTINGS_VERSION,
 };
 // A file exists but is corrupt or not an object: it was written by some
@@ -353,6 +365,11 @@ async function read(): Promise<Settings> {
     guideIslandId: typeof parsed.guideIslandId === 'string' ? parsed.guideIslandId : '',
     starterLevel: STARTER_LEVELS.includes(parsed.starterLevel as StarterLevel) ? (parsed.starterLevel as StarterLevel) : 'new',
     showAllLanguages: parsed.showAllLanguages === true,
+    streakReminder: parsed.streakReminder === true,
+    streakReminderHour: (STREAK_REMINDER_HOURS as readonly number[]).includes(parsed.streakReminderHour as number)
+      ? (parsed.streakReminderHour as number)
+      : DEFAULT_STREAK_REMINDER_HOUR,
+    streakReminderAsked: parsed.streakReminderAsked === true,
     version: SETTINGS_VERSION,
   });
 }
@@ -592,4 +609,18 @@ export async function setStarterLevel(starterLevel: StarterLevel): Promise<void>
 
 export async function setShowAllLanguages(showAllLanguages: boolean): Promise<void> {
   await update({ showAllLanguages });
+}
+
+export async function setStreakReminder(streakReminder: boolean): Promise<void> {
+  await update({ streakReminder });
+}
+
+/** Ignores an hour outside `STREAK_REMINDER_HOURS`. */
+export async function setStreakReminderHour(streakReminderHour: number): Promise<void> {
+  if (!(STREAK_REMINDER_HOURS as readonly number[]).includes(streakReminderHour)) return;
+  await update({ streakReminderHour });
+}
+
+export async function setStreakReminderAsked(streakReminderAsked: boolean): Promise<void> {
+  await update({ streakReminderAsked });
 }

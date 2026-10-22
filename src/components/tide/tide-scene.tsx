@@ -96,6 +96,8 @@ type Props = {
   lines: readonly string[];
   /** Blind mode: past and next lines are frosted. */
   blind: boolean;
+  /** Past and next lines keep their place but are not drawn and take no taps (Catch the word's armed word). */
+  rowsHidden?: boolean;
   /** Playing or recording: keeps the water at full frame rate. */
   busy: boolean;
   /** Seconds left in the breath, giant faded number; null hides it. */
@@ -163,6 +165,7 @@ export const TideScene = memo(function TideScene({
   widenWhen,
   onScrollSettled,
   scrollLocked = false,
+  rowsHidden = false,
 }: Props) {
   const { t } = useT();
   // The scene fills the window's width; its height starts from the caller's
@@ -533,6 +536,7 @@ export const TideScene = memo(function TideScene({
         ) : null}
         {/* The rows above the window, as a signed top margin (see pastOffset). */}
         <Animated.View style={[rowsStyle, { marginTop: pastOffset }]}>
+          <View {...(rowsHidden ? HIDDEN_ROWS : null)}>
           {lines.slice(rowWindow.start, lineIndex).map((text, j) => {
             const i = rowWindow.start + j;
             const row = (
@@ -554,6 +558,7 @@ export const TideScene = memo(function TideScene({
               row
             );
           })}
+          </View>
         </Animated.View>
         <Animated.View
           style={[styles.active, riseStyle]}
@@ -567,7 +572,7 @@ export const TideScene = memo(function TideScene({
         >
           {sentence}
         </Animated.View>
-        {outgoing.current && outgoing.current.index !== lineIndex && lines[outgoing.current.index] !== undefined ? (
+        {!rowsHidden && outgoing.current && outgoing.current.index !== lineIndex && lines[outgoing.current.index] !== undefined ? (
           <Animated.View
             style={[styles.outgoing, { top: outgoing.current.top }, outStyle]}
             pointerEvents="none"
@@ -622,6 +627,7 @@ export const TideScene = memo(function TideScene({
           ) : null}
           {below}
           <Animated.View style={rowsStyle}>
+            <View {...(rowsHidden ? HIDDEN_ROWS : null)}>
             {lines.slice(lineIndex + 1, rowWindow.end).map((text, j) => {
               const i = lineIndex + 1 + j;
               const row = (
@@ -646,6 +652,7 @@ export const TideScene = memo(function TideScene({
                 row
               );
             })}
+            </View>
           </Animated.View>
           {nextSpacerH > 0 ? <View style={{ height: nextSpacerH }} /> : null}
         </View>
@@ -805,6 +812,14 @@ const TranscriptLine = memo(function TranscriptLine({
 function waterlineFraction(lineIndex: number, lineCount: number) {
   return WL_MAX - 0.2 * (lineIndex / Math.max(1, lineCount - 1));
 }
+
+/** The wrapper props of past and next rows while `rowsHidden`: in place, unseen, untappable, unread. */
+const HIDDEN_ROWS = {
+  style: { opacity: 0 },
+  pointerEvents: 'none',
+  accessibilityElementsHidden: true,
+  importantForAccessibility: 'no-hide-descendants',
+} as const;
 
 const styles = StyleSheet.create({
   fill: { flex: 1, overflow: 'hidden' },

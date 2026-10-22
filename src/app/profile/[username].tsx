@@ -11,6 +11,9 @@ import { GOLD, LevelChip } from '@/components/cat/leaderboard-row';
 import { formatHours } from '@/components/cat/level-header';
 import { PrismButton } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
+import { streakTier } from '@/components/practice-card';
+import { StreakGem } from '@/components/streak-gem';
+import { getPracticeLog, streakDays, type PracticeLog } from '@/lib/practice';
 import { Spacing, prism, tide } from '@/constants/theme';
 import { getProfile, getUsername, type Achievement, type Profile } from '@/lib/api';
 import { hapticSelection } from '@/lib/haptics';
@@ -140,6 +143,17 @@ export default function ProfileScreen() {
   // The Rewards cards need the own progress, so they render on the own profile only.
   const [me, setMe] = useState<string | null>(null);
   const own = me !== null && me.toLowerCase() === String(username ?? '').toLowerCase();
+  const [ownLog, setOwnLog] = useState<PracticeLog | null>(null);
+  useEffect(() => {
+    if (!own) return;
+    let alive = true;
+    void getPracticeLog().then((l) => {
+      if (alive) setOwnLog(l);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [own]);
   // The sheet keeps its item id through the exit slide and re-reads it from a refreshed catalog.
   const [sheetId, setSheetId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -201,6 +215,8 @@ export default function ProfileScreen() {
     );
   } else if (profile) {
     const p = profile;
+    const streak = own && ownLog ? streakDays(ownLog, new Date()) : p.streak_days;
+    const longest = Math.max(p.longest_streak, streak);
     const accuracy = p.average_accuracy === null ? '–' : `${Math.round(p.average_accuracy * 100)}%`;
     // Rows from immersion lane 1: an older server sends none of these keys.
     const langs = p.by_language ? Object.entries(p.by_language).filter(([, s]) => s > 0).sort((a, b) => b[1] - a[1]) : [];
@@ -235,6 +251,15 @@ export default function ProfileScreen() {
           </>
         ) : null}
 
+        {/* The streak strip: the Home gem at the mock strip's 0.72 scale, the count inside it. Own profile counts like Home does. */}
+        <View style={[styles.streakStrip, dir.row]} accessible>
+          <StreakGem size={46} streak={streak} tier={streakTier(streak)} clipSides={20} />
+          <View style={styles.streakText}>
+            <Text style={[styles.streakLabel, dir.text]}>{streak > 0 ? t('home.streakDays', { n: streak }) : t('profile.streakNone')}</Text>
+            {longest > 0 ? <Text style={[styles.streakSub, dir.text]}>{t('streak.longest', { n: longest })}</Text> : null}
+          </View>
+        </View>
+
         <Text style={[styles.header, dir.text, dir.rtl && styles.noTrack]}>{t('profile.practice')}</Text>
         <StatCard
           rows={[
@@ -251,8 +276,6 @@ export default function ProfileScreen() {
           rows={[
             [t('profile.xp'), String(p.xp)],
             [t('profile.daysActive'), String(p.days_active)],
-            [t('profile.streak'), String(p.streak_days)],
-            [t('profile.longestStreak'), String(p.longest_streak)],
             [t('profile.bestDay'), String(p.best_xp_day)],
             [t('profile.capDays'), String(p.cap_days)],
             [t('profile.milestones'), `${p.milestones.length}/${p.milestones_total}`],
@@ -298,6 +321,11 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  // The gap clears the small gem's wings (17px past its box from T5) so the label stays legible.
+  streakStrip: { flexDirection: 'row', alignItems: 'center', gap: 22, marginTop: 20, paddingHorizontal: 4 },
+  streakText: { flex: 1 },
+  streakLabel: { fontFamily: fonts.ui, fontSize: 15, fontWeight: '600', color: tide.text },
+  streakSub: { fontFamily: fonts.ui, fontSize: 12, color: tide.textDim, marginTop: 2 },
   fill: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.lg, padding: Spacing.xl },
   msg: { fontFamily: fonts.ui, fontSize: 15, color: tide.text, textAlign: 'center' },

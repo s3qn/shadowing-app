@@ -11,3 +11,4 @@ jamdict
 jamdict-data
 kokoro-onnx==0.6.1
 PyJWT[crypto]==2.10.1
+fsrs==6.3.2

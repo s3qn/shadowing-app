@@ -240,4 +240,14 @@ export const he = {
   'feedback.sent': 'התקבל. תודה, זה עוזר.',
   'feedback.queued': 'אין חיבור. שמרנו את זה, וזה יישלח כשהחיבור יחזור.',
   'feedback.error': 'לא הצלחנו לשלוח. נסו שוב.',
+
+  // Streak reminder: Settings section, permission and build notes, the dev test row.
+  'settings.section.streak': 'רצף',
+  'settings.streak.reminder': 'תזכורת ערב',
+  'settings.streak.reminderFootnote':
+    'התראה בשעה שתבחרו, רק ביום שעוד לא תרגלתם בו וכשיש רצף פעיל. סולם משפטים אחד שהושלם או 10 מעברים נחשבים תרגול.',
+  'settings.streak.permissionOff': `ההתראות של ${isolate('Echo Tail')} כבויות. הפעילו אותן בהגדרות הטלפון ונסו שוב.`,
+  'settings.streak.needsBuild': `תזכורות עובדות רק באפליקציה המותקנת, לא ב${isolate('Expo Go')} ולא בתצוגת הדפדפן.`,
+  'settings.streak.testRow': 'תזכורת ניסיון בעוד 10 שניות',
+  'settings.streak.channel': 'תזכורות רצף',
 } satisfies Record<keyof typeof enSettings, string>;

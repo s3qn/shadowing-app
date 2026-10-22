@@ -832,6 +832,129 @@
     "color": "#E8B93A",
     "accent": "#7A4FD1"
    }
+  },
+  {
+   "id": "accessory.badge_ember",
+   "slot": "accessory",
+   "name": "Ember Badge",
+   "nameHe": "סמל הגחלת",
+   "level_req": 1,
+   "price": 0,
+   "achievement_req": "streak_7",
+   "art": {
+    "shape": "badge",
+    "color": "#FF7A3D"
+   }
+  },
+  {
+   "id": "body.scarf_ember",
+   "slot": "body",
+   "name": "Ember Scarf",
+   "nameHe": "צעיף הגחלת",
+   "level_req": 1,
+   "price": 0,
+   "achievement_req": "streak_30",
+   "art": {
+    "shape": "scarf",
+    "color": "#FFB36B",
+    "accent": "#FF7A3D"
+   }
+  },
+  {
+   "id": "head.crown_ember",
+   "slot": "head",
+   "name": "Ember Crown",
+   "nameHe": "כתר הגחלת",
+   "level_req": 1,
+   "price": 0,
+   "achievement_req": "streak_100",
+   "art": {
+    "shape": "crown",
+    "color": "#FFC857",
+    "accent": "#FF7A3D"
+   }
+  },
+  {
+   "id": "face.mask_phoenix",
+   "slot": "face",
+   "name": "Phoenix Mask",
+   "nameHe": "מסכת עוף החול",
+   "level_req": 1,
+   "price": 0,
+   "achievement_req": "streak_365",
+   "art": {
+    "shape": "mask",
+    "color": "#FF5468",
+    "accent": "#FFC857"
+   }
+  },
+  {
+   "id": "face.streak_14",
+   "slot": "face",
+   "name": "14 Day Reward",
+   "nameHe": "פרס 14 ימים",
+   "level_req": 1,
+   "price": 0,
+   "achievement_req": "streak_14",
+   "art": {
+    "shape": "blush",
+    "color": "#FF9A5C"
+   }
+  },
+  {
+   "id": "head.streak_60",
+   "slot": "head",
+   "name": "60 Day Reward",
+   "nameHe": "פרס 60 ימים",
+   "level_req": 1,
+   "price": 0,
+   "achievement_req": "streak_60",
+   "art": {
+    "shape": "beanie",
+    "color": "#FF7A3D"
+   }
+  },
+  {
+   "id": "accessory.streak_180",
+   "slot": "accessory",
+   "name": "180 Day Reward",
+   "nameHe": "פרס 180 ימים",
+   "level_req": 1,
+   "price": 0,
+   "achievement_req": "streak_180",
+   "art": {
+    "shape": "bell",
+    "color": "#FFC857",
+    "accent": "#FF7A3D"
+   }
+  },
+  {
+   "id": "body.streak_500",
+   "slot": "body",
+   "name": "500 Day Reward",
+   "nameHe": "פרס 500 ימים",
+   "level_req": 1,
+   "price": 0,
+   "achievement_req": "streak_500",
+   "art": {
+    "shape": "cape",
+    "color": "#FF5468",
+    "accent": "#FFC857"
+   }
+  },
+  {
+   "id": "head.streak_1000",
+   "slot": "head",
+   "name": "1000 Day Reward",
+   "nameHe": "פרס 1000 ימים",
+   "level_req": 1,
+   "price": 0,
+   "achievement_req": "streak_1000",
+   "art": {
+    "shape": "crown",
+    "color": "#FFE7B3",
+    "accent": "#FF5468"
+   }
   }
  ]
 }

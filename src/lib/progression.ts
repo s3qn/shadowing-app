@@ -7,7 +7,8 @@ import { ITEM_IMAGES } from '@/constants/cosmetic-images';
 import { getCosmeticsCatalog, getProgress, type CosmeticItem, type Progress, type ReviewFinished } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { persistedMap } from '@/lib/persisted-map';
-import { hasInlineXp, isSessionActive, pushCelebration, pushInlineXp, pushLevelUp, pushXpToast, type Celebration } from '@/lib/level-up-store';
+import { getPracticeLog, setStreakSync, streakDays } from '@/lib/practice';
+import { hasInlineXp, isSessionActive, pendingStreakMilestone, pushCelebration, pushInlineXp, pushLevelUp, pushXpToast, type Celebration } from '@/lib/level-up-store';
 
 export type { CosmeticItem, Progress };
 
@@ -76,18 +77,44 @@ const LEVEL_COINS: Record<number, number> = { 5: 30, 10: 60, 20: 100 };
 const hoursSeen = persistedMap<true>('hours-unlocks-seen.json', (v) => (v === true ? true : undefined));
 let hoursChecking = false;
 
-/** Queues the unlock moment for each newly owned hours item. */
+/** The rung of a streak milestone item (`unlock.need` "streak_14" reads 14), else null. */
+function streakRungOf(item: CosmeticItem): number | null {
+  const m = item.unlock?.source === 'achievement' ? /^streak_(\d+)$/.exec(String(item.unlock.need)) : null;
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * Queues the unlock moment for each newly owned hours item. A streak rung's
+ * item is owned at the day's first XP, before the client's log counts the
+ * day and before the streak-up moment (whose tile celebrates the item): it
+ * waits, neither shown nor marked seen, while the local streak is short of
+ * the rung or that rung's up moment is queued. A kill before the moment
+ * mounts, or a client already past the rung, shows the item screen instead.
+ */
 async function checkHoursUnlocks(p: Progress) {
-  const hours = catalogCache?.items.filter((i) => i.hours_req && p.owned.includes(i.id));
+  const hours = catalogCache?.items.filter((i) => (i.hours_req || i.unlock?.source === 'achievement') && p.owned.includes(i.id));
   if (!hours || hoursChecking) return;
   hoursChecking = true;
   try {
+    // The log is read before the seen map, so nothing awaits between reading and saving it.
+    const days = hours.some((i) => streakRungOf(i) !== null) ? streakDays(await getPracticeLog(), new Date()) : 0;
     const seen = { ...(await hoursSeen.load()) };
     const seed = !seen._init;
     seen._init = true;
-    const fresh = hours.filter((i) => !seen[i.id]);
+    // Owners from before streak items joined this check have _init but no seen
+    // entry for them: one quiet pass marks what they already own.
+    const streakSeed = !seen._streakInit;
+    if (streakSeed) {
+      seen._streakInit = true;
+      for (const i of hours) if (streakRungOf(i) !== null) seen[i.id] = true;
+    }
+    const fresh = hours.filter((i) => {
+      if (seen[i.id]) return false;
+      const rung = streakRungOf(i);
+      return seed || rung === null || (days >= rung && pendingStreakMilestone() !== rung);
+    });
     for (const i of fresh) seen[i.id] = true;
-    if (!seed && fresh.length === 0) return;
+    if (!seed && !streakSeed && fresh.length === 0) return;
     hoursSeen.save(seen);
     if (seed || fresh.length === 0) return;
     const lvl = progressCache?.level ?? p.level;
@@ -95,6 +122,18 @@ async function checkHoursUnlocks(p: Progress) {
   } finally {
     hoursChecking = false;
   }
+}
+
+/**
+ * An item already celebrated elsewhere (the streak-up moment's reward tile):
+ * its own new-item moment never fires. True when this is the first time.
+ */
+export async function markUnlockSeen(id: string): Promise<boolean> {
+  const seen = { ...(await hoursSeen.load()) };
+  if (seen[id]) return false;
+  seen[id] = true;
+  hoursSeen.save(seen);
+  return true;
 }
 
 /** Stores a fresh response and queues a level-up if the level rose. */
@@ -117,6 +156,8 @@ function setProgress(p: Progress) {
         xp_today_slow: p.xp_today_slow ?? prev.xp_today_slow,
       }
     : p;
+  // An old server sends no freeze fields: leave the log's copy alone.
+  if (p.frozen_days) void setStreakSync(p.freezes_held ?? 0, p.frozen_days, p.freezes_bought ?? [], p.server_day ?? '');
   void checkHoursUnlocks(p);
 }
 
@@ -165,6 +206,10 @@ function subscribe(l: () => void) {
 /** The cached progress right now, read outside React. */
 export function progressNow(): Progress | null {
   return progressCache;
+}
+/** The cached catalog right now (any language), read outside React. */
+export function catalogNow(): CosmeticItem[] | null {
+  return catalogCache?.items ?? null;
 }
 
 /** Shows the session summary and XP moment for a finished review, then stores its progress. */

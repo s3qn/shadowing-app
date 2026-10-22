@@ -14,6 +14,7 @@ import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import { useFollowBuild } from '@/hooks/use-follow-build';
 import * as api from '@/lib/api';
+import { etaText } from '@/lib/eta';
 import { useDir, useT } from '@/lib/i18n';
 import { getSettings, getVoice, toIslandLanguage, toNativeLanguage } from '@/lib/settings';
 
@@ -36,7 +37,7 @@ export default function ImportScreen() {
   const [audio, setAudio] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [srt, setSrt] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [error, setError] = useState('');
-  const { stage, follow, stop } = useFollowBuild('/island/[id]', (message) => {
+  const { stage, etaS, follow, stop } = useFollowBuild('/island/[id]', (message) => {
     setError(message);
     setPhase('pick');
   });
@@ -88,6 +89,8 @@ export default function ImportScreen() {
     }
   }
 
+  const eta = etaText(etaS);
+
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       <StatusBar style="light" />
@@ -103,7 +106,8 @@ export default function ImportScreen() {
       {phase === 'building' ? (
         <View style={styles.center}>
           <CatConstellation size={120} label={api.stageLabel(stage).replace(/…$/, '')} />
-          <Text style={[styles.hint, styles.centerText, dir.writing]}>{t('import.buildHint')}</Text>
+          {eta ? <Text style={[styles.hint, styles.centerText, dir.writing]}>{eta}</Text> : null}
+          <Text style={[styles.hint, styles.centerText, dir.writing]}>{eta ? t('eta.leave') : t('import.buildHint')}</Text>
         </View>
       ) : (
         <>
