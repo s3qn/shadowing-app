@@ -4,6 +4,8 @@
 # for the account that owns the project). Start it with:
 #   gh workflow run ios-build.yml -f ref=<commit or branch>
 # or by pushing a tag: git tag ios-<name> <commit> && git push origin ios-<name>
+# A tag named ios-dev-* builds the development profile (a dev client) instead:
+# no TestFlight submit, and the install link lands in the run's annotations.
 name: iOS build
 
 on:
@@ -59,10 +61,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Pick the build profile
+        run: |
+          case "${{ github.ref_name }}" in
+            ios-dev-*) echo "PROFILE=development" >> "$GITHUB_ENV" ;;
+            *) echo "PROFILE=production" >> "$GITHUB_ENV" ;;
+          esac
+
       - name: Build the iOS app on this runner
         run: |
           set -o pipefail
-          npx --yes eas-cli@latest build --platform ios --profile production --local --non-interactive --output "$RUNNER_TEMP/app.ipa" 2>&1 | tee "$RUNNER_TEMP/build.log" || {
+          npx --yes eas-cli@latest build --platform ios --profile "$PROFILE" --local --non-interactive --output "$RUNNER_TEMP/app.ipa" 2>&1 | tee "$RUNNER_TEMP/build.log" || {
             # Annotations are readable without a login, so the error tail lands there.
             TAIL=$(grep -iE "error|fail|❌|exception" "$RUNNER_TEMP/build.log" | tail -n 25; echo "--- last lines ---"; tail -n 35 "$RUNNER_TEMP/build.log")
             TAIL="${TAIL//'%'/'%25'}"; TAIL="${TAIL//$'\n'/'%0A'}"; TAIL="${TAIL//$'\r'/'%0D'}"
@@ -70,6 +79,23 @@ jobs:
             exit 1
           }
 
+      # A dev client cannot go to TestFlight. eas upload hosts it on expo.dev
+      # for an ad hoc install; the link goes in an annotation (readable without
+      # a login), and the .ipa is kept as a run artifact as a fallback.
+      - name: Share the dev client
+        if: ${{ env.PROFILE == 'development' }}
+        run: |
+          npx --yes eas-cli@latest upload --platform ios --build-path "$RUNNER_TEMP/app.ipa" --non-interactive 2>&1 | tee "$RUNNER_TEMP/upload.log" || true
+          LINK=$(grep -oE 'https://expo\.dev/[^ ]+' "$RUNNER_TEMP/upload.log" | tail -n 1)
+          echo "::notice title=Dev client::${LINK:-no link, see the upload step log}"
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ env.PROFILE == 'development' }}
+        with:
+          name: dev-client-ipa
+          path: ${{ runner.temp }}/app.ipa
+          retention-days: 14
+
       - name: Submit to TestFlight
-        if: ${{ github.event_name == 'push' || inputs.submit }}
+        if: ${{ env.PROFILE == 'production' && (github.event_name == 'push' || inputs.submit) }}
         run: npx --yes eas-cli@latest submit --platform ios --profile production --path "$RUNNER_TEMP/app.ipa" --non-interactive
