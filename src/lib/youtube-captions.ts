@@ -15,7 +15,7 @@ export type Json3Event = {
   segs?: { utf8?: string; tOffsetMs?: number }[];
 };
 
-export type CaptionsErrorCode = 'no_captions' | 'captions_blocked' | 'captions_failed';
+export type CaptionsErrorCode = 'no_captions' | 'captions_blocked' | 'captions_failed' | 'age_restricted';
 
 export class CaptionsError extends Error {
   code: CaptionsErrorCode;
@@ -263,6 +263,14 @@ async function clientPlayer(
   }
 }
 
+/** True when a playabilityStatus is YouTube's age gate. */
+function isAgeGate(ps?: { status?: string; reason?: string }): boolean {
+  if (!ps) return false;
+  if (ps.status === 'AGE_CHECK_REQUIRED') return true;
+  const gated = ps.status === 'LOGIN_REQUIRED' || ps.status === 'CONTENT_CHECK_REQUIRED';
+  return gated && /age/i.test(ps.reason ?? '');
+}
+
 /** Walks the caption track lists in turn, the watch page then each player
  * client, until `tryList` answers true for one. The WEB URLs often return an
  * empty body (they need a proof-of-origin token); the player client URLs do
@@ -271,25 +279,27 @@ async function clientPlayer(
 async function trackLists(
   videoId: string,
   tryList: (tracks: Track[]) => Promise<boolean>,
-): Promise<{ status?: string; anyTracks: boolean; context: VideoContext | null }> {
+): Promise<{ status?: string; ageGate: boolean; anyTracks: boolean; context: VideoContext | null }> {
   let pr = await loadWatchPage(videoId, false);
   if (!pr) pr = await loadWatchPage(videoId, true);
   const status = pr?.playabilityStatus?.status;
+  let ageGate = isAgeGate(pr?.playabilityStatus);
   const webTracks = pr ? tracksOf(pr) : [];
   let context = contextOf(pr);
   if (__DEV__) console.log('[captions] watch pr', !!pr, 'status', status, 'tracks', webTracks.length);
   let anyTracks = webTracks.length > 0;
-  if (anyTracks && (await tryList(webTracks))) return { status, anyTracks, context };
+  if (anyTracks && (await tryList(webTracks))) return { status, ageGate, anyTracks, context };
   for (const cfg of PLAYER_CLIENTS) {
     const cpr = await clientPlayer(videoId, cfg);
     const tracks = cpr ? tracksOf(cpr) : [];
     if (!context) context = contextOf(cpr);
+    if (isAgeGate(cpr?.playabilityStatus)) ageGate = true;
     if (__DEV__) console.log('[captions]', cfg.client.clientName, 'tracks', tracks.length);
     if (tracks.length === 0) continue;
     anyTracks = true;
     if (await tryList(tracks)) break;
   }
-  return { status, anyTracks, context };
+  return { status, ageGate, anyTracks, context };
 }
 
 /** The picked track's events plus, when that track is manual, the automatic
@@ -309,7 +319,7 @@ export async function fetchCaptions(
   try {
     // A holder, not a `let`: TS keeps a closure-assigned local narrowed to null.
     const got: { result: { events: Json3Event[]; track: Track; asrEvents: Json3Event[] } | null } = { result: null };
-    const { status, anyTracks, context } = await trackLists(videoId, async (tracks) => {
+    const { status, ageGate, anyTracks, context } = await trackLists(videoId, async (tracks) => {
       const track = pickTrack(tracks, lang);
       if (__DEV__) console.log('[captions] picked', track.languageCode, track.kind || 'manual');
       const events = await fetchEvents(track);
@@ -325,6 +335,7 @@ export async function fetchCaptions(
 
     if (!got.result) {
       if (!anyTracks) {
+        if (ageGate) throw new CaptionsError('age_restricted');
         throw new CaptionsError(
           status === 'LOGIN_REQUIRED' || status === 'UNPLAYABLE' ? 'captions_blocked' : 'no_captions',
         );

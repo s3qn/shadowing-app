@@ -1,62 +1,44 @@
 """Word-in-context glosses and structured explanations of a shadowing line.
 
-Uses the locally-authenticated `claude` CLI, same subprocess/timeout pattern as
-generate.py, but its own model and its own leaner argv: both calls here block a
-UI interaction (a word tap, the Explain sheet), so they run on the fastest
-model available and skip everything the CLI would otherwise load for an
-interactive session. Nothing here raises: any failure (CLI missing, CLI times
-out, nonzero exit, empty output) comes back as an empty string or {}, so a
-caller can degrade quietly.
+Both calls here block a UI interaction (a word tap, the Explain sheet), so
+they go through llm.complete on the fast tier (see llm.ROUTES) with a short
+budget. Nothing here raises: any failure (backend off, cap reached, timeout,
+empty or malformed reply) comes back as an empty string or {}, so a caller
+can degrade quietly.
 
 The sentence, word, question and chat history all end up inside a prompt.
 Question and history come straight from what a learner typed, so they are
 treated as untrusted data: described, never followed, same framing as
 PROMPT_TEMPLATE in generate.py.
 
-chat_answer asks the CLI for strict JSON (vocab, grammar, summary) and
+chat_answer asks the model for strict JSON (vocab, grammar, summary) and
 parse_explain_answer turns that raw reply into a validated dict, the same
-split generate.py uses for its own JSON reply: a network/CLI call that can
-fail in any number of ways, and a pure function that is cheap to test without
-either.
+split generate.py uses for its own JSON reply: a model call that can fail in
+any number of ways, and a pure function that is cheap to test without it.
 
-BLOCKING. The CLI is a subprocess with a slow cold start, so callers must use
-asyncio.to_thread.
+BLOCKING. A model call takes seconds, so callers must use asyncio.to_thread.
 """
 
 import json
 import logging
-import os
-import subprocess
-from typing import Any
+
+import llm
 
 log = logging.getLogger(__name__)
 
-CLI_BINARY = "claude"
-# Same timeout as generate.py, used for chat_answer.
-CLI_TIMEOUT_S = 180.0
+# Same budget as generate.py, used for chat_answer.
+CHAT_TIMEOUT_S = 180.0
 # word_context blocks a word tap in the UI, so it gets a much shorter budget
-# than chat: a stuck CLI should not hang the panel for three minutes.
+# than chat: a stuck call should not hang the panel for three minutes.
 WORD_CONTEXT_TIMEOUT_S = 30.0
-# Separate from generate.py's SHADOW_MODEL: generate.py writes a whole island
-# and can afford Sonnet, but a word gloss or an Explain answer is a couple of
-# short sentences that blocks a UI interaction, so this defaults to the
-# fastest model instead.
-CLI_MODEL = os.getenv("SHADOW_EXPLAIN_MODEL", "claude-haiku-5-5")
-# Haiku 5.5 bills its adaptive thinking as output, so these short glosses ask
-# for the lowest effort. Empty drops the flag (an older CLI without it).
-CLI_EFFORT = os.getenv("SHADOW_EXPLAIN_EFFORT", "low")
-CLI_DISALLOWED_TOOLS = "Bash,Read,Write,Edit,NotebookEdit,WebFetch,WebSearch,Task,Glob,Grep"
-# Measured on this machine: --safe-mode (skips CLAUDE.md discovery, hooks,
-# plugins, skills, MCP servers) roughly halves the CLI's own startup CPU time
-# on top of --strict-mcp-config and --disable-slash-commands below, which it
-# subsumes but which are kept for clarity. Auth and the model call itself are
-# unaffected.
-CLI_SAFE_MODE = True
-# Haiku defaults to extended thinking in this CLI, which added several
-# seconds of hidden reasoning to a two-sentence answer (measured on 4.5: ~5s
-# of API time with thinking on vs ~2s with it off, same prompt). These calls
-# need a quick factual gloss, not reasoning, so thinking is switched off.
-CLI_ENV_OVERRIDES = {"MAX_THINKING_TOKENS": "0"}
+# The non-Japanese chat prompt asks for this object; the Japanese one is
+# read as text and parsed later, so a prose reply still reaches the sheet as
+# its summary.
+CHAT_SCHEMA = {
+    "type": "object",
+    "properties": {"vocab": {"type": "array"}, "grammar": {"type": "array"}, "summary": {"type": "string"}},
+}
+TEXT = {"type": "string"}
 
 MAX_HISTORY_TURNS = 6
 MAX_QUESTION_CHARS = 500
@@ -168,55 +150,6 @@ this shape:
 Answer in {native_name}. Now output the JSON object and nothing else."""
 
 
-def _cli_argv() -> list[str]:
-    """argv for the CLI call. No shell, and the prompt never appears here."""
-    argv = [
-        CLI_BINARY,
-        "--print",
-        "--no-session-persistence",
-        "--strict-mcp-config",
-        "--disable-slash-commands",
-        "--model", CLI_MODEL,
-        "--disallowed-tools", CLI_DISALLOWED_TOOLS,
-        "--tools", "",
-    ]
-    if CLI_SAFE_MODE:
-        argv.append("--safe-mode")
-    if CLI_EFFORT:
-        argv += ["--effort", CLI_EFFORT]
-    return argv
-
-
-def _run(prompt: str, log_label: str, timeout: float = CLI_TIMEOUT_S) -> str:
-    """Run the CLI with `prompt` on stdin, return stripped stdout or "" on
-    any failure. Never raises."""
-    try:
-        proc = subprocess.run(
-            _cli_argv(),
-            input=prompt,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            env={**os.environ, **CLI_ENV_OVERRIDES},
-        )
-    except FileNotFoundError:
-        log.warning("%s: `%s` not found on PATH", log_label, CLI_BINARY)
-        return ""
-    except subprocess.TimeoutExpired:
-        log.warning("%s: CLI timed out after %ss", log_label, timeout)
-        return ""
-
-    if proc.returncode != 0:
-        log.warning("%s: CLI exited %s: %s", log_label, proc.returncode, (proc.stderr or "")[:400])
-        return ""
-
-    text = (proc.stdout or "").strip()
-    if not text:
-        log.warning("%s: empty CLI output", log_label)
-        return ""
-    return text
-
-
 def word_context(word: str, sentence: str, translation: str, language: str = "ja",
                  native: str = "en") -> str:
     """How `word` functions in `sentence` (written in `language`), one to two
@@ -230,15 +163,14 @@ def word_context(word: str, sentence: str, translation: str, language: str = "ja
         return ""
 
     if language == "ja" and native == "en":
-        return _run(
+        return llm.complete(
             JA_WORD_CONTEXT_PROMPT.format(
                 sentence_ja=sentence[:400],
                 sentence_en=(translation or "").strip()[:400],
                 word=word[:100],
             ),
-            "word_context",
-            timeout=WORD_CONTEXT_TIMEOUT_S,
-        )
+            TEXT, tag="word_context", timeout=WORD_CONTEXT_TIMEOUT_S,
+        ) or ""
     prompt = WORD_CONTEXT_PROMPT.format(
         sentence=sentence[:400],
         translation=(translation or "").strip()[:400],
@@ -246,7 +178,7 @@ def word_context(word: str, sentence: str, translation: str, language: str = "ja
         learning_name=LANGUAGE_NAMES.get(language, "Japanese"),
         native_name=LANGUAGE_NAMES.get(native, "English"),
     )
-    return _run(prompt, "word_context", timeout=WORD_CONTEXT_TIMEOUT_S)
+    return llm.complete(prompt, TEXT, tag="word_context", timeout=WORD_CONTEXT_TIMEOUT_S) or ""
 
 
 def chat_answer(sentence_ja: str, sentence_en: str, marked: list[str], question: str,
@@ -283,7 +215,7 @@ def chat_answer(sentence_ja: str, sentence_en: str, marked: list[str], question:
             history=history_text,
             question=question,
         )
-        return _run(prompt, "chat_answer")
+        return llm.complete(prompt, TEXT, tag="chat_answer", timeout=CHAT_TIMEOUT_S) or ""
 
     learning_name = LANGUAGE_NAMES.get(language, "Japanese")
     vocab_note = ""
@@ -303,29 +235,12 @@ def chat_answer(sentence_ja: str, sentence_en: str, marked: list[str], question:
         native_name=LANGUAGE_NAMES.get(native, "English"),
         vocab_note=vocab_note,
     )
-    return _run(prompt, "chat_answer")
-
-
-def _extract_json(text: str) -> Any:
-    """Pull the first JSON value out of `text`. Same approach as generate.py's
-    _extract_json: the model is told to emit raw JSON, but a stray code fence
-    or a leading sentence should not lose the whole answer."""
-    if not text:
-        return None
-    decoder = json.JSONDecoder()
-    for i, ch in enumerate(text):
-        if ch not in "{[":
-            continue
-        try:
-            value, _ = decoder.raw_decode(text[i:])
-            return value
-        except ValueError:
-            continue
-    return None
+    value = llm.complete(prompt, CHAT_SCHEMA, tag="chat_answer", timeout=CHAT_TIMEOUT_S)
+    return json.dumps(value, ensure_ascii=False) if value is not None else ""
 
 
 def parse_explain_answer(raw: str, sentence_ja: str = "") -> dict:
-    """Turn chat_answer's raw CLI reply into {"vocab", "grammar", "summary"}.
+    """Turn chat_answer's raw reply into {"vocab", "grammar", "summary"}.
 
     Each vocab item needs a word and a meaning to be kept; a bad or missing
     "pos" becomes "other" rather than dropping the item. Each grammar item
@@ -340,14 +255,14 @@ def parse_explain_answer(raw: str, sentence_ja: str = "") -> dict:
 
     A reply that is not the JSON object asked for (garbage, a bare sentence,
     a refusal) falls back to {"summary": raw}, so the learner sees something
-    instead of an empty sheet. An empty `raw` (CLI failed) returns {}.
+    instead of an empty sheet. An empty `raw` (the call failed) returns {}.
     Never raises.
     """
     raw = (raw or "").strip()
     if not raw:
         return {}
 
-    parsed = _extract_json(raw)
+    parsed = llm._extract_json(raw)
     if not isinstance(parsed, dict):
         return {"summary": raw}
 

@@ -33,12 +33,16 @@ PATH_PREFIXES = ("shorts", "live", "embed", "v")
 CAPTIONS_MANUAL_BYTES = 2 * 1024 * 1024
 ASR_MAX_BYTES = 5 * 1024 * 1024
 CAPTIONS_MAX_BODY = CAPTIONS_MANUAL_BYTES + ASR_MAX_BYTES
-CAPTIONS_MAX_EVENTS = 6000
-ASR_MAX_EVENTS = 12000
+# A 4 h Japanese manual track is ~5000 lines and ~10000 events; its auto
+# track runs ~1 event per 1.2 s at most (12000 events), so 20000 each leaves
+# room. Tokens: 4 a second x 14400 s = 57600, under ASR_MAX_TOKENS; bytes
+# ~4.5 MB, under ASR_MAX_BYTES.
+CAPTIONS_MAX_EVENTS = 20000
+ASR_MAX_EVENTS = 20000
 ASR_MAX_SEGS_PER_EVENT = 100
 ASR_MAX_TOKENS = 60000
 TOKEN_MAX_S = 1.5
-CAPTIONS_MAX_LINES = 1000
+CAPTIONS_MAX_LINES = 6000
 CAPTION_MAX_CHARS = 300
 CAPTIONS_MAX_SECONDS = 4 * 3600
 MIN_LINE_S = 0.2
@@ -129,10 +133,11 @@ def _pieces(timed: list[tuple[float, str]], event_end: float) -> list[dict]:
     return out
 
 
-def json3_to_lines(events) -> list[dict]:
+def json3_to_lines(events, dropped: list | None = None) -> list[dict]:
     """Raw json3 `events` to `[{start, end, text}]`: sorted, non-overlapping,
     capped. Raises CaptionsInvalid for the wrong shape, a non-finite or
-    out-of-range timestamp. Returns [] when nothing usable is left."""
+    out-of-range timestamp. Returns [] when nothing usable is left. Lines over
+    CAPTIONS_MAX_LINES are cut and the count appended to `dropped`."""
     if not isinstance(events, list) or len(events) > CAPTIONS_MAX_EVENTS:
         raise CaptionsInvalid("events must be a list of at most %d" % CAPTIONS_MAX_EVENTS)
     raw: list[dict] = []
@@ -197,6 +202,11 @@ def json3_to_lines(events) -> list[dict]:
         out.append(line)
     # Clipping can leave a previous line with no length at all.
     out = [ln for ln in out if ln["end"] - ln["start"] > 0]
+    if len(out) > CAPTIONS_MAX_LINES:
+        log.warning("captions: %d lines over the cap of %d, the tail is dropped",
+                    len(out), CAPTIONS_MAX_LINES)
+        if dropped is not None:
+            dropped.append(len(out) - CAPTIONS_MAX_LINES)
     return out[:CAPTIONS_MAX_LINES]
 
 

@@ -1,7 +1,7 @@
 """Tests for generate.py: turning a transcript into Japanese lines.
 
-_extract_json is pure string parsing and is tested directly. generate_lines
-shells out to the `claude` CLI, so it is never actually invoked here: the
+llm._extract_json is pure string parsing and is tested directly. generate_lines
+goes through llm.complete, which in tests runs the CLI backend, so the
 subprocess call is monkeypatched with a fake `subprocess.run` in every test
 that reaches it, and the CLI-missing test asserts the call would not even
 happen for an empty transcript.
@@ -11,6 +11,7 @@ import json
 import subprocess
 
 import generate
+import llm
 
 
 class FakeCompleted:
@@ -26,36 +27,36 @@ class FakeCompleted:
 
 
 def test_extract_json_bare_array():
-    assert generate._extract_json("[1, 2, 3]") == [1, 2, 3]
+    assert llm._extract_json("[1, 2, 3]") == [1, 2, 3]
 
 
 def test_extract_json_object_wrapper():
-    assert generate._extract_json('{"a": 1, "b": [2, 3]}') == {"a": 1, "b": [2, 3]}
+    assert llm._extract_json('{"a": 1, "b": [2, 3]}') == {"a": 1, "b": [2, 3]}
 
 
 def test_extract_json_fenced_in_code_block():
     text = '```json\n{"title": "x", "lines": []}\n```'
-    assert generate._extract_json(text) == {"title": "x", "lines": []}
+    assert llm._extract_json(text) == {"title": "x", "lines": []}
 
 
 def test_extract_json_with_prose_before_and_after():
     text = 'Here is the result:\n{"a": 1}\nLet me know if that works.'
-    assert generate._extract_json(text) == {"a": 1}
+    assert llm._extract_json(text) == {"a": 1}
 
 
 def test_extract_json_empty_string_returns_none():
-    assert generate._extract_json("") is None
+    assert llm._extract_json("") is None
 
 
 def test_extract_json_unparseable_text_returns_none():
     # No braces or brackets at all: the module's contract for genuinely
     # unparseable output is None, never an exception.
-    assert generate._extract_json("Sorry, I can't help with that.") is None
+    assert llm._extract_json("Sorry, I can't help with that.") is None
 
 
 def test_extract_json_dangling_brace_returns_none():
     # Has a '{' to try, but no valid JSON follows it anywhere in the string.
-    assert generate._extract_json("{not actually json") is None
+    assert llm._extract_json("{not actually json") is None
 
 
 # -- generate_lines -------------------------------------------------------
@@ -65,7 +66,7 @@ def test_generate_lines_empty_transcript_never_calls_cli(monkeypatch):
     def fail_if_called(*args, **kwargs):
         raise AssertionError("subprocess.run should not run for an empty transcript")
 
-    monkeypatch.setattr(generate.subprocess, "run", fail_if_called)
+    monkeypatch.setattr(subprocess, "run", fail_if_called)
 
     assert generate.generate_lines("   ", complexity="simple") == {"title": "", "lines": []}
 
@@ -74,7 +75,7 @@ def test_generate_lines_cli_not_found_returns_empty(monkeypatch):
     def fake_run(*args, **kwargs):
         raise FileNotFoundError()
 
-    monkeypatch.setattr(generate.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     result = generate.generate_lines("I went to the store.", complexity="simple")
     assert result == {"title": "", "lines": []}
@@ -82,9 +83,9 @@ def test_generate_lines_cli_not_found_returns_empty(monkeypatch):
 
 def test_generate_lines_cli_timeout_returns_empty(monkeypatch):
     def fake_run(*args, **kwargs):
-        raise subprocess.TimeoutExpired(cmd="claude", timeout=generate.CLI_TIMEOUT_S)
+        raise subprocess.TimeoutExpired(cmd="claude", timeout=generate.TIMEOUT_S)
 
-    monkeypatch.setattr(generate.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     result = generate.generate_lines("I went to the store.", complexity="simple")
     assert result == {"title": "", "lines": []}
@@ -92,7 +93,7 @@ def test_generate_lines_cli_timeout_returns_empty(monkeypatch):
 
 def test_generate_lines_nonzero_exit_returns_empty(monkeypatch):
     monkeypatch.setattr(
-        generate.subprocess, "run",
+        subprocess, "run",
         lambda *a, **k: FakeCompleted(returncode=1, stderr="boom"),
     )
 
@@ -102,7 +103,7 @@ def test_generate_lines_nonzero_exit_returns_empty(monkeypatch):
 
 def test_generate_lines_unparseable_output_returns_empty(monkeypatch):
     monkeypatch.setattr(
-        generate.subprocess, "run",
+        subprocess, "run",
         lambda *a, **k: FakeCompleted(returncode=0, stdout="not json"),
     )
 
@@ -114,7 +115,7 @@ def test_generate_lines_bare_array_output_returns_empty(monkeypatch):
     # _extract_json would happily parse a bare array, but generate_lines
     # requires the top-level value to be a dict (it has "title" and "lines").
     monkeypatch.setattr(
-        generate.subprocess, "run",
+        subprocess, "run",
         lambda *a, **k: FakeCompleted(returncode=0, stdout="[1, 2, 3]"),
     )
 
@@ -133,7 +134,7 @@ def test_generate_lines_parses_and_filters_lines(monkeypatch):
         ],
     })
     monkeypatch.setattr(
-        generate.subprocess, "run",
+        subprocess, "run",
         lambda *a, **k: FakeCompleted(returncode=0, stdout=stdout),
     )
 
@@ -161,7 +162,7 @@ def _captured_prompt(monkeypatch, **kwargs):
         seen["prompt"] = kw.get("input")
         return FakeCompleted(returncode=0, stdout=json.dumps({"title": "t", "lines": []}))
 
-    monkeypatch.setattr(generate.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
     generate.generate_lines("I went to the store.", **kwargs)
     return seen["prompt"]
 
@@ -192,14 +193,14 @@ def test_translate_lines_empty_input_never_calls_cli(monkeypatch):
     def fail_if_called(*args, **kwargs):
         raise AssertionError("subprocess.run should not run for an empty batch")
 
-    monkeypatch.setattr(generate.subprocess, "run", fail_if_called)
+    monkeypatch.setattr(subprocess, "run", fail_if_called)
 
     assert generate.translate_lines([]) == []
 
 
 def test_translate_lines_parses_json_array(monkeypatch):
     monkeypatch.setattr(
-        generate.subprocess, "run",
+        subprocess, "run",
         lambda *a, **k: FakeCompleted(returncode=0, stdout=json.dumps(["I get up", "I sleep"])),
     )
 
@@ -210,7 +211,7 @@ def test_translate_lines_parses_json_array(monkeypatch):
 def test_translate_lines_parses_fenced_array(monkeypatch):
     stdout = '```json\n["I get up", "I sleep"]\n```'
     monkeypatch.setattr(
-        generate.subprocess, "run",
+        subprocess, "run",
         lambda *a, **k: FakeCompleted(returncode=0, stdout=stdout),
     )
 
@@ -220,7 +221,7 @@ def test_translate_lines_parses_fenced_array(monkeypatch):
 
 def test_translate_lines_garbage_output_returns_empty(monkeypatch):
     monkeypatch.setattr(
-        generate.subprocess, "run",
+        subprocess, "run",
         lambda *a, **k: FakeCompleted(returncode=0, stdout="not json"),
     )
 
@@ -229,7 +230,7 @@ def test_translate_lines_garbage_output_returns_empty(monkeypatch):
 
 def test_translate_lines_wrong_length_returns_empty(monkeypatch):
     monkeypatch.setattr(
-        generate.subprocess, "run",
+        subprocess, "run",
         lambda *a, **k: FakeCompleted(returncode=0, stdout=json.dumps(["only one"])),
     )
 
@@ -240,14 +241,14 @@ def test_translate_lines_cli_not_found_returns_empty(monkeypatch):
     def fake_run(*args, **kwargs):
         raise FileNotFoundError()
 
-    monkeypatch.setattr(generate.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     assert generate.translate_lines(["起きます"]) == []
 
 
 def test_translate_lines_nonzero_exit_returns_empty(monkeypatch):
     monkeypatch.setattr(
-        generate.subprocess, "run",
+        subprocess, "run",
         lambda *a, **k: FakeCompleted(returncode=1, stderr="boom"),
     )
 
@@ -261,7 +262,7 @@ def test_translate_lines_native_hebrew_prompt_names_hebrew(monkeypatch):
         captured["prompt"] = kw.get("input")
         return FakeCompleted(returncode=0, stdout=json.dumps(["x"]))
 
-    monkeypatch.setattr(generate.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     generate.translate_lines(["起きます"], native="he")
 
@@ -282,7 +283,7 @@ def test_generate_lines_ja_prompt_is_byte_identical_to_today(monkeypatch):
         captured["prompt"] = kw.get("input")
         return FakeCompleted(returncode=0, stdout=json.dumps({"title": "t", "lines": []}))
 
-    monkeypatch.setattr(generate.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     generate.generate_lines("I went to the store.", complexity="simple", count=8, language="en")
 
@@ -304,7 +305,7 @@ def test_generate_lines_es_prompt_names_spanish_and_hebrew_and_asks_for_text_tra
         captured["prompt"] = kw.get("input")
         return FakeCompleted(returncode=0, stdout=json.dumps({"title": "t", "lines": []}))
 
-    monkeypatch.setattr(generate.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     generate.generate_lines(
         "Fui a la tienda.", complexity="simple", count=5, language="es",
@@ -328,7 +329,7 @@ def test_generate_lines_es_parses_text_and_translation_into_ja_and_en(monkeypatc
         ],
     })
     monkeypatch.setattr(
-        generate.subprocess, "run",
+        subprocess, "run",
         lambda *a, **k: FakeCompleted(returncode=0, stdout=stdout),
     )
 
@@ -371,20 +372,20 @@ SEED = [
 
 
 def test_expand_topic_parses_array(monkeypatch):
-    monkeypatch.setattr(generate.subprocess, "run", _cli_ok('["gym", "ジム", 3, ""]'))
+    monkeypatch.setattr(subprocess, "run", _cli_ok('["gym", "ジム", 3, ""]'))
     assert generate.expand_topic("phrases for the gym", "ja") == ["gym", "ジム"]
 
 
 def test_expand_topic_falls_back_to_topic_words(monkeypatch):
     def fail(argv, **kw):
         return subprocess.CompletedProcess(argv, 1, stdout="", stderr="boom")
-    monkeypatch.setattr(generate.subprocess, "run", fail)
+    monkeypatch.setattr(subprocess, "run", fail)
     assert generate.expand_topic("Phrases for the gym, gym!", "ja") == ["phrases", "for", "the", "gym"]
 
 
 def test_topic_prompt_names_language_seeds_and_src(monkeypatch):
     captured = []
-    monkeypatch.setattr(generate.subprocess, "run", _cli_ok('{"title": "Gym", "lines": []}', captured))
+    monkeypatch.setattr(subprocess, "run", _cli_ok('{"title": "Gym", "lines": []}', captured))
     generate.generate_lines("phrases for the gym", "simple", 5, "en", "polite",
                             learning="ja", native="en", seed=SEED)
     prompt = captured[0]
@@ -405,7 +406,7 @@ def test_src_maps_to_tatoeba_id(monkeypatch):
            '{"ja": "a", "kana": "a", "romaji": "a", "en": "a", "src": 2},'
            '{"ja": "b", "kana": "b", "romaji": "b", "en": "b", "src": 9},'
            '{"ja": "c", "kana": "c", "romaji": "c", "en": "c", "src": null}]}')
-    monkeypatch.setattr(generate.subprocess, "run", _cli_ok(out))
+    monkeypatch.setattr(subprocess, "run", _cli_ok(out))
     lines = generate.generate_lines("gym", seed=SEED)["lines"]
     assert [ln["tatoeba_id"] for ln in lines] == [902, None, None]
 
@@ -418,11 +419,11 @@ def test_generate_grammar_prompt_parse_and_span(monkeypatch):
         {"ja": "", "en": "skipped"},
     ]})
 
-    def fake(prompt, tag):
+    def fake(prompt, tag, timeout=None):
         seen["prompt"] = prompt
         return reply
 
-    monkeypatch.setattr(generate, "_run_cli", fake)
+    monkeypatch.setattr(llm, "_run_cli", fake)
     point = {"pattern": "AながらB", "reading": "ながら", "level": "N4", "connection": "Vます stem"}
     out = generate.generate_grammar(point, [{"id": 9, "text": "座りながら食べる。", "en": "x"}])
     assert "AながらB" in seen["prompt"] and "座りながら食べる。" in seen["prompt"]
@@ -432,5 +433,5 @@ def test_generate_grammar_prompt_parse_and_span(monkeypatch):
 
 
 def test_generate_grammar_cli_failure_is_empty(monkeypatch):
-    monkeypatch.setattr(generate, "_run_cli", lambda *a: None)
+    monkeypatch.setattr(llm, "_run_cli", lambda *a: None)
     assert generate.generate_grammar({"pattern": "x"}) == {"title": "", "lines": []}

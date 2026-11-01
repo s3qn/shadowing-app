@@ -50,3 +50,6 @@ example
 
 # design explorations stay local
 designs/
+
+# Python bytecode caches
+__pycache__/

@@ -547,6 +547,11 @@ export default function PodcastScreen() {
       ) : (
         <>
           <View style={styles.fill}>
+            {canAiPick || pickError ? (
+              <View style={styles.aiHint}>
+                {pickError ? <Text style={styles.error}>{pickError}</Text> : <Text style={styles.hint}>{t('podcast.aiPick.hint')}</Text>}
+              </View>
+            ) : null}
             <TideScene
               lineIndex={activeLine}
               lineCount={lines.length}
@@ -588,11 +593,6 @@ export default function PodcastScreen() {
               onLineTap={onLineTap}
               bottomInset={lines.length > 0 ? dockH + insets.bottom : insets.bottom}
             />
-            {canAiPick || pickError ? (
-              <View style={styles.aiHint} pointerEvents="none">
-                {pickError ? <Text style={styles.error}>{pickError}</Text> : <Text style={styles.hint}>{t('podcast.aiPick.hint')}</Text>}
-              </View>
-            ) : null}
             {picking ? (
               <View style={[StyleSheet.absoluteFill, styles.center, styles.pickVeil]}>
                 <CatConstellation size={120} />
@@ -743,7 +743,7 @@ const styles = StyleSheet.create({
   },
   slot: { position: 'relative' },
   sparkles: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  aiHint: { position: 'absolute', top: 8, left: 0, right: 0, paddingHorizontal: 24 },
+  aiHint: { paddingHorizontal: 24, paddingVertical: 8 },
   pickVeil: { backgroundColor: 'rgba(0,0,0,0.45)' },
   tagChip: {
     alignSelf: 'center',

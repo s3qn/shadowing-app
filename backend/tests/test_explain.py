@@ -27,7 +27,7 @@ def test_word_context_empty_word_never_calls_cli(monkeypatch):
     def fail_if_called(*args, **kwargs):
         raise AssertionError("subprocess.run should not run for an empty word")
 
-    monkeypatch.setattr(explain.subprocess, "run", fail_if_called)
+    monkeypatch.setattr(subprocess, "run", fail_if_called)
 
     assert explain.word_context("  ", "行きます。", "I go.") == ""
 
@@ -36,7 +36,7 @@ def test_word_context_empty_sentence_never_calls_cli(monkeypatch):
     def fail_if_called(*args, **kwargs):
         raise AssertionError("subprocess.run should not run for an empty sentence")
 
-    monkeypatch.setattr(explain.subprocess, "run", fail_if_called)
+    monkeypatch.setattr(subprocess, "run", fail_if_called)
 
     assert explain.word_context("行きます", "  ", "I go.") == ""
 
@@ -45,23 +45,23 @@ def test_word_context_cli_not_found_returns_empty(monkeypatch):
     def fake_run(*args, **kwargs):
         raise FileNotFoundError()
 
-    monkeypatch.setattr(explain.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     assert explain.word_context("行きます", "学校に行きます。", "I go to school.") == ""
 
 
 def test_word_context_cli_timeout_returns_empty(monkeypatch):
     def fake_run(*args, **kwargs):
-        raise subprocess.TimeoutExpired(cmd="claude", timeout=explain.CLI_TIMEOUT_S)
+        raise subprocess.TimeoutExpired(cmd="claude", timeout=explain.CHAT_TIMEOUT_S)
 
-    monkeypatch.setattr(explain.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     assert explain.word_context("行きます", "学校に行きます。", "I go to school.") == ""
 
 
 def test_word_context_nonzero_exit_returns_empty(monkeypatch):
     monkeypatch.setattr(
-        explain.subprocess, "run",
+        subprocess, "run",
         lambda *a, **k: FakeCompleted(returncode=1, stderr="boom"),
     )
 
@@ -70,7 +70,7 @@ def test_word_context_nonzero_exit_returns_empty(monkeypatch):
 
 def test_word_context_empty_output_returns_empty(monkeypatch):
     monkeypatch.setattr(
-        explain.subprocess, "run",
+        subprocess, "run",
         lambda *a, **k: FakeCompleted(returncode=0, stdout="   "),
     )
 
@@ -79,7 +79,7 @@ def test_word_context_empty_output_returns_empty(monkeypatch):
 
 def test_word_context_parses_normal_response(monkeypatch):
     monkeypatch.setattr(
-        explain.subprocess, "run",
+        subprocess, "run",
         lambda *a, **k: FakeCompleted(
             returncode=0,
             stdout="  Here, 行きます is the polite present form of 行く, marking the "
@@ -101,7 +101,7 @@ def test_chat_answer_empty_question_never_calls_cli(monkeypatch):
     def fail_if_called(*args, **kwargs):
         raise AssertionError("subprocess.run should not run for an empty question")
 
-    monkeypatch.setattr(explain.subprocess, "run", fail_if_called)
+    monkeypatch.setattr(subprocess, "run", fail_if_called)
 
     result = explain.chat_answer("学校に行きます。", "I go to school.", ["行きます"], "  ", [])
     assert result == ""
@@ -111,7 +111,7 @@ def test_chat_answer_cli_not_found_returns_empty(monkeypatch):
     def fake_run(*args, **kwargs):
         raise FileNotFoundError()
 
-    monkeypatch.setattr(explain.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     result = explain.chat_answer(
         "学校に行きます。", "I go to school.", ["行きます"], "why is this polite form?", []
@@ -121,9 +121,9 @@ def test_chat_answer_cli_not_found_returns_empty(monkeypatch):
 
 def test_chat_answer_cli_timeout_returns_empty(monkeypatch):
     def fake_run(*args, **kwargs):
-        raise subprocess.TimeoutExpired(cmd="claude", timeout=explain.CLI_TIMEOUT_S)
+        raise subprocess.TimeoutExpired(cmd="claude", timeout=explain.CHAT_TIMEOUT_S)
 
-    monkeypatch.setattr(explain.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     result = explain.chat_answer(
         "学校に行きます。", "I go to school.", ["行きます"], "why is this polite form?", []
@@ -133,7 +133,7 @@ def test_chat_answer_cli_timeout_returns_empty(monkeypatch):
 
 def test_chat_answer_nonzero_exit_returns_empty(monkeypatch):
     monkeypatch.setattr(
-        explain.subprocess, "run",
+        subprocess, "run",
         lambda *a, **k: FakeCompleted(returncode=1, stderr="boom"),
     )
 
@@ -145,7 +145,7 @@ def test_chat_answer_nonzero_exit_returns_empty(monkeypatch):
 
 def test_chat_answer_empty_output_returns_empty(monkeypatch):
     monkeypatch.setattr(
-        explain.subprocess, "run",
+        subprocess, "run",
         lambda *a, **k: FakeCompleted(returncode=0, stdout=""),
     )
 
@@ -162,7 +162,7 @@ def test_chat_answer_includes_marked_words_and_history_in_prompt(monkeypatch):
         captured["input"] = input
         return FakeCompleted(returncode=0, stdout="It marks the destination.")
 
-    monkeypatch.setattr(explain.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     history = [
         {"role": "user", "text": "what does 行きます mean?"},
@@ -188,7 +188,7 @@ def test_chat_answer_caps_history_to_last_six_turns(monkeypatch):
         captured["input"] = input
         return FakeCompleted(returncode=0, stdout="answer")
 
-    monkeypatch.setattr(explain.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     history = [{"role": "user", "text": f"turn {i}"} for i in range(10)]
     explain.chat_answer("学校に行きます。", "I go to school.", [], "a question", history)
@@ -207,7 +207,7 @@ def test_chat_answer_no_marked_words_reads_as_whole_sentence(monkeypatch):
         captured["input"] = input
         return FakeCompleted(returncode=0, stdout="answer")
 
-    monkeypatch.setattr(explain.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     explain.chat_answer("学校に行きます。", "I go to school.", [], "what does this mean?", [])
 
@@ -326,7 +326,7 @@ def test_word_context_ja_en_prompt_leads_with_meaning(monkeypatch):
         captured["input"] = input
         return FakeCompleted(returncode=0, stdout="answer")
 
-    monkeypatch.setattr(explain.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     explain.word_context("行きます", "学校に行きます。", "I go to school.")
 
@@ -351,7 +351,7 @@ def test_word_context_es_he_prompt_names_spanish_and_hebrew(monkeypatch):
         captured["input"] = input
         return FakeCompleted(returncode=0, stdout="answer")
 
-    monkeypatch.setattr(explain.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     explain.word_context("tienda", "Fui a la tienda.", "I went to the store.",
                           language="es", native="he")
@@ -367,7 +367,7 @@ def test_chat_answer_es_he_prompt_names_languages_and_answer_in_hebrew(monkeypat
         captured["input"] = input
         return FakeCompleted(returncode=0, stdout="answer")
 
-    monkeypatch.setattr(explain.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     explain.chat_answer(
         "Fui a la tienda.", "I went to the store.", ["tienda"], "what does this mean?",
@@ -387,7 +387,7 @@ def test_chat_answer_ja_en_prompt_is_byte_identical_to_before_languages(monkeypa
         captured["input"] = input
         return FakeCompleted(returncode=0, stdout="answer")
 
-    monkeypatch.setattr(explain.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     explain.chat_answer("学校に行きます。", "I go to school.", [], "what does this mean?", [])
 
@@ -411,7 +411,7 @@ def test_chat_answer_ja_he_prompt_answers_in_hebrew(monkeypatch):
         captured["input"] = input
         return FakeCompleted(returncode=0, stdout="answer")
 
-    monkeypatch.setattr(explain.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     explain.chat_answer("学校に行きます。", "", [], "what does this mean?", [], native="he")
 
@@ -437,7 +437,7 @@ def test_word_context_prompt_asks_meaning_first_in_native_language(monkeypatch):
         seen.append(input)
         return FakeCompleted(returncode=0, stdout="answer")
 
-    monkeypatch.setattr(explain.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     for lang, name in (("es", "Spanish"), ("en", "English"), ("ja", "Japanese")):
         explain.word_context("palabra", "Una frase.", "A sentence.", language=lang, native="he")

@@ -3,6 +3,7 @@ gate, the verdict, the pass, the store writes, the job and the route. The
 model is always a fake callable; conftest sets SHADOW_LLM=off so nothing
 reaches the CLI."""
 
+import asyncio
 import json
 import sqlite3
 import uuid
@@ -59,17 +60,20 @@ def write_captions(iid, auto, asr_events=False):
 
 def fake_llm(replies):
     """A model whose answers come from `replies` (one per batch, in order);
-    records every prompt."""
+    records every prompt and the `ref` the job passed for the cost row."""
     calls = []
+    refs = []
 
-    def call(prompt, schema, *, tag, timeout):
+    def call(prompt, schema, *, tag, timeout, ref=""):
         calls.append(prompt)
+        refs.append(ref)
         r = replies[min(len(calls) - 1, len(replies) - 1)] if replies else None
         if isinstance(r, Exception):
             raise r
         return r
 
     call.calls = calls
+    call.refs = refs
     return call
 
 
@@ -460,6 +464,7 @@ def test_job_runs_caches_and_a_second_island_applies_with_no_model_call(monkeypa
     first = make_island(texts, video_id=vid)
     repair.job(first, asr=True)
     assert len(model.calls) == 1 and "Video title: Hikaru" in model.calls[0]
+    assert model.refs == [vid]  # the cost row names the video
     assert store.get_island(first)["lines"][0]["ja"] == "痴女がいるんだよ"
     assert store.get_video(first)["repair_status"] == "done"
     cached = store.get_repair(vid)
@@ -477,7 +482,8 @@ def test_job_runs_caches_and_a_second_island_applies_with_no_model_call(monkeypa
 def test_job_all_batches_failed_is_failed_and_caches_nothing(monkeypatch):
     vid = str(uuid.uuid4())[:11]
     iid = make_island(["チュージョンがいる"], video_id=vid)
-    repair.job(iid, asr=True)  # SHADOW_LLM=off: every batch answers None
+    monkeypatch.setattr(llm, "complete", lambda *a, **k: None)  # every batch answers None
+    repair.job(iid, asr=True)
     video = store.get_video(iid)
     assert (video["repair_status"], video["repair_error"]) == ("failed", "llm_failed")
     assert store.get_island(iid)["lines"][0]["sure"] is None
@@ -711,8 +717,9 @@ def test_pick_targets_skips_unsure_lines_and_keeps_unchecked():
 
 # ---- llm seam ----
 
-def test_llm_off_returns_none_and_logs(caplog):
+def test_llm_off_returns_none_and_logs(caplog, monkeypatch):
     import logging
+    monkeypatch.setenv("SHADOW_LLM", "off")
     with caplog.at_level(logging.INFO, logger="llm"):
         assert llm.complete("p", {"type": "array"}, tag="repair") is None
     assert "llm repair: backend=off" in caplog.text and "ok=False" in caplog.text
@@ -721,7 +728,7 @@ def test_llm_off_returns_none_and_logs(caplog):
 def test_llm_cli_backend_checks_the_schema(monkeypatch):
     monkeypatch.setenv("SHADOW_LLM", "cli")
     replies = iter(['[{"n": 1, "text": "x"}]', '{"n": 1}', 'not json'])
-    monkeypatch.setattr(generate, "_run_cli", lambda prompt, tag, timeout: next(replies))
+    monkeypatch.setattr(llm, "_run_cli", lambda prompt, tag, timeout: next(replies))
     assert llm.complete("p", repair.SCHEMA, tag="repair") == [{"n": 1, "text": "x"}]
     assert llm.complete("p", repair.SCHEMA, tag="repair") is None
     assert llm.complete("p", repair.SCHEMA, tag="repair") is None
@@ -736,7 +743,53 @@ def test_llm_schema_matcher():
     assert not llm.matches(1, {"type": "string"})
 
 
-def test_llm_api_backend_is_not_wired(monkeypatch):
-    monkeypatch.setenv("SHADOW_LLM", "api")
-    with pytest.raises(NotImplementedError):
-        llm.complete("p", {}, tag="x")
+def test_job_deadline_scales_with_lines():
+    assert repair.job_deadline_s(10) == repair.JOB_DEADLINE_S
+    assert repair.job_deadline_s(5000) == 4500.0
+
+
+# ---- line cap and the slot order ----
+
+def test_lines_past_the_cap_stay_unrepaired_and_marked(monkeypatch):
+    monkeypatch.setattr(repair, "MAX_LINES", 80)
+    calls = []
+
+    def fake(prompt, schema, **kw):
+        calls.append(prompt)
+        return []
+
+    texts = [f"行{i}" for i in range(200)]
+    result = repair.repair_lines(texts, {}, llm_call=fake)
+    assert len(calls) == 2  # 80 lines, BATCH 40
+    stats = result["stats"]
+    assert stats["capped"] == 120 and stats["failed_batches"] == 0
+    assert all(e["sure"] is None and e["text"] == e["before"] for e in result["lines"][80:])
+    assert all(e["sure"] is not None for e in result["lines"][:80])
+
+
+def test_capped_job_ends_done_with_the_capped_reason(monkeypatch):
+    monkeypatch.setattr(repair, "MAX_LINES", 1)
+    monkeypatch.setattr(repair, "ON", True)
+    monkeypatch.setattr(repair.llm, "complete", lambda *a, **kw: [])
+    iid = make_island(["こんにちは", "さようなら"], video_id="cap-video")
+    repair.job(iid, asr=True)
+    video = store.get_video(iid)
+    assert video["repair_status"] == "done" and video["repair_error"] == "capped"
+
+
+def test_repair_slot_is_taken_only_after_a_won_claim(monkeypatch):
+    stranger = "dddddddd-0000-4000-8000-0000000000c9"
+    head = {"Authorization": "Bearer test-token", "X-Shadow-Device": stranger}
+    monkeypatch.setattr(main, "OWNER_DEVICE", "not-this-device")
+    monkeypatch.setattr(main, "OWNER_ALIASES", frozenset())
+    iid = make_island(["a"], device=stranger, video_id="slot-video")
+    monkeypatch.setattr(store, "claim_repair", lambda *a: False)
+    assert _post(iid, headers=head).json() == {"repair": "queued"}
+    assert store.count_builds_today(stranger, "repair") == 0
+    monkeypatch.setattr(store, "claim_repair", lambda *a: True)
+    async def no_job(*a, **k):
+        return None
+
+    monkeypatch.setattr(main, "_repair_job", no_job)
+    assert _post(iid, headers=head).json() == {"repair": "queued"}
+    assert store.count_builds_today(stranger, "repair") == 1

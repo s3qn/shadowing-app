@@ -159,6 +159,7 @@ def test_pieces_cover_child_text_when_cut_falls_inside_a_piece():
 
 import asyncio
 import json
+import subprocess
 import uuid
 
 import align
@@ -182,7 +183,7 @@ def _fake_cli(monkeypatch, replies):
             raise r
         return r
 
-    monkeypatch.setattr(generate.subprocess, "run", run)
+    monkeypatch.setattr(subprocess, "run", run)
     return prompts
 
 

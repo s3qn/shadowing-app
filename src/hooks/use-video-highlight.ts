@@ -20,7 +20,7 @@ import type { Line } from '@/lib/api';
  */
 
 /** How often the player is asked for its time while playing or buffering. */
-const POLL_MS = 250;
+const POLL_MS = 750;
 /** Frames keep running this long after a stop so the highlight can fade. */
 const TAIL_MS = 300;
 /** How long the highlight takes to fade in or out. */
@@ -331,10 +331,18 @@ export function useVideoHighlight(
       }
 
       const st = starts.value;
+      // The line is almost always the last one or the next: check those before a scan.
       let line = 0;
-      for (let i = 0; i < st.length; i += 1) {
-        if (st[i]! <= pos) line = i;
-        else break;
+      const hint = lastLine.value;
+      if (hint >= 0 && hint < st.length && st[hint]! <= pos && (hint + 1 >= st.length || st[hint + 1]! > pos)) {
+        line = hint;
+      } else if (hint >= 0 && hint + 1 < st.length && st[hint + 1]! <= pos && (hint + 2 >= st.length || st[hint + 2]! > pos)) {
+        line = hint + 1;
+      } else {
+        for (let i = 0; i < st.length; i += 1) {
+          if (st[i]! <= pos) line = i;
+          else break;
+        }
       }
       // Repeat: a line held at its end stays on screen, frozen at that end,
       // until the caller seeks back or lets it go.

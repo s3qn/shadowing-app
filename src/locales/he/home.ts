@@ -132,7 +132,7 @@ export const he = {
   'streak.buyFailed': 'לא ניתן היה לקנות את ההקפאה',
   'home.streakStart': 'התחילו רצף',
   'home.streakDays': 'רצף של {n} ימים',
-  'home.streakDays_one': 'יום אחד',
+  'home.streakDays_one': 'רצף של יום אחד',
   'home.streakDays_two': 'רצף של יומיים',
   'home.streakKeep': 'תרגלו היום כדי לשמור עליו',
   'streak.title': 'רצף',

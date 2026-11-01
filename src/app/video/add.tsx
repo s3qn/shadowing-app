@@ -8,6 +8,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
 import { PressScale } from '@/components/press-scale';
+import { EnergyChip } from '@/components/energy-bolt';
+import { canAfford, priceOf, useEnergy } from '@/lib/energy';
 import { PrismButton } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
@@ -26,6 +28,7 @@ function rowStatus(v: api.VideoListItem, t: ReturnType<typeof useT>['t']): strin
 /** Find a video: one Paste button reads the clipboard, no typing. */
 export default function VideoAddScreen() {
   const { t } = useT();
+  const energy = useEnergy();
   const dir = useDir();
   const router = useRouter();
   const [info, setInfo] = useState<api.YouTubeInfo | null>(null);
@@ -110,7 +113,7 @@ export default function VideoAddScreen() {
           {info ? (
             <>
               <PrismButton shape="pill" verb="listen" label={t('video.watchPreview')} onPress={preview} />
-              <PrismButton shape="pill" verb="speak" label={t('video.build')} onPress={build} />
+              <PrismButton shape="pill" verb="speak" label={t('video.build')} onPress={build} disabled={!canAfford(energy, 'import')} trailing={<EnergyChip energy={energy} cost={priceOf(energy, 'import')} />} />
               <PrismButton shape="pill" verb="tools" flat press="light" label={t('video.pasteAnother')} onPress={paste} />
             </>
           ) : (

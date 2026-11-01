@@ -286,6 +286,7 @@ export default function RootLayout() {
         <Stack.Screen name="settings/feedback" options={{ title: t('settings.row.feedback') }} />
         <Stack.Screen name="podcast/build" options={{ title: t('tab.podcast') }} />
         <Stack.Screen name="settings/data" options={{ title: t('title.data') }} />
+        <Stack.Screen name="settings/words" options={{ title: t('title.words') }} />
         <Stack.Screen name="settings/about" options={{ title: t('title.about') }} />
         <Stack.Screen name="settings/languages" options={{ title: t('title.language') }} />
         <Stack.Screen name="settings/app-language" options={{ title: t('settings.appLanguage') }} />

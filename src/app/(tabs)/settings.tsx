@@ -1,3 +1,4 @@
+import { useKnownWords } from '@/hooks/use-known-words';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
@@ -32,6 +33,7 @@ import { type EnableResult, enableStreakReminder, reconcileStreakReminder, sched
 export default function SettingsScreen() {
   const router = useRouter();
   const { t } = useT();
+  const wordCount = useKnownWords().data?.total ?? null; // bl72-known-words
   const [voiceName, setVoiceName] = useState('');
   const [isJapanese, setIsJapanese] = useState(true);
   const [haptics, setHapticsState] = useState(true);
@@ -174,9 +176,16 @@ export default function SettingsScreen() {
         <SettingsSection title={t('settings.section.practice')}>
           <SettingsRow
             label={t(isJapanese ? 'settings.row.practice' : 'settings.row.practiceOther')}
-            last
             icon={{ ios: 'book.closed', android: 'menu_book' }}
             onPress={() => router.push('/settings/practice')}
+          />
+          {/* bl72-known-words */}
+          <SettingsRow
+            label={t('settings.words.row')}
+            value={wordCount === null ? undefined : t(wordCount === 1 ? 'settings.words.countOne' : 'settings.words.count', { n: wordCount })}
+            last
+            icon={{ ios: 'text.book.closed', android: 'translate' }}
+            onPress={() => router.push('/settings/words')}
           />
         </SettingsSection>
 

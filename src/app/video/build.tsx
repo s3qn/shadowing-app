@@ -17,6 +17,7 @@ export default function VideoBuildScreen() {
   const { url, title, id: existingId } = useLocalSearchParams<{ url?: string; title?: string; id?: string }>();
 
   const [error, setError] = useState('');
+  const [noRetry, setNoRetry] = useState(false);
   const { stage, setStage, etaS, follow, stop } = useFollowBuild('/video/[id]', setError);
   const started = useRef(false);
 
@@ -43,7 +44,10 @@ export default function VideoBuildScreen() {
         );
         follow(id);
       } catch (e) {
-        if (e instanceof CaptionsError) setError(t(`video.err.${e.code}` as const));
+        if (e instanceof CaptionsError) {
+          setNoRetry(e.code === 'age_restricted');
+          setError(t(`video.err.${e.code}` as const));
+        }
         else setError(e instanceof Error ? e.message : t('video.lookupFailed'));
       }
     });
@@ -61,6 +65,7 @@ export default function VideoBuildScreen() {
       hint={t('video.buildHint')}
       eta={etaText(etaS)}
       error={error}
+      noRetry={noRetry}
       onClose={close}
     />
   );

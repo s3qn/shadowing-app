@@ -1,30 +1,28 @@
 """Turn a transcript into lines to shadow, in Japanese, Spanish or English.
 
-Uses the locally-authenticated `claude` CLI rather than the Anthropic SDK. There
-is no populated ANTHROPIC_API_KEY on this machine, and the CLI path spends no API
-credits. The hardening below is copied from social-ai's analyze.py.
+Every model call goes through llm.complete, which picks the backend (Sean's
+local CLI, the Anthropic API or off) and the model per tag. The prompts here
+only build the text and check the reply's shape.
 
 The transcript is whatever the microphone picked up, so it is untrusted input
-that ends up inside a prompt. Every built-in tool is switched off for the call.
-NEVER add --dangerously-skip-permissions here.
+that ends up inside a prompt: it is fenced between markers and described as
+data, never followed.
 
-BLOCKING. The CLI is a subprocess with a slow cold start, so callers must use
-asyncio.to_thread.
+BLOCKING. A model call takes seconds, so callers must use asyncio.to_thread.
 """
 
 import json
 import logging
-import os
 import re
-import subprocess
-from typing import Any
+
+import llm
 
 log = logging.getLogger(__name__)
 
-CLI_BINARY = "claude"
-CLI_TIMEOUT_S = 180.0
-CLI_MODEL = os.getenv("SHADOW_MODEL", "claude-sonnet-5")
-CLI_DISALLOWED_TOOLS = "Bash,Read,Write,Edit,NotebookEdit,WebFetch,WebSearch,Task,Glob,Grep"
+# A whole island in one reply; the same budget covers the smaller calls.
+TIMEOUT_S = 180.0
+LINES_SCHEMA = {"type": "object", "required": ["lines"]}
+PICKS_SCHEMA = {"type": "object", "properties": {"picks": {"type": "array"}}, "required": ["picks"]}
 
 COMPLEXITY_RULES = {
     "simple": (
@@ -215,62 +213,6 @@ where n is the number of the source sentence you adapted, or null.
 GRAMMAR_PROMPT_TEMPLATE = _GRAMMAR_HEAD + _JA_BODY
 
 
-def _cli_argv() -> list[str]:
-    """argv for the CLI call. No shell, and the prompt never appears here."""
-    return [
-        CLI_BINARY,
-        "--print",
-        "--no-session-persistence",
-        "--strict-mcp-config",
-        "--disable-slash-commands",
-        "--model", CLI_MODEL,
-        "--disallowed-tools", CLI_DISALLOWED_TOOLS,
-        "--tools", "",
-    ]
-
-
-def _extract_json(text: str) -> Any:
-    """Pull the first JSON object out of the CLI's stdout.
-
-    The model is told to emit raw JSON, but a stray fence or a leading sentence
-    should not lose the whole island.
-    """
-    if not text:
-        return None
-    decoder = json.JSONDecoder()
-    for i, ch in enumerate(text):
-        if ch not in "{[":
-            continue
-        try:
-            value, _ = decoder.raw_decode(text[i:])
-            return value
-        except ValueError:
-            continue
-    return None
-
-
-def _run_cli(prompt: str, tag: str, timeout: float = CLI_TIMEOUT_S) -> str | None:
-    """Run the CLI once. Returns stdout, or None on any failure (logged)."""
-    try:
-        proc = subprocess.run(
-            _cli_argv(),
-            input=prompt,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-    except FileNotFoundError:
-        log.warning("%s: `%s` not found on PATH", tag, CLI_BINARY)
-        return None
-    except subprocess.TimeoutExpired:
-        log.warning("%s: CLI timed out after %ss", tag, timeout)
-        return None
-    if proc.returncode != 0:
-        log.warning("%s: CLI exited %s: %s", tag, proc.returncode, (proc.stderr or "")[:400])
-        return None
-    return proc.stdout or ""
-
-
 LANGUAGE_NAMES = {"en": "English", "he": "Hebrew", "ja": "Japanese", "es": "Spanish"}
 
 
@@ -350,13 +292,8 @@ def generate_lines(transcript: str, complexity: str = "simple", count: int = 8,
             **extra,
         )
 
-    out = _run_cli(prompt, "generate")
-    if out is None:
-        return {"title": "", "lines": []}
-
-    parsed = _extract_json(out)
-    if not isinstance(parsed, dict):
-        log.warning("generate: unparseable CLI output: %s", out[:400])
+    parsed = llm.complete(prompt, LINES_SCHEMA, tag="generate", timeout=TIMEOUT_S)
+    if parsed is None:
         return {"title": "", "lines": []}
 
     lines = []
@@ -399,11 +336,10 @@ the sentences above, nothing else. No prose, no markdown code fences."""
 
 def translate_lines(ja: list[str], language: str = "ja", native: str = "en",
                     before: list[str] | None = None, after: list[str] | None = None) -> list[str]:
-    """Translate a batch of lines from `language` into `native` through the
-    claude CLI.
+    """Translate a batch of lines from `language` into `native`.
 
     Returns a list the same length and order as `ja`, or [] on any failure or
-    a length mismatch in the CLI's reply. Never raises.
+    a length mismatch in the reply. Never raises.
     """
     if not ja:
         return []
@@ -427,13 +363,11 @@ def translate_lines(ja: list[str], language: str = "ja", native: str = "en",
                 note += f"\n\n{label} (do not translate):\n" + "\n".join(ctx)
         prompt = prompt.replace("\n\nOUTPUT:", note + "\n\nOUTPUT:", 1)
 
-    out = _run_cli(prompt, "translate_lines")
-    if out is None:
+    parsed = llm.complete(prompt, {"type": "array"}, tag="translate_lines", timeout=TIMEOUT_S)
+    if parsed is None:
         return []
-
-    parsed = _extract_json(out)
-    if not isinstance(parsed, list) or len(parsed) != len(ja):
-        log.warning("translate_lines: bad shape from CLI output: %s", out[:400])
+    if len(parsed) != len(ja):
+        log.warning("translate_lines: %d translations for %d lines", len(parsed), len(ja))
         return []
 
     result = [str(item).strip() for item in parsed]
@@ -470,19 +404,18 @@ def _topic_words(topic: str) -> list[str]:
 
 
 def expand_topic(topic: str, learning: str = "ja") -> list[str]:
-    """Expand a spoken topic into search keywords through the claude CLI.
+    """Expand a spoken topic into search keywords through the model.
 
     On any failure returns the topic's own words, so a build never stalls.
     """
     topic = (topic or "").strip()[:200]
-    out = _run_cli(
+    parsed = llm.complete(
         EXPAND_PROMPT_TEMPLATE.format(
             topic=topic, learning_name=LANGUAGE_NAMES.get(learning, "English")
         ),
-        "expand_topic",
+        {"type": "array"}, tag="expand_topic", timeout=TIMEOUT_S,
     )
-    parsed = _extract_json(out) if out else None
-    if isinstance(parsed, list):
+    if parsed is not None:
         words = [w.strip() for w in parsed if isinstance(w, str) and w.strip()]
         if words:
             return words[:20]
@@ -507,9 +440,8 @@ def generate_grammar(point: dict, seed: list[dict] | None = None, register: str 
         register_rules=REGISTER_RULES.get(register, REGISTER_RULES["polite"]),
         native_name=LANGUAGE_NAMES.get(native, "English"),
     )
-    out = _run_cli(prompt, "generate")
-    parsed = _extract_json(out) if out is not None else None
-    if not isinstance(parsed, dict):
+    parsed = llm.complete(prompt, LINES_SCHEMA, tag="generate", timeout=TIMEOUT_S)
+    if parsed is None:
         return {"title": "", "lines": []}
     lines = []
     for item in parsed.get("lines") or []:
@@ -550,7 +482,7 @@ Lines:
 
 
 def pick_shadow_lines(lines: list[dict], native: str = "en") -> list[dict]:
-    """Asks the CLI for 5 to 10 easy lines to shadow. Returns
+    """Asks the model for 5 to 10 easy lines to shadow. Returns
     [{"n": line idx, "tag": str}] in the model's order, validated here: the
     number must be one of the candidates and unique, the tag is stripped and
     cut to PICK_TAG_MAX, at most PICK_MAX_PICKS kept. Returns [] on any
@@ -568,11 +500,10 @@ def pick_shadow_lines(lines: list[dict], native: str = "en") -> list[dict]:
             for i, l in enumerate(cands, 1)
         ),
     )
-    out = _run_cli(prompt, "pick")
-    parsed = _extract_json(out) if out is not None else None
-    items = parsed.get("picks") if isinstance(parsed, dict) else parsed
-    if not isinstance(items, list):
+    parsed = llm.complete(prompt, PICKS_SCHEMA, tag="pick", timeout=TIMEOUT_S)
+    if parsed is None:
         return []
+    items = parsed["picks"]
     picks: list[dict] = []
     seen: set[int] = set()
     for item in items:

@@ -9,7 +9,9 @@ import { GlassPanel } from '@/components/prism';
 import type { Equipped } from '@/constants/cosmetics';
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
-import { getUsername } from '@/lib/api';
+import { getUsername, type Energy } from '@/lib/api';
+import { EnergyMeter, EnergyNote } from '@/components/energy-bolt';
+import { refreshEnergy, useEnergy } from '@/lib/energy';
 import { useGuideAnchor } from '@/lib/guide';
 import { useDir, useT } from '@/lib/i18n';
 import { equippedArt, useProgress } from '@/lib/progression';
@@ -73,17 +75,34 @@ function CatBadgeView({ level, xpIntoLevel, xpToNext, coins, equipped, username,
   );
 }
 
+/** The V7 bolt, its count and the note, as a plain row 8pt under the badge,
+ * on the badge's start edge. Nothing when metering is off. */
+function EnergyRow({ energy }: { energy: Energy | null }) {
+  const dir = useDir();
+  if (!energy?.on) return null;
+  return (
+    <View>
+      <View style={[styles.energyRow, dir.row]}>
+        <EnergyMeter left={energy.daily_left + energy.granted_left} max={energy.daily_max} />
+      </View>
+      <EnergyNote energy={energy} />
+    </View>
+  );
+}
+
 /** Connected to the shared progress cache; reserves its height until the first load lands. */
 export function CatBadge({ anchorGuide = false }: { anchorGuide?: boolean }) {
   const router = useRouter();
   const { progress, catalog } = useProgress();
   const [username, setName] = useState<string | null>(null);
+  const energy = useEnergy();
   // BL-64: the guide's cat step lights the card. PressScale forwards no ref, so the box comes from a wrapper.
   const anchor = useGuideAnchor('catBadge', anchorGuide);
   // Refetch on focus so a handle picked in the gate shows on return to Home.
   useFocusEffect(
     useCallback(() => {
       let alive = true;
+      void refreshEnergy();
       getUsername()
         .then((n) => alive && setName(n))
         .catch(() => undefined);
@@ -95,6 +114,8 @@ export function CatBadge({ anchorGuide = false }: { anchorGuide?: boolean }) {
   // Reserve the row height so Home does not jump when progress lands (or never does, offline).
   if (!progress || !catalog) return <View style={styles.placeholder} />;
   return (
+    // One block in Home's gapped column, so the energy row sits exactly 8pt under the badge.
+    <View>
     <View ref={anchor.ref} onLayout={anchor.onLayout} collapsable={false}>
       <CatBadgeView
         level={progress.level}
@@ -105,6 +126,8 @@ export function CatBadge({ anchorGuide = false }: { anchorGuide?: boolean }) {
         username={username}
         onPress={() => router.push('/wardrobe')}
       />
+    </View>
+    <EnergyRow energy={energy} />
     </View>
   );
 }
@@ -129,5 +152,6 @@ const styles = StyleSheet.create({
   disc: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#FFC857' },
   coinText: { fontFamily: fonts.uiMedium, fontSize: 14, color: tide.textDim },
   go: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.08)' },
+  energyRow: { flexDirection: 'row', marginTop: 8 },
   goText: { fontFamily: fonts.ui, fontSize: 18, color: '#ECE8F4' },
 });

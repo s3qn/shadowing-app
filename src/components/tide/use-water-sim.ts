@@ -369,7 +369,7 @@ export function useWaterSim({
       // Calm draws every other frame, idle one in IDLE_STRIDE. The skipped
       // frames' time still reaches the swell's clock on the next drawn frame,
       // so it drifts at the same speed, only redrawn less often.
-      const stride = idle ? IDLE_STRIDE : calm ? 2 : 1;
+      const stride = idle ? IDLE_STRIDE : calm || busySV.value ? 2 : 1;
       frameParity.value = (frameParity.value + 1) % stride;
       if (frameParity.value !== 0) {
         skippedMs.value += rawDt;
@@ -378,7 +378,7 @@ export function useWaterSim({
       const stepMs = rawDt + skippedMs.value;
       skippedMs.value = 0;
 
-      const dtScale = Math.min(rawDt, 33.34) / 16.67;
+      const dtScale = Math.min(stepMs, 33.34) / 16.67;
       const dtSec = dtScale / 60;
       t.value += stepMs / 1000;
 

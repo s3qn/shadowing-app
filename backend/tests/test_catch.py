@@ -3,13 +3,14 @@ and its two routes."""
 
 import asyncio
 import json
+import subprocess
 from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi import HTTPException
 
 import catch
-import generate
+import llm
 import main
 import store
 
@@ -41,14 +42,14 @@ def _fake_cli(monkeypatch, stdout, calls):
         calls.append(kw.get("input", ""))
         return FakeCompleted(stdout=stdout)
 
-    monkeypatch.setattr(generate.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
 
 def _never_cli(monkeypatch):
     def fail(*a, **kw):
         raise AssertionError("the CLI must not run")
 
-    monkeypatch.setattr(generate.subprocess, "run", fail)
+    monkeypatch.setattr(subprocess, "run", fail)
 
 
 # -- building islands ----------------------------------------------------
@@ -232,7 +233,7 @@ def test_meanings_bad_shape_gives_nothing(monkeypatch):
 
 
 def test_meanings_cli_failure_never_raises(monkeypatch):
-    monkeypatch.setattr(generate, "_run_cli", lambda prompt, tag, **kw: None)
+    monkeypatch.setattr(llm, "_run_cli", lambda *a, **k: None)
     assert catch.meanings("ja", "en", [{"word": "猫", "sentence": ""}]) == {}
 
 
@@ -243,9 +244,9 @@ def test_meanings_cli_has_a_short_timeout(monkeypatch):
 
     def slow(argv, *a, **kw):
         timeouts.append(kw.get("timeout"))
-        raise generate.subprocess.TimeoutExpired(argv, kw.get("timeout"))
+        raise subprocess.TimeoutExpired(argv, kw.get("timeout"))
 
-    monkeypatch.setattr(generate.subprocess, "run", slow)
+    monkeypatch.setattr(subprocess, "run", slow)
     assert catch.meanings("ja", "en", [{"word": "猫", "sentence": ""}]) == {}
     assert timeouts and timeouts[0] <= 30
 
@@ -306,6 +307,8 @@ def _store_island(lines, language="ja", device=DEV, heard=True):
             (w["text"], line["offset"] + w["start"], line["offset"] + w["end"])
             for line in lines for w in line["words"] if "start" in w
         ])
+    if heard is not None:
+        store.add_video(island_id, "v", 0.0, "Title", "Author")
     return island_id
 
 
@@ -339,6 +342,9 @@ def _status(fn, *a, **kw):
 def test_words_route_409_without_timed_words(monkeypatch):
     _never_cli(monkeypatch)
     island_id = _store_island([_line([{"text": "猫", "pos": "noun"}], 0.0)] * 2)
+    err = _status(_words, island_id)
+    assert err.status_code == 409 and err.detail == {"code": "words_pending"}
+    _write_asr(island_id, [("鳥", 6.0, 6.4)])
     err = _status(_words, island_id)
     assert err.status_code == 409 and err.detail == {"code": "no_words"}
 
@@ -404,7 +410,7 @@ def test_words_route_places_targets_on_the_asr_times_only(monkeypatch):
         _line([_w("猫", 0.2, 0.6), _w("犬", 1.0, 1.5)], 5.0),
     ]
     island_id = _store_island(lines, heard=False)
-    assert _status(_words, island_id).detail == {"code": "no_words"}
+    assert _status(_words, island_id).detail == {"code": "words_pending"}
     _write_asr(island_id, [("猫", 0.7, 1.1), ("鳥", 6.0, 6.4)])
     targets = _words(island_id)["targets"]
     assert [(t["id"], t["line_idx"], t["start"], t["end"]) for t in targets] == [
@@ -414,12 +420,12 @@ def test_words_route_places_targets_on_the_asr_times_only(monkeypatch):
 def test_meanings_split_into_chunks(monkeypatch):
     sizes = []
 
-    def fake(prompt, tag, **kw):
+    def fake(prompt, tag, timeout=None):
         n = prompt.count(" | ") - 1
         sizes.append(n)
         return json.dumps([f"m{i}" for i in range(n)])
 
-    monkeypatch.setattr(generate, "_run_cli", fake)
+    monkeypatch.setattr(llm, "_run_cli", fake)
     items = [{"word": f"w{i}", "sentence": "s"} for i in range(45)]
     got = catch.meanings("ja", "en", items)
     assert len(got) == 45 and sorted(sizes) == [5, 20, 20]
@@ -429,13 +435,13 @@ def test_meanings_failed_chunk_is_refilled_in_background(monkeypatch):
     monkeypatch.setattr(catch, "BACKGROUND_FILL", True)
     calls = []
 
-    def fake(prompt, tag, **kw):
-        calls.append(kw.get("timeout"))
-        if kw.get("timeout") == catch.MEANINGS_TIMEOUT_S:
+    def fake(prompt, tag, timeout=None):
+        calls.append(timeout)
+        if timeout == catch.MEANINGS_TIMEOUT_S:
             return None
         return '["cat"]'
 
-    monkeypatch.setattr(generate, "_run_cli", fake)
+    monkeypatch.setattr(llm, "_run_cli", fake)
     assert catch.meanings("ja", "en", [{"word": "猫", "sentence": ""}]) == {}
     import time
     for _ in range(50):
@@ -450,13 +456,77 @@ def test_word_meaning_fills_one_word_and_checks_owner(monkeypatch):
     island_id = _store_island(_three_lines()["lines"])
     calls = []
 
-    def fake(prompt, tag, **kw):
-        calls.append(kw.get("timeout"))
+    def fake(prompt, tag, timeout=None):
+        calls.append(timeout)
         return '["cat"]'
 
-    monkeypatch.setattr(generate, "_run_cli", fake)
+    monkeypatch.setattr(llm, "_run_cli", fake)
     assert catch.word_meaning(island_id, DEV, "猫") == "cat"
     assert catch.word_meaning(island_id, DEV, "猫") == "cat" and len(calls) == 1
     with pytest.raises(HTTPException) as e:
         catch.word_meaning(island_id, OTHER, "猫")
     assert e.value.status_code == 404
+
+
+# -- bl72-known-words ----------------------------------------------------
+
+
+def _collection(language="ja", device=DEV, auth=AUTH):
+    return asyncio.run(main.catch_collection(
+        language=language, authorization=auth, x_shadow_device=device))
+
+
+def test_collection_empty_device_is_zero():
+    res = _collection()
+    assert res == {"language": "ja", "total": 0, "learning": 0, "known": 0, "words": []}
+
+
+def test_collection_counts_states_and_orders_newest_first():
+    # Good reviews at each due time walk a card from Learning to Review.
+    now = NOW
+    for _ in range(4):
+        res = catch.review(DEV, "ja", "猫", True, True, now, meaning="cat", sentence="猫 は 鳥")
+        now = datetime.fromisoformat(res["due"])
+    assert res["state"] == "review"
+    catch.review(DEV, "ja", "犬", False, False, NOW, meaning="dog")
+    out = _collection()
+    assert out["total"] == 2 and out["known"] == 1 and out["learning"] == 1
+    assert [w["word"] for w in out["words"]] == ["犬", "猫"]
+    cat = out["words"][1]
+    assert cat["state"] == "known" and cat["meaning"] == "cat" and cat["caught"] == 4
+    assert out["words"][0]["state"] == "learning" and out["words"][0]["missed"] == 1
+
+
+def test_collection_excludes_other_device_and_language():
+    catch.review(DEV, "ja", "猫", True, True, NOW)
+    catch.review(OTHER, "ja", "犬", True, True, NOW)
+    catch.review(DEV, "es", "gato", True, True, NOW)
+    assert [w["word"] for w in _collection()["words"]] == ["猫"]
+    assert [w["word"] for w in _collection("es")["words"]] == ["gato"]
+
+
+def test_collection_route_needs_token_and_device():
+    assert _status(_collection, auth="Bearer nope").status_code == 401
+    assert _status(_collection, device="").status_code in (400, 401)
+
+
+def test_words_no_words_when_captions_can_never_arrive(monkeypatch):
+    _never_cli(monkeypatch)
+    lines = [_line([{"text": "猫", "pos": "noun"}], 0.0)] * 2
+    # No videos row (not a YouTube import): nothing will post captions.
+    island_id = _store_island(lines, heard=None)
+    assert _status(_words, island_id).detail == {"code": "no_words"}
+    # Align failed out of attempts, or already done without captions.
+    island_id = _store_island(lines, heard=False)
+    with store.connect() as conn:
+        conn.execute("UPDATE videos SET align_status='failed', align_attempts=?",
+                     (main.ALIGN_MAX_ATTEMPTS,))
+    assert _status(_words, island_id).detail == {"code": "no_words"}
+
+
+def test_words_pending_while_align_queued(monkeypatch):
+    _never_cli(monkeypatch)
+    lines = [_line([{"text": "猫", "pos": "noun"}], 0.0)] * 2
+    island_id = _store_island(lines, heard=False)
+    store.set_align_status(island_id, "queued", count_attempt=True)
+    assert _status(_words, island_id).detail == {"code": "words_pending"}

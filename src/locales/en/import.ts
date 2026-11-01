@@ -9,6 +9,7 @@ export const en = {
   'import.build': 'Build the island',
   'import.buildHint': 'This takes a few minutes. Close this screen if you like, the island keeps building and appears in the list when it is ready.',
   'eta.minutes': 'About {count} minutes left',
+  'eta.hours': 'About {h} h {m} min left',
   'eta.seconds': 'About {count} seconds left',
   'eta.short': '~{count} min',
   'eta.minutes_one': 'About {count} minute left',

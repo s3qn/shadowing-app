@@ -1,8 +1,8 @@
 import json
 import sqlite3
 
-import generate
 import grammar
+import llm
 
 SENTINEL = "SENTINEL_EXAMPLE_TEXT"
 
@@ -143,10 +143,10 @@ def test_missing_file(tmp_path, monkeypatch):
 
 def test_meanings(monkeypatch):
     rows = grammar.points_from_decks([_nk("AながらB"), _nk("〜たり")], [])
-    monkeypatch.setattr(generate, "_run_cli", lambda prompt, tag: json.dumps(["while doing", "doing things"]))
+    monkeypatch.setattr(llm, "_run_cli", lambda prompt, tag, timeout=None: json.dumps(["while doing", "doing things"]))
     assert grammar.add_meanings(rows) == 2
     assert {r["meaning_short"] for r in rows} == {"while doing", "doing things"}
     rows2 = grammar.points_from_decks([_nk("AながらB"), _nk("〜たり")], [])
-    monkeypatch.setattr(generate, "_run_cli", lambda prompt, tag: json.dumps(["only one"]))
+    monkeypatch.setattr(llm, "_run_cli", lambda prompt, tag, timeout=None: json.dumps(["only one"]))
     assert grammar.add_meanings(rows2) == 0
     assert all(r["meaning_short"] == "" for r in rows2)

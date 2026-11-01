@@ -416,7 +416,7 @@ def test_the_warning_fires_once_a_day_even_after_a_refund_dips_under(on, monkeyp
 # --- flag off: nothing changes ---
 
 def test_flag_off_charge_writes_nothing_and_the_route_says_off(monkeypatch):
-    assert energy.ON is False
+    monkeypatch.setattr(energy, "ON", False)
     dev = _dev()
     energy.charge(dev, "import", False)
     for _ in range(3):
@@ -438,7 +438,7 @@ def test_flag_off_the_slot_helpers_and_progress_behave_as_before(monkeypatch):
     """With the flag off a charged slot call is byte-identical to an
     uncharged one: the same builds row, no other table touched, the same
     429 at the cap, and progress has no energy key."""
-    assert energy.ON is False
+    monkeypatch.setattr(energy, "ON", False)
     monkeypatch.setattr(main, "DAILY_CREATES", 1)
     dev = _dev()
     before = _counts()

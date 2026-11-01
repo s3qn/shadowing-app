@@ -17,6 +17,9 @@ export const CATCH_LATE_S = 1.0;
 const FLASH_EASING = Easing.out(Easing.quad);
 /** How long the no-words or failed-fetch hint stays under the dock. */
 const ERROR_MS = 4000;
+/** Retries while the video's words are still being aligned, and the wait between them. */
+const PENDING_TRIES = 6;
+const PENDING_MS = 3000;
 
 export type CatchPhase = 'off' | 'loading' | 'armed' | 'card' | 'done';
 
@@ -129,10 +132,12 @@ export function useCatch(islandId: string | undefined, lines: api.Line[], startS
 
   // The hint under the dock (no words, a failed fetch) goes after a few seconds.
   useEffect(() => {
-    if (!error) return;
+    // The pending hint stays while the words are fetched; the timer starts
+    // once the load ends.
+    if (!error || phase === 'loading') return;
     const id = setTimeout(() => setError(''), ERROR_MS);
     return () => clearTimeout(id);
-  }, [error]);
+  }, [error, phase]);
 
   useEffect(
     () => () => {
@@ -150,8 +155,21 @@ export function useCatch(islandId: string | undefined, lines: api.Line[], startS
     caught.current = 0;
     deps.current.onStart();
     setPhase('loading');
-    api
-      .catchWords(islandId)
+    // The words are still being aligned on a fresh import: a few quiet retries.
+    const fetchWords = async (): Promise<api.CatchWords> => {
+      for (let tries = 0; ; tries += 1) {
+        try {
+          return await api.catchWords(islandId);
+        } catch (e) {
+          if (!(e instanceof api.WordsPendingError) || id !== run.current) throw e;
+          if (tries >= PENDING_TRIES) throw new Error(t('video.catch.noWords'));
+          setError(t('video.catch.pending'));
+          await new Promise((r) => setTimeout(r, PENDING_MS));
+          if (id !== run.current) throw e;
+        }
+      }
+    };
+    fetchWords()
       .then((res) => {
         if (id !== run.current) return;
         const list = place(res.targets, lines, startS);

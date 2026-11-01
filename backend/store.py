@@ -89,6 +89,7 @@ CREATE TABLE IF NOT EXISTS builds (
 );
 CREATE INDEX IF NOT EXISTS idx_builds_device_kind_created
   ON builds (device, kind, created_at);
+CREATE INDEX IF NOT EXISTS idx_builds_created ON builds (created_at);
 CREATE TABLE IF NOT EXISTS videos (
   island_id   TEXT PRIMARY KEY REFERENCES islands(id) ON DELETE CASCADE,
   video_id    TEXT NOT NULL,
@@ -186,6 +187,18 @@ CREATE TABLE IF NOT EXISTS energy_grants (
   granted_by      TEXT NOT NULL,
   created_at      TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS llm_calls (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tag           TEXT NOT NULL,
+  model         TEXT NOT NULL,
+  input_tokens  INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  usd           REAL NOT NULL DEFAULT 0,
+  ok            INTEGER NOT NULL DEFAULT 1,
+  ref           TEXT NOT NULL DEFAULT '',
+  created_at    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_llm_calls_created ON llm_calls(created_at);
 """
 
 
@@ -304,6 +317,7 @@ def init() -> None:
             ("align_status", "TEXT NOT NULL DEFAULT ''"),
             ("align_error", "TEXT NOT NULL DEFAULT ''"),
             ("align_attempts", "INTEGER NOT NULL DEFAULT 0"),
+            ("lines_dropped", "INTEGER NOT NULL DEFAULT 0"),
         ):
             if col not in video_cols:
                 conn.execute(f"ALTER TABLE videos ADD COLUMN {col} {ddl}")
@@ -682,6 +696,41 @@ def count_builds_today(device: str, kind: str) -> int:
             (device, kind, today),
         ).fetchone()
     return row["n"]
+
+
+# --- ai-guardrails ---
+def count_builds_today_kinds(device: str, kinds) -> int:
+    today = _now()[:10]
+    marks = ",".join("?" for _ in kinds)
+    with connect() as conn:
+        row = conn.execute(
+            f"SELECT COUNT(*) AS n FROM builds WHERE device=? AND kind IN ({marks})"
+            " AND substr(created_at,1,10)=?",
+            (device, *kinds, today),
+        ).fetchone()
+    return row["n"]
+
+
+def count_builds_all_today(kinds) -> int:
+    today = _now()[:10]
+    marks = ",".join("?" for _ in kinds)
+    with connect() as conn:
+        row = conn.execute(
+            f"SELECT COUNT(*) AS n FROM builds WHERE kind IN ({marks})"
+            " AND substr(created_at,1,10)=?",
+            (*kinds, today),
+        ).fetchone()
+    return row["n"]
+
+
+def user_known(principal: str) -> bool:
+    """Any island, build, known line or energy row for this principal."""
+    with connect() as conn:
+        for table in ("islands", "builds", "known_lines", "energy_ledger"):
+            if conn.execute(f"SELECT 1 FROM {table} WHERE device=? LIMIT 1", (principal,)).fetchone():
+                return True
+    return False
+# --- end ai-guardrails ---
 
 
 def log_build(device: str, kind: str) -> None:
@@ -1145,6 +1194,12 @@ def set_repair_status(island_id: str, status: str, error: str = "",
         )
 
 
+def set_lines_dropped(island_id: str, n: int) -> None:
+    """Caption lines cut at the line cap, reported by /video as lines_dropped."""
+    with connect() as conn:
+        conn.execute("UPDATE videos SET lines_dropped=? WHERE island_id=?", (n, island_id))
+
+
 def claim_repair(island_id: str, max_attempts: int, version: int) -> bool:
     """Mark the video's repair queued and count the attempt if it is idle
     ('' or failed, or done at an older version) and has attempts left. One
@@ -1223,6 +1278,61 @@ def set_repair_result(video_id: str, version: int, lines_hash: str, result: dict
             (version, lines_hash, json.dumps(result, ensure_ascii=False), now, video_id),
         )
 # --- end youtube-asr-context-repair ---
+
+
+# --- llm-api ---
+def log_llm_call(tag: str, model: str, input_tokens: int, output_tokens: int,
+                 usd: float, ok: bool, ref: str = "") -> None:
+    """One row per API call, the cost ledger. A failed call lands with ok=0
+    and whatever tokens were billed (0 when the request never completed)."""
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO llm_calls (tag, model, input_tokens, output_tokens, usd, ok, ref, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (tag, model, int(input_tokens), int(output_tokens), float(usd),
+             1 if ok else 0, ref or "", _now()),
+        )
+
+
+def _month_start() -> str:
+    return _now()[:7] + "-01T00:00:00"
+
+
+def llm_spent_month() -> float:
+    """USD billed since the first of the current UTC month."""
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(usd), 0) AS usd FROM llm_calls WHERE created_at >= ?",
+            (_month_start(),),
+        ).fetchone()
+    return float(row["usd"] or 0)
+
+
+def llm_spent_today() -> float:
+    """USD billed since 00:00 UTC today, the same query as llm_spent_month."""
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(usd), 0) AS usd FROM llm_calls WHERE created_at >= ?",
+            (_now()[:10] + "T00:00:00",),
+        ).fetchone()
+    return float(row["usd"] or 0)
+
+
+def llm_spend_summary() -> dict:
+    """This month's bill: total USD, call count, and both per tag."""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT tag, COUNT(*) AS calls, COALESCE(SUM(usd), 0) AS usd"
+            " FROM llm_calls WHERE created_at >= ? GROUP BY tag ORDER BY usd DESC",
+            (_month_start(),),
+        ).fetchall()
+    by_tag = {r["tag"]: {"calls": int(r["calls"]), "usd": round(float(r["usd"]), 6)} for r in rows}
+    return {
+        "month_usd": round(sum(v["usd"] for v in by_tag.values()), 6),
+        "calls": sum(v["calls"] for v in by_tag.values()),
+        "by_tag": by_tag,
+    }
+# --- end llm-api ---
 
 
 def list_videos(device: str) -> list[dict]:

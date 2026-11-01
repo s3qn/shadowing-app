@@ -188,9 +188,9 @@ def points_from_decks(nk: Iterable[dict], dojg: Iterable[dict]) -> list[dict]:
 
 
 def add_meanings(rows: list[dict], batch: int = 40) -> int:
-    """Fill meaning_short with our own 3 to 6 word glosses through the claude
-    CLI. A failed or wrong-length batch leaves ''. Returns rows filled."""
-    import generate
+    """Fill meaning_short with our own 3 to 6 word glosses through the model.
+    A failed or wrong-length batch leaves ''. Returns rows filled."""
+    import llm
 
     filled = 0
     for i in range(0, len(rows), batch):
@@ -200,9 +200,8 @@ def add_meanings(rows: list[dict], batch: int = 40) -> int:
             "Give 3 to 6 English words for each Japanese grammar pattern below, in your own words. "
             f"Reply with only a JSON array of {len(chunk)} strings, in the same order.\n\n{numbered}"
         )
-        out = generate._run_cli(prompt, "grammar_meanings")
-        parsed = generate._extract_json(out) if out else None
-        if not isinstance(parsed, list) or len(parsed) != len(chunk):
+        parsed = llm.complete(prompt, {"type": "array"}, tag="grammar_meanings")
+        if parsed is None or len(parsed) != len(chunk):
             log.warning("grammar_meanings: bad batch at %d", i)
             continue
         for r, g in zip(chunk, parsed):

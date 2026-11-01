@@ -9,6 +9,7 @@ export const he = {
   'import.build': 'בניית האי',
   'import.buildHint': 'זה לוקח כמה דקות. אפשר לסגור את המסך הזה, האי ממשיך להיבנות ומופיע ברשימה כשהוא מוכן.',
   'eta.minutes': 'נשארו בערך {count} דקות',
+  'eta.hours': 'נשארו בערך {h} שע׳ ו-{m} דק׳',
   'eta.seconds': 'נשארו בערך {count} שניות',
   'eta.short': 'בערך {count} דק׳',
   'eta.minutes_one': 'נשארה בערך דקה',

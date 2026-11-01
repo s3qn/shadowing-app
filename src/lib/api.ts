@@ -16,6 +16,8 @@ import { Directory, File, Paths } from 'expo-file-system';
 
 import type { ArtSpec, Slot } from '@/constants/cosmetics';
 import { accessTokenSync } from '@/lib/auth';
+import { devBlockedResponse } from '@/lib/dev-api-block';
+import { refreshEnergyAfterAi, withEnergy } from '@/lib/energy';
 import { deviceIdSync } from '@/lib/device';
 import { t } from '@/lib/i18n';
 import type { StarterLevel } from '@/lib/settings';
@@ -30,8 +32,16 @@ function unreachable(e: unknown): never {
   if (e instanceof Error && e.name === 'AbortError') throw e;
   throw new Error(t('api.unreachable'));
 }
-const fetch: typeof globalThis.fetch = (input, init) => globalThis.fetch(input, init).catch(unreachable);
-const expoFetch: typeof expoFetchRaw = (input, init) => expoFetchRaw(input, init).catch(unreachable);
+// --- ai-guardrails --- a simulated block answers here, before any network.
+const fetch: typeof globalThis.fetch = (input, init) => {
+  const blocked = __DEV__ ? devBlockedResponse(input, init) : null;
+  return blocked ? Promise.resolve(blocked) : globalThis.fetch(input, init).catch(unreachable);
+};
+const expoFetch: typeof expoFetchRaw = (input, init) => {
+  const blocked = __DEV__ ? devBlockedResponse(input, init) : null;
+  if (blocked) return Promise.resolve(blocked as unknown as Awaited<ReturnType<typeof expoFetchRaw>>);
+  return expoFetchRaw(input, init).catch(unreachable);
+};
 
 const BASE = process.env.EXPO_PUBLIC_SHADOW_API_URL ?? '';
 const TOKEN = process.env.EXPO_PUBLIC_SHADOW_TOKEN ?? '';
@@ -253,6 +263,8 @@ export type ReviewStep = {
   params?: Record<string, string>;
   /** Dev only: a key of SIMULATIONS (dev-simulate.ts) run before "Take me there". */
   simulate?: string;
+  /** 'transcripts' shows the dev transcript list in the step's sheet (transcript-review). */
+  kind?: 'transcripts';
   checks: string[];
   chips?: string[];
   verdict: ReviewVerdict | null;
@@ -342,7 +354,7 @@ export async function deleteIsland(id: string): Promise<void> {
  * Upload a recording and start the pipeline. Returns as soon as the file is
  * accepted; the island builds in the background, so poll getIsland after this.
  */
-export async function createIsland(
+async function createIslandRaw(
   uri: string,
   complexity: Complexity,
   speaker: number,
@@ -372,7 +384,7 @@ export async function createIsland(
 }
 
 /** Rewrite and re-voice an island at the given complexity from its stored recording. Poll getIsland until ready. */
-export async function regenerate(id: string, complexity: Complexity): Promise<void> {
+async function regenerateRaw(id: string, complexity: Complexity): Promise<void> {
   const form = new FormData();
   form.append('complexity', complexity);
   const res = await expoFetch(`${BASE}/islands/${id}/regenerate`, {
@@ -453,7 +465,7 @@ export async function podcastSearch(q: string, language: Language): Promise<Podc
 }
 
 /** Download a podcast episode by URL and build an island from it. Poll getIsland until ready. */
-export async function importPodcastEpisode(
+async function importPodcastEpisodeRaw(
   audioUrl: string,
   title: string,
   speaker: number,
@@ -579,8 +591,12 @@ export async function explainWord(
   native: NativeLanguage = 'en',
 ): Promise<string> {
   const q = `word=${encodeURIComponent(word)}&sentence_ja=${encodeURIComponent(sentenceJa)}&sentence_en=${encodeURIComponent(sentenceEn)}&language=${encodeURIComponent(language)}&native=${encodeURIComponent(native)}`;
-  const out = await json<{ context: string }>(await fetch(`${BASE}/explain-word?${q}`, { headers: headers() }));
-  return out.context;
+  try {
+    const out = await json<{ context: string }>(await fetch(`${BASE}/explain-word?${q}`, { headers: headers() }));
+    return out.context;
+  } finally {
+    refreshEnergyAfterAi();
+  }
 }
 
 /** One turn of the Explain chat thread. */
@@ -617,6 +633,14 @@ export async function explainChat(body: {
   language?: Language;
   native?: NativeLanguage;
 }): Promise<ExplainAnswer> {
+  try {
+    return await explainChatRaw(body);
+  } finally {
+    refreshEnergyAfterAi();
+  }
+}
+
+async function explainChatRaw(body: Parameters<typeof explainChat>[0]): Promise<ExplainAnswer> {
   return json<ExplainAnswer>(
     await fetch(`${BASE}/explain-chat`, {
       method: 'POST',
@@ -985,7 +1009,7 @@ export async function createTopicIsland(
  * poll getIsland after this, same as createIsland. An empty title makes the
  * backend use the file name.
  */
-export async function importIsland(
+async function importIslandRaw(
   audioUri: string,
   srtUri: string | null,
   title: string,
@@ -1057,7 +1081,7 @@ const MAX_ASR_BODY = 4_000_000;
  * manual; left out of the body when empty. `context` is the watch page's
  * video details for the repair pass, left out when YouTube gave none. Poll
  * getIsland until ready. */
-export async function importYouTubeCaptions(
+async function importYouTubeCaptionsRaw(
   url: string,
   title: string,
   speaker: number,
@@ -1205,6 +1229,24 @@ export type CosmeticsCatalog = {
   /** The user's lifetime listening hours. */
   listened_hours?: number;
 };
+
+/** GET /energy: the daily AI meter. `on` false means metering is off and the UI shows nothing. */
+export type Energy = {
+  on: boolean;
+  daily_max: number;
+  daily_left: number;
+  granted_left: number;
+  refill_at: number;
+  prices: Record<string, number>;
+  owner: boolean;
+  last_grant: unknown;
+  builds_max: number;
+  builds_left: number;
+};
+
+export async function getEnergy(): Promise<Energy> {
+  return json<Energy>(await fetch(`${BASE}/energy`, { headers: headers() }));
+}
 
 export async function getProgress(): Promise<Progress> {
   return json<Progress>(await fetch(`${BASE}/progress`, { headers: headers() }));
@@ -1527,8 +1569,19 @@ export type CatchWords = { language: string; native: string; targets: CatchTarge
 
 /** The video's own words heard twice or more, ranked by count, one per line,
  * at most 60. 409 `no_words` when nothing fits. */
+export class WordsPendingError extends Error {
+  constructor() {
+    super('words_pending');
+  }
+}
+
 export async function catchWords(islandId: string): Promise<CatchWords> {
-  return json<CatchWords>(await fetch(`${BASE}/catch/islands/${islandId}/words`, { headers: headers() }));
+  const res = await fetch(`${BASE}/catch/islands/${islandId}/words`, { headers: headers() });
+  // 409 words_pending: captions.json is not written yet, the caller retries.
+  if (res.status === 409 && (await res.clone().text().catch(() => '')).includes('words_pending')) {
+    throw new WordsPendingError();
+  }
+  return json<CatchWords>(res);
 }
 
 /** One word's meaning, made on the server if it is not cached yet. Empty when it could not be. */
@@ -1538,6 +1591,27 @@ export async function catchMeaning(islandId: string, word: string): Promise<stri
   );
   return res.meaning ?? '';
 }
+
+// --- bl72-known-words ---
+export type CatchCollectionWord = {
+  word: string;
+  meaning: string;
+  sentence: string;
+  island_id: string;
+  state: 'known' | 'learning';
+  caught: number;
+  missed: number;
+  reviews: number;
+  due: string;
+};
+
+export type CatchCollection = { language: string; total: number; learning: number; known: number; words: CatchCollectionWord[] };
+
+/** Every word this device has caught in the language, newest first. Read only. */
+export async function catchCollection(language: string): Promise<CatchCollection> {
+  return json<CatchCollection>(await fetch(`${BASE}/catch/words?language=${encodeURIComponent(language)}`, { headers: headers() }));
+}
+// --- end bl72-known-words ---
 
 export type CatchReview = { word: string; due: string; state: string; reviews: number };
 
@@ -1549,4 +1623,76 @@ export async function catchReview(islandId: string, word: string, caught: boolea
   form.append('caught', caught ? '1' : '0');
   form.append('knew', knew ? '1' : '0');
   return json<CatchReview>(await expoFetch(`${BASE}/catch/review`, { method: 'POST', headers: headers(), body: form }));
+}
+
+// --- energy meter ---
+/** Spends create energy on the tap and refreshes the meter afterwards. */
+export const createIsland = (...args: Parameters<typeof createIslandRaw>): ReturnType<typeof createIslandRaw> => withEnergy('create', () => createIslandRaw(...args));
+
+/** Spends import energy on the tap and refreshes the meter afterwards. */
+export const importIsland = (...args: Parameters<typeof importIslandRaw>): ReturnType<typeof importIslandRaw> => withEnergy('import', () => importIslandRaw(...args));
+
+/** Spends import energy on the tap and refreshes the meter afterwards. */
+export const importYouTubeCaptions = (...args: Parameters<typeof importYouTubeCaptionsRaw>): ReturnType<typeof importYouTubeCaptionsRaw> => withEnergy('import', () => importYouTubeCaptionsRaw(...args));
+
+/** Spends import energy on the tap and refreshes the meter afterwards. */
+export const importPodcastEpisode = (...args: Parameters<typeof importPodcastEpisodeRaw>): ReturnType<typeof importPodcastEpisodeRaw> => withEnergy('import', () => importPodcastEpisodeRaw(...args));
+
+/** Spends regenerate energy on the tap and refreshes the meter afterwards. */
+export const regenerate = (...args: Parameters<typeof regenerateRaw>): ReturnType<typeof regenerateRaw> => withEnergy('regenerate', () => regenerateRaw(...args));
+
+// --- transcript-review --- dev only: judging ASR candidates on the gold videos.
+export type TranscriptVideo = { id: string; channel: string; title: string; n_candidates: number; has_words: boolean[] };
+export type TranscriptWord = { text: string; start: number; end: number };
+export type TranscriptLine = { start: number; end: number; text: string; words: TranscriptWord[] | null };
+export type TranscriptCandidate = { label: string; has_words: boolean; lines: TranscriptLine[] };
+export type TranscriptTagBody = { session: string; video: string; label: string; tag: string; playerTime: number; lineIndex: number; lineText: string };
+
+const trUrl = (path: string) => `${BASE}/dev/transcripts${path}`;
+const trPost = (path: string, body: unknown) =>
+  fetch(trUrl(path), { method: 'POST', headers: { ...headers(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+/** The gold videos with candidates; null on 404 or any error (prod, or no dev router). */
+export async function listTranscripts(): Promise<TranscriptVideo[] | null> {
+  if (!__DEV__) return null;
+  try {
+    const res = await fetch(trUrl(''), { headers: headers() });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { videos?: TranscriptVideo[] } | TranscriptVideo[];
+    return Array.isArray(body) ? body : (body.videos ?? []);
+  } catch {
+    return null;
+  }
+}
+
+/** Every candidate of one video under blind labels. */
+export async function getTranscriptVideo(video: string, session: string): Promise<TranscriptCandidate[]> {
+  const res = await fetch(trUrl(`/${encodeURIComponent(video)}?session=${encodeURIComponent(session)}`), { headers: headers() });
+  const body = await json<{ candidates: TranscriptCandidate[] }>(res);
+  return body.candidates ?? [];
+}
+
+/** True when the server wrote the record. */
+export async function postTranscriptTag(body: TranscriptTagBody): Promise<boolean> {
+  try {
+    return (await trPost('/tag', body)).ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function postTranscriptUndo(session: string): Promise<boolean> {
+  try {
+    return (await trPost('/undo', { session })).ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function postTranscriptScore(body: { session: string; video: string; label: string; score: number }): Promise<boolean> {
+  try {
+    return (await trPost('/score', body)).ok;
+  } catch {
+    return false;
+  }
 }

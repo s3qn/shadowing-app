@@ -1,9 +1,9 @@
 """bl52-energy: a daily energy meter per device, spent by the routes that cost
 an AI call, with a global daily stop and owner grants.
 
-Everything is behind SHADOW_ENERGY, off by default. With it off `charge` is a
-no-op, `status` is never called by a route, and no route sends `no_energy` or
-`global_limit`, so the backend behaves exactly as before the flag existed.
+Everything is behind SHADOW_ENERGY, on by default (SHADOW_ENERGY=0 turns it
+off). With it off `charge` is a no-op, `status` is never called by a route, and
+no route sends `no_energy` or `global_limit`.
 
 PRICES is the only price table. One unit is at most about $0.001 on the
 cheapest mix, so while the backend runs on the claude CLI and local whisper
@@ -24,7 +24,7 @@ import suggest
 
 log = logging.getLogger("shadow.energy")
 
-ON = os.getenv("SHADOW_ENERGY", "0") == "1"
+ON = os.getenv("SHADOW_ENERGY", "1") != "0"
 DAILY_UNITS = int(os.getenv("SHADOW_DAILY_UNITS", "60"))
 GLOBAL_DAILY_UNITS = int(os.getenv("SHADOW_GLOBAL_DAILY_UNITS", "3000"))
 WARN_FRACTION = float(os.getenv("SHADOW_ENERGY_WARN", "0.8"))

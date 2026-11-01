@@ -134,13 +134,18 @@ export default function OnboardingScreen() {
   async function start(level: StarterLevel) {
     if (leaving.current) return;
     leaving.current = true;
-    await saveAll(false);
-    await setStarterLevel(level);
-    await setGuideStep('home');
-    await setOnboarded(true);
-    // The guide starts on Home, wherever the intro was opened from (Settings > Replay).
-    if (router.canDismiss()) router.dismissAll();
-    router.navigate('/');
+    try {
+      await saveAll(false);
+      await setStarterLevel(level);
+      await setGuideStep('home');
+      await setOnboarded(true);
+      // The guide starts on Home, wherever the intro was opened from (Settings > Replay).
+      if (router.canDismiss()) router.dismissAll();
+      router.navigate('/');
+    } catch (err: unknown) {
+      leaving.current = false;
+      console.warn('starting after onboarding failed', err);
+    }
   }
 
   // Sign-in is required: with no session, Skip never jumps past the account step.

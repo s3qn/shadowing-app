@@ -92,6 +92,7 @@ export function PrismButton({
   tint,
   label,
   labelStyle,
+  trailing,
   value,
   style,
   containerStyle,
@@ -233,6 +234,7 @@ export function PrismButton({
           tint={tint}
           label={label}
           labelStyle={labelStyle}
+          trailing={trailing}
           value={value}
           style={style}>
           {children}

@@ -15,6 +15,7 @@ is the intended way in.
 
 import asyncio
 import copy
+import functools
 import hashlib
 import json
 import logging
@@ -49,6 +50,7 @@ import asr_transfer
 import caption_timing
 import corpus  # voice-topic
 import dev_review
+import dev_transcripts
 import dev_upload
 import energy
 import grammar
@@ -57,6 +59,7 @@ import eta
 import explain
 import export
 import generate
+import guardrails  # --- ai-guardrails ---
 import gloss as glossary
 import app_version
 import kokoro_tts
@@ -142,6 +145,9 @@ if dev_review.enabled():
     app.include_router(dev_review.router)
 if dev_upload.enabled():
     app.include_router(dev_upload.router)
+# anchor: dev_transcripts router
+if dev_transcripts.enabled():
+    app.include_router(dev_transcripts.router)
 
 
 def require_token(authorization: str | None) -> None:
@@ -700,11 +706,12 @@ async def create_island(
     if not _to_wav(src, wav):
         shutil.rmtree(tmp_dir, ignore_errors=True)
         store.set_failed(island_id, "That audio file could not be decoded.", "audio_undecodable")
+        _refund_build_slot(device, "create", "create")
         raise HTTPException(400, {"code": "audio_undecodable"})
     shutil.rmtree(tmp_dir, ignore_errors=True)
 
     background.add_task(
-        _build_island, island_id, wav, complexity, speaker, count, register, language, native,
+        _refunding(_build_island, island_id, device, "create", "create"), island_id, wav, complexity, speaker, count, register, language, native,
         bool(topic),
     )
     return {"id": island_id, "status": "pending"}
@@ -932,7 +939,7 @@ async def create_import_island(
     )
     store.start_build(island_id)
     background.add_task(
-        _build_import, island_id, media, srt_text, island_title, float(start_min) * 60.0,
+        _refunding(_build_import, island_id, device, "create", "import"), island_id, media, srt_text, island_title, float(start_min) * 60.0,
         tmp_dir, language, native,
     )
     return {"id": island_id, "status": "pending"}
@@ -1015,7 +1022,7 @@ async def import_podcast_episode(
     )
     store.start_build(island_id)
     background.add_task(
-        _build_podcast, island_id, audio_url, island_title, float(start_min) * 60.0, tmp_dir,
+        _refunding(_build_podcast, island_id, device, "create", "import"), island_id, audio_url, island_title, float(start_min) * 60.0, tmp_dir,
         language, native,
     )
     return {"id": island_id, "status": "pending"}
@@ -1649,7 +1656,8 @@ async def regenerate(
             (complexity, island_id),
         )
     background.add_task(
-        _build_island, island_id, wav, complexity, island["speaker"], count,
+        _refunding(_build_island, island_id, device, "rework", "regenerate"),
+        island_id, wav, complexity, island["speaker"], count,
         island.get("register", "polite"), island.get("language", "ja"), island.get("native", "en"),
         transcript=island.get("transcript") or "",
     )
@@ -2002,6 +2010,21 @@ DAILY_CAPS = {
 }
 
 
+AI_USE_KINDS = frozenset({"explain", "explain_word", "pick_sentences"})  # --- ai-guardrails ---
+guardrails.set_owner_check(_is_owner)  # --- ai-guardrails ---
+
+
+def _ai_paused() -> bool:
+    """The ai_jobs kill switch, read by llm.complete before every call so a
+    flip also stops queued repair, translation and catch refills."""
+    return guardrails._off("ai_jobs", "ai")
+
+
+import llm as _llm  # noqa: E402
+
+_llm.set_pause_check(_ai_paused)
+
+
 def _take_use_slot(device: str, kind: str, charge: str = "") -> None:
     """Per-owner daily cap for the cheap-but-not-free routes, counted in the
     same builds table. Same rules as `_take_build_slot`: owner device exempt,
@@ -2011,6 +2034,10 @@ def _take_use_slot(device: str, kind: str, charge: str = "") -> None:
     burns a slot and a cap 429 never burns energy."""
     if _is_owner(device):
         return
+    # --- ai-guardrails ---
+    if kind in AI_USE_KINDS:
+        guardrails.check_switch(kind)
+    # --- end ai-guardrails ---
     limit = DAILY_CAPS[kind]
     if store.count_builds_today(device, kind) >= limit:
         raise HTTPException(
@@ -2019,6 +2046,17 @@ def _take_use_slot(device: str, kind: str, charge: str = "") -> None:
     if charge:
         energy.charge(device, charge, False)
     store.log_build(device, kind)
+
+
+def _principal_known(principal: str) -> bool:  # --- ai-guardrails ---
+    """Only asked while signups are off, so the normal path pays nothing."""
+    if not guardrails._off("signups", "signups"):
+        return True
+    if store.user_known(principal):
+        return True
+    return user_profile.connect().execute(
+        "SELECT 1 FROM profiles WHERE owner=?", (principal,)
+    ).fetchone() is not None
 
 
 def _refund_use_slot(device: str, kind: str, charge: str) -> None:
@@ -2030,6 +2068,34 @@ def _refund_use_slot(device: str, kind: str, charge: str) -> None:
         store.unlog_build(device, kind)
 
 
+def _refund_build_slot(device: str, kind: str, charge: str) -> None:
+    """Undoes `_take_build_slot` for a build that failed before it made any
+    line: the energy (when SHADOW_ENERGY is on) and the build slot, which is
+    also the daily AI-build budget, both come back. Owner exempt, as the
+    take was."""
+    if _is_owner(device):
+        return
+    if charge:
+        energy.refund(device, charge, False)
+    store.unlog_build(device, kind)
+    log.info("build slot %s/%s refunded to %s", kind, charge, device)
+
+
+def _refunding(job, island_id: str, device: str, kind: str, charge: str):
+    """`job` wrapped for background.add_task: once it ends, an island left
+    failed with no lines gets its build slot and energy back. `__wrapped__`
+    keeps the job reachable for tests."""
+    @functools.wraps(job)
+    async def run(*args, **kwargs) -> None:
+        try:
+            await job(*args, **kwargs)
+        finally:
+            island = await asyncio.to_thread(store.get_island, island_id)
+            if island is not None and island["status"] == "failed" and not island["lines"]:
+                await asyncio.to_thread(_refund_build_slot, device, kind, charge)
+    return run
+
+
 def _take_build_slot(device: str, kind: str, charge: str = "") -> None:
     """Called immediately before the first write of a build, so a 400 on bad
     input never consumes a slot. The owner device is exempt. `kind` is
@@ -2037,11 +2103,18 @@ def _take_build_slot(device: str, kind: str, charge: str = "") -> None:
     re-voice); each has its own daily cap. `charge` as in `_take_use_slot`."""
     if _is_owner(device):
         return
+    # --- ai-guardrails ---
+    # Order: switch, per-kind cap, daily AI-build budget, energy, then the
+    # slot row. The llm-api dollar cap sits inside llm.complete, so it runs
+    # after all of these by construction.
+    guardrails.check_switch(kind, imports=charge == "import")
+    # --- end ai-guardrails ---
     limit = DAILY_CREATES if kind == "create" else DAILY_REWORKS
     if store.count_builds_today(device, kind) >= limit:
         raise HTTPException(
             429, {"code": "daily_limit", "limit": limit, "kind": kind}
         )
+    guardrails.check_budget(device)  # --- ai-guardrails ---
     if charge:
         energy.charge(device, charge, False)
     store.log_build(device, kind)
@@ -2124,8 +2197,18 @@ class DeviceGuard:
                 response = JSONResponse({"detail": "bad user token"}, status_code=401)
                 await response(scope, receive, send)
                 return
+            # --- ai-guardrails ---
+            principal = accounts.principal(sub)
+            try:
+                known = await asyncio.to_thread(_principal_known, principal)
+                guardrails.check_signup(principal, known)
+            except HTTPException as exc:
+                response = JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+                await response(scope, receive, send)
+                return
+            # --- end ai-guardrails ---
             kept = [(k, v) for k, v in scope["headers"] if k != b"x-shadow-device"]
-            kept.append((b"x-shadow-device", accounts.principal(sub).encode()))
+            kept.append((b"x-shadow-device", principal.encode()))
             scope["headers"] = kept
         # --- end sign-in ---
         elif REQUIRE_SIGNIN:
@@ -2336,7 +2419,8 @@ async def import_phrases(
         source_name=topic, device=device,
     )
     background.add_task(
-        _build_phrases, island_id, [e["text"] for e in entries],
+        _refunding(_build_phrases, island_id, device, "create", "phrases"),
+        island_id, [e["text"] for e in entries],
         [e.get(native, "") for e in entries],
         island_title, speaker, language, native, topic=topic,
     )
@@ -2413,7 +2497,7 @@ async def import_grammar(
             log.exception("island %s failed", island_id)
             store.set_failed(island_id, str(exc))
 
-    background.add_task(run)
+    background.add_task(_refunding(run, island_id, device, "create", "create"))
     return {"id": island_id, "status": "pending"}
 
 
@@ -2541,20 +2625,40 @@ async def _build_from_captions(island_id: str, lines: list[dict], title: str,
 
     # Ready already: a translation error only costs the English.
     try:
-        for b in range(0, len(ja_texts), generate.TRANSLATE_BATCH):
-            batch = ja_texts[b:b + generate.TRANSLATE_BATCH]
-            translations = await asyncio.to_thread(
-                generate.translate_lines, batch, language, native,
-                ja_texts[max(0, b - 2):b], ja_texts[b + len(batch):b + len(batch) + 2])
-            for offset, en in enumerate(translations):
-                if en:
-                    store.set_en(island_id, b + offset, en)
+        await _translate_batches(island_id, ja_texts, language, native)
     except Exception:
         log.exception("island %s: translation stopped early, the island stays ready", island_id)
     # youtube-asr-context-repair: the text pass runs once the English is in,
     # inside this background task, one video at a time.
     if repair_claimed:
         await _repair_job(island_id, asr and language == "ja")
+
+
+TRANSLATE_WORKERS = 3
+
+
+async def _translate_batches(island_id: str, texts: list[str], language: str, native: str) -> None:
+    """Translate in TRANSLATE_BATCH chunks, TRANSLATE_WORKERS at a time. Each
+    batch is saved as it lands, so a failure keeps the finished ones; the
+    first error is raised after the rest settle."""
+    sem = asyncio.Semaphore(TRANSLATE_WORKERS)
+    n = generate.TRANSLATE_BATCH
+
+    async def one(b: int) -> None:
+        batch = texts[b:b + n]
+        async with sem:
+            translations = await asyncio.to_thread(
+                generate.translate_lines, batch, language, native,
+                texts[max(0, b - 2):b], texts[b + len(batch):b + len(batch) + 2])
+        for offset, en in enumerate(translations):
+            if en:
+                store.set_en(island_id, b + offset, en)
+
+    results = await asyncio.gather(*(one(b) for b in range(0, len(texts), n)),
+                                   return_exceptions=True)
+    for r in results:
+        if isinstance(r, BaseException):
+            raise r
 
 
 async def _captions_body(request: Request) -> dict:
@@ -2635,8 +2739,9 @@ async def import_youtube_captions(
     video_id = youtube.parse_video_id(url)
     if video_id is None:
         raise HTTPException(400, {"code": "youtube_bad_link"})
+    dropped: list[int] = []
     try:
-        lines = youtube.json3_to_lines(body.get("events"))
+        lines = youtube.json3_to_lines(body.get("events"), dropped)
     except youtube.CaptionsInvalid:
         raise HTTPException(400, {"code": "captions_invalid"})
     # The ASR track only refines timing: a bad or oversized one is dropped
@@ -2657,6 +2762,8 @@ async def import_youtube_captions(
         source_name=video_id, device=device,
     )
     store.add_video(island_id, video_id, 0.0, island_title, "")
+    if dropped:
+        await asyncio.to_thread(store.set_lines_dropped, island_id, dropped[0])
     # youtube-asr-context-repair: the watch page's context rides along with
     # the captions; an empty one never blocks the import.
     context = repair.clean_context(body.get("context"))
@@ -2666,7 +2773,8 @@ async def import_youtube_captions(
              len(context["chapters"]))
     await asyncio.to_thread(_write_captions_json, island_id, video_id, body.get("events"), asr_events)
     background.add_task(
-        _build_from_captions, island_id, lines, island_title, language, native,
+        _refunding(_build_from_captions, island_id, device, "create", "import"),
+        island_id, lines, island_title, language, native,
         any(ln.get("pieces") for ln in lines), asr_tokens=tokens,
     )
     return {"id": island_id, "status": "pending"}
@@ -3482,6 +3590,16 @@ def _energy_target(device: str, username: str) -> str:
     return row["owner"]
 
 
+def _energy_with_builds(device: str) -> dict:  # --- ai-guardrails ---
+    """energy.status plus the daily AI-build budget: `builds_left` and
+    `builds_max` (owner sees a full budget)."""
+    snap = energy.status(device, _is_owner(device))
+    used = 0 if _is_owner(device) else store.count_builds_today_kinds(device, guardrails.BUILD_KINDS)
+    snap["builds_max"] = guardrails.USER_AI_BUILDS
+    snap["builds_left"] = max(0, guardrails.USER_AI_BUILDS - used)
+    return snap
+
+
 @app.get("/shadow/energy")
 async def energy_get(
     username: str = Query(""),
@@ -3495,10 +3613,10 @@ async def energy_get(
         target = await asyncio.to_thread(_energy_target, device, username)
         if not energy.ON:
             return {"on": False}
-        return await asyncio.to_thread(energy.status, target, _is_owner(target))
+        return await asyncio.to_thread(_energy_with_builds, target)
     if not energy.ON:
         return {"on": False}
-    return await asyncio.to_thread(energy.status, device, _is_owner(device))
+    return await asyncio.to_thread(_energy_with_builds, device)
 
 
 @app.post("/shadow/energy/grant")
@@ -3679,9 +3797,49 @@ async def post_video_repair(
         return {"repair": "done"}
     if video.get("repair_attempts", 0) >= repair.REPAIR_MAX_ATTEMPTS:
         raise HTTPException(409, {"code": "repair_closed"})
+    # Switch and cap first, so a refusal claims nothing; the slot row is
+    # written only once the claim is won, so a lost race costs no slot.
+    owner = _is_owner(device)
+    if not owner:  # --- ai-guardrails ---
+        await asyncio.to_thread(guardrails.check_ai_call, device, "repair")
     if not await asyncio.to_thread(store.claim_repair, island_id, repair.REPAIR_MAX_ATTEMPTS, repair.VERSION):
         # Lost the race to another open of the same island.
         return {"repair": "queued"}
+    if not owner:
+        await asyncio.to_thread(store.log_build, device, "repair")
     background.add_task(_repair_job, island_id)
     return {"repair": "queued"}
 # --- end youtube-asr-context-repair ---
+
+
+# --- bl72-known-words ---
+@app.get("/shadow/catch/words")
+async def catch_collection(
+    language: str = "ja",
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    """The device's caught words, with Known/Learning counts. Read only."""
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    return await asyncio.to_thread(catch.collection, device, language)
+# --- end bl72-known-words ---
+
+
+# --- llm-api ---
+import llm  # noqa: E402
+
+
+@app.get("/shadow/llm/spend")
+async def llm_spend(
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    """This month's LLM bill: backend, cap, calls and USD by tag. Owner only."""
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    if not _is_owner(device):
+        raise HTTPException(403, {"code": "not_owner"})
+    summary = await asyncio.to_thread(store.llm_spend_summary)
+    return {"backend": llm.backend(), "cap_usd": llm.MONTHLY_USD, **summary}
+# --- end llm-api ---

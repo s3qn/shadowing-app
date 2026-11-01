@@ -45,6 +45,8 @@ type Props = {
   readingMode?: ReadingMode;
   /** Conceal the words, as Blind does in the audio player. */
   blind?: boolean;
+  /** The catch game hides the line: one unseen Text in its place, no words, no reveal, no highlight. */
+  hidden?: boolean;
   /** Show the translation strip. Default true. */
   englishShown?: boolean;
   /** 'video' is the cinematic YouTube player: 26pt left-aligned type and no
@@ -81,6 +83,7 @@ export const TappableSentence = memo(function TappableSentence({
   onInteract,
   readingMode = 'furigana',
   blind = false,
+  hidden = false,
   englishShown = true,
   variant = 'default',
   repeat,
@@ -387,6 +390,26 @@ export const TappableSentence = memo(function TappableSentence({
       )
     : 0;
   const dragPopTop = dragUnion ? dragUnion.bottom + SELECTION_HANDLE_CLEARANCE : 0;
+
+  if (hidden) {
+    return (
+      <View style={video ? (repeat ? styles.videoCardRepeat : styles.videoCard) : styles.activeCard}>
+        <View style={styles.block} onLayout={onBlockLayout} pointerEvents="none">
+          <Text
+            style={[
+              styles.ja,
+              isJa && { fontFamily: fonts.serifJp },
+              video && styles.jaVideo,
+              fit !== 1 && { fontSize: (video ? 26 : 22) * fit, lineHeight: (video ? 34 : 32) * fit },
+              { opacity: 0 },
+            ]}
+          >
+            {line.ja}
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={video ? (repeat ? styles.videoCardRepeat : styles.videoCard) : styles.activeCard}>

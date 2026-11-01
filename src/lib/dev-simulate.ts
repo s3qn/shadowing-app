@@ -5,8 +5,11 @@
  * No fake practice. All of it is a no-op outside __DEV__.
  */
 
-import { devGrantCoins } from '@/lib/api';
+import { devGrantCoins, type CatchCollection } from '@/lib/api';
 import { clearLevelUp, clearStreakMoment, MILESTONE_DAYS, milestoneOf, pushLevelUp, pushStreakMoment } from '@/lib/level-up-store';
+import { setDevApiBlock } from '@/lib/dev-api-block';
+import { setDevEnergy } from '@/lib/energy';
+import { requestTranscriptEnd, resetTranscriptSim, setTranscriptSim } from '@/lib/dev-transcripts';
 import { setDevStreak } from '@/lib/practice';
 import { applyProgress, catalogNow, progressNow } from '@/lib/progression';
 
@@ -33,6 +36,34 @@ export function devRepairPhase(): RepairPhase | null {
   return repairPhases.shift() ?? null;
 }
 
+// --- bl72-known-words ---
+// The My words page reads this instead of the server: a fresh account (empty)
+// or a spread of known and learning words. In memory: a kill clears it.
+let wordsSim: CatchCollection | null = null;
+
+/** The simulated My words collection, or null to read the server's. */
+export function devWordsCollection(): CatchCollection | null {
+  return __DEV__ ? wordsSim : null;
+}
+
+function simWords(kind: 'empty' | 'mixed'): void {
+  if (kind === 'empty') {
+    wordsSim = { language: 'ja', total: 0, learning: 0, known: 0, words: [] };
+    return;
+  }
+  const row = (word: string, meaning: string, state: 'known' | 'learning', caught: number, missed: number) => ({
+    word, meaning, sentence: `${word}が好きです。`, island_id: '', state, caught, missed, reviews: caught + missed, due: '',
+  });
+  const words = [
+    row('猫', 'cat', 'learning', 1, 2),
+    row('犬', 'dog', 'known', 4, 0),
+    row('水', 'water', 'known', 5, 1),
+    row('食べる', 'to eat', 'learning', 2, 1),
+  ];
+  const known = words.filter((w) => w.state === 'known').length;
+  wordsSim = { language: 'ja', total: words.length, learning: words.length - known, known, words };
+}
+
 // --- streak-tier-achievements ---
 // tier-up-2 .. tier-up-10: the rung's "New item unlocked" screen (its item
 // from the catalog cache, no grant, nothing marked seen) and then the up
@@ -52,11 +83,26 @@ const TIERS = Object.fromEntries(TIER_DAYS.map((days, i) => [`tier-${i}`, () => 
 const SIMULATIONS: Record<string, () => Promise<void> | void> = {
   ...TIER_UPS,
   ...TIERS,
+  // My words page: a fresh account, and a mix of known and learning words.
+  'words-empty': () => simWords('empty'),
+  'words-mixed': () => simWords('mixed'),
+  // --- transcript-review ---
+  'transcripts-end': () => requestTranscriptEnd(),
+  'transcripts-nowords': () => setTranscriptSim('nowords'),
+  'transcripts-empty': () => setTranscriptSim('empty'),
+  'transcripts-offline': () => setTranscriptSim('offline'),
   // The up moment on a rung reached again: the disc with "14 day milestone" on an account that owns face.streak_14, else the plain tile.
   'tier-rereach': () => {
     streak(14);
     pushStreakMoment({ kind: 'up', streak: 14, milestone: milestoneOf(14) });
   },
+  // --- ai-guardrails --- the next build or import answers with the budget or kill-switch message.
+  'ai-budget-reached': () => setDevApiBlock('daily_budget'),
+  'ai-paused': () => setDevApiBlock('ai_paused'),
+  // --- energy meter --- full 60, low 8, empty 0.
+  'energy-full': () => setDevEnergy(60),
+  'energy-low': () => setDevEnergy(8),
+  'energy-empty': () => setDevEnergy(0),
   'streak-zero': () => streak(0),
   'streak-milestone': () => streak(7),
   // The gem's calm (non-milestone) and three-digit numeral states.
@@ -94,6 +140,9 @@ const SIMULATIONS: Record<string, () => Promise<void> | void> = {
   reset: () => {
     streak(null);
     repairPhases = [];
+    wordsSim = null;
+    setDevApiBlock(null);
+    setDevEnergy(null);
     clearLevelUp();
     clearStreakMoment();
   },
@@ -108,6 +157,10 @@ export function resetSimulation(): void {
   if (!__DEV__) return;
   streak(null);
   repairPhases = [];
+  wordsSim = null;
+  resetTranscriptSim();
+  setDevApiBlock(null);
+  setDevEnergy(null);
   clearLevelUp();
   clearStreakMoment();
 }

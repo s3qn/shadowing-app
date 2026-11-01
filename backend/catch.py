@@ -2,7 +2,7 @@
 
 The targets are the video's own words (every candidate heard twice or more,
 ranked by in-video count), one per line, placed so the tap window never
-crosses into the next line. Meanings come from one claude CLI call per video,
+crosses into the next line. Meanings come from one model call per video,
 cached per language, native language and word. Each graded word has an FSRS
 card (py-fsrs) in catch.db, keyed by device, language and word; the client
 only ever sees `due` and `state`.
@@ -29,6 +29,8 @@ from fastapi import APIRouter, Form, Header, HTTPException
 import catch_verify
 import dbconn
 import generate
+import guardrails  # --- ai-guardrails ---
+import llm
 import segment
 import store
 from suggest import _require_token
@@ -316,7 +318,7 @@ def cached_meanings(language: str, native: str, words: list[str]) -> dict[str, s
 
 # The meanings call runs before the game can start, so it gives up long before the generator's limit.
 MEANINGS_TIMEOUT_S = 30.0
-# Words per CLI call: 60 targets in one call outran the timeout on a long video.
+# Words per model call: 60 targets in one call outran the timeout on a long video.
 MEANINGS_CHUNK = 20
 # The background refill of chunks that timed out has time to finish.
 MEANINGS_BACKGROUND_TIMEOUT_S = 150.0
@@ -325,13 +327,14 @@ BACKGROUND_FILL = True
 
 
 def _ask_chunk(language: str, native: str, chunk: list[dict], timeout: float) -> dict[str, str]:
-    """One CLI call for `chunk`; caches and returns what came back. Never raises."""
+    """One model call for `chunk`; caches and returns what came back. Never raises."""
     try:
-        raw = generate._run_cli(_meaning_prompt(language, native, chunk), "catch-meanings", timeout=timeout)
-        parsed = generate._extract_json(raw or "")
+        parsed = llm.complete(_meaning_prompt(language, native, chunk), {"type": "array"},
+                              tag="catch-meanings", timeout=timeout)
+        if parsed is None:
+            return {}
         if (
-            not isinstance(parsed, list)
-            or len(parsed) != len(chunk)
+            len(parsed) != len(chunk)
             or not all(isinstance(m, str) for m in parsed)
         ):
             log.warning("catch-meanings: reply of the wrong shape for %d words", len(chunk))
@@ -361,7 +364,7 @@ def _refill(language: str, native: str, chunks: list[list[dict]]) -> None:
 
 def meanings(language: str, native: str, items: list[dict]) -> dict[str, str]:
     """Meaning per word (`items` are `{"word", "sentence"}`): the cache first,
-    then the misses in chunks of MEANINGS_CHUNK, one CLI call each, run side by
+    then the misses in chunks of MEANINGS_CHUNK, one model call each, run side by
     side and cached. A chunk that fails is left out and retried in a background
     thread with a longer timeout, so a later request finds it cached. Never raises."""
     found: dict[str, str] = {}
@@ -398,9 +401,24 @@ def meanings(language: str, native: str, items: list[dict]) -> dict[str, str]:
     return found
 
 
+def _meanings_gated(device: str, language: str, native: str, items: list[dict]) -> dict[str, str]:
+    """`meanings`, but a cache miss takes an AI slot first (one per request).
+    A refused slot (budget, energy, kill switch) answers with the cached
+    meanings only, so the game still opens."""
+    words = [i["word"] for i in items]
+    cached = cached_meanings(language, native, words)
+    if all(w in cached for w in words):
+        return meanings(language, native, items)
+    try:
+        guardrails.take_ai_call(device, "catch_meaning", "word")  # --- ai-guardrails ---
+    except HTTPException:
+        return cached
+    return meanings(language, native, items)
+
+
 def word_meaning(island_id: str, device: str, word: str) -> str:
-    """One word's meaning for the card: cached, else a single CLI call with the
-    background timeout. Empty when the CLI fails."""
+    """One word's meaning for the card: cached, else a single model call with
+    the background timeout. Empty when the call fails."""
     island = _own_island(island_id, device)
     language = island.get("language") or "ja"
     native = island.get("native") or "en"
@@ -408,6 +426,10 @@ def word_meaning(island_id: str, device: str, word: str) -> str:
     if got:
         return got
     item = {"word": word, "sentence": _sentence_for(island, word, language)}
+    try:
+        guardrails.take_ai_call(device, "catch_meaning", "word")  # --- ai-guardrails ---
+    except HTTPException:
+        return ""
     return _ask_chunk(language, native, [item], MEANINGS_BACKGROUND_TIMEOUT_S).get(word, "")
 
 
@@ -483,6 +505,36 @@ def review(
     return {"word": word, "due": due, "state": state, "reviews": reviews}
 
 
+def collection(device: str, language: str) -> dict:
+    """The device's caught words in `language`, newest first, with the FSRS
+    state read from each stored card. Read only. `known` counts Review state,
+    `learning` everything else."""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT word, card, due, reviews, caught, missed, meaning, sentence, island_id"
+            " FROM catch_cards WHERE device=? AND language=? ORDER BY updated_at DESC, rowid DESC",
+            (device, language),
+        ).fetchall()
+    words = []
+    for row in rows:
+        try:
+            state = fsrs.Card.from_dict(json.loads(row["card"])).state
+            known = state == fsrs.State.Review
+        except (ValueError, KeyError, TypeError):
+            known = False
+        words.append({
+            "word": row["word"], "meaning": row["meaning"], "sentence": row["sentence"],
+            "island_id": row["island_id"], "state": "known" if known else "learning",
+            "caught": row["caught"], "missed": row["missed"], "reviews": row["reviews"],
+            "due": row["due"],
+        })
+    n_known = sum(1 for w in words if w["state"] == "known")
+    return {
+        "language": language, "total": len(words),
+        "learning": len(words) - n_known, "known": n_known, "words": words,
+    }
+
+
 # --- routes ---
 
 
@@ -510,6 +562,19 @@ def _sentence_for(island: dict, word: str, language: str) -> str:
     return ""
 
 
+def _captions_may_arrive(island_id: str) -> bool:
+    """A YouTube island whose align is queued or running, or not yet tried
+    with attempts left, can still get captions.json."""
+    from main import ALIGN_MAX_ATTEMPTS  # main imports this module
+    video = store.get_video(island_id)
+    if not video:
+        return False
+    status = video.get("align_status") or ""
+    if status in ("queued", "running"):
+        return True
+    return status == "" and (video.get("align_attempts") or 0) < ALIGN_MAX_ATTEMPTS
+
+
 def _words_sync(island_id: str, device: str) -> dict:
     island = _own_island(island_id, device)
     language = island.get("language") or "ja"
@@ -529,8 +594,8 @@ def _words_sync(island_id: str, device: str) -> dict:
     found: dict[str, str] = {}
     for _ in range(2):
         targets = pick_targets(island, not_due | names, due, verified=verified)
-        found.update(meanings(
-            language, native, [{"word": t["id"], "sentence": t["sentence"]} for t in targets]
+        found.update(_meanings_gated(
+            device, language, native, [{"word": t["id"], "sentence": t["sentence"]} for t in targets]
         ))
         fresh = {t["id"] for t in targets if is_name(found.get(t["id"], ""))}
         if not fresh:
@@ -538,6 +603,11 @@ def _words_sync(island_id: str, device: str) -> dict:
         names |= fresh
     targets = [t for t in targets if not is_name(found.get(t["id"], ""))]
     if not targets:
+        # No captions.json yet: opening the video posts the ASR track within
+        # seconds, so the phone retries, but only while the island can still
+        # gain captions.
+        if not ref and _captions_may_arrive(island_id):
+            raise HTTPException(409, {"code": "words_pending"})
         raise HTTPException(409, {"code": "no_words"})
     for t in targets:
         t["meaning"] = found.get(t["id"], "")

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { RecordingPresets, requestRecordingPermissionsAsync, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, type Href } from 'expo-router';
@@ -9,9 +9,10 @@ import { BottomSheet } from '@/components/sheet/bottom-sheet';
 import { PrismButton } from '@/components/prism/prism-button';
 import { PILL_LABEL_SIZE } from '@/components/prism/pill-tray';
 import { applyPlaybackMode, applyRecordingMode, scheduleAudioSessionRelease } from '@/lib/audio-mode';
-import { getReview, postReviewDone, postShot, postVerdict, postVoiceNote, type ReviewTour as Tour, type ReviewVerdict } from '@/lib/api';
+import { getReview, listTranscripts, listVideos, postReviewDone, postShot, postVerdict, postVoiceNote, type ReviewTour as Tour, type ReviewVerdict, type TranscriptVideo, type VideoListItem } from '@/lib/api';
 import { tide } from '@/constants/theme';
 import { resetSimulation, runSimulation } from '@/lib/dev-simulate';
+import { transcriptListEmpty } from '@/lib/dev-transcripts';
 import { useGuideStep } from '@/lib/guide';
 
 const DEFAULT_CHIPS = ['slow', 'ugly', 'bug', 'not like the mock', 'confusing'];
@@ -36,6 +37,46 @@ const writePending = (list: Pending[]) => AsyncStorage.setItem(PENDING_KEY, JSON
 /** Upload a voice note, retrying once. */
 async function uploadNote(p: Pending): Promise<boolean> {
   return (await postVoiceNote(p.wave, p.id, p.uri)) || (await postVoiceNote(p.wave, p.id, p.uri));
+}
+
+/** transcript-review: the gold videos with candidates. A tap opens the video player on candidate captions
+ * (`tr=1`); a video that is not an island yet goes through the normal build screen first. */
+function TranscriptList({ onOpen }: { onOpen: () => void }) {
+  const router = useRouter();
+  const [rows, setRows] = useState<TranscriptVideo[] | null>(null);
+  const [islands, setIslands] = useState<VideoListItem[]>([]);
+  useEffect(() => {
+    let live = true;
+    void listTranscripts().then((r) => live && setRows(transcriptListEmpty() ? [] : (r ?? [])));
+    void listVideos().then((v) => live && setIslands(v)).catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (!rows) return <Text style={styles.line}>Loading…</Text>;
+  if (rows.length === 0) return <Text style={styles.line}>No transcripts found. Expected candidates under ~/shadow-gold/&lt;channel&gt;/&lt;id&gt;/_cache.</Text>;
+  const open = (v: TranscriptVideo) => {
+    const island = islands.find((i) => i.video_id === v.id && i.status === 'ready');
+    onOpen();
+    if (island) router.push({ pathname: '/video/[id]', params: { id: island.island_id, tr: '1' } });
+    else router.push({ pathname: '/video/build', params: { url: `https://www.youtube.com/watch?v=${v.id}`, title: v.title } });
+  };
+  return (
+    <ScrollView style={styles.list} nestedScrollEnabled>
+      {rows.map((v) => {
+        const has = islands.some((i) => i.video_id === v.id && i.status === 'ready');
+        return (
+          <Pressable key={v.id} onPress={() => open(v)} style={styles.listRow}>
+            <View style={styles.listText}>
+              <Text style={styles.line} numberOfLines={1}>{v.title || v.id}</Text>
+              <Text style={styles.meta}>{`${v.channel} · ${v.n_candidates} candidates`}</Text>
+            </View>
+            <Text style={styles.link}>{has ? 'Open' : 'Add'}</Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
 }
 
 type Saved = { verdict: ReviewVerdict; chips: string[] };
@@ -263,6 +304,7 @@ export function ReviewTour() {
             {step.checks.map((c) => (
               <Text key={c} style={styles.line}>{`• ${c}`}</Text>
             ))}
+            {step.kind === 'transcripts' ? <TranscriptList onOpen={() => setOpen(false)} /> : null}
             <PrismButton shape="pill" verb="listen" label="Take me there" onPress={go} />
             {__DEV__ ? <PrismButton shape="pill" verb="tools" label="Reset simulation" onPress={resetSimulation} /> : null}
             <View style={styles.row}>
@@ -342,6 +384,10 @@ const styles = StyleSheet.create({
   chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.08)' },
   chipOn: { backgroundColor: 'rgba(255,255,255,0.28)' },
   chipText: { color: tide.text, fontSize: PILL_LABEL_SIZE, fontWeight: '600' },
+  list: { maxHeight: 260 },
+  listRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
+  listText: { flex: 1 },
+  meta: { color: tide.textDim, fontSize: 12 },
   nav: { flexDirection: 'row', justifyContent: 'space-between' },
   link: { color: tide.textDim, fontSize: 15, fontWeight: '600', paddingVertical: 6 },
 });

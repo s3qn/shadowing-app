@@ -40,6 +40,9 @@ import { useWatchClock } from '@/hooks/use-watch-clock';
 import { playIntent, useVideoHighlight } from '@/hooks/use-video-highlight';
 import * as api from '@/lib/api';
 import { devRepairPending, devRepairPhase } from '@/lib/dev-simulate';
+import { clearEndPending, mapCandidateLines, startTranscripts, stopTranscripts, useTranscriptStore } from '@/lib/dev-transcripts'; // transcript-review
+import { TranscriptTagBar } from '@/components/transcript-tag-bar'; // transcript-review
+import { BottomSheet } from '@/components/sheet/bottom-sheet'; // transcript-review
 import { syncVideoRepair, syncVideoTiming } from '@/lib/video-timing';
 import { useT } from '@/lib/i18n';
 import { getLastLine, resumeLine, setLastLine } from '@/lib/last-line';
@@ -51,13 +54,14 @@ export default function VideoScreen() {
   const { t } = useT();
   const router = useRouter();
   const win = useWindowDimensions();
-  const { id, line, preview, review, session, pick } = useLocalSearchParams<{
+  const { id, line, preview, review, session, pick, tr } = useLocalSearchParams<{
     id: string;
     line?: string;
     preview?: string;
     review?: string;
     session?: string;
     pick?: string;
+    tr?: string;
   }>();
   // A practice session hops here with the lines the plan picked; a stale param with no live session is ignored.
   const [inSession] = useState(() => session === '1' && autoPlaceOf(id) !== null);
@@ -126,10 +130,21 @@ export default function VideoScreen() {
   const scrollRef = useRef<ScrollView>(null);
   // Back-channels (うん。 そう。) are hidden so the speaker's card holds and
   // prev/next never land on them; a review deck keeps whatever was saved.
+  // transcript-review: dev only, `tr=1` swaps in the selected ASR candidate's lines; timing code reads them unchanged.
+  const trMode = __DEV__ && tr === '1';
+  const trStore = useTranscriptStore();
+  useEffect(() => {
+    if (!trMode || !video?.video_id) return;
+    void startTranscripts(video.video_id);
+  }, [trMode, video?.video_id]);
+  useEffect(() => () => stopTranscripts(), []);
+  const trCandidate = trStore.candidates.find((c) => c.label === trStore.label);
+  const trLines = useMemo(() => (trMode ? mapCandidateLines(trCandidate) : null), [trMode, trCandidate]);
   const lines = useMemo(() => {
+    if (trLines) return trLines;
     const all = island?.lines ?? [];
     return reviewSet ? all.filter((l) => reviewSet.idx.has(l.idx)) : all.filter((l) => !isBackChannel(l));
-  }, [island, reviewSet]);
+  }, [island, reviewSet, trLines]);
   const sceneLines = useMemo(() => lines.map((l) => l.ja), [lines]);
   /** Where server line n (a route param or the saved last line, shared with
    * the island player) sits in `lines`: a hidden back-channel lands on the
@@ -260,7 +275,7 @@ export default function VideoScreen() {
   // once jump and releaseLine exist.
   const catchDeps = useRef<CatchDeps>({ jump: () => {}, releaseLine: () => {}, setPlaying: () => {}, onStart: () => {}, now: () => null });
   const catchGame = useCatch(island?.id, lines, video?.start_s ?? 0, catchDeps);
-  const { phase: catchPhase, start: catchStart, stop: catchStop } = catchGame;
+  const { phase: catchPhase, start: catchStart, stop: catchStop, tap: catchTap } = catchGame;
   const onLineEnd = (i: number) => {
     if (catchGame.onLineEnd(i)) return;
     if (ladder.active) {
@@ -313,9 +328,37 @@ export default function VideoScreen() {
   const releaseLineRef = useRef(releaseLine);
   releaseLineRef.current = releaseLine;
 
+  // --- transcript-review --- tag bar height, tag position, end-of-video scores.
+  const [trBarH, setTrBarH] = useState(0);
+  const [scoreOpen, setScoreOpen] = useState(false);
+  const [scores, setScores] = useState<Record<string, number>>({});
+  const trPoint = () => ({
+    playerTime: timeNow() ?? 0,
+    lineIndex: lines[activeLine]?.idx ?? -1,
+    lineText: lines[activeLine]?.ja ?? '',
+  });
+  // The transcripts-end simulation: jump to 2 s before the end once the lines are in.
+  useEffect(() => {
+    if (!trMode || !trStore.endPending || lines.length === 0) return;
+    const timer = setTimeout(() => {
+      void playerRef.current?.getDuration().then((d) => {
+        if (d > 2) void playerRef.current?.seekTo(d - 2, true);
+        clearEndPending();
+      }).catch(() => undefined);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [trMode, trStore.endPending, lines.length]);
+  const finishScores = () => {
+    for (const [label, score] of Object.entries(scores)) {
+      void api.postTranscriptScore({ session: trStore.session, video: trStore.video, label, score });
+    }
+    setScoreOpen(false);
+    router.back();
+  };
+
   // Captions-only videos have no reference audio on the server, so takes are
   // only saved and played back (the embed is the reference).
-  const take = useTake(island?.id, lines[activeLine]?.idx ?? 0, generation, undefined, undefined, { localOnly: video?.captions_only !== false, countPass: true });
+  const take = useTake(trMode ? undefined : island?.id, lines[activeLine]?.idx ?? 0, generation, undefined, undefined, { localOnly: video?.captions_only !== false, countPass: true });
   const takeRef = useRef(take);
   takeRef.current = take;
 
@@ -384,7 +427,7 @@ export default function VideoScreen() {
   // The video ended in plain watch mode: offer the three easiest lines on the ladder, once per visit.
   const offered = useRef(false);
   const offerBestBits = () => {
-    if (offered.current || review || preview || inSession || ladder.active || !island) return;
+    if (offered.current || trMode || review || preview || inSession || ladder.active || !island) return;
     const picks = pickBestBits(lines, new Set(savedCards.keys()), replayed.current);
     if (picks.length === 0) return;
     offered.current = true;
@@ -444,19 +487,27 @@ export default function VideoScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [seekToLine, times],
   );
-  // After each render: the game's taps and line ends always reach the current jump.
+  // The ladder object is new every render, so the game reads it through a ref
+  // and the effect below only reruns when jump or the clock change.
+  const catchLadder = useRef(ladder);
+  catchLadder.current = ladder;
+  // The game's taps and line ends always reach the current jump.
   useEffect(() => {
     catchDeps.current = {
       jump,
       releaseLine,
       setPlaying,
       onStart: () => {
-        ladder.stop();
+        catchLadder.current.stop();
         setFull(false);
       },
       now: timeNow,
     };
-  }, [jump, releaseLine, ladder, timeNow]);
+  }, [jump, releaseLine, timeNow]);
+  // The hook's tap is new every render, so the button gets one stable handler.
+  const catchTapRef = useRef(catchTap);
+  catchTapRef.current = catchTap;
+  const onCatchTap = useCallback(() => catchTapRef.current(timeNow()), [timeNow]);
 
   // A new line means the open Explain thread is about the old sentence.
   useEffect(() => {
@@ -738,16 +789,18 @@ export default function VideoScreen() {
             onError={() => setCannotPlay(true)}
           />,
         )}
-        <View style={styles.center}>
-          <Text style={styles.hint}>{t('video.noTranscript')}</Text>
-        </View>
+        {cannotPlay ? null : (
+          <View style={styles.center}>
+            <Text style={styles.hint}>{t('video.noTranscript')}</Text>
+          </View>
+        )}
       </SafeAreaView>
     );
   }
 
   // The dock floats over the transcript's bottom, above the home indicator;
   // the transcript runs on under it to the screen's edge.
-  const dockBottom = fs ? 0 : insets.bottom;
+  const dockBottom = (fs ? 0 : insets.bottom) + (trMode && !fs ? trBarH : 0);
   // Sheets and the ladder's stage view are laid out for portrait, so leave fullscreen when one opens.
   useEffect(() => {
     if (helpOpen || explainOpen || ladder.active || catchPhase !== 'off') setFull(false);
@@ -797,7 +850,10 @@ export default function VideoScreen() {
                 stateRef.current = s;
                 setPlaying((p) => playIntent(p, s));
                 onChangeState(s);
-                if (s === 'ended') offerBestBits();
+                if (s === 'ended') {
+                  offerBestBits();
+                  if (trMode) setScoreOpen(true);
+                }
                 if (s === 'playing' && takeRef.current.phase === 'recording') stampLineStart();
               }}
               onPlaybackRateChange={onPlaybackRateChange}
@@ -824,6 +880,7 @@ export default function VideoScreen() {
                 lines={sceneLines}
                 blind={blind || catchGame.hideText}
                 rowsHidden={catchGame.hideText}
+                waterOff={catchPhase !== 'off'}
                 busy={playing || ladder.prelude !== null}
                 countdown={ladder.beat}
                 sentence={
@@ -841,6 +898,7 @@ export default function VideoScreen() {
                       onInteract={pauseVideo}
                       readingMode={readingMode}
                       blind={blind || catchGame.hideText}
+                      hidden={catchGame.hideText}
                       englishShown={englishShown && !catchGame.hideText}
                       variant="video"
                       repeat={repeat}
@@ -916,7 +974,7 @@ export default function VideoScreen() {
                             ja={ja}
                             disabled={!playing || catchGame.disarmed || catchPhase !== 'armed'}
                             flash={catchGame.flash}
-                            onTap={() => catchGame.tap(timeNow())}
+                            onTap={onCatchTap}
                           />
                         ) : review || video.captions_only ? null : (
                           <PrismButton shape="pill" verb="speak" label={t('video.shadowLine')} onPress={shadow} />
@@ -1008,6 +1066,33 @@ export default function VideoScreen() {
           onPlaySentence={onExplainPlay}
         />
       ) : null}
+      {trMode && !fs && lines.length > 0 ? (
+        <View style={[styles.trBar, { bottom: insets.bottom }]}>
+          <TranscriptTagBar getPoint={trPoint} onHeight={setTrBarH} />
+        </View>
+      ) : null}
+      {trMode ? (
+        <BottomSheet open={scoreOpen} onClose={() => setScoreOpen(false)} title="Score each candidate" contentTitle>
+          <View style={styles.trScores}>
+            {trStore.candidates.map((c) => (
+              <View key={c.label} style={styles.trScoreRow}>
+                <Text style={styles.trScoreLabel}>{c.label}</Text>
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <PrismButton
+                    key={n}
+                    shape="pill"
+                    verb="tools"
+                    on={scores[c.label] === n}
+                    label={String(n)}
+                    onPress={() => setScores((m) => ({ ...m, [c.label]: n }))}
+                  />
+                ))}
+              </View>
+            ))}
+            <PrismButton shape="pill" verb="listen" label="Done" onPress={finishScores} />
+          </View>
+        </BottomSheet>
+      ) : null}
       {island ? (
         <CatchCard
           open={catchPhase === 'card'}
@@ -1026,6 +1111,10 @@ export default function VideoScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  trBar: { position: 'absolute', left: 0, right: 0, zIndex: 17 },
+  trScores: { gap: 12, paddingTop: 8 },
+  trScoreRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  trScoreLabel: { color: tide.text, fontSize: 17, fontWeight: '700', width: 24 },
   row: { flexDirection: 'row' },
   fullBtn: {
     position: 'absolute',

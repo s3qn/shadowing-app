@@ -19,6 +19,7 @@ export function BuildProgress({
   error,
   blankTitle,
   onRetry,
+  noRetry,
   onClose,
 }: {
   stage: string;
@@ -30,6 +31,8 @@ export function BuildProgress({
   blankTitle?: boolean;
   /** Runs the build again in place. Without it Retry re-opens the route. */
   onRetry?: () => void;
+  /** Hides Retry when running the build again cannot help. */
+  noRetry?: boolean;
   onClose: () => void;
 }) {
   const { t } = useT();
@@ -54,7 +57,7 @@ export function BuildProgress({
         {error ? (
           <>
             <Text style={[styles.error, styles.centerText]}>{error}</Text>
-            <PrismButton shape="pill" verb="speak" label={t('common.retry')} onPress={retry} />
+            {noRetry ? null : <PrismButton shape="pill" verb="speak" label={t('common.retry')} onPress={retry} />}
           </>
         ) : (
           <>

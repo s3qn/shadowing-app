@@ -6,6 +6,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
+import { EnergyChip } from '@/components/energy-bolt';
+import { canAfford, priceOf, useEnergy } from '@/lib/energy';
 import { PrismButton } from '@/components/prism';
 import { PressScale } from '@/components/press-scale';
 
@@ -30,6 +32,7 @@ function stem(name: string): string {
 
 export default function ImportScreen() {
   const { t } = useT();
+  const energy = useEnergy();
   const dir = useDir();
   const router = useRouter();
 
@@ -140,7 +143,8 @@ export default function ImportScreen() {
               verb="listen"
               on
               label={t('import.build')}
-              disabled={!audio}
+              disabled={!audio || !canAfford(energy, 'import')}
+              trailing={<EnergyChip energy={energy} cost={priceOf(energy, 'import')} />}
               onPress={build}
               accessibilityRole="button"
               containerStyle={styles.primary}

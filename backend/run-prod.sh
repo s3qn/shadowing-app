@@ -44,6 +44,12 @@ if [ "${SHADOW_PORT:-8030}" = "8020" ]; then
   exit 1
 fi
 
+# Strangers' requests must never run through Sean's claude CLI.
+if [ "${SHADOW_LLM:-}" != "api" ]; then
+  echo "run-prod.sh: SHADOW_LLM must be 'api' in $ENV_FILE (the CLI backend is dev only), refusing." >&2
+  exit 1
+fi
+
 SHADOW_RELEASE="$(git rev-parse --short HEAD)"
 export SHADOW_RELEASE
 

@@ -9,7 +9,9 @@ export function etaText(etaS: number | null | undefined): string | null {
   if (typeof etaS !== 'number') return null;
   if (etaS <= 0) return t('eta.overrun');
   if (etaS < SECONDS_BELOW) return t('eta.seconds', { count: Math.max(10, Math.round(etaS / 10) * 10) });
-  return t('eta.minutes', { count: Math.round(etaS / 60) });
+  const min = Math.round(etaS / 60);
+  if (min > 90) return t('eta.hours', { h: Math.floor(min / 60), m: min % 60 });
+  return t('eta.minutes', { count: min });
 }
 
 /** Short form for the Home card, e.g. "~7 min". Null without an estimate. */

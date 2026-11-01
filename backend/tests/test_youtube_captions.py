@@ -83,7 +83,7 @@ def test_wrong_shapes_rejected():
 def test_long_text_cut_and_line_cap():
     out = youtube.json3_to_lines([ev(0, 1000, "あ" * 500)])
     assert len(out[0]["text"]) == youtube.CAPTION_MAX_CHARS
-    many = [ev(i * 1000, 900, f"l{i}") for i in range(1500)]
+    many = [ev(i * 1000, 900, f"l{i}") for i in range(youtube.CAPTIONS_MAX_LINES + 500)]
     assert len(youtube.json3_to_lines(many)) == youtube.CAPTIONS_MAX_LINES
     with pytest.raises(youtube.CaptionsInvalid):
         youtube.json3_to_lines([ev(0, 1, "x")] * (youtube.CAPTIONS_MAX_EVENTS + 1))
@@ -322,3 +322,15 @@ def test_build_spreads_an_asr_lump_over_its_voice(monkeypatch):
     assert all(ln["duration"] >= 1.0 for ln in lump)
     nxt = next(ln for ln in lines if ln["ja"].startswith("6時半"))
     assert abs(nxt["offset"] - 39.44) < 0.01
+
+
+def test_four_hour_caps_and_dropped_count():
+    assert youtube.CAPTIONS_MAX_LINES >= 5000 and youtube.CAPTIONS_MAX_EVENTS >= 20000
+    assert youtube.ASR_MAX_TOKENS >= 4 * 4 * 3600
+    many = [ev(i * 2000, 1500, f"l{i}") for i in range(youtube.CAPTIONS_MAX_LINES + 7)]
+    dropped: list[int] = []
+    assert len(youtube.json3_to_lines(many, dropped)) == youtube.CAPTIONS_MAX_LINES
+    assert dropped == [7]
+    dropped = []
+    youtube.json3_to_lines(many[:100], dropped)
+    assert dropped == []

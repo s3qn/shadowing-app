@@ -11,7 +11,7 @@ import uuid
 import pytest
 from fastapi import BackgroundTasks, HTTPException
 
-import explain
+import llm
 import main
 import phrase_catalog
 import starter
@@ -112,7 +112,7 @@ def test_regenerate_passes_the_stored_transcript():
     out = asyncio.run(main.regenerate(
         island_id, bg, complexity="simple", count=8, authorization=AUTH, x_shadow_device=dev))
     assert out["status"] == "working"
-    assert bg.tasks[0].func is main._build_island
+    assert bg.tasks[0].func.__wrapped__ is main._build_island
     assert bg.tasks[0].kwargs["transcript"] == "stored words"
 
 
@@ -289,12 +289,13 @@ def test_a_cache_failure_never_fails_the_island(monkeypatch):
 # --- gap 4: explain on the cheapest Haiku ---
 
 def test_explain_argv_carries_the_model_and_low_effort():
-    argv = explain._cli_argv()
-    assert argv[argv.index("--model") + 1] == "claude-haiku-5-5"
+    argv = llm._cli_argv(llm.model_for("word_context"), llm._is_fast("word_context"))
+    assert argv[argv.index("--model") + 1] == llm.TIERS["haiku"]
     assert argv[argv.index("--effort") + 1] == "low"
-    assert explain.CLI_ENV_OVERRIDES == {"MAX_THINKING_TOKENS": "0"}
+    assert llm._cli_env(True)["MAX_THINKING_TOKENS"] == "0"
 
 
-def test_empty_effort_drops_the_flag(monkeypatch):
-    monkeypatch.setattr(explain, "CLI_EFFORT", "")
-    assert "--effort" not in explain._cli_argv()
+def test_sonnet_tier_drops_the_fast_flags():
+    argv = llm._cli_argv(llm.model_for("generate"), llm._is_fast("generate"))
+    assert "--effort" not in argv and "--safe-mode" not in argv
+    assert "MAX_THINKING_TOKENS" not in llm._cli_env(False)

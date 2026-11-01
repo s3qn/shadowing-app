@@ -98,6 +98,8 @@ type Props = {
   blind: boolean;
   /** Past and next lines keep their place but are not drawn and take no taps (Catch the word's armed word). */
   rowsHidden?: boolean;
+  /** Skip the Skia water canvas (the catch game): the sim and surface stay, nothing is drawn. */
+  waterOff?: boolean;
   /** Playing or recording: keeps the water at full frame rate. */
   busy: boolean;
   /** Seconds left in the breath, giant faded number; null hides it. */
@@ -166,6 +168,7 @@ export const TideScene = memo(function TideScene({
   onScrollSettled,
   scrollLocked = false,
   rowsHidden = false,
+  waterOff = false,
 }: Props) {
   const { t } = useT();
   // The scene fills the window's width; its height starts from the caller's
@@ -226,7 +229,7 @@ export const TideScene = memo(function TideScene({
   const reducedMotion = useReducedMotion();
   const waterSim = useWaterSim({
     width: bandWidth,
-    enabled: WATER_EFFECTS && isFocused && appActive,
+    enabled: WATER_EFFECTS && isFocused && appActive && !waterOff,
     reducedMotion,
     busy,
   });
@@ -539,7 +542,9 @@ export const TideScene = memo(function TideScene({
           <View {...(rowsHidden ? HIDDEN_ROWS : null)}>
           {lines.slice(rowWindow.start, lineIndex).map((text, j) => {
             const i = rowWindow.start + j;
-            const row = (
+            const row = rowsHidden ? (
+              <HiddenRow key={i} index={i} text={text} onRowLayout={rowLayout} />
+            ) : (
               <TranscriptLine
                 key={i}
                 index={i}
@@ -604,13 +609,13 @@ export const TideScene = memo(function TideScene({
               splashAt={waterSim.splashAt}
               setBoatX={waterSim.setBoatX}
               flickBoat={waterSim.flickBoat}
-              enabled={isFocused && appActive}
+              enabled={isFocused && appActive && !waterOff}
               reducedMotion={reducedMotion}
               onWidthChange={setBandWidth}
               onSplash={(x) => runOnUI(waterSim.splashAt)(x, TAP_SPLASH)}
             />
           ) : null}
-          {WATER_EFFECTS ? (
+          {WATER_EFFECTS && !waterOff ? (
             <WaterCanvas
               height={sceneH + inset + 20}
               initialWidth={seedW}
@@ -630,7 +635,9 @@ export const TideScene = memo(function TideScene({
             <View {...(rowsHidden ? HIDDEN_ROWS : null)}>
             {lines.slice(lineIndex + 1, rowWindow.end).map((text, j) => {
               const i = lineIndex + 1 + j;
-              const row = (
+              const row = rowsHidden ? (
+                <HiddenRow key={i} index={i} text={text} onRowLayout={rowLayout} />
+              ) : (
                 <TranscriptLine
                   key={i}
                   index={i}
@@ -808,6 +815,30 @@ const TranscriptLine = memo(function TranscriptLine({
   );
 });
 
+/** A past or next row while `rowsHidden` (the catch game): no Frost, no animated
+ * style, no tap. Unseen text in the same boxes, so the scroll layout and the
+ * measured heights stay what they were. */
+const HiddenRow = memo(function HiddenRow({
+  index,
+  text,
+  onRowLayout,
+}: {
+  index: number;
+  text: string;
+  onRowLayout?: (index: number, height: number) => void;
+}) {
+  return (
+    <View
+      onLayout={onRowLayout ? (e) => onRowLayout(index, e.nativeEvent.layout.height) : undefined}
+      style={styles.dimLine}
+    >
+      <View style={styles.submergedRow}>
+        <Text style={[styles.dimText, styles.hiddenText]}>{text}</Text>
+      </View>
+    </View>
+  );
+});
+
 /** design: `--wl: 62 - t*5%` (t on a 0..4 scale here becomes lineIndex / (lineCount-1)). */
 function waterlineFraction(lineIndex: number, lineCount: number) {
   return WL_MAX - 0.2 * (lineIndex / Math.max(1, lineCount - 1));
@@ -889,6 +920,7 @@ const styles = StyleSheet.create({
     paddingLeft: 16,
     paddingRight: 44,
   },
+  hiddenText: { opacity: 0 },
   dimText: {
     fontFamily: fonts.serifJp,
     fontSize: 15,

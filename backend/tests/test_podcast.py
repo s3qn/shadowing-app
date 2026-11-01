@@ -411,6 +411,7 @@ import json as _json
 import sqlite3 as _sqlite3
 
 import generate
+import llm
 import review_deck
 import schedule
 
@@ -440,7 +441,7 @@ def _picks(island_id, device=PICK_DEV):
 
 
 def _cli(monkeypatch, payload):
-    monkeypatch.setattr(generate, "_run_cli", lambda prompt, tag: payload if payload is None else _json.dumps(payload))
+    monkeypatch.setattr(llm, "_run_cli", lambda prompt, tag, timeout=None: payload if payload is None else _json.dumps(payload))
 
 
 def _code(fn, *a, **kw):

@@ -16,6 +16,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
 import { LevelBars, meterLevel } from '@/components/level-bars';
+import { EnergyChip } from '@/components/energy-bolt';
+import { canAfford, priceOf, useEnergy } from '@/lib/energy';
 import { PrismButton } from '@/components/prism';
 import { Segmented, type SegmentOption } from '@/components/segmented';
 
@@ -99,6 +101,7 @@ function TakeWave({ bars, progress }: { bars: number[]; progress: number }) {
 
 export default function RecordScreen() {
   const { t } = useT();
+  const energy = useEnergy();
   const dir = useDir();
   const router = useRouter();
   const topic = useLocalSearchParams<{ mode?: string }>().mode === 'topic';
@@ -443,6 +446,8 @@ export default function RecordScreen() {
                   height={prism.sizes.bigRound}
                   label={t(topic ? 'record.topic.build' : 'record.buildIsland')}
                   onPress={build}
+                  disabled={!topic && !canAfford(energy, 'create')}
+                  trailing={topic ? undefined : <EnergyChip energy={energy} cost={priceOf(energy, 'create')} />}
                   accessibilityRole="button"
                 />
                 <View style={styles.secondaryRow}>

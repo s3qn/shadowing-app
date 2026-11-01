@@ -17,6 +17,7 @@ of the same video pays no LLM call. Pure except `apply` and `job`.
 import difflib
 import hashlib
 import json
+import functools
 import logging
 import os
 import re
@@ -37,7 +38,12 @@ BATCH = 40
 CONTEXT_LINES = 2
 WORKERS = 3
 BATCH_TIMEOUT_S = 90.0
-JOB_DEADLINE_S = 900.0
+JOB_DEADLINE_S = 900.0  # floor; see job_deadline_s
+DEADLINE_PER_1000_LINES_S = 900.0
+# Only the first MAX_LINES lines of an import go to the model (about 38
+# Sonnet batches at the default); the rest stay unrepaired and unchecked, and
+# the job ends done with the reason "capped".
+MAX_LINES = int(os.getenv("SHADOW_REPAIR_MAX_LINES", "1500"))
 SPAN_SOUND_ALIKE = 1
 SPAN_MAX_RATIO = 0.5
 LINE_RATIO = (0.6, 1.5)
@@ -436,21 +442,32 @@ def _batch_prompt(texts: list[str], start: int, end: int, title: str, terms: lis
     return prompt(numbered, title, terms)
 
 
+def job_deadline_s(n_lines: int) -> float:
+    """900 s per 1000 lines, never under JOB_DEADLINE_S."""
+    return max(JOB_DEADLINE_S, DEADLINE_PER_1000_LINES_S * n_lines / 1000.0)
+
+
 def repair_lines(texts: list[str], context: dict | None, *,
                  llm_call: Callable[..., Any] | None = None,
-                 deadline_s: float = JOB_DEADLINE_S) -> dict:
+                 deadline_s: float | None = None) -> dict:
     """Run the pass over `texts` (the island's lines in order). Batches of
     BATCH lines with CONTEXT_LINES of context each side go to the model,
     WORKERS at a time; the gate and the verdict then judge every line. A
-    batch that fails or starts after `deadline_s` leaves its lines sure=None.
+    batch that fails or starts after `deadline_s`, and every line past
+    MAX_LINES, keeps its text with sure=None.
     Pure apart from the model calls."""
     t0 = time.monotonic()
+    if deadline_s is None:
+        deadline_s = job_deadline_s(len(texts))
     call = llm_call or llm.complete
     context = context or {}
     terms = glossary(context)
     glossary_set = set(terms)
     title = context.get("title") or ""
-    ranges = [(s, min(s + BATCH, len(texts))) for s in range(0, len(texts), BATCH)]
+    limit = min(len(texts), max(0, MAX_LINES))
+    if limit < len(texts):
+        log.warning("repair: %d lines, only the first %d go to the model", len(texts), limit)
+    ranges = [(s, min(s + BATCH, limit)) for s in range(0, limit, BATCH)]
     deadline = t0 + deadline_s
 
     def run(batch: tuple[int, int]) -> list | None:
@@ -517,6 +534,7 @@ def repair_lines(texts: list[str], context: dict | None, *,
         "batches": len(ranges), "failed_batches": failed, "candidates": len(candidates),
         "accepted": accepted, "sure": sure, "unsure": unsure,
         "unchecked": len(lines) - sure - unsure, "wall_s": round(time.monotonic() - t0, 2),
+        "capped": len(texts) - limit,
     }
     return {"version": VERSION, "glossary": terms, "lines": lines, "stats": stats}
 
@@ -646,7 +664,8 @@ def job(island_id: str, asr: bool | None = None) -> None:
         if hit:
             log.info("repair %s: cached result for video %s", island_id, video_id)
         else:
-            result = repair_lines(texts, cached.get("context") or {})
+            result = repair_lines(texts, cached.get("context") or {},
+                                  llm_call=functools.partial(llm.complete, ref=video_id))
             stats = result["stats"]
             if stats["batches"] and stats["failed_batches"] == stats["batches"]:
                 log.warning("repair %s: every batch failed, nothing cached", island_id)
@@ -660,7 +679,10 @@ def job(island_id: str, asr: bool | None = None) -> None:
                 return
             store.set_repair_result(video_id, VERSION, digest, result)
         apply(island_id, result, mark_sure=mark_sure)
-        store.set_repair_status(island_id, "done", "" if mark_sure else "unknown_track", VERSION)
+        reason = "" if mark_sure else "unknown_track"
+        if (result.get("stats") or {}).get("capped"):
+            reason = "capped"
+        store.set_repair_status(island_id, "done", reason, VERSION)
     except Exception:
         log.exception("repair %s crashed", island_id)
         store.set_repair_status(island_id, "failed", "repair_error")

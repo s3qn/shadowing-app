@@ -69,6 +69,8 @@ export type PrismFaceProps = {
   style?: StyleProp<ViewStyle>;
   /** The icon. */
   children?: ReactNode;
+  /** Pill: after the label (the energy cost chip). */
+  trailing?: ReactNode;
 };
 
 /** Reads `onT` as a number in 0..1. A NaN on the UI thread would exit Expo Go silently. */
@@ -84,7 +86,7 @@ function safeT(v: number): number {
  * rim that strengthens when `onT` reaches 1. Carries no press behaviour;
  * `PrismButton` adds the drop and the ripples on top of this.
  */
-export function PrismFace({ shape, size, width, height, verb, onT, dimT, flat, tint, label, labelStyle, value, style, children }: PrismFaceProps) {
+export function PrismFace({ shape, size, width, height, verb, onT, dimT, flat, tint, label, labelStyle, value, style, children, trailing }: PrismFaceProps) {
   const colours = verbTokens[verb];
   const dir = useDir();
   // A face used outside PrismButton (the lab's static discs) never passes
@@ -215,6 +217,7 @@ export function PrismFace({ shape, size, width, height, verb, onT, dimT, flat, t
           {children}
           {labelNode}
           {valueNode}
+          {trailing}
         </View>
       </View>
     </View>
