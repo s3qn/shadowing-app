@@ -6,6 +6,7 @@
  */
 
 import { devGrantCoins, type CatchCollection } from '@/lib/api';
+import { setBetaOverride } from '@/lib/beta';
 import { clearLevelUp, clearStreakMoment, MILESTONE_DAYS, milestoneOf, pushLevelUp, pushStreakMoment } from '@/lib/level-up-store';
 import { setDevApiBlock } from '@/lib/dev-api-block';
 import { setDevEnergy } from '@/lib/energy';
@@ -137,7 +138,17 @@ const SIMULATIONS: Record<string, () => Promise<void> | void> = {
   'repair-failed': () => {
     repairPhases = ['failed'];
   },
+  // launch-basics: beta gate overrides, in memory.
+  'beta-on': () => setBetaOverride({ features: true }),
+  'beta-off': () => setBetaOverride({ features: false }),
+  'admin-on': () => setBetaOverride({ admin: true }),
+  'admin-denied': () => setBetaOverride({ admin: true, denied: true }),
+  // beta-gate: the people in the State table. beta-off above is the regular user.
+  'admin-beta-off': () => setBetaOverride({ features: false, admin: true }),
+  'admin-beta-on': () => setBetaOverride({ features: true, admin: true }),
+  'friend-beta-on': () => setBetaOverride({ features: true, admin: false }),
   reset: () => {
+    setBetaOverride({});
     streak(null);
     repairPhases = [];
     wordsSim = null;
@@ -155,6 +166,7 @@ export async function runSimulation(key: string): Promise<void> {
 
 export function resetSimulation(): void {
   if (!__DEV__) return;
+  setBetaOverride({});
   streak(null);
   repairPhases = [];
   wordsSim = null;

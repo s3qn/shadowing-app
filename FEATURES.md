@@ -286,6 +286,8 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Streaks BL-80: gem ladder, tier achievements, freezes, reminder
 - Subtitle repair for YouTube-only videos
 - Guided intro arrow and loop fix
+- BL-88 beta gate: admin-only beta switch, shadowing-only app for regular
+  users
 
 ## Next (approved, in order)
 

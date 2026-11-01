@@ -86,6 +86,7 @@ import { hapticImpact, hapticSelection } from '@/lib/haptics';
 import { invalidateCachedIsland, peekCachedIsland, readCachedIsland, writeCachedIsland } from '@/lib/island-cache';
 import { requestLoader } from '@/lib/loading-overlay';
 import { IslandGuide } from '@/components/onboarding/island-guide';
+import { useBetaFeatures } from '@/lib/beta'; // beta-gate
 import { getGuideStep, noteGuideEasyTap, setGuideStep, useGuideAnchor, useGuideLock, useGuideStep } from '@/lib/guide'; // bl57-intro-round2
 import { GuideBubble } from '@/components/onboarding/guide-bubble'; // bl58-easy-for-me
 import { GlassPanel } from '@/components/prism/glass-panel'; // bl58-easy-for-me
@@ -373,6 +374,7 @@ export default function IslandScreen() {
   const dockY = useRef(0);
   // bl56-first-run-flow: the guide's first island parks each played line and shows IslandGuide.
   const guideStep = useGuideStep();
+  const beta = useBetaFeatures().beta; // beta-gate: Drive in the menu
   // bl57-intro-round2: four moments on the 3-line starter island (listen, shadow, prep, solo).
   const guideOn =
     (guideStep === 'listen' || guideStep === 'shadow' || guideStep === 'prep' || guideStep === 'solo') &&
@@ -4306,7 +4308,7 @@ export default function IslandScreen() {
         onRename={onMenuRename}
         onExport={onMenuExport}
         onBeforeAfter={onMenuBeforeAfter} // before-after
-        onDrive={(island as { has_audio?: boolean }).has_audio === false ? undefined : onMenuDrive}
+        onDrive={beta && (island as { has_audio?: boolean }).has_audio !== false ? onMenuDrive : undefined}
         onWatch={island.source === 'youtube' ? onMenuWatch : undefined} // youtube-shadowing
         onListen={island.source === 'podcast' ? onMenuListen : undefined} // podcast-listen
         onRevoice={onMenuRevoice}

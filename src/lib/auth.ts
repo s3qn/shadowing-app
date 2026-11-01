@@ -4,6 +4,7 @@ import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { CryptoDigestAlgorithm, digestStringAsync, randomUUID } from 'expo-crypto';
 
 import { GOOGLE_IOS_CLIENT_ID, GOOGLE_WEB_CLIENT_ID } from '@/lib/auth-config';
+import { refreshBeta, resetBeta } from '@/lib/beta';
 import { t } from '@/lib/i18n';
 import { SESSION_STORAGE_KEY, supabase } from '@/lib/supabase';
 
@@ -137,6 +138,7 @@ export async function signInWithApple(): Promise<SignInResult> {
     nonce: raw,
   });
   if (error) throw error;
+  void refreshBeta();
   return 'ok';
 }
 
@@ -153,6 +155,7 @@ export async function signInWithGoogle(): Promise<SignInResult> {
   if (!token) throw new Error(t('settings.account.noToken', { provider: 'Google' }));
   const { error } = await supabase.auth.signInWithIdToken({ provider: 'google', token });
   if (error) throw error;
+  void refreshBeta();
   return 'ok';
 }
 
@@ -164,6 +167,7 @@ export async function signOut(): Promise<void> {
     signingOut = false;
   }
   apply(null);
+  void resetBeta();
 }
 
 /** After the server deleted the user: the token is dead, so clear it locally. */
@@ -175,4 +179,5 @@ export async function signOutLocal(): Promise<void> {
     signingOut = false;
   }
   apply(null);
+  void resetBeta();
 }

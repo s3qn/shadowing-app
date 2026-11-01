@@ -256,7 +256,8 @@ function StreakFlame({ log, onPress }: { log: PracticeLog; onPress?: () => void 
   );
 }
 
-export function PracticeCard({ log, dueCount, onPractice, onDrive, onStreak }: { log: PracticeLog; dueCount: number | null; onPractice: () => void; onDrive: () => void; onStreak?: () => void }) {
+/** beta-gate: `onStreak` and `onDrive` come only with the beta layer; without them the gem, its divider and the Drive pill are not drawn and Practice now takes the row. */
+export function PracticeCard({ log, dueCount, onPractice, onDrive, onStreak }: { log: PracticeLog; dueCount: number | null; onPractice: () => void; onDrive?: () => void; onStreak?: () => void }) {
   const { t } = useT();
   const dir = useDir();
   const reducedMotion = useReducedMotion();
@@ -274,8 +275,8 @@ export function PracticeCard({ log, dueCount, onPractice, onDrive, onStreak }: {
   return (
     <View style={StyleSheet.flatten([styles.card, { backgroundColor: tide.water, borderColor: tide.waterline }])}>
       <View style={[styles.numbers, dir.row]}>
-        <StreakFlame log={log} onPress={onStreak} />
-        <View style={styles.divider} />
+        {onStreak ? <StreakFlame log={log} onPress={onStreak} /> : null}
+        {onStreak ? <View style={styles.divider} /> : null}
         <View style={styles.stat}>
           {/* Not `dir.row`: "1/10" is one number pair and keeps its order in
               every language, the way a clock or a score does. */}
@@ -322,9 +323,11 @@ export function PracticeCard({ log, dueCount, onPractice, onDrive, onStreak }: {
           style={{ alignSelf: 'stretch', justifyContent: 'center' }}>
           <SymbolView name={{ ios: 'play.fill', android: 'play_arrow' }} size={16} weight="regular" tintColor={verb.speak.c1} />
         </PrismButton>
-        <PrismButton shape="pill" verb="listen" height={44} label={t('home.drive')} onPress={onDrive} containerStyle={{ marginStart: Spacing.sm }}>
-          <SymbolView name={{ ios: 'car.fill', android: 'directions_car' }} size={16} weight="regular" tintColor={verb.listen.c1} />
-        </PrismButton>
+        {onDrive ? (
+          <PrismButton shape="pill" verb="listen" height={44} label={t('home.drive')} onPress={onDrive} containerStyle={{ marginStart: Spacing.sm }}>
+            <SymbolView name={{ ios: 'car.fill', android: 'directions_car' }} size={16} weight="regular" tintColor={verb.listen.c1} />
+          </PrismButton>
+        ) : null}
       </View>
     </View>
   );

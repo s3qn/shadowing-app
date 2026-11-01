@@ -2,11 +2,13 @@ import { Tabs } from 'expo-router';
 
 import { PillTabBar } from '@/components/pill-tab-bar';
 import { tide } from '@/constants/theme';
+import { useBetaFeatures } from '@/lib/beta';
 import { useDir, useT } from '@/lib/i18n';
 
 export default function TabsLayout() {
   const { t } = useT();
   const dir = useDir();
+  const { podcast } = useBetaFeatures();
   return (
     <Tabs
       screenOptions={{
@@ -19,7 +21,10 @@ export default function TabsLayout() {
       }}
       tabBar={(props) => <PillTabBar {...props} />}>
       <Tabs.Screen name="index" options={{ title: t('tab.islands') }} />
-      <Tabs.Screen name="podcast" options={{ title: t('tab.podcast') }} />
+      {/* beta-gate: without the switch the podcast tab is not a route at all, so a deep link cannot open it. */}
+      <Tabs.Protected guard={podcast}>
+        <Tabs.Screen name="podcast" options={{ title: t('tab.podcast') }} />
+      </Tabs.Protected>
       <Tabs.Screen name="settings" options={{ title: t('tab.settings') }} />
     </Tabs>
   );

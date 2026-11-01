@@ -80,33 +80,36 @@ def split_shares(counts: list[int], size: int) -> list[int]:
     return shares
 
 
-def candidates(device: str, today: str, language: str | None = None) -> list[dict]:
+def candidates(device: str, today: str, language: str | None = None,
+               beta_on: bool = True) -> list[dict]:
     """Every project that can supply lines today, in play order: card
     projects by due count desc, due islands by due_on asc (never practised
     counts as today), then card projects with nothing due by latest save desc.
-    `language` keeps only projects in that learning language; None keeps all."""
-    with_due, islands, idle = _projects(device, today, language)
+    `language` keeps only projects in that learning language; None keeps all.
+    `beta_on` False drops video and podcast cards (their players are beta)."""
+    with_due, islands, idle = _projects(device, today, language, beta_on)
     return with_due + [p for p in islands if p["due_on"] <= today] + idle
 
 
-def _all(device: str, today: str, language: str | None = None) -> list[dict]:
+def _all(device: str, today: str, language: str | None = None,
+         beta_on: bool = True) -> list[dict]:
     """candidates plus the islands not due yet: everything a learner can add."""
-    with_due, islands, idle = _projects(device, today, language)
+    with_due, islands, idle = _projects(device, today, language, beta_on)
     return with_due + islands + idle
 
 
-def available(device: str, language: str | None = None) -> list[dict]:
+def available(device: str, language: str | None = None, beta_on: bool = True) -> list[dict]:
     """Every project with saved lines, for the start screen's Add list."""
     out = []
-    for p in _all(device, schedule._today(), language):
+    for p in _all(device, schedule._today(), language, beta_on):
         total = len(p["lines"]) if p["lines"] is not None else p["line_count"]
         out.append({"island_id": p["island_id"], "title": p["title"], "source": p["source"],
                     "kind": p["kind"], "total": total})
     return out
 
 
-def _projects(device: str, today: str,
-              language: str | None = None) -> tuple[list[dict], list[dict], list[dict]]:
+def _projects(device: str, today: str, language: str | None = None,
+              beta_on: bool = True) -> tuple[list[dict], list[dict], list[dict]]:
     all_islands = store.list_islands(device)
     # Lines marked "Easy for me" leave every project; one rule for cards and
     # whole islands, so plan, the edited plan and the Add list totals agree.
@@ -117,6 +120,8 @@ def _projects(device: str, today: str,
     for card in review_deck.list_cards(device):
         lang = card.get("language") or island_lang.get(card["island_id"], "ja")
         if language and lang != language:
+            continue
+        if not beta_on and card["source"] in schedule.NO_SCHEDULE_SOURCES:
             continue
         by_island.setdefault(card["island_id"], []).append(card)
 
@@ -190,11 +195,11 @@ def _load_lines(p: dict) -> list[dict]:
 
 
 def _edited(device: str, today: str, edit: list[tuple[str, int]],
-            language: str | None = None) -> tuple[list[dict], list[int]]:
+            language: str | None = None, beta_on: bool = True) -> tuple[list[dict], list[int]]:
     """The learner's own plan: these projects in this order, each with up to
     its count of lines. Unknown ids, repeats, other languages and counts
     under 1 drop out."""
-    pool = {p["island_id"]: p for p in _all(device, today, language)}
+    pool = {p["island_id"]: p for p in _all(device, today, language, beta_on)}
     projs, shares = [], []
     for island_id, n in edit:
         p = pool.pop(island_id, None)
@@ -208,19 +213,22 @@ def _edited(device: str, today: str, edit: list[tuple[str, int]],
 
 
 def plan(device: str, size: int, order: list[str] | None = None,
-         edit: list[tuple[str, int]] | None = None, language: str | None = None) -> dict:
+         edit: list[tuple[str, int]] | None = None, language: str | None = None,
+         beta_on: bool = True) -> dict:
     """The session for `size` sentences. Pure: nothing is written. `order`
     (island ids) only moves the chosen projects: listed ones play first in
     that order, the rest keep their place after them. `edit` replaces the
     choice: (island id, count) pairs in play order, each project filled with
     its weakest lines, and `size` becomes the sum. `language` keeps only
-    projects in that learning language; None mixes every language."""
+    projects in that learning language; None mixes every language. `beta_on`
+    False leaves out video and podcast cards."""
     today = schedule._today()
     if edit is not None:
-        projs, shares = _edited(device, today, edit, language)
+        projs, shares = _edited(device, today, edit, language, beta_on)
         size = sum(shares)
     else:
-        projs = [p for p in candidates(device, today, language)[: MAX_PROJECTS[size]] if _load_lines(p)]
+        projs = [p for p in candidates(device, today, language, beta_on)[: MAX_PROJECTS[size]]
+                 if _load_lines(p)]
         shares = split_shares([len(p["lines"]) for p in projs], size)
     scores = latest_scores(device)
     out = []
@@ -249,9 +257,10 @@ def plan(device: str, size: int, order: list[str] | None = None,
 
 
 def start(device: str, size: int, order: list[str] | None = None,
-          edit: list[tuple[str, int]] | None = None, language: str | None = None) -> dict:
+          edit: list[tuple[str, int]] | None = None, language: str | None = None,
+          beta_on: bool = True) -> dict:
     """Plans, records the session row and returns the plan with its id."""
-    result = plan(device, size, order, edit, language)
+    result = plan(device, size, order, edit, language, beta_on)
     result["session_id"] = uuid.uuid4().hex
     store.add_session(device, result["session_id"], result["size"], result["count"],
                       result["count"] * result["seconds_per_sentence"],

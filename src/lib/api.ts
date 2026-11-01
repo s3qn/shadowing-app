@@ -1340,6 +1340,34 @@ export async function buyCosmetic(itemId: string): Promise<Progress> {
   return json<Progress>(await expoFetch(`${BASE}/cosmetics/buy`, { method: 'POST', headers: headers(), body: form }));
 }
 
+// --- launch-basics: beta routes ---
+export type BetaAnswer = { admin: boolean; beta: boolean; youtube: boolean; podcast: boolean; import: boolean };
+export type BetaPerson = { owner: string; handle: string | null; kind: 'user' | 'device'; enabled: boolean; me: boolean };
+
+/** Which hidden features this principal may see. */
+export async function getBeta(): Promise<BetaAnswer> {
+  return json<BetaAnswer>(await fetch(`${BASE}/beta`, { headers: headers() }));
+}
+
+/** Admin only: everyone who can be switched on. A 403 throws an error with `status` 403. */
+export async function adminListBeta(): Promise<BetaPerson[]> {
+  const res = await fetch(`${BASE}/admin/beta`, { headers: headers() });
+  if (res.status === 403) throw Object.assign(new Error('not_admin'), { status: 403 });
+  return (await json<{ people: BetaPerson[] }>(res)).people;
+}
+
+/** Admin only: switch the beta features on or off for one owner. */
+export async function adminSetBeta(owner: string, enabled: boolean): Promise<void> {
+  const res = await fetch(`${BASE}/admin/beta`, {
+    method: 'PUT',
+    headers: { ...headers(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ owner, enabled }),
+  });
+  if (res.status === 403) throw Object.assign(new Error('not_admin'), { status: 403 });
+  await json<unknown>(res);
+}
+// --- end launch-basics ---
+
 /** Dev only: grants coins to this device and returns the new snapshot. */
 export async function devGrantCoins(amount: number, clearFreezes = false): Promise<Progress> {
   return json<Progress>(await expoFetch(`${BASE}/dev/coins`, {

@@ -31,6 +31,7 @@ import { tide } from '@/constants/theme';
 import { isolate } from '@/lib/bidi';
 import { hapticImpact, hapticNotify } from '@/lib/haptics';
 import { useDir, useT } from '@/lib/i18n';
+import { useBetaFeatures } from '@/lib/beta';
 import { clearCelebration, clearLevelUp, clearStreakMoment, clearXpToast, useXpToast, type Celebration, type PendingLevelUp, type RecapLine, type StreakMilestone } from '@/lib/level-up-store';
 import { equippedArt, markUnlockSeen, useProgressCache } from '@/lib/progression';
 import { EmberGlow, WEEKDAY_KEY } from '@/components/practice-card';
@@ -139,13 +140,15 @@ export function SessionCelebration({ c, levelUp }: Props) {
   const { progress, catalog } = useProgressCache();
   const cheer = CHEER[getSettingsSync().learningLanguage] ?? CHEER.en;
   const levelOnly = !c;
+  // beta-gate: a regular user gets the summary only; the XP stage and the level bits never show.
+  const plain = !useBetaFeatures().beta;
   const [stage, setStage] = useState<'summary' | 'xp'>(c?.recap ? 'summary' : 'xp');
 
   const xp = c?.xp ?? 0;
   const level = c?.after.level ?? levelUp?.level ?? 1;
   const prevLevel = c?.before.level ?? levelUp?.prevLevel ?? level - 1;
   const hoursOnly = levelOnly && !!levelUp?.hoursItem && levelUp.level === levelUp.prevLevel;
-  const leveled = hoursOnly ? false : levelOnly || level > prevLevel;
+  const leveled = hoursOnly || plain ? false : levelOnly || level > prevLevel;
   const [catEmotion, fireEmotion] = useEmotionPulse();
   const avgScore = c?.avgScore ?? null;
   useEffect(() => {
@@ -293,7 +296,8 @@ export function SessionCelebration({ c, levelUp }: Props) {
   ) : null;
 
   const ctaBottom = insets.bottom + 28;
-  const cta = stage === 'summary' && xp > 0 ? t('summary.collect') : t('summary.done');
+  const collect = !plain && stage === 'summary' && xp > 0;
+  const cta = collect ? t('summary.collect') : t('summary.done');
 
   return (
     <View style={[StyleSheet.absoluteFill, styles.root]} accessibilityViewIsModal>
@@ -421,7 +425,7 @@ export function SessionCelebration({ c, levelUp }: Props) {
             />
           </View>
         ) : null}
-        <PrismButton shape="pill" verb="read" on width={width - 40} height={58} label={cta} onPress={stage === 'summary' && xp > 0 ? () => setStage('xp') : done} />
+        <PrismButton shape="pill" verb="read" on width={width - 40} height={58} label={cta} onPress={collect ? () => setStage('xp') : done} />
       </View>
     </View>
   );

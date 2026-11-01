@@ -21,6 +21,7 @@ import { fonts } from '@/constants/fonts';
 import { Spacing, tide, verb } from '@/constants/theme';
 import * as api from '@/lib/api';
 import { getSessionPrefs, routeFor, setSessionPrefs, startSession } from '@/lib/auto-practice';
+import { useBetaFeatures } from '@/lib/beta';
 import { confirmSheet } from '@/lib/confirm-sheet';
 import { getGuideStep, guidePracticeStarted, useGuideAnchor, useGuideLock, useGuideStep } from '@/lib/guide';
 import { hapticImpact, hapticSelection } from '@/lib/haptics';
@@ -71,6 +72,7 @@ const dropHaptic = () => void hapticSelection();
 /** One saved line, one island or one podcast at a time: the session's start screen. Practice now plays the plan through the existing players. */
 export default function ReviewScreen() {
   const { t } = useT();
+  const beta = useBetaFeatures();
   const dir = useDir();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -289,7 +291,7 @@ export default function ReviewScreen() {
             <>
               <Text style={[styles.emptyTitle, dir.writing]}>{t('review.emptyTitle')}</Text>
               <Text style={[styles.hint, dir.writing]}>{t('review.emptyHint')}</Text>
-              <PrismButton shape="pill" verb="listen" label={t('review.openPodcasts')} onPress={() => router.navigate('/podcast')} />
+              <PrismButton shape="pill" verb="listen" label={beta.podcast ? t('review.openPodcasts') : t('review.openHome')} onPress={() => router.navigate(beta.podcast ? '/podcast' : '/')} />
             </>
           )}
         </View>

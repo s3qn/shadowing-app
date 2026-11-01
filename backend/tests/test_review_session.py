@@ -7,6 +7,7 @@ import sqlite3
 import pytest
 from fastapi import HTTPException
 
+import beta
 import main
 import progression
 import review_deck
@@ -33,6 +34,9 @@ def _init_db():
         conn.execute("DELETE FROM islands WHERE device=?", (DEV,))
     with schedule.connect() as conn:
         conn.execute("DELETE FROM schedule_state")
+    # These tests mix video and podcast cards in, which only a beta user gets.
+    beta.init()
+    beta.set_flag(DEV, True, "test")
 
 
 def _island(source, n, title="T"):
@@ -335,3 +339,30 @@ def test_language_filter_keeps_only_the_learning_language():
         body=main.SessionStartBody(size=30, language="ja"), authorization=AUTH,
         x_shadow_device=DEV))
     assert [p["island_id"] for p in started["projects"]] == [ja_pod]
+
+
+def test_beta_off_drops_video_and_podcast_cards_from_plan_available_and_routes():
+    beta.delete_owner(DEV)
+    pod = _island("podcast", 4, "Pod")
+    _cards(pod, 4)
+    vid = _island("youtube", 3, "Vid")
+    _cards(vid, 3)
+    voice = _island("voice", 5, "Voice")
+    _cards(voice, 2)
+    ids = lambda got: {p["island_id"] for p in got}  # noqa: E731
+    assert ids(rs.plan(DEV, 30, beta_on=False)["projects"]) == {voice}
+    assert ids(rs.available(DEV, beta_on=False)) == {voice}
+    edited = rs.plan(DEV, 30, edit=[(pod, 2), (vid, 2), (voice, 2)], beta_on=False)
+    assert ids(edited["projects"]) == {voice}
+    assert ids(rs.plan(DEV, 30)["projects"]) == {pod, vid, voice}
+    # The routes ask _beta_on: a plain device with no flag is off.
+    got = asyncio.run(main.review_session_plan(size=30, authorization=AUTH, x_shadow_device=DEV))
+    assert ids(got["projects"]) == {voice}
+    listed = asyncio.run(main.review_session_projects(authorization=AUTH, x_shadow_device=DEV))
+    assert ids(listed["projects"]) == {voice}
+    started = asyncio.run(main.review_session_start(
+        body=main.SessionStartBody(size=30), authorization=AUTH, x_shadow_device=DEV))
+    assert ids(started["projects"]) == {voice}
+    beta.set_flag(DEV, True, "test")
+    got = asyncio.run(main.review_session_plan(size=30, authorization=AUTH, x_shadow_device=DEV))
+    assert ids(got["projects"]) == {pod, vid, voice}

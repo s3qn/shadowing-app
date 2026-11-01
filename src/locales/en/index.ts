@@ -1,3 +1,4 @@
+import { en as admin } from './admin';
 import { en as beforeAfter } from './before-after';
 import { en as common } from './common';
 import { en as drive } from './drive';
@@ -17,9 +18,9 @@ import { en as settings } from './settings';
 import { en as video } from './video';
 import { en as wardrobe } from './wardrobe';
 
-const NAMESPACES = { beforeAfter, common, drive, home, importFile, intro, leaderboard, player, playerIsland, playerTide, playerSheets, podcast, profile, record, review, settings, video, wardrobe };
+const NAMESPACES = { admin, beforeAfter, common, drive, home, importFile, intro, leaderboard, player, playerIsland, playerTide, playerSheets, podcast, profile, record, review, settings, video, wardrobe };
 
-export const en = { ...beforeAfter, ...common, ...drive, ...home, ...importFile, ...intro, ...leaderboard, ...player, ...playerIsland, ...playerTide, ...playerSheets, ...podcast, ...profile, ...record, ...review, ...settings, ...video, ...wardrobe };
+export const en = { ...admin, ...beforeAfter, ...common, ...drive, ...home, ...importFile, ...intro, ...leaderboard, ...player, ...playerIsland, ...playerTide, ...playerSheets, ...podcast, ...profile, ...record, ...review, ...settings, ...video, ...wardrobe };
 
 // Spreading hides a collision: two namespaces claiming the same key leaves the
 // later one's wording everywhere, silently and only in the app, since both

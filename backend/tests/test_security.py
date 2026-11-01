@@ -9,6 +9,7 @@ import pytest
 from fastapi import BackgroundTasks, HTTPException
 from fastapi.testclient import TestClient
 
+import beta
 import main
 import podcast
 import store
@@ -25,6 +26,9 @@ DEV = "0123456789abcdef0123456789abcdef"
 @pytest.fixture(autouse=True)
 def _init_db():
     store.init()
+    # The podcast routes are beta-only (launch-basics); these tests check
+    # their error text, not the gate, so the test device is flagged on.
+    beta.set_flag(DEV, True, "tests")
 
 
 # --- F5: non-ASCII bearer ---

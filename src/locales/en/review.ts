@@ -2,6 +2,7 @@ export const en = {
   'review.save': 'Save sentence',
   'review.saved': 'Saved sentence',
   'review.openPodcasts': 'Open podcasts',
+  'review.openHome': 'Open islands',
   'review.xpEarned': '+{n} XP',
   'review.streakDay': '🔥 {n} day streak',
   'review.streakDay_one': '🔥 {n} day streak',

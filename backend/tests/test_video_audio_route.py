@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import align
+import beta
 import main
 import store
 
@@ -22,6 +23,10 @@ client = TestClient(main.app)
 @pytest.fixture(autouse=True)
 def _init_db():
     store.init()
+    # The video, caption and youtube routes are beta-only (launch-basics); the
+    # gate is not under test here, so the test device is flagged on.
+    for owner in (DEV, "dddddddd-0000-4000-8000-0000000000a2"):
+        beta.set_flag(owner, True, "tests")
 
 
 def make_video(language="ja", ready=True, texts=("こんにちは", "元気ですか")):

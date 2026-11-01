@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GUIDE_CHIP_ROOM, GuideLayer, type GuideHole, guideBubbleHeight } from '@/components/onboarding/guide-layer';
 import { StarterFinish } from '@/components/onboarding/starter-finish';
 import * as api from '@/lib/api';
+import { useBetaFeatures } from '@/lib/beta';
 import { getGuideBefore, getGuideStep, guideStartHome, setGuideStep, useGuideAnchors, useGuideStep, type GuideBox } from '@/lib/guide';
 import { confirmSheet } from '@/lib/confirm-sheet';
 import { t as tr, useT } from '@/lib/i18n';
@@ -48,6 +49,14 @@ export function GuideHost() {
   const pathname = usePathname();
   const segments = useSegments() as string[];
   const step = useGuideStep();
+  const beta = useBetaFeatures();
+  // launch-basics: the tour talks about the Podcast tab. With the tab hidden there is nothing to show, so the guide goes on to the cat.
+  // beta-gate: the level-up, tour, cat, wardrobe and ranks moments are all beta; a regular user goes straight to the free step.
+  useEffect(() => {
+    if (!beta.ready) return;
+    if (!beta.beta && (step === 'levelup' || step === 'tour' || step === 'cat' || step === 'wardrobe' || step === 'ranks')) setGuideStep('free');
+    else if (step === 'tour' && !beta.podcast) setGuideStep('cat');
+  }, [step, beta.ready, beta.beta, beta.podcast]);
   const a = useGuideAnchors();
   const onboarded = useSyncExternalStore(subscribeSettings, () => getSettingsSync().onboarded);
   const resumed = useRef(false);

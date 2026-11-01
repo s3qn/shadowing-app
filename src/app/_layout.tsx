@@ -20,11 +20,12 @@ import { tide } from '@/constants/theme';
 import { getUsername } from '@/lib/api';
 import { loadSession, onSessionLost } from '@/lib/auth';
 import { loadDeviceId } from '@/lib/device';
+import { getBetaSync, loadBetaCache, refreshBeta, useBetaFeatures } from '@/lib/beta';
 import { noteRoute, useFeedbackFlush } from '@/lib/feedback';
 import { loadOfflineIndex } from '@/lib/offline-islands'; // offline-islands
 import { type GuideStep, guideStartHome, useGuideStep } from '@/lib/guide';
 import { useT } from '@/lib/i18n';
-import { isSessionActive, useCelebration, usePendingLevelUp, useStreakMoment } from '@/lib/level-up-store';
+import { clearCelebration, clearLevelUp, clearStreakMoment, clearXpToast, isSessionActive, useCelebration, usePendingLevelUp, useStreakMoment, useXpToast } from '@/lib/level-up-store';
 import { getSettings } from '@/lib/settings';
 import { startStreakReminderSync } from '@/lib/streak-reminder';
 
@@ -38,19 +39,32 @@ const GUIDE_QUIET = new Set<GuideStep>(['listen', 'shadow', 'topics', 'size', 'p
 /** The session summary as soon as a session ends; a level-up from anywhere else once the user has left every practice screen; else the XP toast. */
 const celebrationKeys = new WeakMap<object, number>();
 let nextCelebrationKey = 0;
+function celebrationKey(c: object): number {
+  let key = celebrationKeys.get(c);
+  if (key === undefined) celebrationKeys.set(c, (key = ++nextCelebrationKey));
+  return key;
+}
 
 function LevelUpHost() {
   const pending = usePendingLevelUp();
   const celebration = useCelebration();
   const streak = useStreakMoment();
+  const toast = useXpToast();
   const segments = useSegments() as string[];
   const guideStep = useGuideStep();
+  const beta = useBetaFeatures().beta;
+  // beta-gate: XP, level-ups and streak moments are beta. Whatever queues up for a regular user is dropped, so a later flip never replays it.
+  useEffect(() => {
+    if (beta) return;
+    if (pending) clearLevelUp();
+    if (streak) clearStreakMoment();
+    if (toast.n > 0) clearXpToast();
+    if (celebration && !celebration.recap) clearCelebration();
+  }, [beta, pending, streak, toast, celebration]);
   if (GUIDE_QUIET.has(guideStep)) return null;
-  if (celebration) {
-    let key = celebrationKeys.get(celebration);
-    if (key === undefined) celebrationKeys.set(celebration, (key = ++nextCelebrationKey));
-    return <SessionCelebration key={key} c={celebration} levelUp={pending} />;
-  }
+  // A regular user still gets the session summary (the shadowing recap), nothing else.
+  if (!beta) return celebration?.recap ? <SessionCelebration key={celebrationKey(celebration)} c={celebration} levelUp={null} /> : null;
+  if (celebration) return <SessionCelebration key={celebrationKey(celebration)} c={celebration} levelUp={pending} />;
   const first = segments[0] ?? '';
   // island/[id] is one route name across two segments.
   const route = first === 'island' ? 'island/[id]' : first;
@@ -95,6 +109,7 @@ export default function RootLayout() {
   noteRoute(pathname);
   useFeedbackFlush();
   const segments = useSegments() as string[];
+  const beta = useBetaFeatures(); // beta-gate: which screens exist at all
   // No bundled fonts to load anymore (the app uses the platform's system
   // fonts), so the app waits only on two small file reads: the device id,
   // so every request has the header, then the settings, so the first render
@@ -128,6 +143,12 @@ export default function RootLayout() {
       } catch (err: unknown) {
         console.warn('loadSession failed', err);
       }
+      await loadBetaCache(); // beta-gate: the first frame already hides what the last answer hid
+      // launch-basics: with a cache the answer refreshes in the background. With none (a cold first launch)
+      // the splash waits for the first answer, at most 3s, so a deep link to a guarded screen is not
+      // redirected before /shadow/beta replies. Offline it stays closed.
+      const asked = refreshBeta();
+      if (!getBetaSync().ready) await Promise.race([asked, new Promise<void>((r) => setTimeout(r, 3000))]);
       setHasSession(signedIn);
       setNeedsOnboarding(!onboarded);
       setReady(true);
@@ -238,31 +259,6 @@ export default function RootLayout() {
           name="record"
           options={{ title: t('title.newIsland'), presentation: 'modal' }}
         />
-        <Stack.Screen
-          name="import"
-          options={{ title: t('title.newIsland'), presentation: 'modal' }}
-        />
-        {/* youtube-shadowing */}
-        <Stack.Screen name="video/add" options={{ title: t('video.title'), presentation: 'modal' }} />
-        <Stack.Screen name="video/build" options={{ title: t('video.title'), presentation: 'modal' }} />
-        <Stack.Screen
-          name="video/[id]"
-          options={{
-            title: '',
-            headerStyle: { backgroundColor: tide.sky[0] },
-            headerTintColor: tide.text,
-            headerShadowVisible: false,
-          }}
-        />
-        <Stack.Screen
-          name="podcast/[id]"
-          options={{
-            title: '',
-            headerStyle: { backgroundColor: tide.sky[0] },
-            headerTintColor: tide.text,
-            headerShadowVisible: false,
-          }}
-        />
         {/* The player draws its own header. Opened from a Home card (the
             `morph` param), the card morph overlay is the whole transition
             both ways, so the route itself does not animate; anywhere else,
@@ -284,22 +280,54 @@ export default function RootLayout() {
         <Stack.Screen name="settings/playback" options={{ title: t('title.playback') }} />
         <Stack.Screen name="settings/practice" options={{ title: t('title.practice') }} />
         <Stack.Screen name="settings/feedback" options={{ title: t('settings.row.feedback') }} />
-        <Stack.Screen name="podcast/build" options={{ title: t('tab.podcast') }} />
         <Stack.Screen name="settings/data" options={{ title: t('title.data') }} />
-        <Stack.Screen name="settings/words" options={{ title: t('title.words') }} />
         <Stack.Screen name="settings/about" options={{ title: t('title.about') }} />
         <Stack.Screen name="settings/languages" options={{ title: t('title.language') }} />
         <Stack.Screen name="settings/app-language" options={{ title: t('settings.appLanguage') }} />
         <Stack.Screen name="before-after" options={{ title: t('beforeAfter.title') }} />
         <Stack.Screen name="review" options={{ title: t('review.title') }} />
-        <Stack.Screen name="leaderboard" options={{ title: t('leaderboard.title'), headerStyle: { backgroundColor: tide.sky[0] } }} />
-        {/* animationDuration matches SCREEN_FADE_MS in app/drive.tsx, which holds its content until the fade is done. */}
-        <Stack.Screen name="drive" options={{ headerShown: false, animation: 'fade', animationDuration: 250 }} />
-        <Stack.Screen name="wardrobe" options={{ title: t('wardrobe.title'), headerStyle: { backgroundColor: tide.sky[0] }, contentStyle: { backgroundColor: '#0B1020' } /* the wardrobe PAGE colour, so overscroll shows navy, not black */ }} />
-        <Stack.Screen name="profile/[username]" options={{ headerStyle: { backgroundColor: tide.sky[0] } }} />
         {/* Dev-only screen, excluded from the app-language inventory. */}
         <Stack.Screen name="prism-lab" options={{ title: t('title.prismLab') }} />
         <Stack.Screen name="cat-lab" options={{ title: t('title.catLab') }} />
+        {/* beta-gate: every screen that is not shadowing. With the flag off a deep link, an old resume or a stale push lands on Home. */}
+        <Stack.Protected guard={beta.beta}>
+          <Stack.Screen
+            name="import"
+            options={{ title: t('title.newIsland'), presentation: 'modal' }}
+          />
+          {/* youtube-shadowing */}
+          <Stack.Screen name="video/add" options={{ title: t('video.title'), presentation: 'modal' }} />
+          <Stack.Screen name="video/build" options={{ title: t('video.title'), presentation: 'modal' }} />
+          <Stack.Screen
+            name="video/[id]"
+            options={{
+              title: '',
+              headerStyle: { backgroundColor: tide.sky[0] },
+              headerTintColor: tide.text,
+              headerShadowVisible: false,
+            }}
+          />
+          <Stack.Screen
+            name="podcast/[id]"
+            options={{
+              title: '',
+              headerStyle: { backgroundColor: tide.sky[0] },
+              headerTintColor: tide.text,
+              headerShadowVisible: false,
+            }}
+          />
+          <Stack.Screen name="podcast/build" options={{ title: t('tab.podcast') }} />
+          <Stack.Screen name="podcast/episodes" />
+          <Stack.Screen name="settings/words" options={{ title: t('title.words') }} />
+          <Stack.Screen name="leaderboard" options={{ title: t('leaderboard.title'), headerStyle: { backgroundColor: tide.sky[0] } }} />
+          {/* animationDuration matches SCREEN_FADE_MS in app/drive.tsx, which holds its content until the fade is done. */}
+          <Stack.Screen name="drive" options={{ headerShown: false, animation: 'fade', animationDuration: 250 }} />
+          <Stack.Screen name="wardrobe" options={{ title: t('wardrobe.title'), headerStyle: { backgroundColor: tide.sky[0] }, contentStyle: { backgroundColor: '#0B1020' } /* the wardrobe PAGE colour, so overscroll shows navy, not black */ }} />
+          <Stack.Screen name="profile/[username]" options={{ headerStyle: { backgroundColor: tide.sky[0] } }} />
+        </Stack.Protected>
+        <Stack.Protected guard={beta.admin}>
+          <Stack.Screen name="settings/admin" options={{ title: t('admin.title') }} />
+        </Stack.Protected>
       </Stack>
       {__DEV__ ? <ReviewTour /> : null}
       <CardMorphOverlay />

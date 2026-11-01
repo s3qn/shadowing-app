@@ -116,7 +116,14 @@ function hitTestIndex(x: number, tabs: Array<{ x: number; width: number }>): num
  * Floating pill tab bar for the Home / Settings group, styled with the
  * Prism kit's pill tray look: one glass capsule with a sliding lit pill.
  */
-export function PillTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+export function PillTabBar(props: BottomTabBarProps) {
+  // beta-gate: the Podcast tab sits in Tabs.Protected, so `state.routes` already
+  // lacks it when the switch is off. A new tab count remounts the row so the
+  // measured tab boxes start fresh instead of keeping a gone tab's slot.
+  return <PillTabBarRow key={props.state.routes.length} {...props} />;
+}
+
+function PillTabBarRow({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const { rtl } = useDir();
 

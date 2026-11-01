@@ -69,6 +69,7 @@ import phrase_catalog
 import podcast_catalog
 import progression
 import review_session
+import beta
 import user_profile
 import schedule
 import segment
@@ -170,6 +171,7 @@ def _startup() -> None:
     schedule.init()
     progression.init()
     user_profile.init()
+    beta.init()
     review_deck.init()
     catch.init()
     _claim_owner()
@@ -1899,6 +1901,7 @@ def _erase_owner(owner: str) -> None:
     schedule.delete_owner(owner)
     progression.delete_owner(owner)
     user_profile.delete_owner(owner)
+    beta.delete_owner(owner)
     review_deck.delete_owner(owner)
     import aec
 
@@ -2219,6 +2222,14 @@ class DeviceGuard:
             response = JSONResponse({"detail": "missing device id"}, status_code=401)
             await response(scope, receive, send)
             return
+        # --- launch-basics: beta gate (BETA_PATHS and _beta_denied at file end) ---
+        # Only for a request with the shared token: without it the route's own
+        # check answers 401, so a probe cannot tell gated paths from open ones.
+        who = principal if user_token else device
+        if _shared_token_ok(headers, query) and await _beta_denied(scope["path"], who):
+            await JSONResponse({"detail": {"code": "not_beta"}}, status_code=403)(scope, receive, send)
+            return
+        # --- end launch-basics ---
         await self.app(scope, receive, send)
 
 
@@ -3440,9 +3451,10 @@ async def review_session_plan(
     require_token(authorization)
     device = _require_device(x_shadow_device)
     edit = _session_edit(projects)
+    on = await asyncio.to_thread(_beta_on, device)
     return await asyncio.to_thread(review_session.plan, device,
                                    size if edit else _session_size(size),
-                                   [k for k in order.split(",") if k], edit, language or None)
+                                   [k for k in order.split(",") if k], edit, language or None, on)
 
 
 @app.get("/shadow/review/session/projects")
@@ -3453,8 +3465,9 @@ async def review_session_projects(
 ) -> dict:
     require_token(authorization)
     device = _require_device(x_shadow_device)
+    on = await asyncio.to_thread(_beta_on, device)
     return {"projects": await asyncio.to_thread(review_session.available, device,
-                                                language or None)}
+                                                language or None, on)}
 
 
 @app.post("/shadow/review/session/start")
@@ -3466,9 +3479,10 @@ async def review_session_start(
     require_token(authorization)
     device = _require_device(x_shadow_device)
     edit = [(p.island_id, p.count) for p in body.projects] or None
+    on = await asyncio.to_thread(_beta_on, device)
     return await asyncio.to_thread(review_session.start, device,
                                    body.size if edit else _session_size(body.size),
-                                   body.order, edit, body.language or None)
+                                   body.order, edit, body.language or None, on)
 
 
 @app.post("/shadow/starter/finish")
@@ -3843,3 +3857,146 @@ async def llm_spend(
     summary = await asyncio.to_thread(store.llm_spend_summary)
     return {"backend": llm.backend(), "cap_usd": llm.MONTHLY_USD, **summary}
 # --- end llm-api ---
+
+
+# --- launch-basics: beta routes ---
+# Admins are the owner devices plus the user ids in SHADOW_ADMIN_USERS (comma
+# list, read at import so a test can monkeypatch the constant). One switch per
+# principal (`beta`) turns on everything that is not shadowing: content
+# sources (youtube, podcast, import), the cat and XP layer, streaks and the
+# social screens. `admin` only says who may open the Admin screen.
+def _parse_admin_users(raw: str | None) -> frozenset[str]:
+    return frozenset(u.strip() for u in (raw or "").split(",") if u.strip())
+
+
+ADMIN_USERS = _parse_admin_users(os.getenv("SHADOW_ADMIN_USERS"))
+
+
+def _is_admin(principal: str) -> bool:
+    return bool(principal) and (principal in ADMIN_USERS or _is_owner(principal))
+
+
+def _require_admin(principal: str) -> None:
+    if not _is_admin(principal):
+        raise HTTPException(403, {"code": "not_admin"})
+
+
+def _beta_on(principal: str) -> bool:
+    """The effective switch: a stored flag wins; with no row an admin is on
+    and everyone else is off. An admin who flips himself off really is off."""
+    flag = beta.flag(principal)
+    return flag if flag is not None else _is_admin(principal)
+
+
+# Routes the switch gates: DeviceGuard answers 403 not_beta when it is off.
+# Every other route is core shadowing and stays open: islands CRUD, line
+# audio, takes, regenerate, revoice, export, lines/{idx}/known, word audio,
+# gloss and explain, phrases, grammar, starter, review/due and
+# review/session, energy, username, account, speakers, health, privacy, dev,
+# llm/spend, beta and admin/beta. A new beta route must be added here or it
+# is open to everyone (test_beta.py has a row per family).
+BETA_PATHS = tuple(
+    re.compile(p)
+    for p in (
+        r"^/shadow/islands/import$",
+        r"^/shadow/podcasts(/.*)?$",
+        r"^/shadow/youtube/.*$",
+        r"^/shadow/videos$",
+        r"^/shadow/islands/[^/]+/(video|video-audio|captions-timing|episode|repair|ai-picks)$",
+        r"^/shadow/catch/.*$",
+        r"^/shadow/progress$",
+        r"^/shadow/leaderboard(/.*)?$",
+        r"^/shadow/cosmetics/.*$",
+        r"^/shadow/profile/.*$",
+        r"^/shadow/streak/.*$",
+        r"^/shadow/review/cards(/.*)?$",
+    )
+)
+
+
+def _shared_token_ok(headers: dict, query: dict) -> bool:
+    """The bearer header or the media `token` query matches SHADOW_TOKEN,
+    the same two ways require_token and _token_or_header accept it."""
+    if not SHADOW_TOKEN:
+        return False
+    want = SHADOW_TOKEN.encode("utf-8")
+    auth = headers.get(b"authorization", b"")
+    sent = [auth[len(b"Bearer "):]] if auth.startswith(b"Bearer ") else []
+    sent += [t.encode("utf-8") for t in query.get("token", [])]
+    return any(secrets.compare_digest(t, want) for t in sent)
+
+
+async def _beta_denied(path: str, principal: str) -> bool:
+    """True when the path is beta-only and the principal's switch is off.
+    Core routes return at once without touching sqlite."""
+    if not any(p.match(path) for p in BETA_PATHS):
+        return False
+    return not await asyncio.to_thread(_beta_on, principal)
+
+
+def _beta_people(me: str) -> list[dict]:
+    flags = beta.list_flags()
+    handles = user_profile.all_usernames()
+    with store.connect() as conn:
+        devices = {
+            r[0]
+            for r in conn.execute("SELECT DISTINCT device FROM islands WHERE device != ''")
+            if DEVICE_ID_RE.match(r[0]) and not accounts.USER_RE.match(r[0])
+        }
+    owners = set(handles) | devices | set(flags) | {me}
+    people = [
+        {
+            "owner": o,
+            "handle": handles.get(o),
+            "kind": "user" if o in handles or accounts.USER_RE.match(o) else "device",
+            "enabled": flags.get(o, _is_admin(o)),
+            "me": o == me,
+        }
+        for o in owners
+    ]
+    people.sort(key=lambda p: (not p["me"], p["handle"] is None, p["handle"] or p["owner"]))
+    return people
+
+
+class BetaBody(BaseModel):
+    owner: str
+    enabled: bool
+
+
+@app.get("/shadow/beta")
+async def beta_get(
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+):
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    admin = _is_admin(device)
+    on = await asyncio.to_thread(_beta_on, device)
+    return {"admin": admin, "beta": on, "youtube": on, "podcast": on, "import": on}
+
+
+@app.get("/shadow/admin/beta")
+async def admin_beta_list(
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+):
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    _require_admin(device)
+    return {"people": await asyncio.to_thread(_beta_people, device)}
+
+
+@app.put("/shadow/admin/beta")
+async def admin_beta_set(
+    body: BetaBody,
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+):
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    _require_admin(device)
+    if not (DEVICE_ID_RE.match(body.owner) or accounts.USER_RE.match(body.owner)):
+        raise HTTPException(400, {"code": "bad_owner"})
+    await asyncio.to_thread(beta.set_flag, body.owner, body.enabled, device)
+    return {"owner": body.owner, "enabled": body.enabled}
+# --- end launch-basics ---

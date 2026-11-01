@@ -12,6 +12,7 @@ import { Spacing, prism, tide } from '@/constants/theme';
 import { alertSheet, confirmSheet } from '@/lib/confirm-sheet';
 import * as api from '@/lib/api';
 import { provider, signOut, signOutLocal, usingDevBypass } from '@/lib/auth';
+import { refreshBeta, useBetaFeatures } from '@/lib/beta';
 import { getGuideStep } from '@/lib/guide';
 import { LOCALES, type Lang, useT } from '@/lib/i18n';
 import { voiceRowLabel } from '@/lib/voice-label';
@@ -33,7 +34,8 @@ import { type EnableResult, enableStreakReminder, reconcileStreakReminder, sched
 export default function SettingsScreen() {
   const router = useRouter();
   const { t } = useT();
-  const wordCount = useKnownWords().data?.total ?? null; // bl72-known-words
+  const beta = useBetaFeatures(); // beta-gate: My words, the Streak section and the Admin row
+  const wordCount = useKnownWords(beta.beta).data?.total ?? null; // bl72-known-words
   const [voiceName, setVoiceName] = useState('');
   const [isJapanese, setIsJapanese] = useState(true);
   const [haptics, setHapticsState] = useState(true);
@@ -100,6 +102,13 @@ export default function SettingsScreen() {
   }
 
   const hourChoices = STREAK_REMINDER_HOURS.map((h) => ({ value: String(h), label: `${h}:00` }));
+
+  const betaAdmin = beta.admin;
+  useFocusEffect(
+    useCallback(() => {
+      void refreshBeta();
+    }, []),
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -177,45 +186,50 @@ export default function SettingsScreen() {
           <SettingsRow
             label={t(isJapanese ? 'settings.row.practice' : 'settings.row.practiceOther')}
             icon={{ ios: 'book.closed', android: 'menu_book' }}
+            last={!beta.beta}
             onPress={() => router.push('/settings/practice')}
           />
           {/* bl72-known-words */}
-          <SettingsRow
-            label={t('settings.words.row')}
-            value={wordCount === null ? undefined : t(wordCount === 1 ? 'settings.words.countOne' : 'settings.words.count', { n: wordCount })}
-            last
-            icon={{ ios: 'text.book.closed', android: 'translate' }}
-            onPress={() => router.push('/settings/words')}
-          />
-        </SettingsSection>
-
-        <SettingsSection title={t('settings.section.streak')} footnote={t('settings.streak.reminderFootnote')}>
-          <SettingsRow
-            label={t('settings.streak.reminder')}
-            icon={{ ios: 'bell', android: 'notifications' }}
-            switchValue={streakOn}
-            onSwitchChange={(next) => void toggleStreakReminder(next)}
-          />
-          <View style={styles.segBox}>
-            <Segmented
-              options={hourChoices}
-              value={String(streakHour)}
-              onChange={(next) => {
-                setStreakHourState(Number(next));
-                void setStreakReminderHour(Number(next));
-              }}
-            />
-          </View>
-          {/* Dev-only: the real notification in 10 s, to check the glyph, channel and count on a locked phone. */}
-          {__DEV__ ? (
+          {beta.beta ? (
             <SettingsRow
-              label={t('settings.streak.testRow')}
+              label={t('settings.words.row')}
+              value={wordCount === null ? undefined : t(wordCount === 1 ? 'settings.words.countOne' : 'settings.words.count', { n: wordCount })}
               last
-              icon={{ ios: 'bell.badge', android: 'notifications_active' }}
-              onPress={() => void scheduleTestReminder().then(explainReminder)}
+              icon={{ ios: 'text.book.closed', android: 'translate' }}
+              onPress={() => router.push('/settings/words')}
             />
           ) : null}
         </SettingsSection>
+
+        {beta.beta ? (
+          <SettingsSection title={t('settings.section.streak')} footnote={t('settings.streak.reminderFootnote')}>
+            <SettingsRow
+              label={t('settings.streak.reminder')}
+              icon={{ ios: 'bell', android: 'notifications' }}
+              switchValue={streakOn}
+              onSwitchChange={(next) => void toggleStreakReminder(next)}
+            />
+            <View style={styles.segBox}>
+              <Segmented
+                options={hourChoices}
+                value={String(streakHour)}
+                onChange={(next) => {
+                  setStreakHourState(Number(next));
+                  void setStreakReminderHour(Number(next));
+                }}
+              />
+            </View>
+            {/* Dev-only: the real notification in 10 s, to check the glyph, channel and count on a locked phone. */}
+            {__DEV__ ? (
+              <SettingsRow
+                label={t('settings.streak.testRow')}
+                last
+                icon={{ ios: 'bell.badge', android: 'notifications_active' }}
+                onPress={() => void scheduleTestReminder().then(explainReminder)}
+              />
+            ) : null}
+          </SettingsSection>
+        ) : null}
 
         <SettingsSection title={t('settings.section.playback')}>
           <SettingsRow
@@ -331,10 +345,13 @@ export default function SettingsScreen() {
           <SettingsSection title={t('settings.section.feedback')}>
             <SettingsRow
               label={t('settings.row.feedback')}
-              last
+              last={!betaAdmin}
               icon={{ ios: 'ladybug', android: 'bug_report' }}
               onPress={() => router.push('/settings/feedback')}
             />
+            {betaAdmin ? (
+              <SettingsRow label={t('admin.row')} last icon={{ ios: 'shield', android: 'admin_panel_settings' }} onPress={() => router.push('/settings/admin')} />
+            ) : null}
           </SettingsSection>
         </Animated.View>
 

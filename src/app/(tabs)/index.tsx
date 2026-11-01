@@ -80,6 +80,7 @@ import { speedLabel } from '@/components/tide/speed-popover';
 import { cancelDownload, humanBytes, isDownloaded, offlineSummaries, removeDownload, startDownload, useDownloadState, useDownloadStatus } from '@/lib/offline-islands'; // offline-islands
 import { CatBadge } from '@/components/cat/cat-badge';
 import { forgetIsland, getPracticeLog, minutesOn, streakDays, type PracticeLog } from '@/lib/practice';
+import { getBetaSync, useBetaFeatures } from '@/lib/beta';
 import { maybeOfferStreakReminder } from '@/lib/streak-reminder';
 import { checkStreakMoments } from '@/lib/streak-moments';
 import { progressNow, useProgressCache } from '@/lib/progression';
@@ -268,6 +269,7 @@ export default function IslandsScreen() {
   const { t } = useT();
   const [addOpen, setAddOpen] = useState(false);
   const guideStep = useGuideStep();
+  const beta = useBetaFeatures().beta; // beta-gate: the cat, gem, Drive, streak moments and video rows are beta
   const dir = useDir();
   const SORT_LABEL: Record<Sort, string> = { newest: t('home.sortNewest'), least: t('home.sortLeastPracticed') };
   const sky = useSkyStyle();
@@ -304,8 +306,8 @@ export default function IslandsScreen() {
   const { progress: cachedProgress } = useProgressCache();
   const progressLoaded = cachedProgress !== null;
   useEffect(() => {
-    if (progressLoaded) checkStreakMoments(true);
-  }, [progressLoaded]);
+    if (progressLoaded && beta) checkStreakMoments(true);
+  }, [progressLoaded, beta]);
   // Raw due set from the backend schedule: islands practiced before and now
   // due again. `dueIds` below adds islands never practiced at all, which the
   // backend never lists (schedule.py only tracks islands it has seen).
@@ -540,9 +542,13 @@ export default function IslandsScreen() {
   // Home's visible pool: every island once Show all languages is on,
   // otherwise only the ones matching the learning language. Sorting, search,
   // due counts and the practice card all read from this, not from `islands`.
+  // beta-gate: video and podcast islands are beta content; a regular user never sees their rows.
   const visibleIslands = useMemo(
-    () => (showAllLanguages ? islands : islands.filter((i) => i.language === toIslandLanguage(learningLanguage))),
-    [islands, showAllLanguages, learningLanguage],
+    () =>
+      islands.filter(
+        (i) => (showAllLanguages || i.language === toIslandLanguage(learningLanguage)) && (beta || (i.source !== 'youtube' && i.source !== 'podcast')),
+      ),
+    [islands, showAllLanguages, learningLanguage, beta],
   );
 
   // Sorted before filtering, so closing search can find where the centred
@@ -662,8 +668,10 @@ export default function IslandsScreen() {
         if (!alive) return;
         setLog(next);
         // Once per install, after the first day that counts: offers the evening streak reminder.
-        maybeOfferStreakReminder(next);
-        checkStreakMoments(progressNow() !== null);
+        if (getBetaSync().beta) {
+          maybeOfferStreakReminder(next);
+          checkStreakMoments(progressNow() !== null);
+        }
       });
       void api.getDueToday().then((rows) => {
         if (alive) setFetchedDueIds(new Set(rows.map((r) => r.island_id)));
@@ -997,13 +1005,13 @@ export default function IslandsScreen() {
         rowH={searchRowH}
       />
       <View ref={headAnchor.ref} onLayout={headAnchor.onLayout} collapsable={false} style={styles.headerFixed}>
-        <CatBadge anchorGuide={focused && guideStep === 'cat'} />
+        {beta ? <CatBadge anchorGuide={focused && guideStep === 'cat'} /> : null}
         <PracticeCard
           log={log}
           dueCount={dueReady && !loading ? readyDueCount : null}
           onPractice={() => router.push('/review')}
-          onDrive={startDrive}
-          onStreak={() => setStreakOpen(true)}
+          onDrive={beta ? startDrive : undefined}
+          onStreak={beta ? () => setStreakOpen(true) : undefined}
         />
         {/* pill-tray-tab-bar: sort row start */}
         <SortRow sort={sort} onSort={setSort} labels={SORT_LABEL} />
@@ -1059,7 +1067,7 @@ export default function IslandsScreen() {
                     : t('home.noIslandsYet')}
               </Text>
               {!error && !query.trim() && visibleIslands.length === 0 ? (
-                <Text style={[styles.empty, { color: tide.textDim }]}>{t('home.noIslandsHint')}</Text>
+                <Text style={[styles.empty, { color: tide.textDim }]}>{t(beta ? 'home.noIslandsHint' : 'home.noIslandsHintBasic')}</Text>
               ) : null}
               {error ? (
                 <PrismButton

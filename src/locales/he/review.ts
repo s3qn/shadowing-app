@@ -4,6 +4,7 @@ export const he = {
   'review.save': 'שמירת המשפט',
   'review.saved': 'המשפט שמור',
   'review.openPodcasts': 'פתיחת הפודקאסטים',
+  'review.openHome': 'פתיחת האיים',
   'review.xpEarned': '+{n} XP',
   'review.streakDay': '🔥 רצף של {n} ימים',
   'review.streakDay_one': '🔥 רצף של יום אחד',

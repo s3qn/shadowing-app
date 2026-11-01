@@ -5,6 +5,7 @@ import type { ArtSpec, Slot } from '@/constants/cosmetics';
 import { SLOTS } from '@/constants/cosmetics';
 import { ITEM_IMAGES } from '@/constants/cosmetic-images';
 import { getCosmeticsCatalog, getProgress, type CosmeticItem, type Progress, type ReviewFinished } from '@/lib/api';
+import { getBetaSync, useBetaFeatures } from '@/lib/beta';
 import { useT } from '@/lib/i18n';
 import { persistedMap } from '@/lib/persisted-map';
 import { getPracticeLog, setStreakSync, streakDays } from '@/lib/practice';
@@ -167,8 +168,10 @@ function setProgress(p: Progress) {
  * then refetches the progress. The cache takes the XP first, so the refetch
  * (or a later screen focus) does not pop the same XP again. A take the daily
  * cap paid nothing for pops the cap note instead, once a day (`cap_note`).
+ * beta-gate: XP is a beta layer, so without the switch nothing pops or loads.
  */
 export function noteAward(award: { xp?: number; cap_note?: boolean } | null | undefined) {
+  if (!getBetaSync().beta) return;
   const xp = award?.xp;
   if (typeof xp !== 'number' || !Number.isFinite(xp) || xp < 0) return;
   const cap = award?.cap_note === true;
@@ -275,11 +278,12 @@ export function useProgressCache(): { progress: Progress | null; catalog: Cosmet
   return { progress, catalog, listenedHours: hoursOf(progress) };
 }
 
-/** Cached progress and catalog, refreshed on every focus. */
+/** Cached progress and catalog, refreshed on every focus (beta only: the routes answer 403 otherwise). */
 export function useProgress(): UseProgress {
   const { lang } = useT();
   const progress = useSyncExternalStore(subscribe, () => progressCache);
   const catalog = useSyncExternalStore(subscribe, () => (catalogCache && catalogCache.ui === lang ? catalogCache.items : null));
+  const betaOn = useBetaFeatures().beta;
   const [error, setError] = useState(false);
   const alive = useRef(true);
   useEffect(() => {
@@ -290,6 +294,7 @@ export function useProgress(): UseProgress {
   }, []);
 
   const reload = useCallback(async () => {
+    if (!getBetaSync().beta) return;
     try {
       const needCatalog = !(catalogCache && catalogCache.ui === lang);
       const [p, c] = await Promise.all([getProgress(), needCatalog ? getCosmeticsCatalog(lang) : Promise.resolve(null)]);
@@ -310,6 +315,11 @@ export function useProgress(): UseProgress {
       void reload();
     }, [reload]),
   );
+
+  // Beta can turn on after mount (admin switch, first /beta answer): the focus load was skipped, so load now.
+  useEffect(() => {
+    if (betaOn) void reload();
+  }, [betaOn, reload]);
 
   return { progress, catalog, error, reload, apply: applyProgress, listenedHours: hoursOf(progress) };
 }
