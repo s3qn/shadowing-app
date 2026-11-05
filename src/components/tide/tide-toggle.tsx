@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
     height: KNOB,
     borderRadius: Radius.pill,
     backgroundColor: '#F4F2F8',
-    shadowColor: '#000',
+    shadowColor: '#040C1E',
     shadowOpacity: 0.3,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },

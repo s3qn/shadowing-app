@@ -13,7 +13,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { CatConstellation } from '@/components/cat-constellation';
+import { CAT_START_MS, CatConstellation } from '@/components/cat-constellation';
 import { PLAYER_HEADER_ROW_H } from '@/lib/card-morph';
 import { CLOCK_MS, LOADER_GRACE_MS, LOADER_IN_MS, LOADER_OUT_MS, loaderRequest, loaderShown } from '@/lib/loading-overlay';
 
@@ -33,7 +33,7 @@ const DOCK_H = 190;
  */
 export function LoadingOverlay() {
   const insets = useSafeAreaInsets();
-  const clock = useSharedValue(0);
+  const clock = useSharedValue(CAT_START_MS);
   // Module-level, so content that lands can tell whether the loader is still drawn.
   const shown = loaderShown;
   // Mirrors the request on the JS side for screen readers only: idle, the
@@ -48,9 +48,9 @@ export function LoadingOverlay() {
       if (want === prev) return;
       runOnJS(setActive)(want === 1);
       if (want === 1) {
-        clock.value = 0;
+        clock.value = CAT_START_MS;
         clock.value = withRepeat(
-          withTiming(CLOCK_MS, { duration: CLOCK_MS, easing: Easing.linear }),
+          withTiming(CAT_START_MS + CLOCK_MS, { duration: CLOCK_MS, easing: Easing.linear }),
           -1,
           false,
         );

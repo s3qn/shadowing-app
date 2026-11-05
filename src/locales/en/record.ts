@@ -15,6 +15,22 @@ export const en = {
   'record.language.ja': 'Japanese',
   'record.language.es': 'Spanish',
   'record.language.en': 'English',
+  'record.language.he': 'Hebrew',
+
+  // say-it: one sentence in the native language, shadowed in the learning one.
+  'record.mode.say': 'One sentence',
+  'record.mode.island': 'My day',
+  'record.say.title.idle': 'Say one sentence in {language}.',
+  'record.say.title.recording': 'Listening…',
+  'record.say.hint': 'Say what you want to say, in {native}. It comes back in {language}, voiced, ready to shadow.',
+  'record.say.ready': 'Translated and voiced',
+  'record.say.youSaid': 'YOU SAID · {language}',
+  'record.say.more': '+ {count} more lines',
+  'record.say.more_one': '+ {count} more line',
+  'record.say.more_other': '+ {count} more lines',
+  'record.say.back': 'New line',
+  'record.say.again': 'Say it again',
+  'record.say.shadow': 'Shadow it',
 
   'record.waveform': 'Waveform of your recording',
   'record.playRecording': 'Play recording',
@@ -44,6 +60,7 @@ export const en = {
 
   'record.buildHint':
     'This takes about a minute. Close this screen if you like, the island keeps building and appears in the list when it is ready.',
+  'record.say.buildHint': 'Go back if you like, it keeps building.',
   'record.podcastBuildHint':
     'This takes a few minutes. Close this screen if you like, the island keeps building and appears in the list when it is ready.',
   'record.defaultEpisodeTitle': 'Podcast episode',

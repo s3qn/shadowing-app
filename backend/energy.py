@@ -42,6 +42,7 @@ PRICES = {
     "explain": 2,
     "word": 1,
     "pick": 3,
+    "say": 1,
 }
 
 # The last warning relay thread, kept so a test can join it.

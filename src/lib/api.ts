@@ -11,43 +11,17 @@
  */
 
 import { Platform } from 'react-native';
-import { fetch as expoFetchRaw } from 'expo/fetch';
 import { Directory, File, Paths } from 'expo-file-system';
 
 import type { ArtSpec, Slot } from '@/constants/cosmetics';
 import { accessTokenSync } from '@/lib/auth';
-import { devBlockedResponse } from '@/lib/dev-api-block';
+import { BASE, ORIGIN, TOKEN, expoFetch, fetch } from '@/lib/api-http';
 import { refreshEnergyAfterAi, withEnergy } from '@/lib/energy';
 import { deviceIdSync } from '@/lib/device';
 import { t } from '@/lib/i18n';
 import type { StarterLevel } from '@/lib/settings';
 import type { VideoContext } from '@/lib/youtube-captions';
 import { en, type Key } from '@/locales/en';
-
-/** A request that never reached the server (offline, DNS, TLS) rejects with
- * the platform's English "Network request failed", and screens show
- * `e.message`. Say it in the reader's language instead. An abort passes
- * through untouched for the caller that asked for it. */
-function unreachable(e: unknown): never {
-  if (e instanceof Error && e.name === 'AbortError') throw e;
-  throw new Error(t('api.unreachable'));
-}
-// --- ai-guardrails --- a simulated block answers here, before any network.
-const fetch: typeof globalThis.fetch = (input, init) => {
-  const blocked = __DEV__ ? devBlockedResponse(input, init) : null;
-  return blocked ? Promise.resolve(blocked) : globalThis.fetch(input, init).catch(unreachable);
-};
-const expoFetch: typeof expoFetchRaw = (input, init) => {
-  const blocked = __DEV__ ? devBlockedResponse(input, init) : null;
-  if (blocked) return Promise.resolve(blocked as unknown as Awaited<ReturnType<typeof expoFetchRaw>>);
-  return expoFetchRaw(input, init).catch(unreachable);
-};
-
-const BASE = process.env.EXPO_PUBLIC_SHADOW_API_URL ?? '';
-const TOKEN = process.env.EXPO_PUBLIC_SHADOW_TOKEN ?? '';
-// Icon paths from the backend are absolute (/shadow/...), so they hang off the
-// origin rather than off BASE.
-const ORIGIN = BASE.replace(/\/shadow\/?$/, '');
 
 export type Complexity = 'simple' | 'complex';
 
@@ -380,6 +354,33 @@ async function createIslandRaw(
 
   return json<{ id: string }>(
     await expoFetch(`${BASE}/islands`, { method: 'POST', headers: headers(), body: form }),
+  );
+}
+
+/**
+ * Say mode: one sentence spoken in the native language comes back as one
+ * voiced line in the learning language (or the phrases or story beats the
+ * speaker asked for). Returns as soon as the file is accepted; poll getIsland
+ * after this. `devTranscript` replaces whisper on a dev backend only.
+ */
+async function createSayRaw(
+  uri: string,
+  speaker: number,
+  register: Register | undefined,
+  language: Language,
+  native: NativeLanguage,
+  devTranscript = '',
+): Promise<{ id: string }> {
+  const form = new FormData();
+  form.append('audio', new File(uri), 'recording.m4a');
+  form.append('speaker', String(speaker));
+  if (register) form.append('register', register);
+  form.append('language', language);
+  form.append('native', native);
+  if (devTranscript) form.append('dev_transcript', devTranscript);
+
+  return json<{ id: string }>(
+    await expoFetch(`${BASE}/say`, { method: 'POST', headers: headers(), body: form }),
   );
 }
 
@@ -821,6 +822,9 @@ export type TakeClean = {
  * is when the line's first audio played, measured from the start of the
  * recording; both feed the take's timing score and are ignored for a
  * calibration upload. `guide` marks the first-run guide's shadow take.
+ * `silent` is a turn-taking take (speaker, no line under the voice): the
+ * backend skips the speaker profile and the bleed check and scores it on
+ * `lineStartMs` alone.
  */
 export async function uploadTake(
   islandId: string,
@@ -832,6 +836,7 @@ export async function uploadTake(
   lagMs = 0,
   lineStartMs: number | null = null,
   guide = false,
+  silent = false,
 ): Promise<TakeClean> {
   const form = new FormData();
   form.append('take', new File(uri), 'take.wav');
@@ -846,6 +851,7 @@ export async function uploadTake(
     form.append('line_start', String(Math.round(lineStartMs)));
   }
   if (guide) form.append('guide', '1');
+  if (silent) form.append('silent', '1');
 
   return json<TakeClean>(
     await expoFetch(`${BASE}/islands/${islandId}/lines/${idx}/take`, {
@@ -1656,6 +1662,7 @@ export async function catchReview(islandId: string, word: string, caught: boolea
 // --- energy meter ---
 /** Spends create energy on the tap and refreshes the meter afterwards. */
 export const createIsland = (...args: Parameters<typeof createIslandRaw>): ReturnType<typeof createIslandRaw> => withEnergy('create', () => createIslandRaw(...args));
+export const createSay = (...args: Parameters<typeof createSayRaw>): ReturnType<typeof createSayRaw> => withEnergy('say', () => createSayRaw(...args));
 
 /** Spends import energy on the tap and refreshes the meter afterwards. */
 export const importIsland = (...args: Parameters<typeof importIslandRaw>): ReturnType<typeof importIslandRaw> => withEnergy('import', () => importIslandRaw(...args));

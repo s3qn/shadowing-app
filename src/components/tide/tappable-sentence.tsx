@@ -14,9 +14,9 @@ import { POPOVER_WIDTH, WordPanel } from '@/components/word-panel';
 import { fonts } from '@/constants/fonts';
 import { Radius, tide } from '@/constants/theme';
 import type { PhraseSpan } from '@/hooks/use-phrase';
+import { useWordGloss } from '@/hooks/use-word-gloss';
 import * as api from '@/lib/api';
 import { hapticImpact } from '@/lib/haptics';
-import { offlineGloss } from '@/lib/offline-islands';
 import { fitScale } from '@/lib/fit-line';
 import { kinsokuUnits } from '@/lib/kinsoku';
 import { useDir } from '@/lib/i18n';
@@ -108,9 +108,13 @@ export const TappableSentence = memo(function TappableSentence({
   // Rows break only between these units, so a particle or a closing "。"
   // never starts a row on its own.
   const units = useMemo(() => (isJa ? kinsokuUnits(line.words) : line.words.map((_, i) => [i])), [line.words, isJa]);
-  const [selected, setSelected] = useState<number | null>(null);
-  const [glossData, setGlossData] = useState<api.Gloss | null>(null);
-  const [explainContext, setExplainContext] = useState<string | null | undefined>(undefined);
+  const {
+    selected,
+    gloss: glossData,
+    context: explainContext,
+    tap: tapWord,
+    close: closePanel,
+  } = useWordGloss({ line, language, native, islandId, onInteract });
   const [dragSpan, setDragSpan] = useState<PhraseSpan | null>(null);
   const [handleDragging, setHandleDragging] = useState(false);
 
@@ -119,55 +123,12 @@ export const TappableSentence = memo(function TappableSentence({
   // view is the unit's origin plus its own.
   const wordLocal = useRef<Record<number, Box>>({});
   const unitOrigin = useRef<Record<number, { x: number; y: number }>>({});
-  const wordRequestId = useRef(0);
   const anchorWord = useRef(0);
   const handleFixed = useRef(0);
-
-  function closePanel() {
-    setSelected(null);
-    setGlossData(null);
-    setExplainContext(undefined);
-    wordRequestId.current++;
-  }
 
   function clearSelection() {
     setDragSpan(null);
     setHandleDragging(false);
-  }
-
-  async function tapWord(i: number) {
-    const w = line.words[i];
-    if (!w) return;
-    onInteract?.();
-    setSelected(i);
-    setGlossData(null);
-    setExplainContext(undefined);
-    const requestId = ++wordRequestId.current;
-    const word = w.text;
-    if (isJa) {
-      try {
-        const g = offlineGloss(islandId, word) ?? (await api.gloss(word));
-        if (wordRequestId.current === requestId) setGlossData(g);
-      } catch {
-        if (wordRequestId.current === requestId) {
-          setGlossData({
-            word,
-            base: '',
-            reading: '',
-            entries: [],
-            found: false,
-          });
-        }
-      }
-    } else {
-      setGlossData({ word, base: '', reading: '', entries: [], found: false });
-    }
-    try {
-      const ctx = await api.explainWord(word, line.ja, line.en, language, native);
-      if (wordRequestId.current === requestId) setExplainContext(ctx || null);
-    } catch {
-      if (wordRequestId.current === requestId) setExplainContext(null);
-    }
   }
 
   // Hit-tests a point in the words view's own coordinates to a word index: the

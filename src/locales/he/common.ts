@@ -96,6 +96,7 @@ export const he = {
   'islandError.transcribe_empty': 'לא נמצא תמלול.',
   'islandError.no_lines': 'לא נמצאו שורות.',
   'islandError.voice_no_audio': 'הקול לא הפיק שמע.',
+  'islandError.say_unclear': 'לא קלטתי. אמרו את זה שוב.',
   'islandError.audio_undecodable': 'לא ניתן לפענח את השמע.',
   'islandError.no_line_cut': 'לא ניתן לחתוך שורה.',
   'islandError.media_undecodable': 'לא ניתן לפענח את המדיה.',
@@ -113,6 +114,8 @@ export const he = {
   'update.body.android': 'הורידו את הגרסה החדשה כדי להמשיך להשתמש באפליקציה.',
   'update.button.ios': 'פתחו את TestFlight',
   'update.button.android': 'הורידו את העדכון',
+  'notFound.title': 'הדף הזה לא קיים.',
+  'notFound.home': 'חזרה לדף הבית',
   'error.title': 'משהו השתבש',
   'error.retry': 'נסו שוב',
 } satisfies Record<keyof typeof enCommon, string>;

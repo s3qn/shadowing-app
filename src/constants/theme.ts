@@ -79,7 +79,7 @@ export const prism = {
     side: 1.5,
     line: 1,
   },
-  shadow: '0 6 16 rgba(0,0,0,0.32)',
+  shadow: '0 6 16 rgba(4,12,30,0.45)',
   sheen: {
     colors: ['#ff4d6d', '#ffc857', '#7cffb2', '#7cc8ff', '#b58cff', '#ff4d6d'],
     start: 210,

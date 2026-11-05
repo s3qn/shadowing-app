@@ -318,22 +318,31 @@ async def log_practice(
     island_id: str = Form(...),
     seconds: float = Form(...),
     app_state: str = Form(""),
+    op: str = Form(""),
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
     # The sqlite work and the award are blocking, so the body runs on a worker
     # thread and never stalls the event loop.
     return await asyncio.to_thread(
-        _log_practice_sync, island_id, seconds, authorization, x_shadow_device, app_state
+        _log_practice_sync, island_id, seconds, authorization, x_shadow_device, app_state, op
     )
 
 
 def _log_practice_sync(
     island_id: str, seconds: float, authorization: str | None, x_shadow_device: str,
-    app_state: str = "",
+    app_state: str = "", op: str = "",
 ) -> dict:
+    """`op` (offline-first) is the phone's id for this chunk of seconds. The
+    first post with it runs as always; a replay (the outbox resending after
+    a lost reply) writes no row, pays nothing and gets the first reply back.
+    Without an op every post is a new row, as before."""
     require_token(authorization)
     device = _require_device(x_shadow_device)
+    if not isinstance(op, str):
+        op = ""
+    if op and not store.valid_op(op):
+        raise HTTPException(400, "bad op")
     if not math.isfinite(seconds) or seconds <= 0:
         raise HTTPException(400, "seconds must be a positive finite number")
     if seconds > MAX_PRACTICE_SECONDS:
@@ -342,6 +351,8 @@ def _log_practice_sync(
     # up id) is refused before anything is written or awarded, so a forged
     # island_id cannot earn coins or XP.
     _own_island(island_id, device)
+    if op and not store.claim_op(device, op):
+        return store.op_reply(device, op) or {}
 
     today = _today()
     today_date = date.fromisoformat(today)
@@ -436,6 +447,11 @@ def _log_practice_sync(
         )
     except Exception:
         log.exception("practice award failed")
+    if op:
+        try:
+            store.set_op_reply(device, op, result)
+        except Exception:
+            log.exception("practice op reply save failed")
     return result
 
 

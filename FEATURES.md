@@ -288,6 +288,8 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Guided intro arrow and loop fix
 - BL-88 beta gate: admin-only beta switch, shadowing-only app for regular
   users
+- night-1102: focus ladder fit, iOS blur, cube island hop, count-in hairline,
+  island scroll fixes
 
 ## Next (approved, in order)
 

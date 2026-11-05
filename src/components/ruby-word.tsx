@@ -1,13 +1,16 @@
 import { memo, type ReactNode, useMemo, useState } from 'react';
-import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
-import Animated, { useAnimatedStyle } from 'react-native-reanimated';
+import { type LayoutChangeEvent, type StyleProp, StyleSheet, type TextStyle, View } from 'react-native';
+import Animated, { interpolateColor, type SharedValue, useAnimatedReaction, useAnimatedStyle } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { type Highlight, useWordInk, wordIntensity } from '@/components/word-highlight';
 
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
 import type { Word } from '@/lib/api';
+import { PitchStrip } from '@/components/pitch-strip';
 import { type MoraPitch, moraCells, type PitchCell, runCells } from '@/lib/pitch';
+import { BLUR_BY_OFFSET, blurGlyph, blurK, blurPad, blurShadow, GRAIN_SCATTER, mulberry32, rgbOf, textBlur } from '@/lib/text-blur';
 import { kanaToRomaji } from '@/lib/romaji';
 
 /** A grammar island's point (GR2-B3 `.ja b`). */
@@ -54,7 +57,122 @@ type Props = {
   litColor?: string;
   /** The furigana's font weight. Defaults to the style's own. */
   rubyWeight?: '600' | '700';
+  /** One colour for the word and its furigana (the ladder's count-in shimmer copies). */
+  color?: string;
+  /** The Final take's blur, 0 sharp to 1 a soft shape (see `textBlur`), on the word and its furigana. */
+  blur?: SharedValue<number>;
+  /**
+   * The Final take's grain (V4 "Grain", research/pre-animator/final-take-blur/recipe.md): with `blur`,
+   * each character is its own Text that dissolves on its own in a fixed scattered order. `seed` is the
+   * line's seed, `span` each character's share of the blur (`blurSpan`). The furigana follows the first
+   * character under it.
+   */
+  grain?: { seed: number; span: number };
+  /**
+   * The word never wraps inside itself (the ladder's stage sentence): its columns stay on one row at
+   * their full width, so the caller sees the real width and steps the size down instead.
+   */
+  noWrap?: boolean;
 };
+
+/**
+ * The ink at blur `k`: past 0 the soft shape (`textBlur`, its radius scaled by the type's size; on iOS
+ * the glyph alone, `glyphOnly`, its shape drawn by a second Text), else the highlight's colour, so the
+ * highlight shows only while sharp.
+ */
+function inkAt(k: number, rgb: string, scale: number, highlight: Highlight | undefined, index: number, base: string, lit: string, glyphOnly: boolean) {
+  'worklet';
+  if (k > 0.001) return glyphOnly ? blurGlyph(k, rgb) : textBlur(k, rgb, scale);
+  const v = highlight ? wordIntensity(highlight.value, index) : 0;
+  const color = v <= 0 ? base : v >= 1 ? lit : interpolateColor(v, [0, 1], [base, lit]);
+  return { color, textShadowColor: 'transparent', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 0 };
+}
+
+type BlurTextProps = {
+  text: string;
+  /** The line's blur, 0 sharp to 1 a soft shape. */
+  blur: SharedValue<number>;
+  /** The grain (V4): this Text's share of the blur starts at `at` and takes `span`. No span, the blur as is. */
+  at?: number;
+  span?: number;
+  /** The text's size over 22pt, for the shadow's radius. */
+  scale: number;
+  highlight?: Highlight;
+  index?: number;
+  base: string;
+  lit?: string;
+  style: StyleProp<TextStyle>;
+  onLayout?: (e: LayoutChangeEvent) => void;
+};
+
+/**
+ * A Text under the Final take's blur (a whole word, a furigana run, a grain character or the plain
+ * line), its share of the blur derived in its own worklet from the one shared value, so no render runs
+ * per frame. Web and Android draw it as one Text whose glyph fades under its own shadow (`textBlur`).
+ */
+function ShadowBlurText({ text, blur, at = 0, span = 0, scale, highlight, index = 0, base, lit = tide.lang.ja, style, onLayout }: BlurTextProps) {
+  const rgb = rgbOf(base);
+  const ink = useAnimatedStyle(() => inkAt(blurK(blur.value, at, span), rgb, scale, highlight, index, base, lit, false), [blur, at, span, rgb, scale, highlight, index, base, lit]);
+  return <Animated.Text style={[style, ink]} onLayout={onLayout}>{text}</Animated.Text>;
+}
+
+/**
+ * iOS: a transparent glyph casts no shadow there, so the glyph fades on its own and a second, opaque
+ * copy sits `lift` points below it, out of view in a clipping box, its shadow offset back up onto the
+ * text. The copy and the box are padded by the widest shadow's room (`blurPad`), since iOS clips a
+ * Text's drawing to its own box. Neither moves the layout: the sharp Text alone takes space. The
+ * copy is mounted only while the blur is above 0 (`soft`), so a sharp line is one Text per word.
+ */
+function OffsetBlurText({ text, blur, at = 0, span = 0, scale, highlight, index = 0, base, lit = tide.lang.ja, style, onLayout }: BlurTextProps) {
+  const rgb = rgbOf(base);
+  const pad = blurPad(scale);
+  const [box, setBox] = useState<{ w: number; h: number } | null>(null);
+  const [soft, setSoft] = useState(false);
+  useAnimatedReaction(
+    () => Number.isFinite(blur.value) && blur.value > 0.001,
+    (on, was) => {
+      if (on !== was) scheduleOnRN(setSoft, on);
+    },
+    [blur],
+  );
+  const lift = box ? box.h + pad + 2 : 0;
+  const glyph = useAnimatedStyle(() => inkAt(blurK(blur.value, at, span), rgb, scale, highlight, index, base, lit, true), [blur, at, span, rgb, scale, highlight, index, base, lit]);
+  const shape = useAnimatedStyle(() => blurShadow(blurK(blur.value, at, span), rgb, scale, lift), [blur, at, span, rgb, scale, lift]);
+  return (
+    <View>
+      <Animated.Text
+        style={[style, glyph]}
+        onLayout={(e) => {
+          const { width: w, height: h } = e.nativeEvent.layout;
+          if (Number.isFinite(w) && Number.isFinite(h) && (box?.w !== w || box?.h !== h)) setBox({ w, h });
+          onLayout?.(e);
+        }}>
+        {text}
+      </Animated.Text>
+      {soft && box && text ? (
+        <View pointerEvents="none" style={[styles.shapeBox, { left: -pad, top: -pad, width: box.w + pad * 2, height: box.h + pad * 2 }]}>
+          <Animated.Text style={[style, styles.shape, { width: box.w + pad * 2 + 1, paddingLeft: pad, paddingRight: pad + 1, paddingTop: lift + pad, paddingBottom: pad }, shape]}>
+            {text}
+          </Animated.Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** The blurred Text, drawn the way this platform can (see `BLUR_BY_OFFSET`). */
+const BlurText = memo(BLUR_BY_OFFSET ? OffsetBlurText : ShadowBlurText);
+export { BlurText };
+
+/**
+ * The grain's scatter for one word, per ruby segment and character: `GRAIN_SCATTER * rand` from a
+ * stream seeded by the line's seed and the word's index, so the order is fixed for the line and each
+ * word draws its own without knowing where in the line it sits.
+ */
+function grainStarts(seed: number, index: number, runs: string[]): number[][] {
+  const rand = mulberry32(seed * 7919 + index * 104729);
+  return runs.map((run) => Array.from(run).map(() => GRAIN_SCATTER * rand()));
+}
 
 /**
  * One word of the line. React Native has no ruby text, so a word with
@@ -93,8 +211,16 @@ export const RubyWord = memo(function RubyWord({
   rubyColor,
   litColor,
   rubyWeight,
+  color,
+  blur,
+  grain,
+  noWrap = false,
 }: Props) {
   const sc = Number.isFinite(scale) && scale > 0 ? scale : 1;
+  // The blur's shadow radius grows with the type: 8pt at 22pt, the furigana's with its base.
+  const radiusScale = ((big ? 26 : 22) * sc) / 22;
+  // The grain: per-character Texts, each with its own start in the blur; only with a blur to read.
+  const perChar = !!grain && !!blur;
   const baseSize = useMemo(
     () => (big ? scaled(styles.baseBig, sc) : sc === 1 ? null : scaled({ fontSize: 22, lineHeight: BASE_LINE }, sc)),
     [big, sc],
@@ -120,11 +246,27 @@ export const RubyWord = memo(function RubyWord({
   const inGrammar = grammar && !concealed;
   // The lilac is the base the karaoke ink fades from and back to, so the mark
   // survives the highlight passing over it.
-  const baseInk = useWordInk(lit, index, inGrammar ? GRAMMAR_LILAC : dimmed ? tide.textDim : tide.text, litColor);
-  const rubyInk = useWordInk(lit, index, rubyColor ?? tide.textDim, litColor);
+  // With a blur each Text is a BlurText carrying its own ink, so these two serve only the sharp players.
+  const baseColor = color ?? (inGrammar ? GRAMMAR_LILAC : dimmed ? tide.textDim : tide.text);
+  const rubyBase = color ?? rubyColor ?? tide.textDim;
+  const baseInk = useWordInk(lit, index, baseColor, litColor);
+  const rubyInk = useWordInk(lit, index, rubyBase, litColor);
+  const rtStyle = [styles.rt, rtSize, rubyWeight ? { fontWeight: rubyWeight } : null];
+  const baseStyle = [styles.base, baseSize, inGrammar ? styles.grammar : null];
+  // Where each character starts in the blur, per ruby segment (one run for a plain word), fixed per line.
+  const starts = useMemo(
+    () => (grain ? grainStarts(grain.seed, index, (segments ?? [{ text: word.text, rt: '' }]).map((s) => s.text)) : null),
+    [grain, index, segments, word.text],
+  );
   // A plain word that wraps onto a second row: the moras cannot be placed by
   // character any more, so its strip stays empty.
   const [wrapped, setWrapped] = useState(false);
+  const wrapCheck = pitch
+    ? (e: LayoutChangeEvent) => {
+        const next = e.nativeEvent.layout.height > BASE_LINE * sc * 1.5;
+        if (next !== wrapped) setWrapped(next);
+      }
+    : undefined;
   const markColor = concealed
     ? 'transparent'
     : mark === 'early' ? tide.listen : mark === 'late' ? tide.turn : mark === 'dropped' ? tide.record : 'transparent';
@@ -163,7 +305,7 @@ export const RubyWord = memo(function RubyWord({
     <View
       onLayout={(e) => onLayout(index, e)}
       style={[
-        styles.word,
+        noWrap ? styles.wordWhole : styles.word,
         styles.column,
         {
           // No radius here: adjoining selected words must merge into one
@@ -174,18 +316,37 @@ export const RubyWord = memo(function RubyWord({
         },
       ]}>
       {wordStrip}
-      <View style={segments ? styles.rubyRow : styles.plain}>
+      <View style={segments ? (noWrap ? styles.rubyRowWhole : styles.rubyRow) : styles.plain}>
         {segments ? (
           segments.map((seg, i) => {
             const cells = perColumn ? runs![i]! : null;
             const from = columnStarts[i] ?? 0;
             return (
-              <View key={i} style={styles.segment}>
+              <View key={i} style={noWrap ? styles.segmentWhole : styles.segment}>
                 {cells ? (
                   <PitchStrip cells={cells} pitch={pitch!.slice(from, from + moraCells(cells))} concealed={concealed} />
                 ) : null}
-                <Animated.Text style={[styles.rt, rtSize, rubyInk, rubyWeight ? { fontWeight: rubyWeight } : null]}>{seg.rt}</Animated.Text>
-                <Animated.Text style={[styles.base, baseSize, baseInk, ink]}>{seg.text}</Animated.Text>
+                {perChar && starts ? (
+                  <>
+                    {/* The furigana follows the first character under it. */}
+                    <BlurText text={seg.rt} at={starts[i]?.[0] ?? 0} span={grain!.span} blur={blur!} scale={radiusScale} highlight={lit} index={index} base={rubyBase} lit={litColor} style={rtStyle} />
+                    <View style={styles.chars}>
+                      {Array.from(seg.text).map((ch, ci) => (
+                        <BlurText key={ci} text={ch} at={starts[i]?.[ci] ?? 0} span={grain!.span} blur={blur!} scale={radiusScale} highlight={lit} index={index} base={baseColor} lit={litColor} style={baseStyle} />
+                      ))}
+                    </View>
+                  </>
+                ) : blur ? (
+                  <>
+                    <BlurText text={seg.rt} blur={blur} scale={radiusScale} highlight={lit} index={index} base={rubyBase} lit={litColor} style={rtStyle} />
+                    <BlurText text={seg.text} blur={blur} scale={radiusScale} highlight={lit} index={index} base={baseColor} lit={litColor} style={baseStyle} />
+                  </>
+                ) : (
+                  <>
+                    <Animated.Text style={[styles.rt, rtSize, rubyInk, rubyWeight ? { fontWeight: rubyWeight } : null]}>{seg.rt}</Animated.Text>
+                    <Animated.Text style={[styles.base, baseSize, baseInk, ink]}>{seg.text}</Animated.Text>
+                  </>
+                )}
               </View>
             );
           })
@@ -195,18 +356,20 @@ export const RubyWord = memo(function RubyWord({
                 on some platforms, which lifted a plain word (か。) above its
                 neighbours' baseline. */}
             {showRuby ? <View style={{ height: rtSize?.lineHeight ?? RT_LINE }} /> : null}
-            <Animated.Text
-              style={[styles.base, baseSize, baseInk, ink]}
-              onLayout={
-                pitch
-                  ? (e) => {
-                      const next = e.nativeEvent.layout.height > BASE_LINE * sc * 1.5;
-                      if (next !== wrapped) setWrapped(next);
-                    }
-                  : undefined
-              }>
-              {word.text}
-            </Animated.Text>
+            {perChar && starts ? (
+              // A row of characters never wraps, so no wrap check: the unit wrapper above keeps the line breaking.
+              <View style={styles.chars}>
+                {Array.from(word.text).map((ch, ci) => (
+                  <BlurText key={ci} text={ch} at={starts[0]?.[ci] ?? 0} span={grain!.span} blur={blur!} scale={radiusScale} highlight={lit} index={index} base={baseColor} lit={litColor} style={baseStyle} />
+                ))}
+              </View>
+            ) : blur ? (
+              <BlurText text={word.text} blur={blur} scale={radiusScale} highlight={lit} index={index} base={baseColor} lit={litColor} style={baseStyle} onLayout={wrapCheck} />
+            ) : (
+              <Animated.Text style={[styles.base, baseSize, baseInk, ink]} onLayout={wrapCheck}>
+                {word.text}
+              </Animated.Text>
+            )}
           </>
         )}
       </View>
@@ -222,8 +385,6 @@ export const RubyWord = memo(function RubyWord({
   );
 });
 
-/** Height of the pitch strip over a word: the only space pitch adds. */
-const STRIP = 6;
 const BASE_LINE = 32;
 const RT_LINE = 13;
 
@@ -231,45 +392,6 @@ const RT_LINE = 13;
 function scaled(v: { fontSize?: number; lineHeight?: number }, k: number) {
   return k === 1 ? v : { fontSize: (v.fontSize ?? 0) * k, lineHeight: (v.lineHeight ?? 0) * k };
 }
-const STROKE = 1.5;
-
-/** The pitch line over one run of cells, drawn with plain Views: a bar per
- * mora at the top (high) or the bottom (low) of the strip, and a vertical
- * bar for each rise and drop. Concealed, the strip keeps its height and
- * draws nothing. */
-function PitchStrip({ cells, pitch, concealed }: { cells: PitchCell[]; pitch: MoraPitch[]; concealed?: boolean }) {
-  if (concealed) return <View style={styles.strip} pointerEvents="none" />;
-  // Which mora each cell shows, -1 for a cell with none.
-  const moraAt: number[] = [];
-  let k = 0;
-  for (const cell of cells) {
-    moraAt.push(cell.mora ? k : -1);
-    if (cell.mora) k += 1;
-  }
-  return (
-    <View style={styles.strip} pointerEvents="none">
-      {cells.map((cell, i) => {
-        const m = moraAt[i] ?? -1;
-        const p = m >= 0 ? pitch[m] : undefined;
-        return (
-          <View key={i} style={{ flex: cell.w }}>
-            {p ? (
-              <>
-                <View style={[styles.bar, p.high ? styles.high : styles.low]} />
-                {p.rise ? <View style={[styles.step, styles.stepLeft]} /> : null}
-                {p.drop ? <View style={[styles.step, styles.stepRight]} /> : null}
-              </>
-            ) : null}
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
-// tide.lang.ja at 70%, so a bar and a step that overlap at a corner do not
-// double up the way view opacity would.
-const PITCH_INK = 'rgba(255,158,128,0.7)';
 
 const styles = StyleSheet.create({
   word: {
@@ -281,6 +403,15 @@ const styles = StyleSheet.create({
   rubyRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end' },
   plain: { flexDirection: 'column', justifyContent: 'flex-end' },
   segment: { alignItems: 'center', flexShrink: 1, maxWidth: '100%' },
+  // `noWrap`: one row, no shrink and no width clamp, so Yoga's rounding can never push a column to a new row.
+  wordWhole: { flexShrink: 0, paddingHorizontal: 4 },
+  rubyRowWhole: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'flex-end' },
+  segmentWhole: { alignItems: 'center', flexShrink: 0 },
+  // iOS's blur: the clipping box around a Text and the out-of-view copy whose shadow is the soft shape.
+  shapeBox: { position: 'absolute', overflow: 'hidden' },
+  shape: { position: 'absolute', left: 0, top: 0 },
+  // The grain's characters, side by side as one run.
+  chars: { flexDirection: 'row', alignItems: 'flex-end' },
   rt: { fontFamily: fonts.serifJp, fontSize: 10, lineHeight: RT_LINE, includeFontPadding: false },
   base: { fontFamily: fonts.serifJp, fontSize: 22, lineHeight: BASE_LINE, includeFontPadding: false },
   grammar: { fontWeight: '600' },
@@ -296,11 +427,4 @@ const styles = StyleSheet.create({
   clear: { color: 'transparent' },
   baseBig: { fontSize: 26, lineHeight: 34 },
   rtBig: { fontSize: 13, lineHeight: 16 },
-  strip: { height: STRIP, alignSelf: 'stretch', flexDirection: 'row' },
-  bar: { position: 'absolute', left: 0, right: 0, height: STROKE, backgroundColor: PITCH_INK },
-  high: { top: 0 },
-  low: { bottom: 0 },
-  step: { position: 'absolute', top: 0, width: STROKE, height: STRIP, backgroundColor: PITCH_INK },
-  stepLeft: { left: 0 },
-  stepRight: { right: 0 },
 });

@@ -50,7 +50,8 @@ type Props = {
   onWatch?: () => void;
   onListen?: () => void; // podcast-listen
   onRevoice: () => void;
-  onRegenerate: () => void;
+  /** Absent hides the Regenerate row (a say island is re-said, not rewritten). */
+  onRegenerate?: () => void;
   onCalibrate: () => void;
   onDelete: () => void;
 };
@@ -164,7 +165,7 @@ function IslandMenuSheetBase({
               onPress={onRevoice}
             />
           ) : null}
-          {recorded ? (
+          {recorded && onRegenerate ? (
             <SheetAction
               label={complexity === 'simple' ? t('player.regenerateComplex') : t('player.regenerateSimple')}
               icon={ICONS.regenerate}

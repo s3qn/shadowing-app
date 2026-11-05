@@ -24,6 +24,7 @@ import {
   stopPlayback,
   useSessionPlayer,
 } from '@/lib/audio-mode';
+import { devForcedRoute } from '@/lib/dev-simulate';
 import { t } from '@/lib/i18n';
 import { addPass } from '@/lib/practice';
 import { noteAward } from '@/lib/progression';
@@ -207,11 +208,14 @@ export function useTake(
     setTakesTick((n) => n + 1);
   }
 
-  const [errorState, setErrorState] = useState({ key: '', message: '' });
+  const [errorState, setErrorState] = useState({ key: '', message: '', seq: 0 });
   const error = errorState.key === lineKey ? errorState.message : '';
+  // Counts the messages, so a host that shows them once can tell a new one from the same one met again
+  // (a return to the line brings its message back; a second refusal is a new message).
+  const errorSeq = errorState.key === lineKey ? errorState.seq : 0;
   function setError(message: string) {
     const key = lineKeyRef.current;
-    setErrorState((cur) => (cur.message === message && (cur.key === key || !message) ? cur : { key, message }));
+    setErrorState((cur) => (cur.message === message && (cur.key === key || !message) ? cur : { key, message, seq: cur.seq + 1 }));
   }
   const [cleanState, setCleanState] = useState<{ key: string; clean: CleanStatus }>({ key: '', clean: IDLE_CLEAN });
   const clean = cleanState.key === lineKey ? cleanState.clean : IDLE_CLEAN;
@@ -363,7 +367,9 @@ export function useTake(
    * playing while the take was recorded, so the cleaner's reference matches
    * it. `lagMs` and `lineStartMs` feed the take's timing score; the score,
    * when the backend returns one, is saved and set on the take on screen
-   * whether or not the take itself turned out cleanable.
+   * whether or not the take itself turned out cleanable. `silent` is a
+   * turn-taking take (no line under the voice): the backend skips the
+   * cleaner and the bleed check and scores it on `lineStartMs` alone.
    */
   async function cleanTake(
     key: string,
@@ -376,13 +382,14 @@ export function useTake(
     lineStartMs: number | null,
     seq: number,
     guide: boolean,
+    silent: boolean,
   ) {
     // The clean status only describes the latest take: a newer take already
     // recording, or saved, owns it.
     const latest = () => seq === takeSeq.current;
     setClean({ state: 'working', erleDb: null, note: '' }, key);
     try {
-      const result = await uploadTake(targetIslandId, targetIdx, saved.uri, speed, false, span, lagMs, lineStartMs, guide);
+      const result = await uploadTake(targetIslandId, targetIdx, saved.uri, speed, false, span, lagMs, lineStartMs, guide, silent);
       noteAward(result.award);
       if (result.score) {
         const score = result.score;
@@ -468,12 +475,17 @@ export function useTake(
               // finishes: adding one here too would count the same take
               // twice.
               addPass(savedFor.islandId);
-              // It also has no line in it to remove, and nothing to time
-              // the words against, so it is not uploaded and has no score.
-              if (seq === takeSeq.current) setClean({ state: 'skipped', erleDb: null, note: '' }, savedFor.key);
-              return;
+              // A captions-only video has no line audio to score against,
+              // so its take stays local. A silent take still uploads: the
+              // backend scores it on the clock (line time 0 is the
+              // recording's start) with no cleaner and no bleed check.
+              if (localOnly) {
+                if (seq === takeSeq.current) setClean({ state: 'skipped', erleDb: null, note: '' }, savedFor.key);
+                return;
+              }
+            } else if (countPass) {
+              addPass(savedFor.islandId);
             }
-            if (countPass) addPass(savedFor.islandId);
             void cleanTake(
               savedFor.key,
               savedFor.islandId,
@@ -485,6 +497,7 @@ export function useTake(
               savedFor.lineStartMs,
               seq,
               savedFor.guide,
+              savedFor.silent,
             );
           } catch (e) {
             // The previous take, if any, is untouched: saveTake only replaces
@@ -535,11 +548,15 @@ export function useTake(
    */
   async function probeHeadset(): Promise<boolean> {
     let isHeadset = false;
-    try {
-      const input = await recorder.getCurrentInput();
-      isHeadset = HEADSET_INPUTS.has(input.type);
-    } catch {
-      isHeadset = false;
+    const forced = devForcedRoute();
+    if (forced) isHeadset = forced === 'headset';
+    else {
+      try {
+        const input = await recorder.getCurrentInput();
+        isHeadset = HEADSET_INPUTS.has(input.type);
+      } catch {
+        isHeadset = false;
+      }
     }
     lastHeadset = isHeadset;
     setHeadset(isHeadset);
@@ -557,7 +574,8 @@ export function useTake(
    * plays under the take, passed on to the cleaner so its reference is the
    * same audio. `silent` means the line is not played under the take: the
    * take then stops itself after the line's length plus the tail and lag,
-   * and is saved without cleanup or a score. `'auto'` probes the input route
+   * and is scored on the clock with line time 0 at the recording's start
+   * (the mic opens when the count ends). `'auto'` probes the input route
    * right after the recorder starts: a headset resolves to `silent = false`,
    * anything else to `silent = true`. Resolves to `{ silent }` describing
    * what was actually used, or `null` if the take never started.
@@ -585,7 +603,10 @@ export function useTake(
       recorder.record();
       const recordStartedAt = Date.now();
       const isSilent = silent === 'auto' ? !(await probeHeadset()) : silent;
-      target.current = { key: lineKey, islandId, idx, mode, speed, lagMs, span, recordStartedAt, lineStartMs: null, silent: isSilent, guide: options?.guide ?? false };
+      // Nothing plays under a silent take, so markLineStart never fires for
+      // it: line time 0 is the recording's start, and the score's
+      // median-delay rule absorbs a late first word.
+      target.current = { key: lineKey, islandId, idx, mode, speed, lagMs, span, recordStartedAt, lineStartMs: isSilent ? 0 : null, silent: isSilent, guide: options?.guide ?? false };
       setMode(mode);
       // Nothing else should be pending here, but a leftover timer would end
       // this take early.
@@ -715,6 +736,7 @@ export function useTake(
     takeLoaded: takeReady && takeStatus.isLoaded,
     takeDuration: takeReady ? takeStatus.duration : 0,
     error,
+    errorSeq,
     clean,
     startTake,
     scheduleStop,

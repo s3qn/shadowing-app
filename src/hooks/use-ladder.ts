@@ -1,40 +1,42 @@
-import type { ReactNode } from 'react';
-import { useEffect, useRef, useState } from 'react';
-import { Easing, cancelAnimation, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Easing, cancelAnimation, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import type { Highlight } from '@/components/word-highlight';
-import type { Line } from '@/lib/api';
+import type { DockProps, LadderIo, LadderStageProps } from './ladder/ladder-types';
 import { TAIL_MS, type useTake } from '@/hooks/use-take';
+import { devAutoPause, devBlindTake, devFakeTake, devFakeTakeScore, devForcedRoute, devHandsFree, devNoNeighbours, devNoTranslation } from '@/lib/dev-simulate';
 import {
   COUNT_IN_BEATS,
   LADDER_PACING,
   LADDER_STAGE_ORDER,
   LADDER_PASSES,
-  afterTakePlayed,
   afterTakeSaved,
   fillKindOf,
   hasPrelude,
   isArmedStep,
   isPlayStep,
   isSpeakStep,
-  hintKeyOf,
   onLadderLineFinish,
   repeatsOf,
   stageOf,
   stepOfPass,
   textShownAt,
-  type LadderStage,
+  type LadderPace,
   type PassStep,
   type Prelude,
 } from '@/lib/pass-programme';
 import { useT } from '@/lib/i18n';
-import { getSettingsSync } from '@/lib/settings';
+import { getSettingsSync, setLadderPace, subscribeSettings } from '@/lib/settings';
 import { wordsKeptUp } from '@/lib/takes';
 
 /** How long a finished line holds (its score and XP still showing) before the next line starts. */
 const RESULT_HOLD_MS = 1400;
 /** A take that has not started playing by then is skipped, so the ladder never hangs. */
 const PLAY_START_MS = 1500;
+/** The longest a headset take's playback waits on its echo cleanup before the raw take plays. */
+const CLEAN_WAIT_MS = 4000;
+/** The dev fake take (`ladder-fake-take`): the mic "opens" for this long, then the take "plays" for FAKE_PLAY_MS. */
+const FAKE_RECORD_MS = 2000;
+const FAKE_PLAY_MS = 800;
 
 /**
  * How long a ladder take keeps the mic open, in seconds, for a line that
@@ -48,88 +50,21 @@ export const takeWatchSec = (wallSec: number) => takeRoomSec(wallSec) - TAIL_MS 
 /** The player rates both track-span players can set: quarter steps, 0.25–2. */
 export const snapRate = (v: number) => Math.min(2, Math.max(0.25, Math.round(v * 4) / 4));
 
-/** The audio glue a track-span player (a video or a podcast) hands the ladder. */
-export type LadderIo = {
-  /** Current line from its start; the player calls `lineFinished()` at its end. */
-  playLine: (speed: number) => void;
-  /** Mic on the current line, the line under it unless silent. False when the mic did not open. */
-  record: (speed: number) => Promise<boolean>;
-  /** Silence the track, drop a take in progress, restore the dock speed. */
-  stop: () => void;
-  /** The line's ladder finished (after Compare played the take back). */
-  onLineDone: () => void;
-  /** A record-button ladder is over: let the track play on from the next line. */
-  resume?: () => void;
-  /** Move to the next line; false when there is none. */
-  advance: () => boolean;
-  /** The current line's text, for the stage view. */
-  lineText: string;
-  line?: Line | null;
-};
+/** What `pause()` froze, so `resume()` can re-enter it. */
+type Snapshot = { step: PassStep; repeat: number; final: boolean; inHold: boolean; holdMs: number; counting: boolean };
 
-/** What the red button in the dock shows and does while the ladder runs. */
-export type DockProps = {
-  face: 'dot' | 'count' | 'stop' | 'dim';
-  countIn: number | null;
-  /** One count beat in ms, for the red button's beat ring. */
-  beatMs: number;
-  recordLabel: string;
-  /** 0..4 while the five stages run, -1 otherwise. */
-  stageIndex: number;
-  ringDisabled: boolean;
-  onRecord: () => void;
-};
-
-/** Everything the stage view needs to draw one ladder stage. */
-export type LadderStageProps = {
-  stage: LadderStage;
-  index: number;
-  total: number;
-  phase: 'announce' | 'count' | 'gap' | 'run' | 'waiting';
-  beat: number | null;
-  repeat: number;
-  repeats: number;
-  isRecording: boolean;
-  takePlaying: boolean;
-  textHidden: boolean;
-  text: string;
-  /** The line with its words and ruby, for the card's furigana. */
-  line?: Line | null;
-  /** Live mic level, 0..1, for the recording meter. */
-  level?: SharedValue<number>;
-  /** The playing line's word highlight, so the stage's line lights up with the audio. */
-  highlight?: Highlight;
-  fill: SharedValue<number>;
-  hint: string;
-  colour: string;
-  holdTitle?: string | null;
-  /**
-   * This line's newest take's score, shown under the rail from the moment it
-   * arrives until the next line starts; hidden when total is null. `scoring`
-   * while the backend still works on it, `at` the take's recordedAt.
-   */
-  score?: { total: number | null; keptUp?: string; scoring?: boolean; at?: number };
-  /** 2 while on the optional blind take after the recorded one. */
-  round?: 1 | 2;
-  /** Whether this run ends on the blind take (the blindTake setting). */
-  finalOn?: boolean;
-  /** False drops the Memorise and Say passes from the rail (the guide's first line). */
-  prep?: boolean;
-  /** bl58-easy-for-me: the Easy chip at the card's top-right, so a run can be left with a mark. */
-  chip?: ReactNode;
-  onJump: (i: number) => void;
-  onEnd: () => void;
-  /** The mic has closed on this take (Stop tapped, or the take ended and is saving). */
-  stopped?: boolean;
-  /** The dock's red button: stops the take in progress, which then moves on. */
-  onStop?: () => void;
-  /** The dock's red button while a take waits on the tap: counts in, then records. */
-  onRecord?: () => void;
-  /** Jumps to the blind take. */
-  onFinal?: () => void;
-  onHelp?: () => void;
-  onSkip?: () => void;
-};
+/**
+ * The score of a take recorded in this run of this line (an older saved take keeps
+ * its score to itself), or the dev fake take's. Shared by the render and finishLine,
+ * so the line's end reads the same score the stage shows, on the same tick.
+ */
+function takeScore(take: ReturnType<typeof useTake>, since: number, fakeScored: boolean) {
+  const fresh = take.phase === 'ready' && !!take.take && take.take.recordedAt > since;
+  const sc = fresh ? (take.take?.score ?? null) : null;
+  const fake = fakeScored && devFakeTake();
+  const fakeScore = fake ? devFakeTakeScore() : null;
+  return { fresh, sc, fake, fakeScore, total: fakeScore ?? sc?.total ?? null };
+}
 
 /**
  * The five-pass ladder for a player whose lines are spans of one track. The
@@ -155,6 +90,16 @@ export function useLadder(
   beat: number | null;
   prelude: Prelude;
   stage: LadderStageProps | null;
+  paused: boolean;
+  pause: () => void;
+  resume: () => void;
+  loop: boolean;
+  setLoop: (on: boolean) => void;
+  goLine: (i: number) => void;
+  next: () => void;
+  prev: () => void;
+  pace: LadderPace;
+  setPace: (p: LadderPace) => void;
 } {
   const { t } = useT();
   const [step, setStepState] = useState<PassStep>('idle');
@@ -166,14 +111,21 @@ export function useLadder(
   // Read once at mount: the toggles left the run UI, Settings > Playback owns them.
   const [autoEcho] = useState(() => getSettingsSync().autoEcho);
   const [autoRecord] = useState(() => getSettingsSync().autoRecord);
-  const [pace] = useState(() => getSettingsSync().ladderPace);
-  const [blindTake] = useState(() => getSettingsSync().blindTake);
+  const [blindTake] = useState(() => devBlindTake() ?? getSettingsSync().blindTake);
+  // The pace follows Settings live (and the pace sheet): it applies from the next stage or repeat.
+  const [pace, setPaceState] = useState<LadderPace>(() => getSettingsSync().ladderPace);
+  const paceRef = useRef(pace);
+  paceRef.current = pace;
+  useEffect(() => subscribeSettings(() => setPaceState(getSettingsSync().ladderPace)), []);
   const pacing = LADDER_PACING[pace];
   const fill = useSharedValue(0);
   // One timer walks a stage's prelude: the announce hold, the 3 beats, a gap between repeats.
   const preludeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fakeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // `ladder-paused`: the run pauses itself shortly after it starts.
+  const pauseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startedAt = useRef(0);
   const starting = useRef(false);
   // When the mic opened, and the timer holding the take open past the line's end (takeRoomSec).
@@ -184,13 +136,35 @@ export function useLadder(
   // Stop tapped while the saved take waits on its echo cleanup: move on without it.
   const rush = useRef(false);
   const [rushTick, setRushTick] = useState(0);
+  // Compare reached the take while its echo cleanup still runs: it plays once the cleanup lands.
+  const playWhenClean = useRef(false);
   const wasPlaying = useRef(false);
   // The blind take after the recorded one (blindTake on): round 2.
   const final = useRef(false);
   const [finalOn, setFinalOn] = useState(false);
+  // Pause: the frozen step, and the one transition that arrived while frozen.
+  const [paused, setPausedState] = useState(false);
+  const pausedRef = useRef(false);
+  const snap = useRef<Snapshot | null>(null);
+  const pending = useRef<(() => void) | null>(null);
+  // The hold after a line's score, so Next can skip it and Pause can keep it.
+  const inHold = useRef(false);
+  // That hold's length (the Easy offer holds longer), so a Resume holds as long again.
+  const holdMsRef = useRef(RESULT_HOLD_MS);
+  const [loop, setLoopState] = useState(false);
+  const loopRef = useRef(false);
+  // The dev fake take has "played": its score shows through the hold.
+  const [fakeScored, setFakeScoredState] = useState(false);
+  const fakeScoredRef = useRef(false);
+  const setFakeScored = (v: boolean) => {
+    fakeScoredRef.current = v;
+    setFakeScoredState(v);
+  };
   // Timers and effects read the latest render's values through this.
-  const live = useRef({ take, base, lineSec, io, autoEcho, autoRecord });
-  live.current = { take, base, lineSec, io, autoEcho, autoRecord };
+  // `handsFree` is the same value the stage gets: dev key, then the host's override, then the setting.
+  const handsFreeNow = devHandsFree() ?? io.autoEcho ?? autoEcho;
+  const live = useRef({ take, base, lineSec, io, autoEcho, autoRecord, handsFree: handsFreeNow });
+  live.current = { take, base, lineSec, io, autoEcho, autoRecord, handsFree: handsFreeNow };
 
   const setFinal = (v: boolean) => {
     final.current = v;
@@ -200,17 +174,38 @@ export function useLadder(
     stepRef.current = next;
     setStepState(next);
   };
+  const setPaused = (v: boolean) => {
+    pausedRef.current = v;
+    setPausedState(v);
+  };
+  const setLoop = (on: boolean) => {
+    loopRef.current = on;
+    setLoopState(on);
+  };
   const clearTimers = () => {
     if (preludeTimer.current) clearTimeout(preludeTimer.current);
     if (holdTimer.current) clearTimeout(holdTimer.current);
     if (playTimer.current) clearTimeout(playTimer.current);
     if (roomTimer.current) clearTimeout(roomTimer.current);
+    if (fakeTimer.current) clearTimeout(fakeTimer.current);
+    if (pauseTimer.current) clearTimeout(pauseTimer.current);
     preludeTimer.current = null;
     holdTimer.current = null;
     playTimer.current = null;
     roomTimer.current = null;
+    fakeTimer.current = null;
+    pauseTimer.current = null;
+    inHold.current = false;
     stopWhenOpen.current = false;
+    playWhenClean.current = false;
     setPreludeState(null);
+  };
+  // Any jump, start, stop or record tap drops a pause and what it deferred.
+  const clearPause = () => {
+    if (!pausedRef.current && !pending.current) return;
+    pending.current = null;
+    snap.current = null;
+    setPaused(false);
   };
 
   const setRepeat = (n: number) => {
@@ -218,33 +213,54 @@ export function useLadder(
     setRepeatState(n);
   };
 
-  // The line's ladder is over: hold on its score, then move on or stop.
+  // After the hold: the same line again on Loop (unless Next skipped the hold), else the next line, else the run is over.
+  const afterHold = (skipLoop = false) => {
+    const l = live.current;
+    if (loopRef.current && !skipLoop) {
+      start();
+      return;
+    }
+    if (opts?.onRecordStart === 'line') {
+      // The record button's ladder covers one line: the track plays on.
+      setStep('idle');
+      l.io.resume?.();
+    } else if (l.io.advance()) {
+      start();
+    } else {
+      setLoop(false);
+      setStep('done');
+    }
+  };
+
+  // The hold on a line's score. Next skips it; Pause keeps the score up until Resume.
+  const scheduleAfterLine = (holdMs = RESULT_HOLD_MS) => {
+    const l = live.current;
+    holdMsRef.current = holdMs;
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    if (opts?.onRecordStart !== 'line' && !l.handsFree && !loopRef.current) {
+      // Hands-free off: no timer, the run rests on the score until a right tap, scrub, swipe or End.
+      holdTimer.current = null;
+      inHold.current = true;
+      return;
+    }
+    inHold.current = true;
+    holdTimer.current = setTimeout(() => {
+      holdTimer.current = null;
+      inHold.current = false;
+      afterHold();
+    }, holdMs);
+  };
+
+  // The line's ladder is over: grade it once, then hold on its score.
   const finishLine = () => {
     if (playTimer.current) clearTimeout(playTimer.current);
     playTimer.current = null;
-    const l = live.current;
-    l.io.onLineDone();
-    if (opts?.onRecordStart === 'line') {
-      // The record button's ladder covers one line: hold the score, then the track plays on.
-      holdTimer.current = setTimeout(() => {
-        holdTimer.current = null;
-        setStep('idle');
-        live.current.io.resume?.();
-      }, RESULT_HOLD_MS);
-    } else if (l.autoEcho) {
-      holdTimer.current = setTimeout(() => {
-        holdTimer.current = null;
-        if (!live.current.autoEcho) {
-          setStep(afterTakePlayed(stepRef.current, false));
-        } else if (live.current.io.advance()) {
-          start();
-        } else {
-          setStep('done');
-        }
-      }, RESULT_HOLD_MS);
-    } else {
-      setStep('done');
-    }
+    // A late take ending during the hold already counted: grade the line once.
+    wasPlaying.current = false;
+    if (inHold.current) return;
+    // Read from the take itself, not from a render: the offer at 90+ needs this tick's score.
+    const r = live.current.io.onLineDone(takeScore(live.current.take, startedAt.current, fakeScoredRef.current).total);
+    scheduleAfterLine(r?.holdMs);
   };
 
   // Plays the take back; one that never starts counts as played.
@@ -257,25 +273,85 @@ export function useLadder(
     }, PLAY_START_MS);
   };
 
+  // Compare's take: a headset take (the line played under it) waits for its
+  // echo cleanup, capped, so the cleaned file is what plays. A take with no line
+  // under it has nothing to clean and plays at once, its score landing behind.
+  const playTakeWhenClean = () => {
+    const tk = live.current.take;
+    if (tk.headset !== true || tk.clean.state !== 'working' || rush.current) {
+      playTake();
+      return;
+    }
+    playWhenClean.current = true;
+    if (playTimer.current) clearTimeout(playTimer.current);
+    playTimer.current = setTimeout(() => {
+      playTimer.current = null;
+      if (!playWhenClean.current) return;
+      playWhenClean.current = false;
+      playTake();
+    }, CLEAN_WAIT_MS);
+  };
+
   const start = () => {
     clearTimers();
+    clearPause();
     // A new line's run: a take saved before it is not this run's, nor is its score.
     startedAt.current = Date.now();
+    setFakeScored(false);
     setFinal(false);
     enterStage('ladderListen');
+    if (devAutoPause()) {
+      pauseTimer.current = setTimeout(() => {
+        pauseTimer.current = null;
+        pause();
+      }, 1500);
+    }
   };
 
   const stop = () => {
     clearTimers();
+    clearPause();
     starting.current = false;
     rush.current = false;
     setStopping(false);
+    setLoop(false);
     setStep('idle');
     live.current.io.stop();
   };
 
+  // ladder-fake-take: the mic "opens" for 2 s, the take "plays" for 800 ms, then the line is done.
+  const fakeSpeak = () => {
+    setStep('ladderRecord');
+    fakeTimer.current = setTimeout(() => {
+      fakeTimer.current = null;
+      fakePlay();
+    }, FAKE_RECORD_MS);
+  };
+  const fakePlay = () => {
+    // The first take with the blind take on: the final take runs by itself, like a real one saved.
+    if (blindTake && !final.current) {
+      setFinal(true);
+      enterStage('ladderRecord');
+      return;
+    }
+    setFakeScored(true);
+    setStep('ladderPlay');
+    fakeTimer.current = setTimeout(() => {
+      fakeTimer.current = null;
+      if (pausedRef.current) {
+        pending.current = finishLine;
+        return;
+      }
+      finishLine();
+    }, FAKE_PLAY_MS);
+  };
+
   const startSpeak = async () => {
     if (starting.current) return;
+    if (devFakeTake()) {
+      fakeSpeak();
+      return;
+    }
     starting.current = true;
     startedAt.current = Date.now();
     stopWhenOpen.current = false;
@@ -285,9 +361,10 @@ export function useLadder(
     const ok = await live.current.io.record(live.current.base);
     starting.current = false;
     micAt.current = Date.now();
-    // Closed while the mic was opening: drop that take.
-    if (ok && !isSpeakStep(stepRef.current)) void live.current.take.cancel();
-    else if (!ok) setStep('idle');
+    // Closed or moved to another line while the mic was opening: drop that take, keep the new run.
+    if (!isSpeakStep(stepRef.current)) {
+      if (ok) void live.current.take.cancel();
+    } else if (!ok) setStep(live.current.io.armOnMicFail ? 'ladderArmed' : 'idle');
   };
 
   // Every stage but Compare opens the same way: announce it, count 3, 2, 1, then it runs.
@@ -307,7 +384,7 @@ export function useLadder(
       return;
     }
     setPreludeState({ phase: 'announce' });
-    preludeTimer.current = setTimeout(() => countBeat(COUNT_IN_BEATS, next), pacing.announceMs);
+    preludeTimer.current = setTimeout(() => countBeat(COUNT_IN_BEATS, next), LADDER_PACING[paceRef.current].announceMs);
   };
 
   const countBeat = (n: number, next: PassStep) => {
@@ -321,12 +398,14 @@ export function useLadder(
         if (isSpeakStep(next)) void startSpeak();
         else live.current.io.playLine(live.current.base);
       }
-    }, pacing.beatMs);
+    }, LADDER_PACING[paceRef.current].beatMs);
   };
 
   const lineFinished = () => {
     // A line still sounding while a stage announces or counts is not this stage's line.
     if (preludeTimer.current) return;
+    // Paused: the track was silenced, not finished. Resume replays the pass.
+    if (pausedRef.current) return;
     const { take: tk, autoRecord: auto, base: b, io: o } = live.current;
     const cur = stepRef.current;
     if (isSpeakStep(cur)) {
@@ -343,7 +422,7 @@ export function useLadder(
       }, wait);
       return;
     }
-    const r = onLadderLineFinish(cur, repeatRef.current, auto, pace);
+    const r = onLadderLineFinish(cur, repeatRef.current, auto, paceRef.current, o.prep ?? true);
     if (r.kind === 'repeat') {
       // Same stage again after a short gap, no count.
       setRepeat(repeatRef.current + 1);
@@ -352,14 +431,14 @@ export function useLadder(
         preludeTimer.current = null;
         setPreludeState(null);
         o.playLine(b);
-      }, pacing.gapMs);
+      }, LADDER_PACING[paceRef.current].gapMs);
       return;
     }
     const after = r.step;
     if (after === cur) return;
     if (isPlayStep(after)) {
       setStep(after);
-      playTake();
+      playTakeWhenClean();
     } else if (isArmedStep(after)) {
       // Auto Record off: wait on the tap, which then announces and counts.
       setStep(after);
@@ -377,10 +456,16 @@ export function useLadder(
       return;
     }
     if (starting.current) return;
-    // A line, a take or a recording still running stops before the count.
+    clearPause();
+    // A line, a take, a recording or the hold still running stops before the count.
     live.current.io.stop();
     if (playTimer.current) clearTimeout(playTimer.current);
     playTimer.current = null;
+    if (fakeTimer.current) clearTimeout(fakeTimer.current);
+    fakeTimer.current = null;
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+    inHold.current = false;
     setStopping(false);
     enterStage('ladderRecord');
   };
@@ -396,24 +481,29 @@ export function useLadder(
       return;
     }
     clearTimers();
+    clearPause();
     o.stop();
     setStopping(false);
     enterStage(next);
   };
 
-  // The blind take: waits on the Record tap with the text hidden.
+  // The blind take: announces, counts and opens the mic with the text hidden (Auto Record off waits on a tap).
   const jumpToFinal = () => {
     clearTimers();
+    clearPause();
     live.current.io.stop();
-    if (playTimer.current) clearTimeout(playTimer.current);
-    playTimer.current = null;
     setStopping(false);
     setFinal(true);
-    setStep('ladderArmed');
+    enterStage('ladderRecord');
   };
 
   const onRecord = () => {
     const cur = stepRef.current;
+    // Paused, the circle records now on any stage, Compare too (State row 10).
+    if (pausedRef.current) {
+      countInThenSpeak();
+      return;
+    }
     if (cur === 'idle' && opts?.onRecordStart === 'line') {
       // The track may be playing: silence it before the ladder announces.
       live.current.io.stop();
@@ -421,6 +511,13 @@ export function useLadder(
     } else if (cur === 'idle') start();
     else if (cur === 'done') start();
     else if (isSpeakStep(cur)) {
+      if (fakeTimer.current) {
+        // Stop on the fake take: it has "played" at once.
+        clearTimeout(fakeTimer.current);
+        fakeTimer.current = null;
+        fakePlay();
+        return;
+      }
       // Stop works at any moment: on an open mic it ends the take now, before
       // the mic opens it ends the take the moment it does, and on a saved take
       // still cleaning it moves on without the cleanup.
@@ -434,31 +531,165 @@ export function useLadder(
     } else if (!isPlayStep(cur)) countInThenSpeak();
   };
 
+  // Pause: freeze the step, silence the track, keep a saved take. On Record it
+  // waits for this run's take to be saved: a mic opening, open or closing after
+  // Stop has nothing to freeze, and resetting `stopping` there could strand the run.
+  const pause = () => {
+    const cur = stepRef.current;
+    if (pausedRef.current || cur === 'idle' || cur === 'done') return;
+    const tk = live.current.take;
+    const takeFresh = tk.phase === 'ready' && !!tk.take && tk.take.recordedAt > startedAt.current;
+    if (isSpeakStep(cur) && (!takeFresh || starting.current || fakeTimer.current)) return;
+    // The Record stage's announce or count: Resume runs it again rather than waiting on a tap.
+    const counting = isArmedStep(cur) && preludeTimer.current !== null;
+    snap.current = { step: cur, repeat: repeatRef.current, final: final.current, inHold: inHold.current, holdMs: holdMsRef.current, counting };
+    pending.current = null;
+    clearTimers();
+    cancelAnimation(fill);
+    fill.value = 0;
+    live.current.io.stop();
+    setPaused(true);
+  };
+
+  // Resume: run what arrived while paused, else re-enter the frozen step from its start.
+  const resume = () => {
+    if (!pausedRef.current) return;
+    const p = pending.current;
+    const s = snap.current;
+    pending.current = null;
+    snap.current = null;
+    setPaused(false);
+    if (p) {
+      p();
+      return;
+    }
+    if (!s) return;
+    if (s.inHold) {
+      scheduleAfterLine(s.holdMs);
+      return;
+    }
+    if (isArmedStep(s.step)) {
+      if (s.counting) enterStage('ladderRecord');
+      return;
+    }
+    if (isPlayStep(s.step)) {
+      setStep(s.step);
+      if (devFakeTake()) fakePlay();
+      else playTake();
+      return;
+    }
+    if (isSpeakStep(s.step)) {
+      // The take was saved and still scoring when paused: Compare follows once it lands.
+      setStep(s.step);
+      return;
+    }
+    enterStage(s.step);
+    if (s.repeat > 1) setRepeat(s.repeat);
+  };
+
+  // Lines: seek to `i` and run its ladder from Listen. Past the ends, nothing.
+  const goLine = (i: number) => {
+    const o = live.current.io;
+    if (!o.goTo) return;
+    clearTimers();
+    clearPause();
+    // `starting` stays set while io.record is pending: startSpeak clears it when the call
+    // returns and drops that take, since the step is no longer Record.
+    rush.current = false;
+    setStopping(false);
+    o.stop();
+    // A refused seek (past the ends) does not restart the line.
+    if (!o.goTo(i)) return;
+    start();
+  };
+  const next = () => {
+    if (inHold.current) {
+      // Skip the hold: the next line now, whatever Loop says.
+      clearTimers();
+      clearPause();
+      afterHold(true);
+      return;
+    }
+    const o = live.current.io;
+    const i = (o.lineIndex ?? 0) + 1;
+    if (o.goTo && i < (o.lineCount ?? 0)) {
+      goLine(i);
+      return;
+    }
+    // Past the last line: the run's natural end (session routing as today).
+    clearTimers();
+    clearPause();
+    o.stop();
+    if (o.advance()) start();
+    else {
+      setLoop(false);
+      setStep('done');
+    }
+  };
+  const prev = () => {
+    const o = live.current.io;
+    goLine(Math.max(0, (o.lineIndex ?? 0) - 1));
+  };
+  const setPace = (p: LadderPace) => {
+    setPaceState(p);
+    void setLadderPace(p);
+  };
+  const setSpeed = (v: number) => live.current.io.setSpeed?.(snapRate(v));
+
   // A saved take moves on to the blind take (the first take, blindTake on)
-  // or to Compare: the line plays, then the take answers it.
+  // or to Compare: the line plays, then the take answers it. It never waits
+  // on the backend: the score lands behind the next stage (the slot shows it
+  // pending), and Compare's playback alone waits on a cleanup (playTakeWhenClean).
   useEffect(() => {
     const after = afterTakeSaved(stepRef.current);
     if (
       after !== stepRef.current &&
       take.phase === 'ready' &&
-      (take.clean.state !== 'working' || rush.current) &&
       take.takeLoaded &&
       take.take &&
       take.take.recordedAt > startedAt.current
     ) {
-      setStopping(false);
-      rush.current = false;
-      if (isPlayStep(after)) {
-        setStep(after);
-        playTake();
-      } else if (blindTake && !final.current) {
-        // Waits on the Record tap, whatever Auto Record says.
-        setFinal(true);
-        setStep('ladderArmed');
-      } else enterStage(after);
+      const go = () => {
+        setStopping(false);
+        rush.current = false;
+        if (isPlayStep(after)) {
+          setStep(after);
+          playTake();
+        } else if (blindTake && !final.current) {
+          // The final take runs by itself: announce, count, mic, with the text hidden.
+          setFinal(true);
+          enterStage('ladderRecord');
+        } else enterStage(after);
+      };
+      if (pausedRef.current) pending.current = go;
+      else go();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [take.phase, take.take?.recordedAt, take.takeLoaded, take.clean.state, rushTick]);
+  }, [take.phase, take.take?.recordedAt, take.takeLoaded, rushTick]);
+
+  // A take that failed to save (or to stop) never turns phase to 'ready', so the advance above
+  // never fires and the stage would sit on a Record step with a dead meter. Leave the step the
+  // way a failed mic open does: the red button waits (armed) or the ladder rests, the next tap
+  // takes the line again, and nothing advances by itself.
+  useEffect(() => {
+    if (!take.error || take.phase === 'recording' || starting.current) return;
+    if (!isSpeakStep(stepRef.current)) return;
+    if (take.take && take.take.recordedAt > startedAt.current) return;
+    clearTimers();
+    stopWhenOpen.current = false;
+    rush.current = false;
+    setStopping(false);
+    setStep(live.current.io.armOnMicFail ? 'ladderArmed' : 'idle');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [take.phase, take.errorSeq]);
+
+  // The cleanup Compare's take waited on has landed (done, skipped or failed): play it now.
+  useEffect(() => {
+    if (!playWhenClean.current || take.clean.state === 'working') return;
+    playWhenClean.current = false;
+    if (isPlayStep(stepRef.current) && !pausedRef.current) playTake();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [take.clean.state]);
 
   // Stop tapped while the mic was opening: the take ends now that it is open.
   useEffect(() => {
@@ -474,7 +705,8 @@ export function useLadder(
       clearTimeout(playTimer.current);
       playTimer.current = null;
     }
-    if (wasPlaying.current && !take.takePlaying && isPlayStep(stepRef.current)) finishLine();
+    // A take silenced by Pause is not finished: Resume plays it again from its start.
+    if (wasPlaying.current && !take.takePlaying && isPlayStep(stepRef.current) && !pausedRef.current) finishLine();
     wasPlaying.current = take.takePlaying;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [take.takePlaying]);
@@ -483,8 +715,8 @@ export function useLadder(
   useEffect(() => {
     cancelAnimation(fill);
     fill.value = 0;
-    // The bar stays empty through an announce, a count or a gap.
-    const kind = prelude === null ? fillKindOf(step) : 'none';
+    // The bar stays empty through an announce, a count, a gap or a pause.
+    const kind = prelude === null && !paused ? fillKindOf(step) : 'none';
     const ms =
       kind === 'line'
         ? (lineSec / snapRate(base)) * 1000
@@ -495,7 +727,7 @@ export function useLadder(
             : 0;
     if (ms > 0) fill.value = withTiming(1, { duration: ms, easing: Easing.linear });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, prelude === null, take.takeDuration]);
+  }, [step, prelude === null, take.takeDuration, paused]);
 
   useEffect(() => clearTimers, []);
 
@@ -505,23 +737,117 @@ export function useLadder(
   const stageKey = stageOf(step);
   const stageIndex = stageKey ? LADDER_STAGE_ORDER.indexOf(stageKey) : -1;
   // Only a take recorded in this run of this line: an older saved take keeps its score to itself.
-  const fresh = take.phase === 'ready' && !!take.take && take.take.recordedAt > startedAt.current;
-  const sc = fresh ? (take.take?.score ?? null) : null;
+  const { fresh, sc, fake, fakeScore, total: scoreTotal } = takeScore(take, startedAt.current, fakeScored);
   const kept = wordsKeptUp(sc);
-  const score = {
-    total: sc?.total ?? null,
-    keptUp: kept ? t('player.keptUpWords', { kept: kept.kept, total: kept.total }) : undefined,
-    scoring: fresh && !sc && take.clean.state === 'working',
-    at: take.take?.recordedAt,
-  };
-  let hint = t(
-    (armed || isSpeakStep(step)) && take.headset === false ? 'player.headsetPrompt' : hintKeyOf(step),
+  const scoreKept = fakeScore !== null
+    ? (fakeScore >= 90 ? '5 of 5 words' : '4 of 5 words')
+    : kept ? t('player.keptUpWords', { kept: kept.kept, total: kept.total }) : undefined;
+  const scoring = !fake && fresh && !sc && take.clean.state === 'working';
+  const scoreAt = fake ? startedAt.current : take.take?.recordedAt;
+  const score = useMemo(
+    () => ({ total: scoreTotal, keptUp: scoreKept, scoring, at: scoreAt }),
+    [scoreTotal, scoreKept, scoring, scoreAt],
   );
-  if (stageIndex >= 0 && prelude?.phase === 'announce') {
-    hint = t('player.announce', { name: t(LADDER_PASSES[stageIndex]!.titleKey) });
-  } else if (prelude?.phase === 'gap') {
-    hint = t('player.again', { n: repeat, total: repeatsOf(step, pace) });
-  }
+  // Turn-taking: the line will not play under the take. A forced dev route (`ladder-speaker`) stands in for the probe.
+  const forced = devForcedRoute();
+  const speaker = forced ? forced === 'speaker' : take.headset === false;
+
+  // Every handler on `stage` is one stable proxy reading the latest render (D6), so the
+  // memoised view never re-renders for a new closure.
+  const fns = useRef({ jumpTo, stop, onRecord, jumpToFinal, pause, resume, setLoop, goLine, next, prev, setPace, setSpeed });
+  fns.current = { jumpTo, stop, onRecord, jumpToFinal, pause, resume, setLoop, goLine, next, prev, setPace, setSpeed };
+  const proxies = useMemo(
+    () => ({
+      onJump: (i: number) => fns.current.jumpTo(i),
+      onEnd: () => fns.current.stop(),
+      onStop: () => fns.current.onRecord(),
+      onRecord: () => fns.current.onRecord(),
+      onFinal: () => fns.current.jumpToFinal(),
+      onPause: () => fns.current.pause(),
+      onResume: () => fns.current.resume(),
+      onLoop: (on: boolean) => fns.current.setLoop(on),
+      onLine: (i: number) => fns.current.goLine(i),
+      onSkip: () => fns.current.next(),
+      onPrev: () => fns.current.prev(),
+      onPace: (p: LadderPace) => fns.current.setPace(p),
+      onSpeed: (v: number) => fns.current.setSpeed(v),
+      // focus-stories D3: the host's hop, read from the latest io.
+      onHop: (dir: -1 | 1) => live.current.io.onHop?.(dir),
+    }),
+    [],
+  );
+
+  const phase: LadderStageProps['phase'] = prelude ? prelude.phase : armed ? 'waiting' : 'run';
+  const repeats = repeatsOf(step, pace);
+  const isRecording = isSpeakStep(step);
+  const stopped = isRecording && (stopping || fresh);
+  const textHidden = textShownAt(step, blindTake, finalOn) === false;
+  const hasLines = typeof io.lineCount === 'number' && io.lineCount > 0;
+  const colour = stageIndex >= 0 ? LADDER_PASSES[stageIndex]!.colour : '';
+  const hasGoTo = !!io.goTo;
+  const hasSetSpeed = !!io.setSpeed;
+  // focus-stories: the stage's pass-throughs. `handsFree` is the run's Hands-free (D6): the dev key, then
+  // the host's override, then the setting; scheduleAfterLine's rule for it (no timer when off) reads the same.
+  const handsFree = devHandsFree() ?? io.autoEcho ?? autoEcho;
+  const translation = devNoTranslation() ? '' : (io.translation ?? io.line?.en ?? '');
+  const neighbours = devNoNeighbours() ? undefined : io.neighbours;
+  const hasHop = !!io.onHop;
+  const stage = useMemo(
+    (): LadderStageProps | null =>
+      stageKey === null || stageIndex < 0
+        ? null
+        : {
+            stage: stageKey,
+            index: stageIndex,
+            total: LADDER_STAGE_ORDER.length,
+            phase,
+            beat,
+            repeat,
+            repeats,
+            isRecording,
+            stopped,
+            takePlaying: take.takePlaying,
+            textHidden,
+            text: io.lineText,
+            line: io.line,
+            level: take.level,
+            fill,
+            colour,
+            speaker,
+            // Once per line, after the last take: earlier takes score silently.
+            score: stageKey === 'compare' ? score : undefined,
+            round: finalOn ? 2 : 1,
+            finalOn: blindTake,
+            prep: io.prep,
+            paused,
+            loop,
+            lineIndex: hasLines ? io.lineIndex : undefined,
+            lineCount: hasLines ? io.lineCount : undefined,
+            context: io.context,
+            title: io.title,
+            pace,
+            // The rate the passes play at, so the readout and the slider show what is heard.
+            speed: snapRate(base),
+            ...proxies,
+            onLine: hasGoTo ? proxies.onLine : undefined,
+            // Always on: past the last line `next()` falls through to `io.advance()` (the island's own routing).
+            onPrev: hasGoTo ? proxies.onPrev : undefined,
+            onSpeed: hasSetSpeed ? proxies.onSpeed : undefined,
+            // focus-stories: D5 translation, D6 hands-free, D8 word tap, D3 neighbours and the hop.
+            translation,
+            handsFree,
+            word: io.word,
+            neighbours,
+            onHop: hasHop ? proxies.onHop : undefined,
+          },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      stageKey, stageIndex, phase, beat, repeat, repeats, isRecording, stopped, take.takePlaying, textHidden,
+      io.lineText, io.line, take.level, speaker, colour, score, finalOn, blindTake, paused, loop, hasLines,
+      io.lineIndex, io.lineCount, io.context, io.title, io.prep, pace, base, hasGoTo, hasSetSpeed,
+      translation, handsFree, io.word, neighbours, hasHop,
+    ],
+  );
   return {
     step,
     active: step !== 'idle' && step !== 'done',
@@ -531,38 +857,17 @@ export function useLadder(
     jumpTo,
     beat,
     prelude,
-    stage:
-      stageKey === null || stageIndex < 0
-        ? null
-        : {
-            stage: stageKey,
-            index: stageIndex,
-            total: LADDER_STAGE_ORDER.length,
-            phase: prelude ? prelude.phase : armed ? 'waiting' : 'run',
-            beat,
-            repeat,
-            repeats: repeatsOf(step, pace),
-            isRecording: isSpeakStep(step),
-            stopped:
-              isSpeakStep(step) &&
-              (stopping || (take.phase === 'ready' && !!take.take && take.take.recordedAt > startedAt.current)),
-            takePlaying: take.takePlaying,
-            textHidden: textShownAt(step, blindTake, finalOn) === false,
-            text: io.lineText,
-            line: io.line,
-            level: take.level,
-            fill,
-            hint,
-            colour: LADDER_PASSES[stageIndex]!.colour,
-            score,
-            round: finalOn ? 2 : 1,
-            finalOn: blindTake,
-            onJump: jumpTo,
-            onEnd: stop,
-            onStop: onRecord,
-            onRecord,
-            onFinal: jumpToFinal,
-          },
+    stage,
+    paused,
+    pause,
+    resume,
+    loop,
+    setLoop,
+    goLine,
+    next,
+    prev,
+    pace,
+    setPace,
     dock: {
       face: countIn !== null ? 'count' : isSpeakStep(step) ? (stopping && !take.error ? 'dim' : 'stop') : isPlayStep(step) ? 'dim' : 'dot',
       countIn,

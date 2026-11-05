@@ -88,6 +88,7 @@ export const en = {
   'islandError.transcribe_empty': 'Nothing was transcribed.',
   'islandError.no_lines': 'No lines were found.',
   'islandError.voice_no_audio': 'The voice produced no audio.',
+  'islandError.say_unclear': 'I did not catch that. Say it again.',
   'islandError.audio_undecodable': 'The audio could not be decoded.',
   'islandError.no_line_cut': 'No line could be cut.',
   'islandError.media_undecodable': 'The media could not be decoded.',
@@ -105,6 +106,8 @@ export const en = {
   'update.body.android': 'Download the newest version to keep using the app.',
   'update.button.ios': 'Open TestFlight',
   'update.button.android': 'Download update',
+  'notFound.title': 'This page does not exist.',
+  'notFound.home': 'Back to Home',
   'error.title': 'Something went wrong',
   'error.retry': 'Try again',
 };

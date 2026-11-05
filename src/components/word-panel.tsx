@@ -29,6 +29,8 @@ type Props = {
   /** Omit to hide the hear button (a screen with no per-word audio). */
   onHear?: () => void;
   onClose: () => void;
+  /** The panel's measured height, for a screen that must keep it clear of other controls. */
+  onHeight?: (h: number) => void;
 };
 
 /** は and へ are read as particles (ワ/エ), not their base kana; every other
@@ -50,7 +52,7 @@ function foldKana(s: string): string {
  * hear the word again. Absolutely positioned so the sentence never moves.
  * It never touches playback itself; the screen decides what Hear it does.
  */
-export function WordPanel({ word, gloss, context, left, top, romaji = false, dictionary = true, onHear, onClose }: Props) {
+export function WordPanel({ word, gloss, context, left, top, romaji = false, dictionary = true, onHear, onClose, onHeight }: Props) {
   const { t } = useT();
   const dir = useDir();
   const shownReading = gloss ? (romaji ? toRomajiReading(gloss) : gloss.reading) : '';
@@ -59,7 +61,7 @@ export function WordPanel({ word, gloss, context, left, top, romaji = false, dic
   const showReading = !!gloss?.reading && (romaji || foldKana(gloss.reading) !== foldKana(surface));
   const showBase = !!gloss?.base && gloss.base !== surface;
   return (
-    <View style={[styles.pop, { left, top }]}>
+    <View style={[styles.pop, { left, top }]} onLayout={onHeight ? (e) => onHeight(Math.round(e.nativeEvent.layout.height)) : undefined}>
       <GlassFill radius={Radius.md} />
       <View style={[styles.head, dir.row]}>
         <View style={styles.headText}>

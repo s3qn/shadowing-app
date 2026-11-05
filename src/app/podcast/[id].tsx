@@ -11,7 +11,7 @@ import { CatConstellation } from '@/components/cat-constellation';
 import { ExplainSheet } from '@/components/explain-sheet';
 import { BlindPopover, blindValueLabel } from '@/components/tide/blind-popover';
 import { PassHelpSheet } from '@/components/tide/pass-help-sheet';
-import { LadderHelpButton, LadderStageView } from '@/components/tide/ladder-stage';
+import { LadderStageView } from '@/components/tide/ladder-stage';
 import { CompactDock, DOCK_GOLD_INK, type DockPill } from '@/components/tide/compact-dock';
 import { READING_LABEL_KEY, ReadingPopover } from '@/components/tide/reading-popover';
 import { SpeedPopover } from '@/components/tide/speed-popover';
@@ -316,6 +316,7 @@ export default function PodcastScreen() {
   const { ladder, helpOpen, setHelpOpen, helpPass, onPassHelp } = useLadderWiring({
     take, speedLive, lines, lineRef, ladderRef, island, activeLine, seekToLine, setRate, gradeOnce, session: inSession,
     onRecordStart: review ? 'ladder' : 'line',
+    setSpeed: (v) => commitSpeed(v),
     playLine: (snapped) => {
       player.setPlaybackRate(snapped, 'high');
       const at = lineRef.current;
@@ -390,15 +391,17 @@ export default function PodcastScreen() {
     const snapped = snapRate(speed);
     setRate(snapped);
     player.setPlaybackRate(snapped, 'high');
-    // The line plays under the take on the speaker too, like the island's
-    // Record my take: the backend removes the bleed against the line's own
-    // slice and keeps any echo left out of the score.
-    const res = await take.startTake(lineBounds(at).sec > 0 ? takeWatchSec(lineBounds(at).sec / snapped) : undefined, snapped, 'take', 0, null, false);
+    // Headset: the line plays under the take, like the island's Record my take, and the backend
+    // removes the bleed against the line's own slice. Speaker: turn-taking, the take is silent
+    // (no line under it) and scored on the clock.
+    const res = await take.startTake(lineBounds(at).sec > 0 ? takeWatchSec(lineBounds(at).sec / snapped) : undefined, snapped, 'take', 0, null, 'auto');
     if (!res) return false;
     ended.current = false;
-    seekToLine(at);
-    startPlayback(player);
-    armStop(at);
+    if (!res.silent) {
+      seekToLine(at);
+      startPlayback(player);
+      armStop(at);
+    }
     return true;
   }
 
@@ -524,16 +527,15 @@ export default function PodcastScreen() {
       <Stack.Screen
         options={{
           title: island?.title ?? '',
+          // The stage draws its own `?` while the ladder runs; the AI pick is for the plain player.
           headerRight:
-            ladder.stage && onPassHelp
-              ? () => <LadderHelpButton onPress={onPassHelp} />
-              : canAiPick
-                ? () => (
-                    <Pressable onPress={aiPick} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('podcast.aiPick.label')} style={styles.sparkles}>
-                      <SymbolView name={{ ios: 'sparkles', android: 'auto_awesome' }} size={20} weight="regular" tintColor={verb.read.c1} />
-                    </Pressable>
-                  )
-                : undefined,
+            canAiPick && !ladder.stage
+              ? () => (
+                  <Pressable onPress={aiPick} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('podcast.aiPick.label')} style={styles.sparkles}>
+                    <SymbolView name={{ ios: 'sparkles', android: 'auto_awesome' }} size={20} weight="regular" tintColor={verb.read.c1} />
+                  </Pressable>
+                )
+              : undefined,
         }}
       />
       {error || failed ? (

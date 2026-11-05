@@ -18,6 +18,21 @@ export const he = {
   'record.language.ja': 'יפנית',
   'record.language.es': 'ספרדית',
   'record.language.en': 'אנגלית',
+  'record.language.he': 'עברית',
+
+  'record.mode.say': 'משפט אחד',
+  'record.mode.island': 'היום שלי',
+  'record.say.title.idle': 'אמרו משפט אחד ב{language}.',
+  'record.say.title.recording': 'בהאזנה…',
+  'record.say.hint': 'אמרו מה שאתם רוצים להגיד, ב{native}. זה חוזר ב{language}, מוקלט בקול, מוכן לשאדו.',
+  'record.say.ready': 'תורגם והוקלט',
+  'record.say.youSaid': 'אמרתם · {language}',
+  'record.say.more': '+ עוד {count} שורות',
+  'record.say.more_one': '+ עוד שורה אחת',
+  'record.say.more_other': '+ עוד {count} שורות',
+  'record.say.back': 'שורה חדשה',
+  'record.say.again': 'להגיד שוב',
+  'record.say.shadow': 'לחזור אחריו',
 
   'record.waveform': 'צורת הגל של ההקלטה',
   'record.playRecording': 'השמעת ההקלטה',
@@ -46,6 +61,7 @@ export const he = {
   'record.discard': 'מחיקת ההקלטה',
 
   'record.buildHint': 'זה לוקח בערך דקה. אפשר לסגור את המסך הזה, האי ממשיך להיבנות ומופיע ברשימה כשהוא מוכן.',
+  'record.say.buildHint': 'אפשר לחזור אחורה, זה ממשיך להיבנות.',
   'record.podcastBuildHint': 'זה לוקח כמה דקות. אפשר לסגור את המסך הזה, האי ממשיך להיבנות ומופיע ברשימה כשהוא מוכן.',
   'record.defaultEpisodeTitle': 'פרק פודקאסט',
 

@@ -8,11 +8,11 @@ import { useEffect, useSyncExternalStore } from 'react';
 
 import { getEnergy, type Energy } from '@/lib/api';
 
-export type EnergyKind = 'create' | 'import' | 'regenerate';
+export type EnergyKind = 'create' | 'import' | 'regenerate' | 'say';
 export type EnergyLevel = 'full' | 'low' | 'empty';
 
 export const ENERGY_LOW = 10;
-const FALLBACK_PRICES: Record<string, number> = { create: 5, import: 10, regenerate: 3 };
+const FALLBACK_PRICES: Record<string, number> = { create: 5, import: 10, regenerate: 3, say: 1 };
 
 let server: Energy | null = null;
 let dev: number | null = null;

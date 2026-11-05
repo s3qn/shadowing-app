@@ -117,6 +117,74 @@ def test_upload_stores_a_row(monkeypatch, tmp_path):
     assert len(rows) == 1 and rows[0]["total"] == 88 and rows[0]["pitch"] is None
 
 
+def test_upload_silent_take_skips_the_profile(monkeypatch, tmp_path):
+    """A turn-taking take (speaker, no line under the voice) never loads
+    the speaker profile; _run_clean gets profile None and silent=True, and
+    its score is still stored."""
+    owner = f"user_{uuid.uuid4().hex}"
+    store.init()
+    island = {"id": "isl", "device": owner, "language": "ja", "lines": [{"idx": 0}]}
+    seen = {}
+
+    async def fake_audio(*a, **k):
+        return tmp_path / "ref.wav"
+
+    def no_profile(aec, device):
+        raise AssertionError("profile loaded for a silent take")
+
+    def spy(src, ref_path, profile, *a, **k):
+        seen.update(profile=profile, silent=k.get("silent"))
+        return {"score": {"words": ["ok"], "total": 72, "parts": {"content": 70, "timing": 75, "pitch": None}}}
+
+    monkeypatch.setattr(main, "_own_island", lambda island_id, device: island)
+    monkeypatch.setattr(main, "_load_take_profile", no_profile)
+    monkeypatch.setattr(main, "_take_use_slot", lambda device, kind: None)
+    monkeypatch.setattr(main, "_resolve_line_audio", fake_audio)
+    monkeypatch.setattr(main, "_run_clean", spy)
+    asyncio.run(main.upload_take(
+        island_id="isl", idx=0, speed=1.0, calibrate="0", start=-1, end=-1, lag=0, line_start=0,
+        silent="1",
+        take=UploadFile(file=io.BytesIO(b"RIFF"), filename="t.wav"),
+        authorization=AUTH, x_shadow_device=owner,
+    ))
+    assert seen == {"profile": None, "silent": True}
+    rows = store.list_take_scores(owner)
+    assert len(rows) == 1 and rows[0]["total"] == 72
+
+
+def test_run_clean_silent_anchors_on_clock(monkeypatch, tmp_path):
+    """With no line played, the take is kept as recorded, the bleed check
+    never runs, and the score anchors on the clock at line_start 0."""
+    import aec
+    import numpy as np
+    import take_analysis
+    import take_score
+
+    def no_clean(r, m, p):
+        raise AssertionError("aec.clean ran on a silent take")
+
+    def no_bleed(r, m):
+        raise AssertionError("bleed check ran on a silent take")
+
+    def scored(ref, take, sr, words, speed, span, anchor_ms, lag_ms, anchor, lenient):
+        return {"words": ["ok", "ok"], "note": "", "anchor": anchor, "anchorMs": anchor_ms}
+
+    monkeypatch.setattr(aec, "decode", lambda p: np.zeros(10))
+    monkeypatch.setattr(aec, "encode", lambda p, x: None)
+    monkeypatch.setattr(aec, "clean", no_clean)
+    monkeypatch.setattr(aec, "heard_speaker", no_bleed)
+    monkeypatch.setattr(store, "take_paths", lambda i, x: (tmp_path / "r.wav", tmp_path / "c.wav"))
+    monkeypatch.setattr(take_score, "score_take", scored)
+    monkeypatch.setattr(take_analysis, "analyse", lambda *a, **k: ANALYSIS)
+    monkeypatch.setattr(transcribe, "transcribe", lambda *a, **k: {"ok": True, "text": LINE})
+    line = {"ja": LINE, "words": WORDS, "timeline": []}
+    out = main._run_clean(tmp_path / "u.wav", tmp_path / "ref.wav", None, "isl", 0, line, 1.0,
+                          None, 0, 0, "ja", silent=True)
+    assert out["cleaned"] is False
+    assert out["score"]["anchor"] == "clock" and out["score"]["anchorMs"] == 0.0
+    assert out["score"]["total"] == 100 and out["score"]["heard"] == LINE
+
+
 # --- review fixes ---
 
 WORDS = [

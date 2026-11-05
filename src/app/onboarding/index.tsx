@@ -88,9 +88,11 @@ export default function OnboardingScreen() {
   // soft RTL: no restart needed). Only 'en'/'he' have a catalogue today; any
   // other pick clears the preview and falls back to the saved app language.
   useEffect(() => {
-    previewAppLanguage(understand === 'en' || understand === 'he' ? understand : null);
+    // The welcome and sign-in steps keep the saved app language: the saved
+    // understood language says nothing about it until the learner reaches the pickers.
+    previewAppLanguage(step >= STEP_LEARN && (understand === 'en' || understand === 'he') ? understand : null);
     return () => previewAppLanguage(null);
-  }, [understand]);
+  }, [understand, step]);
 
   function selectLearning(value: LearningLanguage) {
     setLearning(value);

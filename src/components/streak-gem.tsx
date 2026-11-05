@@ -19,7 +19,7 @@
  */
 
 import { useEffect, useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { cancelAnimation, Easing, useDerivedValue, useReducedMotion, useSharedValue, withRepeat, withTiming, type SharedValue } from 'react-native-reanimated';
 import { Blur, Canvas, Circle, FillType, Group, LinearGradient, Mask, Oval, Path, RadialGradient, Rect, Skia, Text as SkText, useTypeface, vec, type SkPath, type SkTypeface, type Vector } from '@shopify/react-native-skia';
 
@@ -293,8 +293,9 @@ const STAR_FIELD: [number, number, number][] = [[43.2, 16.9, 2.8], [32.7, 45.9, 
 const PRISM_COLORS = ['rgba(255,0,100,0)', 'rgba(255,70,90,0.8)', 'rgba(255,210,60,0.85)', 'rgba(80,255,150,0.8)', 'rgba(70,170,255,0.85)', 'rgba(190,90,255,0.8)', 'rgba(255,0,100,0)'];
 const PRISM_STOPS = [0.18, 0.3, 0.4, 0.5, 0.6, 0.7, 0.82];
 
-const SHADOW_HEX = polygon(hexPts(GL, GT + 3, GW, GH, 1, 0.24));
-const RIM_HEX = polygon(hexPts(GL, GT, GW, GH, 1, 0.24));
+// Web has no CanvasKit, so no Skia call may run at import there. The web gem never reads these.
+const SHADOW_HEX = Platform.OS === 'web' ? (null as unknown as SkPath) : polygon(hexPts(GL, GT + 3, GW, GH, 1, 0.24));
+const RIM_HEX = Platform.OS === 'web' ? (null as unknown as SkPath) : polygon(hexPts(GL, GT, GW, GH, 1, 0.24));
 const GEM_BOX: Box = [GL, GT, GW, GH];
 const TABLE_GRAD = cssAngle(GL, GT, GW, GH, 150);
 const PRISM_GRAD = cssAngle(GL, GT, GW, GH, 112);
@@ -494,7 +495,27 @@ function GemNumeral({ n, lit, num, typeface }: { n: number; lit: boolean; num: N
  * being the grey gem. `clipSides` is how far past the box (in px) the wings
  * and glows may reach before the card's side cuts them; the top is never cut.
  */
-export function StreakGem({ size, streak, tier, clipSides = 40 }: { size: number; streak: number; tier: number; clipSides?: number }) {
+export function StreakGem(props: GemProps) {
+  return Platform.OS === 'web' ? <StreakGemWeb {...props} /> : <StreakGemNative {...props} />;
+}
+
+type GemProps = { size: number; streak: number; tier: number; clipSides?: number; numeral?: boolean };
+
+/** Web has no CanvasKit: a rounded View in the tier colour with the numeral as text, no Skia call. */
+function StreakGemWeb({ size, streak, tier, numeral = true }: GemProps) {
+  const k = size / GEM_W;
+  const t = Math.min(Math.max(Number.isFinite(tier) ? tier : 0, 0), TIER_STYLE.length - 1);
+  const art = TIER_STYLE[t];
+  const fs = art.numeral.h * k;
+  return (
+    <View style={{ width: W * k, height: H * k }} pointerEvents="none">
+      <View style={{ position: 'absolute', left: GL * k, top: GT * k, width: GW * k, height: GH * k, borderRadius: GW * k * 0.32, backgroundColor: art.face[0], borderWidth: Math.max(2 * k, 1), borderColor: art.edge }} />
+      {numeral ? <Text style={{ position: 'absolute', left: 0, width: W * k, top: (art.numeral.cy - art.numeral.h * 0.62) * k, textAlign: 'center', fontSize: fs, lineHeight: fs * 1.2, fontWeight: '900', color: art.numeral.fill.colors[0], includeFontPadding: false }}>{String(streak)}</Text> : null}
+    </View>
+  );
+}
+
+function StreakGemNative({ size, streak, tier, clipSides = 40, numeral = true }: GemProps) {
   const k = size / GEM_W;
   const lit = tier > 0;
   const t = Math.min(Math.max(tier, 0), TIER_STYLE.length - 1);
@@ -674,7 +695,7 @@ export function StreakGem({ size, streak, tier, clipSides = 40 }: { size: number
                       </Group>
                     ))
                   : null}
-                {lit && scrim ? (
+                {numeral && lit && scrim ? (
                   <Group transform={[{ translateX: CX }, { translateY: art.numeral.cy }, { scaleY: scrim[1] / scrim[0] }]} opacity={0.92}>
                     <Circle cx={0} cy={0} r={scrim[0] / 2}>
                       <RadialGradient c={vec(0, 0)} r={scrim[0] / 2} colors={['#1a0b04', '#1a0b04', 'rgba(26,11,4,0)']} positions={[0, 0.55, 1]} />
@@ -706,7 +727,7 @@ export function StreakGem({ size, streak, tier, clipSides = 40 }: { size: number
                   </Group>
                 ) : null}
                 {lit && art.orbit ? Array.from({ length: art.orbit.n }, (_, i) => <OrbitSpark key={i} i={i} o={art.orbit!} turn={orbitTurn} />) : null}
-                {typeface ? <GemNumeral n={streak} lit={lit} num={art.numeral} typeface={typeface} /> : null}
+                {numeral && typeface ? <GemNumeral n={streak} lit={lit} num={art.numeral} typeface={typeface} /> : null}
               </Group>
             </Group>
           </Canvas>

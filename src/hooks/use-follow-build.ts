@@ -13,10 +13,11 @@ const ETA_RISE_MIN_S = 30;
 type BuildRoute = '/review' | '/island/[id]' | '/podcast/[id]' | '/video/[id]';
 
 /** Polls a building island every 2s, holds the finished one on screen for a
- * beat, then replaces the route with `route`. `onFail` gets the error text when
- * the build fails; `onLand` runs just before the navigation. `stop` clears the
- * poll and the hold; it also runs on unmount. */
-export function useFollowBuild(route: BuildRoute, onFail: (message: string) => void, onLand?: () => void) {
+ * beat, then replaces the route with `route`. A null route holds the ready
+ * glow and stays: the screen shows the result itself. `onFail` gets the error
+ * text when the build fails; `onLand` gets the island id just before the
+ * navigation. `stop` clears the poll and the hold; it also runs on unmount. */
+export function useFollowBuild(route: BuildRoute | null, onFail: (message: string) => void, onLand?: (id: string) => void) {
   const router = useRouter();
   const [stage, setStage] = useState('queued');
   const [etaS, setEtaS] = useState<number | null>(null);
@@ -49,6 +50,8 @@ export function useFollowBuild(route: BuildRoute, onFail: (message: string) => v
     (id: string) => {
       stop();
       putEta(null);
+      // A second build on the same screen starts from the top, not on the last one's "Ready".
+      setStage('queued');
       // Between polls the estimate counts down locally, one second at a time.
       tickRef.current = setInterval(() => {
         const cur = etaRef.current;
@@ -67,8 +70,8 @@ export function useFollowBuild(route: BuildRoute, onFail: (message: string) => v
             pollRef.current = null;
             setStage('ready');
             readyTimerRef.current = setTimeout(() => {
-              onLandRef.current?.();
-              router.replace({ pathname: route, params: { id } });
+              onLandRef.current?.(id);
+              if (route) router.replace({ pathname: route, params: { id } });
             }, READY_HOLD_MS);
           } else if (island.status === 'failed') {
             if (pollRef.current) clearInterval(pollRef.current);

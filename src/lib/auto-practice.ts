@@ -102,6 +102,26 @@ export function finishAutoIsland(id: string, outcome: AutoOutcome): { nextId: st
   return { nextId: next.id, nextTitle: next.title, nextKind: next.kind };
 }
 
+/**
+ * Moves the session back one project (the cube swipe to the previous island).
+ * Returns that project, or null when `id` is not the current one or it is the first.
+ */
+export function prevAutoIsland(id: string): { prevId: string; prevTitle: string; prevKind: api.SessionKind } | null {
+  if (!session || session.finished || session.queue[session.at]?.id !== id) return null;
+  const prev = session.queue[session.at - 1];
+  if (!prev) return null;
+  session.at -= 1;
+  return { prevId: prev.id, prevTitle: prev.title, prevKind: prev.kind };
+}
+
+/** The projects either side of `id` in the running session, without moving it. */
+export function peekAutoNeighbours(id: string): { prev: api.SessionKind | null; next: api.SessionKind | null; prevId?: string; nextId?: string } {
+  if (!session || session.finished || session.queue[session.at]?.id !== id) return { prev: null, next: null };
+  const prev = session.queue[session.at - 1];
+  const next = session.queue[session.at + 1];
+  return { prev: prev?.kind ?? null, next: next?.kind ?? null, prevId: prev?.id, nextId: next?.id };
+}
+
 /** Where a project's player lives: islands run the chain, video and podcast run review on the picked lines. */
 export function routeFor(id: string, kind: api.SessionKind): Href {
   if (kind === 'video') return { pathname: '/video/[id]', params: { id, review: '1', session: '1' } };

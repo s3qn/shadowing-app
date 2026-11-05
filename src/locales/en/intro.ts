@@ -23,6 +23,7 @@ export const en = {
   'guide.home.b3': "You don't have one yet. Tap + to add one.",
   'guide.home.b3Have': 'Tap + to add another.',
   'guide.add': 'Add from YouTube, a recording or a file.',
+  'guide.add.plain': 'Add a recording or a set of phrases.',
   'guide.add.b2': 'Phrases are ready, so start there. Tap it.',
   'guide.listen': "Here's your first line and what it means.",
   'guide.listen.b2': 'Tap Listen to hear it said right.',

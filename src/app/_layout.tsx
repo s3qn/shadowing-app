@@ -266,12 +266,14 @@ export default function RootLayout() {
         <Stack.Screen
           name="island/[id]"
           options={({ route }) => {
-            const params = route.params as { morph?: string } | undefined;
+            const params = route.params as { morph?: string; hop?: string } | undefined;
             const morph = params?.morph === '1' && !reducedMotion;
+            // A cube hop already turned the screen; the replace must not fade over it.
+            const hopped = params?.hop === '1';
             return {
               title: '',
               headerShown: false,
-              animation: morph ? 'none' : 'fade',
+              animation: morph || hopped ? 'none' : 'fade',
               animationDuration: 300,
             };
           }}

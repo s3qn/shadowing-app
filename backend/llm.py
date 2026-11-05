@@ -41,12 +41,15 @@ ROUTES = {
     "translate_lines": "haiku", "expand_topic": "haiku", "pick": "haiku",
     "catch-meanings": "haiku", "grammar_meanings": "haiku",
     "word_context": "haiku", "chat_answer": "haiku", "repair-golden": "haiku",
+    "say": "sonnet",
 }
 # Output tokens cost five times input, so every tag gets the smallest ceiling
 # its longest reply fits under. A truncated reply fails the schema and answers
 # None, so a ceiling here must stay above the real maximum, never near it.
 MAX_TOKENS = {
     "word_context": 512,
+    # One said sentence, at most 8 phrases or 6 story beats with readings.
+    "say": 1024,
     "expand_topic": 1024, "pick": 1024,
     # 40 long Hebrew lines run past 4000 tokens; the ceiling is not billed.
     "translate_lines": 8192, "catch-meanings": 2048, "chat_answer": 2048,

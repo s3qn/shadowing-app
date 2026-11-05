@@ -37,8 +37,13 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { PassHelpSheet } from '@/components/tide/pass-help-sheet';
 import { IslandMenuSheet } from '@/components/tide/island-menu-sheet';
 import { PlayerTitle } from '@/components/tide/player-title';
-import { LadderHelpButton, LadderStageView } from '@/components/tide/ladder-stage';
-import { takeRoomSec, takeWatchSec, type LadderStageProps } from '@/hooks/use-ladder';
+import { LadderStageView } from '@/components/tide/ladder-stage';
+import { STAGE_SPEEDS } from '@/components/tide/ladder/stage-model';
+import { StagePreview } from '@/components/tide/ladder/stage-preview';
+import { useIslandHop,type HopActions } from '@/hooks/island/use-island-hop'; // focus-stories
+import { useStageWord } from '@/hooks/island/use-stage-word'; // focus-stories
+import type { LadderIo } from '@/hooks/ladder/ladder-types';
+import { takeRoomSec, takeWatchSec, useLadder } from '@/hooks/use-ladder';
 import { TideScene } from '@/components/tide/tide-scene';
 import { useContentReveal, usePieceStyle } from '@/components/tide/use-content-reveal';
 import { CompactDock, DOCK_GOLD_INK, type DockAnchor, type DockAnchorKey, type DockPill } from '@/components/tide/compact-dock';
@@ -65,7 +70,7 @@ import { SymbolView } from 'expo-symbols'; // icon-buttons: retry/regenerate/ref
 import { PrismButton } from '@/components/prism'; // icon-buttons: retry/regenerate/refresh
 import { fonts } from '@/constants/fonts';
 // prism-player-buttons and icon-buttons: verb tokens
-import { Radius, Spacing, prism, tide, verb } from '@/constants/theme';
+import { Radius, Spacing, prism, tide, tideSkies, verb } from '@/constants/theme';
 import {
   afterCoverGone,
   canStartBack,
@@ -110,28 +115,14 @@ import {
   useSessionPlayer,
 } from '@/lib/audio-mode';
 import {
-  afterTakePlayed,
-  afterTakeSaved,
-  COUNT_IN_BEATS,
-  LADDER_PACING,
-  LADDER_PASSES,
-  LADDER_STAGE_ORDER,
   fillKindOf,
-  hasPrelude,
   helpPassOf,
-  hintKeyOf,
   isActive,
   isArmedStep,
-  isPlayStep,
   isSpeakStep,
-  onLadderLineFinish,
   TAKE_VOICE_VOLUME, // bl57-intro-round2
-  repeatsOf,
-  stageOf,
-  stepOfPass,
   textShownAt,
   type PassStep,
-  type Prelude,
 } from '@/lib/pass-programme';
 import { wordPitches } from '@/lib/pitch';
 import { addLadder } from '@/lib/practice';
@@ -159,6 +150,9 @@ import {
 import { deleteTakes, wordsKeptUp } from '@/lib/takes';
 import { invalidateLineAudio, localLineAudio, prefetchLineAudio } from '@/lib/line-audio-cache';
 import { useSlideReveal } from '@/lib/slide-reveal';
+import { breathOf, DRAG_LIMIT, lineEndOf, rubberBandDragY, spanUpdate } from '@/lib/island/player-timing';
+import { useStableHandler } from '@/hooks/use-stable-handler';
+import { HEADER_ROW_H, Leaf, PlayerHeader } from '@/components/island/player-header';
 import { useDir, useT } from '@/lib/i18n'; // offline-islands: useDir
 
 // Expo Go on Android does not ship the AudioControlsService, and activating
@@ -175,6 +169,8 @@ const ECHO_RESULT_HOLD_MS = 1400;
 // bl58-easy-for-me: Auto Echo's hold while the 90+ offer is up, and the Easy glide (E4: the line sinks into the water).
 const EASY_OFFER_HOLD_MS = 4000;
 const EASY_GLIDE_MS = 450;
+// How many lines of dim context the ladder stage shows on each side of the current one.
+const CONTEXT_LINES = 2;
 // auto-practice: how long the next island's title shows before the chain moves on.
 const AUTO_NEXT_HOLD_MS = 1400;
 // auto-practice: the longest the loader stands in for a session's player before its stage is up.
@@ -208,66 +204,24 @@ const REFRESH_AFTER_COVER_MS = 600;
 const OFFLINE_RETRY_MS = 15000;
 // How long a Play tap waits for the seek to the top before it plays anyway.
 const SEEK_WAIT_MS = 200;
-
-// A vertical swipe drags the active card at 0.35 of the finger's travel,
-// with rubber-band damping past 40pt so it never tracks the raw drag once
-// the swipe has clearly read as a gesture rather than a nudge.
-const DRAG_RATE = 0.35;
-const DRAG_LIMIT = 40;
-function rubberBandDragY(translationY: number): number {
-  const scaled = translationY * DRAG_RATE;
-  const abs = Math.abs(scaled);
-  if (abs <= DRAG_LIMIT) return scaled;
-  const sign = Math.sign(scaled);
-  const over = abs - DRAG_LIMIT;
-  return sign * (DRAG_LIMIT + (over * DRAG_LIMIT) / (over + DRAG_LIMIT));
-}
-
-// The end of the spoken line inside the player's audio. `duration` includes
-// the pad; at or below the pause length the item is not loaded yet.
-function lineEndOf(duration: number, breathSec: number): number {
-  return duration > breathSec ? duration - breathSec : 0;
-}
-
-// Whether the pad's silence is playing, and the whole seconds left in it.
-// A take and a line played from Explain stop the line where the pad begins,
-// so they never count as a breath (see `stopsAtLineEnd`).
-function breathOf(s: AudioStatus, breathMs: number, stopsAtLineEnd: boolean) {
-  const end = lineEndOf(s.duration, breathMs / 1000);
-  const inBreath = breathMs > 0 && s.playing && end > 0 && s.currentTime >= end && !stopsAtLineEnd;
-  const countdown = inBreath ? Math.max(1, Math.ceil(s.duration - s.currentTime)) : null;
-  return { inBreath, countdown };
-}
-
-// A handler whose identity never changes but always runs the latest render's
-// function, so a memoised child does not re-render just because the screen
-// rendered again.
-function useStableHandler<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R {
-  const ref = useRef(fn);
-  // Written at commit, not during render: nothing calls a handler between
-  // the two, and the compiler needs refs left alone while rendering.
-  useLayoutEffect(() => {
-    ref.current = fn;
-  });
-  return useCallback((...args: A) => ref.current(...args), []);
-}
+// The native rates a mid-play speed pick may run the rendered file at (the
+// player clamps to 2, and pitch-kept speech blurs well below half).
+const RATE_MIN = 0.5;
+const RATE_MAX = 2;
+// After a speed lands under a take about to start, how long it waits for the
+// file at that speed to load before recording anyway.
+const SPEED_LOAD_WAIT_MS = 1500;
 
 // Stands in for a real onLayout on the plain (non-reveal) path, where no
 // chunk needs to measure itself into a box.
 const noopLayout = () => {};
-
-// A setDragSpan updater that hands back the previous span when nothing moved,
-// so React skips the render. Module level: the pan gesture is built once and
-// must not close over a render-scoped function.
-const spanUpdate = (from: number, to: number) => (prev: PhraseSpan | null) =>
-  prev && prev.from === from && prev.to === to ? prev : { from, to };
 
 const noop = () => {};
 
 // languages: short code shown on the Blind dock tile and Home's language pill.
 
 export default function IslandScreen() {
-  const { id, morph, auto, line: ytLine } = useLocalSearchParams<{ id: string; morph?: string; auto?: string; line?: string }>(); // auto-practice, youtube-shadowing
+  const { id, morph, auto, line: ytLine, hop: hopParam } = useLocalSearchParams<{ id: string; morph?: string; auto?: string; line?: string; hop?: string }>(); // auto-practice, youtube-shadowing, focus-stories
   const navigation = useNavigation();
   const sky = useSkyStyle();
   const { t, lang: uiLang } = useT();
@@ -293,8 +247,9 @@ export default function IslandScreen() {
   // parsed by the time this screen mounts. It goes into the first render, so
   // the island is on screen when the morph lands instead of one more heavy
   // render later. It takes this path only if the saved line is already known.
+  // focus-stories: a cube hop takes it too: the hop hook kept the neighbour's copy read and parsed.
   const [warmStart] = useState(() => {
-    if (!morphActive()) return null;
+    if (!morphActive() && hopParam !== '1') return null;
     const cached = peekCachedIsland(id);
     if (!cached) return null;
     const n = cached.island.lines.length;
@@ -364,6 +319,21 @@ export default function IslandScreen() {
   // otherwise a decision that started before the pick would land after it and
   // overwrite the chosen speed at the next line change. The slider wins.
   const ladderEpoch = useRef(0);
+  // A speed picked while the line plays (commitSpeed): the line carries on over the file it has
+  // at the native rate `ahead / speed`, and the file rendered at `ahead` takes over at the next
+  // play (landSpeedAhead). `ahead` mirrors the ref for the prefetch; `liveRate` is that rate.
+  const speedAhead = useRef<number | null>(null);
+  const [ahead, setAheadState] = useState<number | null>(null);
+  const rateRef = useRef(1);
+  const [liveRate, setLiveRateState] = useState(1);
+  function setAhead(v: number | null) {
+    speedAhead.current = v;
+    setAheadState(v);
+  }
+  function setLiveRate(r: number) {
+    rateRef.current = r;
+    setLiveRateState(r);
+  }
   // The Repeat tile's popover and the tile's box, anchored like Blind's.
   const [repeatPopOpen, setRepeatPopOpen] = useState(false);
   // The Blind tile's popover, and where to anchor it: the tile's box in the
@@ -466,7 +436,7 @@ export default function IslandScreen() {
   const [dockH, setDockH] = useState(0);
   // The scene's height before its first layout (the window under the header,
   // above the bottom inset), so the water is drawn from the first frame.
-  const { height: windowH } = useWindowDimensions();
+  const { height: windowH, width: windowW } = useWindowDimensions();
   const screenInsets = useSafeAreaInsets();
   const sceneEstimateH = Math.max(
     0,
@@ -515,10 +485,6 @@ export default function IslandScreen() {
   // included, and comes back at a stop point (see `releaseAudioSession`).
   // Anything that interrupts the line also drops a take in progress.
   function dropTake() {
-    // A count waiting to open the microphone belongs to the take this drops:
-    // a line change, a speed change or a tap on the ring ends it too.
-    cancelCountIn();
-    clearRoom();
     take.stopTake();
     void take.cancel();
   }
@@ -720,31 +686,13 @@ export default function IslandScreen() {
   useEffect(() => {
     player.volume = take.phase === 'recording' ? TAKE_VOICE_VOLUME : 1;
   }, [take.phase, player]);
-  // The latest take, for a timer set renders earlier (the take's room past the line).
-  const takeLive = useRef(take);
-  useLayoutEffect(() => {
-    takeLive.current = take;
-  });
-  // The ladder's step, and a ref mirror so the effects and listeners below
-  // (some subscribed once, some reading state a render behind) always see the
-  // current step rather than the one closed over when they were set up.
-  const [echoStep, setEchoStep] = useState<PassStep>('idle');
+  // A ref mirror of the ladder's step (set under the hook call below), so the
+  // effects and listeners that are subscribed once, or read state a render
+  // behind, always see the current step.
   const echoRef = useRef<PassStep>('idle');
-  useLayoutEffect(() => {
-    echoRef.current = echoStep;
-  }, [echoStep]);
-  // Pace and the blind take are read once at mount from Settings > Playback,
-  // so a change made there never lands halfway through a run.
-  const [ladderPace] = useState(() => getSettingsSync().ladderPace);
+  // The blind take is read once at mount from Settings > Playback, so a change
+  // made there never lands halfway through a run.
   const [blindTake] = useState(() => getSettingsSync().blindTake);
-  const pacing = LADDER_PACING[ladderPace];
-  // Round 2 of a ladder line: the blind take after the recorded one (blindTake on).
-  const [finalTake, setFinalTake] = useState(false);
-  const finalRef = useRef(false);
-  const setFinal = (v: boolean) => {
-    finalRef.current = v;
-    setFinalTake(v);
-  };
   // The pass help sheet behind the strip's ? glyph: open flag and the pass it
   // explains (kept while it closes).
   const [helpOpen, setHelpOpen] = useState(false);
@@ -766,10 +714,6 @@ export default function IslandScreen() {
   useLayoutEffect(() => {
     takeStatusHandler.current = aimTakeFill;
   });
-  // Holds Auto Echo's advance to the next line until the result has had time
-  // to show; cleared by stopEcho so closing the sheet or backgrounding never
-  // leaves it running.
-  const advanceHoldRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // auto-practice: the chain this player is part of, if any. Read once at
   // mount; a stale `auto` param with no live session is ignored.
   const [autoStartPlace] = useState(() => (auto === '1' ? autoPlaceOf(id) : null));
@@ -783,7 +727,12 @@ export default function IslandScreen() {
   // auto-practice: a session opens straight into the ladder stage, so the loader stands in for
   // the player until the stage is up (or OPEN_HOLD_MAX_MS passes), and the player's own line never
   // shows between the two.
-  const [openHold, setOpenHold] = useState(autoStartPlace !== null);
+  // focus-stories D3: the neighbours for the cube swipe and the hop to one of them. `hopActions` is filled
+  // once `endRun` and `goToIsland` exist below. A hop (`hop.starts`) opens this island straight into its
+  // run, under the same hold as a session.
+  const hopActions = useRef<HopActions | null>(null);
+  const hop = useIslandHop({ id, auto, hop: hopParam, actions: hopActions });
+  const [openHold, setOpenHold] = useState(autoStartPlace !== null || hop.starts);
   const openHoldRef = useRef(openHold);
   openHoldRef.current = openHold;
   useEffect(() => {
@@ -791,22 +740,23 @@ export default function IslandScreen() {
     const timer = setTimeout(() => setOpenHold(false), OPEN_HOLD_MAX_MS);
     return () => clearTimeout(timer);
   }, [openHold]);
-  // Lifted once the stage has mounted (behind the loader), not when it is asked for, so the
-  // player's line cannot start its reveal in the renders between.
-  const stageUp = useMemo(() => {
-    const k = stageOf(echoStep);
-    return k !== null && LADDER_STAGE_ORDER.indexOf(k) >= 0;
-  }, [echoStep]);
+  // focus-stories: a hop opens under the hop cover, the still stage (StagePreview) the cube just turned to,
+  // drawn over everything until the live stage's sentence has fitted under it, so the turn lands on one
+  // picture and the run's count-in starts on it. A wait past OPEN_HOLD_MAX_MS drops it as well.
+  const [hopCover, setHopCover] = useState(hop.starts);
   useEffect(() => {
-    if (openHold && stageUp) setOpenHold(false);
-  }, [openHold, stageUp]);
+    if (!hopCover) return;
+    const timer = setTimeout(() => setHopCover(false), OPEN_HOLD_MAX_MS);
+    return () => clearTimeout(timer);
+  }, [hopCover]);
+  const onStageFitted = useCallback(() => setHopCover(false), []);
   const [autoUi, setAutoUi] = useState<AutoChain | null>(
     autoStartPlace ? { at: autoStartPlace.at, total: autoStartPlace.total, next: null } : null,
   );
   // auto-practice: when the current line's ladder started, for the session's seconds per line.
   const lineStartRef = useRef(0);
-  // When this line's run began: the stage view scores only takes saved after it.
-  const scoreSince = useRef(0);
+  // auto-practice: the line already noted on this visit, null once the run moves to another line.
+  const notedLineRef = useRef<number | null>(null);
   // The session's picked lines only; the full island otherwise.
   const forSession = <T extends { lines: api.Line[] }>(data: T): T => (auto === '1' ? sessionLines(id, data) : data);
   useEffect(
@@ -816,89 +766,13 @@ export default function IslandScreen() {
     [],
   );
   const [autoEcho, setAutoEchoState] = useState(true);
-  // Read when the hold ends, so turning Auto Echo off during it is honoured.
-  const autoEchoRef = useRef(autoEcho);
-  useLayoutEffect(() => {
-    autoEchoRef.current = autoEcho;
-  }, [autoEcho]);
-  useEffect(
-    () => () => {
-      if (advanceHoldRef.current) clearTimeout(advanceHoldRef.current);
-    },
-    [],
-  );
-  const [autoRecord, setAutoRecordState] = useState(true);
   const autoEchoTouched = useRef(false);
-  const autoRecordTouched = useRef(false);
-  // When the Speak take was started, so the take-saved effect below only
-  // reacts to a take recorded during this pass (see that effect's comment).
-  const speakStartedAt = useRef(0);
-  // When the Speak take's mic opened, and the timer that holds it open past
-  // the line's end for its room (takeRoomSec).
-  const micOpenAt = useRef(0);
-  const roomTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Stop tapped while the mic was opening: the take ends the moment it opens.
-  const stopWhenOpen = useRef(false);
-  // Stop tapped while the saved take waits on its echo cleanup: move on without it.
-  const rushClean = useRef(false);
-  const [rushTick, setRushTick] = useState(0);
-  useEffect(
-    () => () => {
-      if (roomTimer.current) clearTimeout(roomTimer.current);
-    },
-    [],
-  );
-  // Stop was tapped on this Speak take: the take is saving, so Stop and Retry
-  // are hidden until the next Speak starts.
-  const [speakStopped, setSpeakStopped] = useState(false);
-  // The beat the count before a hand-started take is on (3, 2, 1), and the
-  // timer waiting for the next one. The microphone is shut for the whole
-  // count: it opens on the beat after 1. The ref is what the handlers read,
-  // since they can run before the state has rendered.
-  const [countIn, setCountIn] = useState<number | null>(null);
-  const countInRef = useRef<number | null>(null);
-  const countInTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // The ladder's prelude before each stage: an announce hold, the count, and
-  // the gap between repeats. `preludeTimer` walks announce and gap; the count
-  // beats ride `countInTimer`. A count that is not before a take lands in
-  // `preludeBeat` (the scene's giant number), a take's count in `countIn`.
-  const [prelude, setPreludeState] = useState<Prelude>(null);
-  const preludeRef = useRef<Prelude>(null);
-  const preludeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [preludeBeat, setPreludeBeat] = useState<number | null>(null);
-  const repeatRef = useRef(1);
-  const [repeat, setRepeatState] = useState(1);
-  const countTargetRef = useRef<'speak' | 'line' | 'top'>('speak');
-  const setPrelude = (next: Prelude) => {
-    preludeRef.current = next;
-    setPreludeState(next);
-  };
-  const setRepeat = (n: number) => {
-    repeatRef.current = n;
-    setRepeatState(n);
-  };
-  useEffect(
-    () => () => {
-      if (countInTimer.current) clearTimeout(countInTimer.current);
-      if (preludeTimer.current) clearTimeout(preludeTimer.current);
-    },
-    [],
-  );
-  const wasEchoTakePlaying = useRef(false);
-  const echoActive = isActive(echoStep);
-  // A line played from the Explain sheet, or by Play under the first-run guide
-  // outside a ladder run, plays once and parks at its top (watchLineEnd), so
-  // the guide never chases a player running on into the next lines.
-  const playsOnce = explainOpen || (guideOn && !echoActive);
-  // Outside a run the Blind setting decides; the ladder's passes decide it
-  // themselves, keeping the sentence in view except for the blind take.
-  const passText = textShownAt(echoStep, blindTake, finalTake);
-  const hidden = passText === null ? blind : !passText;
   // A take and a line played from Explain stop the line where the pad begins
   // (the crossing effect below), so no pause follows. The stop lands a status
   // or two after the crossing, and without this the countdown would flash
-  // for that moment. With a 0s pause there is no pad to count down.
-  const stopsAtLineEnd = take.phase === 'recording' || playsOnce;
+  // for that moment. With a 0s pause there is no pad to count down. `echoRef`
+  // runs a render behind the hook below; this only tunes the countdown.
+  const stopsAtLineEnd = take.phase === 'recording' || explainOpen || (guideOn && !isActive(echoRef.current));
   // The line's status renders the screen only when something drawn from it
   // changes: playing, loaded, the duration, a finish, the breath and its
   // countdown second. Each 50ms position update runs onLineStatus (below)
@@ -914,17 +788,204 @@ export default function IslandScreen() {
     (s) => !isStaleStatus(s),
   );
   const lineEnd = lineEndOf(status.duration, breathSec);
+  // The line's wall-clock length: `lineEnd` is in the file's seconds, and a mid-play speed pick
+  // runs the file at `liveRate` until the next play.
+  const lineSecLive = liveRate > 0 && Number.isFinite(liveRate) ? lineEnd / liveRate : lineEnd;
   const { inBreath, countdown } = breathOf(status, breathMs, stopsAtLineEnd);
   const wasTakePlaying = useRef(false);
 
+  // The ladder run. The shared hook owns the steps, the prelude, the take's
+  // room, the hold on the score, Pause, Loop and the line bar; the island hands
+  // it its audio through `io` (built per render, as the wiring's is) and keeps
+  // the rung speed ladder, the guide and the session to itself.
+  const ladderRef = useRef<ReturnType<typeof useLadder> | null>(null);
+  const context = useMemo(
+    () => ({
+      before: lines.slice(Math.max(0, idx - CONTEXT_LINES), idx),
+      after: lines.slice(idx + 1, idx + 1 + CONTEXT_LINES),
+    }),
+    [lines, idx],
+  );
+  // Silences the line and drops a take in progress: the hook's stop, and the
+  // start of a run.
+  function silenceLine() {
+    stopPlayback(player);
+    setPlayWhenLoaded(false);
+    dropTake();
+    // Freeze the highlight where it is now: the paused status lands a moment
+    // later, and running on until then could start lighting the next word.
+    holdHighlight();
+    // A speed picked mid-play loads now, while the run announces or counts.
+    landSpeedAhead();
+  }
+  // focus-stories D8: the stage's word tap; its panel's Hear plays through `wordSource` below.
+  const stageWord = useStageWord(island ?? null, () => void hearWord());
+  const io: LadderIo = {
+    // The audio is pre-rendered at the rung, so the pass speed is ignored.
+    playLine: () => void playFromTop(),
+    // Headset: the mic opens with the line playing under it, exactly like Record my take, so the
+    // take is uploaded, cleaned of the line's bleed and scored. Speaker: turn-taking, the take is
+    // silent (no line under it) and scored on the clock.
+    record: async () => {
+      const ok = (await beginRecording('take', 'auto', true)) !== null;
+      // The run ended or moved on while the mic was opening: the line it
+      // started falls silent here, and the hook drops the take.
+      if (ok && !isSpeakStep(echoRef.current)) stopPlayback(player);
+      return ok;
+    },
+    stop: silenceLine,
+    // The pace sheet's speed ruler: the same settle as the dock's Speed popover.
+    setSpeed: commitSpeed,
+    onLineDone: (score) => {
+      if (!island) return;
+      // A Compare played back is one sentence ladder finished, which is what
+      // a day on the streak counts.
+      addLadder(island.id);
+      // auto-practice: a line counts once per visit, so a looped Compare adds neither a line nor its seconds again.
+      if (autoRunRef.current && line && notedLineRef.current !== line.idx) {
+        notedLineRef.current = line.idx;
+        noteSessionLine(island.id, line.idx, lineStartRef.current ? (Date.now() - lineStartRef.current) / 1000 : 0, line);
+      }
+      lineStartRef.current = Date.now();
+      if (guideOn) return;
+      // bl58-easy-for-me: a 90+ Compare on a line not yet known offers Easy, once per line per open. Only a tap marks.
+      const key = line ? `${island.id}:${line.idx}` : null;
+      if (key === null || !line || typeof score !== 'number' || score < 90 || known.has(line.idx) || offeredRef.current.has(key)) return;
+      offeredRef.current.add(key);
+      setEasyOffer(idx);
+      if (!autoEcho) {
+        // Without Auto Echo nothing else ends the offer: it clears by itself, never marking.
+        if (offerClearRef.current) clearTimeout(offerClearRef.current);
+        offerClearRef.current = setTimeout(() => {
+          offerClearRef.current = null;
+          setEasyOffer(null);
+        }, EASY_OFFER_HOLD_MS);
+        return;
+      }
+      // Auto Echo holds the run on the score while the offer is up.
+      return { holdMs: EASY_OFFER_HOLD_MS };
+    },
+    advance: () => {
+      if (!island) return false;
+      if (guideOn) {
+        // bl57-intro-round2: under the guide a finished Compare parks the next line instead of running it. The run
+        // rests on done and the dock reads Shadow there (onDockRecord), which runs the parked line.
+        const step = getGuideStep();
+        if (step === 'solo') {
+          setGuideStep('topics');
+          router.replace('/phrases');
+          return false;
+        }
+        go(idx + 1, false);
+        if (step === 'shadow') setGuideStep('prep');
+        else if (step === 'prep') setGuideStep('solo');
+        return false;
+      }
+      // The ladder walks the island once and stops at its end: no wrap.
+      if (idx >= island.lines.length - 1) {
+        setEasyOffer(null);
+        if (autoRunRef.current) autoIslandDone(); // auto-practice
+        return false;
+      }
+      lineStartRef.current = Date.now();
+      notedLineRef.current = null;
+      go(idx + 1, false);
+      return true;
+    },
+    // go() is a no-op on the same line, so Loop and prev on the first line restart it in place.
+    // Refused only past the ends; with Explain open the line stays put and the ladder restarts it.
+    goTo: (i) => {
+      if (!island || i < 0 || i >= island.lines.length) return false;
+      if (explainOpen) return true;
+      if (i !== idx) notedLineRef.current = null;
+      lineStartRef.current = Date.now();
+      go(i, false);
+      return true;
+    },
+    lineIndex: idx,
+    lineCount: island?.lines.length ?? 0,
+    context,
+    title: island?.title,
+    lineText: line?.ja ?? '',
+    line: line ?? null,
+    prep: prepOn, // bl57-intro-round2, bl58-easy-for-me
+    // The guide parks the next line through advance, so its run never ends on done before that.
+    autoEcho: autoEcho || guideOn,
+    armOnMicFail: true,
+    // focus-stories: D8 `word`, D3 `neighbours` and `onHop`, from their hooks.
+    ...stageWord.io,
+    ...hop.io,
+  };
+  // `base` is 1: the rung speeds (0.6, 0.7) are not quarter steps and the
+  // audio already runs at them, so the hook never sets a rate and the speed
+  // ruler stays off the island (the pace chip is on).
+  const ladder = useLadder(take, 1, lineSecLive, io);
+  ladderRef.current = ladder;
+  useLayoutEffect(() => {
+    echoRef.current = ladder.step;
+  }, [ladder.step]);
+  const echoActive = ladder.active;
+  // A line played from the Explain sheet, or by Play under the first-run guide
+  // outside a ladder run, plays once and parks at its top (watchLineEnd), so
+  // the guide never chases a player running on into the next lines.
+  const playsOnce = explainOpen || (guideOn && !echoActive);
+  // Outside a run the Blind setting decides; the ladder's passes decide it
+  // themselves, keeping the sentence in view except for the blind take.
+  const passText = textShownAt(ladder.step, blindTake, ladder.stage?.round === 2);
+  const hidden = passText === null ? blind : !passText;
+  // Lifted once the stage has mounted (behind the loader), not when it is asked for, so the
+  // player's line cannot start its reveal in the renders between.
+  const stageUp = ladder.stage !== null;
+  useEffect(() => {
+    if (openHold && stageUp) setOpenHold(false);
+  }, [openHold, stageUp]);
+  // Shadow from idle (or Start again): a held phrase is cleared first, so every
+  // pass hears the whole line, and the line falls silent for the announce and
+  // the count.
+  function startRun() {
+    clearPhrase();
+    silenceLine();
+    lineStartRef.current = Date.now();
+    notedLineRef.current = null;
+    ladder.start();
+  }
+  // Ends the run: the stage's back chevron, an Easy mark, a session hop, Back
+  // and the app going to the background.
+  function endRun() {
+    ladder.stop();
+    setEasyOffer(null);
+    void player.seekTo(0);
+    scheduleAudioSessionRelease();
+  }
+  // Restarts the run on line `i` at its first pass; past the ends, nothing.
+  function runLine(i: number) {
+    if (!island || i < 0 || i >= island.lines.length) return;
+    ladder.goLine(i);
+  }
+  // Stop mid-line: the mic closing silences the line at once (the take hook
+  // saves what was said).
+  const wasRecordingRef = useRef(false);
+  useEffect(() => {
+    if (wasRecordingRef.current && take.phase !== 'recording' && isSpeakStep(echoRef.current)) {
+      stopPlayback(player);
+      void player.seekTo(0);
+    }
+    wasRecordingRef.current = take.phase === 'recording';
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [take.phase]);
+  // The run's rest points hand the audio session back: paused, finished, or
+  // waiting on the Record tap.
+  useEffect(() => {
+    if (ladder.paused || ladder.step === 'done' || (isArmedStep(ladder.step) && ladder.prelude === null)) scheduleAudioSessionRelease();
+  }, [ladder.step, ladder.paused, ladder.prelude]);
+
   // The tapped word has its own render and its own player, so hearing it never
   // moves the line's player or the highlight.
+  // focus-stories D8: the stage panel's Hear word plays here too, when the player's own sentence has none selected.
+  const hearText = line && selected !== null && line.words[selected] ? line.words[selected]!.text : stageWord.hearText;
   const wordSource = useMemo(
-    () =>
-      island && line && selected !== null && line.words[selected]
-        ? { uri: offlineWordAudio(island.id, line.words[selected]!.text, island.speaker) ?? api.wordAudioUrl(line.words[selected]!.text, island.speaker) } // offline-islands
-        : null,
-    [island, line, selected],
+    () => (island && hearText ? { uri: offlineWordAudio(island.id, hearText, island.speaker) ?? api.wordAudioUrl(hearText, island.speaker) } : null), // offline-islands
+    [island, hearText],
   );
   // keepAudioSessionActive for the same reason as the line player: closePanel
   // pauses this one just before a take starts, and a pause tears the audio
@@ -933,14 +994,17 @@ export default function IslandScreen() {
   // Rendered only when the word loads or its playing flag flips, not per tick.
   // auto-practice: the sheet opens by itself once this island is ready.
   useEffect(() => {
-    if (!autoRunRef.current || autoStartedRef.current) return;
-    if (!island || !line || !status.isLoaded || sheet !== null || echoStep !== 'idle') return;
+    // focus-stories D3: a hop (`hop.starts`) starts the run the same way, without forcing hands-free on.
+    if ((!autoRunRef.current && !hop.starts) || autoStartedRef.current) return;
+    if (!island || !line || !status.isLoaded || sheet !== null || ladder.step !== 'idle') return;
     autoStartedRef.current = true;
-    autoEchoTouched.current = true;
-    setAutoEchoState(true);
-    startEcho();
+    if (autoRunRef.current) {
+      autoEchoTouched.current = true;
+      setAutoEchoState(true);
+    }
+    startRun();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [island, line, status.isLoaded, sheet, echoStep]);
+  }, [island, line, status.isLoaded, sheet, ladder.step]);
   // bl57-intro-round2: line audio that never loads under the guide (offline, a server error) unlocks
   // the screen and shows the load error, so Back is not a dead end.
   useEffect(() => {
@@ -963,7 +1027,12 @@ export default function IslandScreen() {
   // Play the word once as soon as its audio is ready, for each new selection.
   useEffect(() => {
     const key = wordSource?.uri ?? null;
-    if (!key || !wordStatus.isLoaded || autoPlayed.current === key) return;
+    // No word (the panel closed): forget the last one, so the same word asked for again plays again.
+    if (!key) {
+      autoPlayed.current = null;
+      return;
+    }
+    if (!wordStatus.isLoaded || autoPlayed.current === key) return;
     autoPlayed.current = key;
     startPlayback(wordPlayer);
   }, [wordSource, wordStatus.isLoaded, wordPlayer]);
@@ -1182,7 +1251,6 @@ export default function IslandScreen() {
       }
       if (!englishTouched.current) setEnglishShown(!settings.hideEnglish);
       if (!autoEchoTouched.current) setAutoEchoState(settings.autoEcho);
-      if (!autoRecordTouched.current) setAutoRecordState(settings.autoRecord);
       if (!readingTouched.current) setReadingMode(settings.reading);
       if (!pitchTouched.current) setPitchOn(settings.pitch);
       if (!timesTouched.current) setTimes(settings.defaultTimes);
@@ -1422,15 +1490,16 @@ export default function IslandScreen() {
     await run().finally(() => setRegenerating(false));
   }
 
-  // Speed is baked into the audio by VOICEVOX, so the player always runs at
-  // 1.0. The native loop is only for a phrase picked from the selection
+  // Speed is baked into the audio by VOICEVOX, so the player runs at 1.0,
+  // except between a mid-play speed pick and its landing (rateRef, see
+  // commitSpeed). The native loop is only for a phrase picked from the selection
   // popup, which repeats until cleared (the pad's silence becomes the pause,
   // with no gap at the wrap). Whole lines repeat and advance by hand from the
   // finish effect below. Both settings live on the native player and survive
   // a source swap.
   const phraseLoop = !!phrase.span;
   useEffect(() => {
-    player.setPlaybackRate(1, 'high');
+    player.setPlaybackRate(rateRef.current, 'high');
     // The ladder advances by hand between its own stages, so the native loop
     // must stay off for the whole run even on a phrase.
     // A line played from the Explain sheet plays once, so no native loop
@@ -1446,15 +1515,15 @@ export default function IslandScreen() {
   // moves on this value stops mattering for it.
   const echoFillStep = useRef<PassStep>('idle');
   // The Speak segment has no natural end event to key off (the learner or the
-  // watchdog can stop it early), so it is aimed once per recording attempt,
-  // identified by `speakStartedAt`, which a Retry bumps without changing
-  // `echoStep` at all.
-  const echoFillSpeakAt = useRef(-1);
+  // watchdog can stop it early), so it is aimed once per recording attempt:
+  // the mic opening after a Retry's cancel is a new attempt.
+  const echoFillRecAimed = useRef(false);
   // The listening passes follow the line's own position, so they are aimed from
   // onLineStatus on each status as well as from the step effect below. A
   // status landing between a step change's render and that effect leaves the
   // fill alone: the effect resets it to 0 first, then aims it.
-  function aimEchoLine(s: AudioStatus) {
+  // `force` re-aims at once: a mid-play speed pick changes how fast the rest runs.
+  function aimEchoLine(s: AudioStatus, force = false) {
     const step = echoRef.current;
     if (echoFillStep.current !== step) return;
     // A position that is not a number would reach the sheet's percentage
@@ -1466,23 +1535,31 @@ export default function IslandScreen() {
     const span = s.duration;
     if (!s.playing || !Number.isFinite(span) || span <= 0) return;
     const target = Math.min(1, s.currentTime / span);
-    if (echoFill.value === 0 || Math.abs(echoFill.value - target) > 0.08) {
+    if (force || echoFill.value === 0 || Math.abs(echoFill.value - target) > 0.08) {
       cancelAnimation(echoFill);
       echoFill.value = target;
-      const remaining = Math.max(0, (span - s.currentTime) * 1000);
+      // File seconds over the live rate: the wall-clock time the rest takes.
+      const rate = rateRef.current > 0 && Number.isFinite(rateRef.current) ? rateRef.current : 1;
+      const remaining = Math.max(0, ((span - s.currentTime) * 1000) / rate);
       echoFill.value = withTiming(1, { duration: remaining, easing: Easing.linear });
     }
   }
   // An effect event, so the effect below runs for the deps it lists and
   // reads everything else as of that render.
   const aimEchoStep = useEffectEvent(() => {
-    if (echoFillStep.current !== echoStep) {
-      echoFillStep.current = echoStep;
+    if (echoFillStep.current !== ladder.step) {
+      echoFillStep.current = ladder.step;
       cancelAnimation(echoFill);
       echoFill.value = 0;
     }
+    if (ladder.paused) {
+      // Pause silences the line: the bar rests empty until Resume replays the pass.
+      cancelAnimation(echoFill);
+      echoFill.value = 0;
+      return;
+    }
 
-    const kind = fillKindOf(echoStep);
+    const kind = fillKindOf(ladder.step);
     if (kind === 'line') {
       aimEchoLine(latestStatus.current);
       return;
@@ -1491,12 +1568,16 @@ export default function IslandScreen() {
     if (kind === 'record') {
       // Still opening the mic, or the previous take's cleanup finishing:
       // hold empty until this attempt is actually recording.
-      if (take.phase !== 'recording' || echoFillSpeakAt.current === speakStartedAt.current) return;
-      echoFillSpeakAt.current = speakStartedAt.current;
+      if (take.phase !== 'recording') {
+        echoFillRecAimed.current = false;
+        return;
+      }
+      if (echoFillRecAimed.current) return;
+      echoFillRecAimed.current = true;
       cancelAnimation(echoFill);
       echoFill.value = 0;
       // The ladder take's room past the line, plus the lag the tail adds.
-      const expected = (lineEnd > 0 ? takeRoomSec(lineEnd) * 1000 : WATCHDOG_FALLBACK_MS + TAIL_MS) + takeLagMs;
+      const expected = (lineSecLive > 0 ? takeRoomSec(lineSecLive) * 1000 : WATCHDOG_FALLBACK_MS + TAIL_MS) + takeLagMs;
       echoFill.value = withTiming(1, { duration: expected, easing: Easing.linear });
       return;
     }
@@ -1509,7 +1590,7 @@ export default function IslandScreen() {
   });
   useEffect(() => {
     aimEchoStep();
-  }, [echoStep, lineEnd, breathSec, take.phase, takeLagMs]);
+  }, [ladder.step, ladder.paused, lineSecLive, breathSec, take.phase, takeLagMs]);
 
   // After a line switch that should keep playing, start the new source as
   // soon as it is swapped in; the native player begins when the item is ready.
@@ -1594,20 +1675,35 @@ export default function IslandScreen() {
   // has committed, and a new line, speed or pause replaces what is still
   // queued. The phrase's own render is not fetched ahead: it is only ever
   // played for the line on screen.
+  // With the focus stage up, the line on screen is fetched at each of the
+  // stage chip's speeds right after the next line, so the file a chip tap
+  // asks for is local by the next play. The neighbours follow the speed
+  // picked last, also one still waiting to land.
   useEffect(() => {
     if (!island || island.lines.length === 0) return;
     const t = setTimeout(() => {
       const n = island.lines.length;
       const order = [idx + 1, idx + 2, idx - 1, idx].map((i) => (i + n) % n);
       const version = `${island.speaker}-${generation}`;
-      const items = [...new Set(order)].map((i) => {
+      const at = ahead ?? speed;
+      const item = (i: number, s: number) => {
         const l = island.lines[i]!;
-        return { url: api.withUser(api.lineAudioUrl(island.id, l.idx, version, speed, breathMs)), tag: l.ja };
+        return { url: api.withUser(api.lineAudioUrl(island.id, l.idx, version, s, breathMs)), tag: l.ja };
+      };
+      const items = [...new Set(order)].map((i) => item(i, at));
+      const chip = stageUp ? STAGE_SPEEDS.filter((s) => s !== at).map((s) => item(idx, s)) : [];
+      // focus-stories: last, the line each cube neighbour opens on, at the speed it will open at, so a hop's
+      // run starts on a local file.
+      const hopAhead = hop.ahead.flatMap((n) => {
+        const l = n.lines[resumeLine(peekLastLine(n.id), n.lines.length)];
+        if (!l) return [];
+        const s = peekRung(n.id)?.speed ?? getSettingsSync().defaultSpeed;
+        return [{ url: api.withUser(api.lineAudioUrl(n.id, l.idx, `${n.speaker}-0`, s, breathMs)), tag: l.ja }];
       });
-      prefetchLineAudio(items);
+      prefetchLineAudio([...items.slice(0, 1), ...chip, ...items.slice(1), ...hopAhead]);
     }, 0);
     return () => clearTimeout(t);
-  }, [island, idx, generation, speed, breathMs]);
+  }, [island, idx, generation, speed, ahead, breathMs, stageUp, hop.ahead]);
   // No expo-audio preload() for the next line: on iOS, replace() with a
   // preloaded URL moves that item out of the AVPlayer that loaded it into this
   // one (AudioModule.swift `replace`), and with it the line after the first
@@ -1638,6 +1734,18 @@ export default function IslandScreen() {
       }
     };
     await run().finally(() => clearTimeout(timer));
+  }
+
+  // Resolves once the source swap the last render asked for has loaded (a
+  // status with a duration of its own), or after SPEED_LOAD_WAIT_MS.
+  async function waitForSwap() {
+    const from = loadedUri.current;
+    const until = Date.now() + SPEED_LOAD_WAIT_MS;
+    while (Date.now() < until) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 50));
+      const s = latestStatus.current;
+      if (loadedUri.current !== from && !swap.current && s.isLoaded && s.duration > 0) return;
+    }
   }
 
   // A status the old source sent just before a swap and delivered after it:
@@ -1697,9 +1805,9 @@ export default function IslandScreen() {
   // listener is subscribed once, so everything it calls is read through the
   // ref: the first render's dropTake would close over a take whose cancel()
   // still sees `recording` as false and leaves the microphone running.
-  const backgroundRef = useRef({ take, player, dropTake, stopEcho, echoRef, startAutoHold });
+  const backgroundRef = useRef({ take, player, dropTake, endRun, echoRef, startAutoHold });
   useLayoutEffect(() => {
-    backgroundRef.current = { take, player, dropTake, stopEcho, echoRef, startAutoHold };
+    backgroundRef.current = { take, player, dropTake, endRun, echoRef, startAutoHold };
   });
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
@@ -1715,9 +1823,9 @@ export default function IslandScreen() {
         clearTimeout(autoHoldRef.current);
         autoHoldRef.current = null;
       }
-      const { take: t, player: p, dropTake: drop, stopEcho: stopE, echoRef } = backgroundRef.current;
+      const { take: t, player: p, dropTake: drop, endRun: stopE, echoRef } = backgroundRef.current;
       // The ladder stops the whole run on backgrounding, not just a take in
-      // progress: the sheet stays open showing Start.
+      // progress: the island is back at idle with Shadow in the dock.
       if (echoRef.current !== 'idle') {
         stopE();
         return;
@@ -1739,26 +1847,12 @@ export default function IslandScreen() {
   // extrapolated position must not be used here. `crossed` resets on a wrap (the
   // native loop) or a seek, and whenever the source swaps (the swap effect).
   const crossed = useRef(false);
-  function clearRoom() {
-    if (roomTimer.current) clearTimeout(roomTimer.current);
-    roomTimer.current = null;
-  }
   // The line under a take has ended. A ladder take stays open for its room
-  // (the line × 1.6 + 1.5s from the mic opening), then ends after the tail
-  // scheduleStop adds; any other take ends after the tail.
+  // (the hook's lineFinished: the line × 1.6 + 1.5s from the mic opening),
+  // then ends after the tail scheduleStop adds; any other take ends after the tail.
   function endTakeAfterLine() {
-    const wait = isSpeakStep(echoRef.current) && lineEnd > 0
-      ? takeRoomSec(lineEnd) * 1000 - (Date.now() - micOpenAt.current) - TAIL_MS
-      : 0;
-    if (!(wait > 0)) {
-      take.scheduleStop();
-      return;
-    }
-    clearRoom();
-    roomTimer.current = setTimeout(() => {
-      roomTimer.current = null;
-      if (isSpeakStep(echoRef.current)) takeLive.current.scheduleStop();
-    }, wait);
+    if (isSpeakStep(echoRef.current)) ladderRef.current?.lineFinished();
+    else take.scheduleStop();
   }
   function watchLineEnd(s: AudioStatus) {
     const end = lineEndOf(s.duration, breathSec);
@@ -1819,20 +1913,6 @@ export default function IslandScreen() {
     markTakeLineStart(s);
   }
 
-  // The same line once more from the top: the source has not changed, so the
-  // playWhenLoaded effect never fires and the seek and the play are by hand.
-  function replayLine() {
-    resetHighlight();
-    setPendingPlay(true);
-    void (async () => {
-      await seekTop();
-      // Stopped during the seek: the replay is cancelled.
-      if (!pendingPlayRef.current) return;
-      crossed.current = false;
-      startPlayback(player);
-    })();
-  }
-
   // Every play of a whole line ends here: another play of the same line
   // while fewer than `times` are done, otherwise the next line (wrapping to
   // the first). The pad's silence has already played by now, so that is the
@@ -1863,6 +1943,8 @@ export default function IslandScreen() {
       }
       return;
     }
+    // A speed picked during this play loads now, for the next play.
+    const swapped = landSpeedAhead() !== null;
     // A finish that slips past the crossing stop above (or a 0s pause, which
     // has no crossing) still must not advance the line.
     if (playsOnce) {
@@ -1870,45 +1952,11 @@ export default function IslandScreen() {
       scheduleAudioSessionRelease();
       return;
     }
-    const step = echoRef.current;
-    const fin = onLadderLineFinish(step, repeatRef.current, autoRecord, ladderPace, prepOn); // bl57-intro-round2, bl58-easy-for-me
-    if (fin.kind === 'repeat') {
-      // Same stage once more after a short gap, no count.
-      setRepeat(repeatRef.current + 1);
-      setPrelude({ phase: 'gap' });
-      preludeTimer.current = setTimeout(() => {
-        preludeTimer.current = null;
-        setPrelude(null);
-        replayLine();
-      }, pacing.gapMs);
+    // A ladder run: the hook takes the finish (a repeat, the next stage, or Compare's take).
+    if (ladderRef.current?.active) {
+      ladderRef.current.lineFinished();
       return;
     }
-    const after = fin.step;
-    if (after !== step) {
-      // The line's own finish, at the end of the pad, ends this pass.
-      if (isSpeakStep(after)) {
-        // Auto Record on: the stage announces and counts, then the mic opens.
-        enterStage(after);
-        return;
-      }
-      if (isArmedStep(after)) {
-        // Off, the Record button waits and the audio session goes back.
-        setEchoStep(after);
-        scheduleAudioSessionRelease();
-        return;
-      }
-      if (isPlayStep(after)) {
-        // Compare's line half done: the take answers it.
-        setEchoStep(after);
-        take.playTake();
-        return;
-      }
-      // Every pass plays at the rung: the same source, replayed by hand.
-      enterStage(after);
-      return;
-    }
-    // The rest of a pass never plays the line through to here.
-    if (isActive(step)) return;
     if (phrase.span) return;
     playsDone.current += 1;
     if (playsDone.current < times || island.lines.length === 1) {
@@ -1916,6 +1964,11 @@ export default function IslandScreen() {
       // Same line again: the source stays the same, so the playWhenLoaded
       // effect never fires. Seek and play by hand instead.
       resetHighlight();
+      if (swapped) {
+        // The file at the picked speed starts as soon as it is swapped in.
+        setPlayWhenLoaded(true);
+        return;
+      }
       setPendingPlay(true);
       void (async () => {
         await seekTop();
@@ -2072,7 +2125,7 @@ export default function IslandScreen() {
     tapEmptySentence,
     clearSelection,
     go,
-    startLineInRun,
+    runLine,
     echoActive,
     playFromTop,
     setPlayWhenLoaded,
@@ -2152,7 +2205,7 @@ export default function IslandScreen() {
         }
         if (e.translationY < -40 || e.velocityY < -500) {
           // Mid-run the next line starts at its first pass.
-          if (l.echoActive) l.startLineInRun(l.idx + 1);
+          if (l.echoActive) l.runLine(l.idx + 1);
           else l.go(l.idx + 1);
         } else if (e.translationY > 40 || e.velocityY > 500) {
           l.setPlayWhenLoaded(false);
@@ -2190,7 +2243,8 @@ export default function IslandScreen() {
       sceneIn.value = 0;
       return;
     }
-    if (openCoverUp(id)) {
+    // A hop lands on its cover: the stage under it is in place at once, no rise.
+    if (openCoverUp(id) || hop.starts) {
       cancelAnimation(sceneIn);
       sceneIn.value = 1;
       return;
@@ -2198,6 +2252,11 @@ export default function IslandScreen() {
     sceneIn.value = withTiming(1, { duration: reducedMotion ? 200 : 220 });
   }, [sceneShown, reducedMotion, sceneIn]);
   const sceneInStyle = useAnimatedStyle(() => ({
+    opacity: sceneIn.value,
+    transform: [{ translateY: reducedMotion ? 0 : (1 - sceneIn.value) * 10 }],
+  }));
+  // The ladder stage's layer, over the header too: it rises with the scene as it did inside it.
+  const stageInStyle = useAnimatedStyle(() => ({
     opacity: sceneIn.value,
     transform: [{ translateY: reducedMotion ? 0 : (1 - sceneIn.value) * 10 }],
   }));
@@ -2212,7 +2271,8 @@ export default function IslandScreen() {
   // asks for the loader if the player was not ready by then. Once landed, a
   // wait asks for it (the overlay's own grace delays the cat) and anything
   // else clears it.
-  const waitingForLines = (!island || openHold) && !error;
+  // The hop cover stands in for the loader while the island is in hand: the root loader would draw over it.
+  const waitingForLines = (!island || (openHold && !hopCover)) && !error;
   // A layout effect, ahead of the reveal's below, so a reveal that starts in the same commit sees
   // the loader still drawn and waits out its fade.
   useLayoutEffect(() => {
@@ -2360,12 +2420,14 @@ export default function IslandScreen() {
 
   // Switching lines: stop the old audio first, reset everything that belonged
   // to it, and carry on playing on the new line if we were playing.
-  function go(target: number) {
+  function go(target: number, keepPlaying = true) {
     // The line never changes under the Explain sheet (see openExplain).
     if (!island || explainOpen) return;
     const clamped = Math.max(0, Math.min(island.lines.length - 1, target));
     if (clamped === idx) return;
-    const wasActive = status.playing || pendingPlayRef.current;
+    // The ladder loads its new line quietly (`status` can still read playing
+    // in the tick its stop lands): the stage's own count plays it.
+    const wasActive = keepPlaying && (status.playing || pendingPlayRef.current);
     dropTake();
     // Leaving the line clears its phrase, and with it a take recorded on it.
     if (phrase.span) take.discardTake();
@@ -2373,6 +2435,7 @@ export default function IslandScreen() {
     resetHighlight();
     resetForNewAudio();
     setPlayWhenLoaded(wasActive);
+    landSpeedAhead();
     applyLadderNext();
     setEasyOffer(null); // bl58-easy-for-me
     setIdx(clamped);
@@ -2431,9 +2494,9 @@ export default function IslandScreen() {
     setEasyOffer(null);
     // A run in progress ends first, as Pause does.
     // In a session the run carries on to the next line instead (below), as a Next tap inside a run does.
-    const wasRun = isActive(echoStep) || prelude !== null;
+    const wasRun = ladder.active;
     const carryOn = wasRun && auto === '1' && !guideOn;
-    if (wasRun && !carryOn) stopEcho();
+    if (wasRun && !carryOn) endRun();
     setKnown((s) => new Set(s).add(lineIdx));
     if (guideOn) {
       // Under the guide the mark is best effort and the island moves on as a finished Compare would; two taps end it.
@@ -2451,9 +2514,9 @@ export default function IslandScreen() {
     }
     showEasyDone(known.has(lineIdx) ? known.size : known.size + 1);
     // A session keeps its order and its run; otherwise the island moves to the next longer line.
-    if (carryOn && i + 1 < island.lines.length) startLineInRun(i + 1);
+    if (carryOn && i + 1 < island.lines.length) runLine(i + 1);
     else if (carryOn) {
-      stopEcho();
+      endRun();
       if (autoRunRef.current) autoIslandDone();
     } else glideTo(auto === '1' ? i + 1 : nextLongerIdx(i));
     try {
@@ -2497,24 +2560,35 @@ export default function IslandScreen() {
   });
   // A new run takes the offer with it.
   useEffect(() => {
-    if (isActive(echoStep)) setEasyOffer(null);
-  }, [echoStep]);
+    if (isActive(ladder.step)) setEasyOffer(null);
+  }, [ladder.step]);
   // E4's quiet pill: a 26 pt face with a 44 pt hit area. The island card wraps it in the guide's anchor; the stage view draws it as is.
-  const easyChipButton = line ? (
-    <PressScale
-      onPress={() => (lineKnown ? unmarkEasy(idx) : markEasy(idx))}
-      hitSlop={{ top: 9, bottom: 9, left: 8, right: 8 }}
-      accessibilityRole="button"
-      accessibilityState={{ selected: lineKnown }}
-      accessibilityLabel={lineKnown ? t('ladder.easyMarked') : t('ladder.easy')}
-      style={[styles.easyChip, lineKnown && styles.easyChipOn]}>
-      <Leaf size={14} />
-      <Text style={styles.easyChipText}>{lineKnown ? t('ladder.easyMarked') : t('ladder.easy')}</Text>
-    </PressScale>
-  ) : null;
+  // Memoised (D54): a fresh element every render would re-render the stage view with it.
+  const hasLine = !!line;
+  const easyChipButton = useMemo(
+    () =>
+      hasLine ? (
+        <PressScale
+          onPress={() => (lineKnown ? unmarkEasy(idx) : markEasy(idx))}
+          hitSlop={{ top: 9, bottom: 9, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityState={{ selected: lineKnown }}
+          accessibilityLabel={lineKnown ? t('ladder.easyMarked') : t('ladder.easy')}
+          style={[styles.easyChip, lineKnown && styles.easyChipOn]}>
+          <Leaf size={14} />
+          <Text style={styles.easyChipText}>{lineKnown ? t('ladder.easyMarked') : t('ladder.easy')}</Text>
+        </PressScale>
+      ) : null,
+    [hasLine, lineKnown, idx, t, markEasy, unmarkEasy],
+  );
+  // The same mark for the stage view's small Easy chip above its hint.
+  const easyChipAction = useMemo(
+    () => (hasLine ? { on: lineKnown, onPress: () => (lineKnown ? unmarkEasy(idx) : markEasy(idx)) } : undefined),
+    [hasLine, lineKnown, idx, markEasy, unmarkEasy],
+  );
   // Inside a run the neighbours restart it from their first pass.
-  const next = () => (isActive(echoStep) ? startLineInRun(idx + 1) : go(idx + 1));
-  const prev = () => (isActive(echoStep) ? startLineInRun(idx - 1) : go(idx - 1));
+  const next = () => (ladder.active ? runLine(idx + 1) : go(idx + 1));
+  const prev = () => (ladder.active ? runLine(idx - 1) : go(idx - 1));
 
   // Starts the line fresh from the top, whether or not it was already
   // playing: shared by the ring's Play tap and a swipe down on the sentence.
@@ -2525,6 +2599,14 @@ export default function IslandScreen() {
     // A restart mid-word fades the highlight in again from the top instead
     // of snapping the lit word off.
     resetHighlight();
+    if (landSpeedAhead() !== null) {
+      // A speed picked during the last play: its file starts once swapped in.
+      stopPlayback(player);
+      crossed.current = false;
+      playsDone.current = 0;
+      setPlayWhenLoaded(true);
+      return;
+    }
     await seekTop();
     // A short phrase can reach lineEnd before a status below it resets this.
     crossed.current = false;
@@ -2625,9 +2707,13 @@ export default function IslandScreen() {
     setSpeedLive(next);
   }
 
-  // The Speed ruler's settle: the line is re-rendered at the new speed, and
-  // if it was playing, carries on at the new speed from the top instead of
-  // going silent.
+  // The Speed ruler's settle and the focus stage's speed chip. A line playing
+  // carries on from where it is: the player's rate takes it to the new speed
+  // over the file it has, the highlight keeps its word, and the file rendered
+  // at the new speed takes over at the next play (landSpeedAhead). A take
+  // (or the mic opening for one) hears nothing change until its next play.
+  // Otherwise the line is re-rendered now, and a play still waiting starts
+  // once it is swapped in.
   function commitSpeed(next: number) {
     speedTouched.current = true;
     ladderEpoch.current += 1;
@@ -2635,13 +2721,49 @@ export default function IslandScreen() {
     setLadderMove(null);
     if (island) void setRungSpeed(island.id, next);
     setSpeedLive(next);
+    if (take.phase === 'recording' || startingTake.current) {
+      setAhead(next);
+      return;
+    }
+    const s = latestStatus.current;
+    const rate = next / speed;
+    if (s.playing && s.isLoaded && Number.isFinite(rate) && rate >= RATE_MIN && rate <= RATE_MAX) {
+      setAhead(next);
+      player.setPlaybackRate(rate, 'high');
+      setLiveRate(rate);
+      aimEchoLine(s, true);
+      return;
+    }
+    if (rateRef.current !== 1) {
+      player.setPlaybackRate(1, 'high');
+      setLiveRate(1);
+    }
+    setAhead(null);
     if (next === speed) return;
-    const wasActive = status.playing || pendingPlayRef.current;
+    const wasActive = s.playing || pendingPlayRef.current;
+    // Only a rate the player cannot take reaches here playing: re-rendered from the top, as before.
+    if (s.playing) stopPlayback(player);
     dropTake();
-    stopPlayback(player);
     setPlayWhenLoaded(wasActive);
     resetForNewAudio();
     setSpeed(next);
+  }
+
+  // A speed picked mid-play lands: the rate goes back to 1 and the file
+  // rendered at that speed is loaded. Called where the next play starts or
+  // the line stops (never under a playing line or a take). Returns the new
+  // speed when the source changes, else null.
+  function landSpeedAhead(): number | null {
+    const next = speedAhead.current;
+    if (next === null) return null;
+    setAhead(null);
+    if (rateRef.current !== 1) {
+      player.setPlaybackRate(1, 'high');
+      setLiveRate(1);
+    }
+    if (next === speed) return null;
+    setSpeed(next);
+    return next;
   }
 
   // The take is only in phase 'recording' once startTake resolves, so the pill
@@ -2664,7 +2786,6 @@ export default function IslandScreen() {
   ): Promise<{ silent: boolean } | null> {
     if (!line || startingTake.current) return null;
     startingTake.current = true;
-    clearRoom();
     // A promise finally, not a try finally: the compiler does not lower those.
     const run = async () => {
       setPlayWhenLoaded(false);
@@ -2676,6 +2797,12 @@ export default function IslandScreen() {
       take.stopTake();
       stopPlayback(player);
       await take.cancel();
+      // A speed picked mid-play that has not landed yet: the take runs over
+      // the file at that speed at rate 1, so wait for it to load and time the
+      // take from its own length.
+      const landed = landSpeedAhead();
+      if (landed !== null) await waitForSwap();
+      const end = landed !== null ? lineEndOf(latestStatus.current.duration, breathSec) : lineEnd;
       await seekTop();
       // The spoken line's length (without the pad) is the watchdog's base: a
       // take that is never ended by the line stops itself a few seconds past it.
@@ -2684,8 +2811,12 @@ export default function IslandScreen() {
       // to learn it from.
       const span = mode === 'calibrate' ? null : phrase.audio;
       // A ladder take (`room`) gets the ladder's room past the line instead.
-      const lineSec = room && lineEnd > 0 ? takeWatchSec(lineEnd) : lineEnd || undefined;
-      const result = await take.startTake(lineSec, speed, mode, takeLagMs, span, silent);
+      // The rate is 1 under a take (commitSpeed never changes it there), so
+      // the file's length is the wall-clock length; divided anyway in case.
+      const rate = rateRef.current > 0 && Number.isFinite(rateRef.current) ? rateRef.current : 1;
+      const endSec = end / rate;
+      const lineSec = room && endSec > 0 ? takeWatchSec(endSec) : endSec || undefined;
+      const result = await take.startTake(lineSec, landed ?? speed, mode, takeLagMs, span, silent);
       if (!result) return null;
       crossed.current = false;
       if (!result.silent) startPlayback(player);
@@ -2695,6 +2826,15 @@ export default function IslandScreen() {
       startingTake.current = false;
     });
   }
+
+  // The take hook's message (microphone access off, the recorder failed, a save failed) was never
+  // shown on the island: the alert sheet shows each new one once, when it lands.
+  const shownTakeError = useRef(0);
+  useEffect(() => {
+    if (!take.error || take.errorSeq === shownTakeError.current) return;
+    shownTakeError.current = take.errorSeq;
+    void alertSheet(take.error);
+  }, [take.error, take.errorSeq]);
 
   // Stamps where line time 0 sits in the take (see markLineStart) the first
   // time playback status arrives with a real position during a take, so a
@@ -2712,6 +2852,15 @@ export default function IslandScreen() {
   useEffect(() => {
     markTakeLineStartNow();
   }, [take.phase, take.mode]);
+  // A speed picked during a take loads once the take is over and the line is
+  // quiet, so the next play (Compare, the final take) already has its file.
+  const landAfterTake = useEffectEvent(() => {
+    if (take.phase === 'recording' || startingTake.current || latestStatus.current.playing) return;
+    landSpeedAhead();
+  });
+  useEffect(() => {
+    landAfterTake();
+  }, [take.phase]);
 
   // Calibrating with a phrase set goes back to the whole line first and
   // starts once that audio is swapped in (the effect below), so the phone
@@ -2734,177 +2883,6 @@ export default function IslandScreen() {
   useEffect(() => {
     calibrateOnLoaded();
   }, [sourceUri]);
-
-  // The Speak step's take: the mic opens with the line playing under it,
-  // exactly like Record my take, on headphones and on the speaker alike, so
-  // the take is uploaded, cleaned of the line's bleed and scored, as in the
-  // podcast and video ladders. `speakStartedAt` marks the moment so the take-saved effect
-  // below only reacts to a take from this pass, not a stale or cancelled one.
-  async function startSpeak() {
-    // A second tap while the mic is still opening: the first start carries
-    // on, and beginRecording would refuse this one anyway.
-    if (startingTake.current) return;
-    speakStartedAt.current = Date.now();
-    stopWhenOpen.current = false;
-    rushClean.current = false;
-    setSpeakStopped(false);
-    setEchoStep('ladderRecord');
-    const started = await beginRecording('take', false, true);
-    if (!started) {
-      stopWhenOpen.current = false;
-      setEchoStep('idle');
-      return;
-    }
-    micOpenAt.current = Date.now();
-    // The sheet closed (or the app went to the background) while the mic was
-    // opening: stopEcho found nothing to cancel yet, so drop this take now.
-    if (!isSpeakStep(echoRef.current)) {
-      stopPlayback(player);
-      void take.cancel();
-    }
-  }
-
-  // Ends a count in progress, with no timer left running and nothing armed
-  // (the microphone was never opened). Reached by a second tap on the record
-  // button, by dropTake, by stopEcho (the sheet closing, the app going to the
-  // background) and by the unmount cleanup above.
-  function cancelCountIn() {
-    if (countInTimer.current) {
-      clearTimeout(countInTimer.current);
-      countInTimer.current = null;
-    }
-    if (preludeTimer.current) {
-      clearTimeout(preludeTimer.current);
-      preludeTimer.current = null;
-    }
-    if (preludeRef.current !== null) setPrelude(null);
-    if (preludeBeatShown.current) {
-      preludeBeatShown.current = false;
-      setPreludeBeat(null);
-    }
-    if (countInRef.current === null) return;
-    countInRef.current = null;
-    setCountIn(null);
-  }
-
-  // The last beat opens the microphone through the current render's
-  // startSpeak: the timer that calls it was set up to two seconds earlier.
-  const afterCount = useStableHandler(() => {
-    const target = countTargetRef.current;
-    if (target === 'speak') void startSpeak();
-    else if (target === 'top') void playFromTop();
-    else replayLine();
-  });
-  const preludeBeatShown = useRef(false);
-
-  // One beat of the count: the number on the record button, a tick under the
-  // finger, and either the next beat or the take itself.
-  function countBeat(n: number) {
-    // Only the Record count is cancellable by a red tap.
-    countInRef.current = countTargetRef.current === 'speak' ? n : null;
-    if (countTargetRef.current === 'speak') {
-      setCountIn(n);
-    } else {
-      preludeBeatShown.current = true;
-      setPreludeBeat(n);
-    }
-    setPrelude({ phase: 'count', beat: n });
-    // Not on the first beat: PressScale already ticks under the tap that
-    // started the count, and two at once read as one long buzz.
-    if (n < COUNT_IN_BEATS) void hapticSelection();
-    countInTimer.current = setTimeout(() => {
-      countInTimer.current = null;
-      if (n > 1) {
-        countBeat(n - 1);
-        return;
-      }
-      countInRef.current = null;
-      setCountIn(null);
-      preludeBeatShown.current = false;
-      setPreludeBeat(null);
-      setPrelude(null);
-      // A firmer tap than the beats: this one is the moment to speak.
-      if (countTargetRef.current === 'speak') void hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
-      afterCount();
-    }, pacing.beatMs);
-  }
-
-  // A ladder stage (all but Compare) opens with an announce hold, then the
-  // 3, 2, 1 count, then it runs: Record opens the mic, a listening stage replays the line (from
-  // the top after a line change). Record enters as the armed step so the red
-  // button carries the count.
-  function enterStage(next: PassStep, from: 'line' | 'top' = 'line') {
-    cancelCountIn();
-    if (!isSpeakStep(next)) setFinal(false);
-    setSpeakStopped(false);
-    setEchoStep(isSpeakStep(next) ? 'ladderArmed' : next);
-    setRepeat(1);
-    countTargetRef.current = isSpeakStep(next) ? 'speak' : from;
-    if (!hasPrelude(next)) {
-      // Compare plays the line at once; the take answers it at the line's finish.
-      preludeTimer.current = setTimeout(() => {
-        preludeTimer.current = null;
-        afterCount();
-      }, 0);
-      return;
-    }
-    setPrelude({ phase: 'announce' });
-    preludeTimer.current = setTimeout(() => {
-      preludeTimer.current = null;
-      countBeat(COUNT_IN_BEATS);
-    }, pacing.announceMs);
-  }
-
-  /**
-   * Record and Retry, the two taps that start a take by hand: the count runs
-   * first and the microphone opens on its last beat, so a take no longer
-   * begins with the tap itself and the breath after it. Tapping again during
-   * the count cancels it and leaves the pass waiting on Record again.
-   */
-  function countInThenSpeak() {
-    if (countInRef.current !== null || (preludeRef.current?.phase === 'announce' && isArmedStep(echoRef.current))) {
-      cancelCountIn();
-      return;
-    }
-    // The mic is already opening from an earlier tap: that take owns the pass.
-    if (startingTake.current) return;
-    // Retry, tapped while a take records: that take goes before the count
-    // starts, so nothing is listening through it.
-    if (take.phase === 'recording') {
-      stopPlayback(player);
-      void player.seekTo(0);
-      dropTake();
-    }
-    enterStage('ladderRecord');
-  }
-
-  // Restarts the run on line `i` at its first pass: the next line after
-  // Compare, the strip's neighbours, or Start again. go() applies a pending
-  // rung move; the same line replays by hand.
-  function startLineInRun(i: number) {
-    if (!island || explainOpen || i < 0 || i >= island.lines.length) return;
-    // The new line loads quietly; Listen announces, counts, then plays it.
-    lineStartRef.current = Date.now();
-    scoreSince.current = lineStartRef.current;
-    if (i !== idx) go(i);
-    enterStage('ladderListen', 'top');
-  }
-
-  // Moves the run on to the next line after Compare's take finishes. The
-  // ladder walks the island once and stops at its end: no wrap.
-  function advanceEcho() {
-    if (!island || echoRef.current !== 'ladderPlay') return;
-    const done = island.lines[idx];
-    if (autoRunRef.current && done) {
-      noteSessionLine(island.id, done.idx, lineStartRef.current ? (Date.now() - lineStartRef.current) / 1000 : 0, done); // auto-practice
-    }
-    if (idx >= island.lines.length - 1) {
-      setEchoStep('done');
-      if (autoRunRef.current) autoIslandDone(); // auto-practice
-      return;
-    }
-    startLineInRun(idx + 1);
-  }
 
   // auto-practice: the island's last line finished. Hold on the next title,
   // then move on; the last island ends the chain.
@@ -2932,15 +2910,26 @@ export default function IslandScreen() {
     }, AUTO_NEXT_HOLD_MS);
   }
 
-  function goToIsland(nextId: string, nextKind: api.SessionKind) {
+  function goToIsland(nextId: string, nextKind: api.SessionKind, hopped = false) {
     if (autoLeavingRef.current) return;
     autoLeavingRef.current = true;
-    stopEcho();
+    if (hopped && nextKind === 'island') {
+      // A cube hop: the replace first, so the stage never fades out over the island chrome, and the next
+      // island opens under its hop cover.
+      router.replace({ pathname: '/island/[id]', params: { id: nextId, auto: '1', hop: '1' } });
+      endRun();
+      return;
+    }
+    endRun();
     closeSheetThen(() => router.replace(routeFor(nextId, nextKind)));
   }
+  // focus-stories D3: what a committed cube turn calls, refreshed after every render (a turn is an event, never a render).
+  useEffect(() => {
+    hopActions.current = { endRun, goToIsland };
+  });
 
   function endChain() {
-    stopEcho();
+    endRun();
     void hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
     finishSession(true);
     closeSheetThen(plainBack);
@@ -2958,63 +2947,6 @@ export default function IslandScreen() {
     setAutoUi(null);
     autoRunRef.current = false;
   }
-
-  // Starts (or restarts) the run on the current line: a whole-line phrase
-  // selection goes first, so every pass hears the same line.
-  function startEcho() {
-    // Clearing a held phrase swaps the whole line back in, and that load is
-    // what starts it playing: nothing below may play on top of it.
-    clearPhrase();
-    scoreSince.current = Date.now();
-    enterStage('ladderListen', 'top');
-  }
-
-  // Ends the loop: called when the sheet closes and when the app backgrounds
-  // mid-pass. Drops any take in progress and any that just finished recording.
-  function stopEcho() {
-    cancelCountIn();
-    if (advanceHoldRef.current) {
-      clearTimeout(advanceHoldRef.current);
-      advanceHoldRef.current = null;
-    }
-    setEchoStep('idle');
-    setPlayWhenLoaded(false);
-    dropTake();
-    stopPlayback(player);
-    void player.seekTo(0);
-    scheduleAudioSessionRelease();
-  }
-
-  // The Speak step's take, once saved and its player loaded, starts the Play
-  // step. `recordedAt` has to be newer than when this pass's Speak began: a
-  // Retry's cancel flickers `phase` back to 'ready' with the take it is about
-  // to replace, and a line switched away and back still carries its own old
-  // take, and neither should be mistaken for the one just recorded. It also
-  // waits out the echo cleanup: the cleaned file landing swaps the take
-  // player, which would cut a take already playing off mid-word.
-  const playSavedTake = useEffectEvent(() => {
-    const after = afterTakeSaved(echoRef.current);
-    if (
-      after !== echoRef.current &&
-      take.phase === 'ready' &&
-      (take.clean.state !== 'working' || rushClean.current) &&
-      take.takeLoaded &&
-      take.take &&
-      take.take.recordedAt > speakStartedAt.current
-    ) {
-      // Compare plays the line straight away, and the take answers it at that
-      // line's finish.
-      rushClean.current = false;
-      if (blindTake && !finalRef.current) {
-        // The recorded take moves on to the blind take, waiting on the Record tap.
-        setFinal(true);
-        setEchoStep('ladderArmed');
-      } else enterStage(after);
-    }
-  });
-  useEffect(() => {
-    playSavedTake();
-  }, [take.phase, take.take?.recordedAt, take.takeLoaded, take.clean.state, rushTick]);
 
   // Feeds a freshly scored take to the island's rung. `ladderSeenAt` keeps a
   // take recorded before this visit, or a line switched away and back, from
@@ -3058,70 +2990,6 @@ export default function IslandScreen() {
     }
     wasTakePlaying.current = take.takePlaying;
   }, [take.takePlaying, status.playing]);
-
-  // Compare's take finishing on its own moves the run on: Auto Echo on
-  // advances to the next line, off ends the run.
-  const onEchoTakeStopped = useEffectEvent(() => {
-    if (wasEchoTakePlaying.current && !take.takePlaying && isPlayStep(echoRef.current)) {
-      // A Compare played back is one sentence ladder finished, which is what
-      // a day on the streak counts.
-      if (echoRef.current === 'ladderPlay' && island) addLadder(island.id);
-      if (guideOn) {
-        // bl57-intro-round2: under the guide a finished Compare parks the next line instead of running it.
-        // Only this finished Compare moves the guide on: a Pause, a background stop or a failed take keeps the step.
-        advanceHoldRef.current = setTimeout(() => {
-          advanceHoldRef.current = null;
-          // Idle, not done: done turns the record button into Start again, which jumps back to line 1
-          // instead of running the line the guide just moved to.
-          setEchoStep('idle');
-          const step = getGuideStep();
-          if (step === 'solo') {
-            setGuideStep('topics');
-            router.replace('/phrases');
-            return;
-          }
-          go(idx + 1);
-          if (step === 'shadow') setGuideStep('prep');
-          else if (step === 'prep') setGuideStep('solo');
-        }, ECHO_RESULT_HOLD_MS);
-      } else {
-        // bl58-easy-for-me: a 90+ Compare on a line not yet known offers Easy, once per line per open. Only a tap marks.
-        const total = take.take?.score?.total;
-        const key = island && line ? `${island.id}:${line.idx}` : null;
-        const offer = key !== null && line && typeof total === 'number' && total >= 90 && !known.has(line.idx) && !offeredRef.current.has(key);
-        if (offer) {
-          offeredRef.current.add(key);
-          setEasyOffer(idx);
-        }
-        if (autoEcho) {
-          advanceHoldRef.current = setTimeout(() => {
-            advanceHoldRef.current = null;
-            setEasyOffer(null);
-            // The toggle turned off during the hold: end the run instead.
-            if (!autoEchoRef.current) {
-              setEchoStep(afterTakePlayed(echoRef.current, false));
-              return;
-            }
-            advanceEcho();
-          }, offer ? EASY_OFFER_HOLD_MS : ECHO_RESULT_HOLD_MS);
-        } else {
-          setEchoStep('done');
-          // Without Auto Echo nothing else ends the offer: it clears by itself, never marking.
-          if (offer) {
-            if (offerClearRef.current) clearTimeout(offerClearRef.current);
-            offerClearRef.current = setTimeout(() => {
-              offerClearRef.current = null;
-              setEasyOffer(null);
-            }, EASY_OFFER_HOLD_MS);
-          }
-        }
-      }
-    }
-    wasEchoTakePlaying.current = take.takePlaying;
-  });
-  useEffect(() => {
-    onEchoTakeStopped();
-  }, [take.takePlaying]);
 
   // The word player finishing on its own is also a stop point: Hear it never
   // loops, so once it stops (and the line is not playing) nothing of ours
@@ -3227,8 +3095,8 @@ export default function IslandScreen() {
   // state (go alone would leave a paused line paused).
   function jumpToLine(i: number) {
     if (explainOpen) return;
-    if (isActive(echoStep)) {
-      startLineInRun(i);
+    if (ladder.active) {
+      runLine(i);
       return;
     }
     go(i);
@@ -3244,58 +3112,24 @@ export default function IslandScreen() {
   const onNext = useStableHandler(next);
   // The red button by state: start, start again, count, stop, or record.
   const onDockRecord = useStableHandler(() => {
-    if (echoStep === 'idle') {
+    if (ladder.step === 'idle') {
       if (take.phase === 'recording') void toggle();
-      else startEcho();
+      else startRun();
       return;
     }
-    if (echoStep === 'done') {
-      if (idx === 0) startEcho();
-      else startLineInRun(0);
+    if (ladder.step === 'done') {
+      // Under the guide the run rests on done with the next line parked: Shadow
+      // runs it. Elsewhere Start again is line 1.
+      if (guideOn) startRun();
+      else runLine(0);
       return;
     }
-    if (isPlayStep(echoStep)) return;
-    if (isSpeakStep(echoStep)) {
-      onEchoStop();
-      return;
-    }
-    // A listening pass: its line stops, then the count runs and the mic opens.
-    if (countIn === null && !isArmedStep(echoStep)) {
-      stopPlayback(player);
-      setPlayWhenLoaded(false);
-    }
-    countInThenSpeak();
-  });
-  // A tap on mark `i`: listening passes replay the line, Record counts in,
-  // Compare plays the line then the take.
-  const onJumpPass = useStableHandler((i: number) => {
-    if (explainOpen) return;
-    const hasTake = take.phase === 'ready' && !!take.take;
-    const target = stepOfPass(i, hasTake);
-    if (isArmedStep(target)) {
-      if (countIn === null) {
-        // The step the badge skipped from may hold a full underline; the count-in starts empty.
-        cancelAnimation(echoFill);
-        echoFill.value = 0;
-        stopPlayback(player);
-        setPlayWhenLoaded(false);
-        take.stopTake();
-        countInThenSpeak();
-      }
-      return;
-    }
-    if (target === 'ladderCompare') {
-      cancelCountIn();
-      take.stopTake();
-    } else {
-      dropTake();
-    }
-    stopPlayback(player);
-    setPlayWhenLoaded(false);
-    enterStage(target);
+    // Stopping a take silences the line under it on the tap, not when the mic has closed.
+    if (isSpeakStep(ladder.step) && take.phase === 'recording') stopPlayback(player);
+    ladder.dock.onRecord();
   });
   const onPassHelp = useStableHandler(() => {
-    setHelpPass(helpPassOf(echoStep));
+    setHelpPass(helpPassOf(ladder.step));
     setHelpOpen(true);
   });
   const onHelpClose = useStableHandler(() => setHelpOpen(false));
@@ -3304,7 +3138,7 @@ export default function IslandScreen() {
   // props at one identity so a screen render does not render a closed sheet.
   const onEchoClose = useStableHandler(() => {
     dropChain(); // auto-practice
-    stopEcho();
+    endRun();
     setSheet(null);
   });
   // auto-practice: Skip moves on at once, Done leaves the finished chain.
@@ -3327,38 +3161,6 @@ export default function IslandScreen() {
     if (next) goToIsland(next.nextId, next.nextKind);
     else endChain();
   });
-  const onLadderRecord = useStableHandler(() => onJumpPass(3));
-  const onLadderFinal = useStableHandler(() => {
-    if (explainOpen) return;
-    cancelCountIn();
-    stopPlayback(player);
-    setPlayWhenLoaded(false);
-    take.stopTake();
-    setFinal(true);
-    setSpeakStopped(false);
-    setEchoStep('ladderArmed');
-  });
-  // Stop works at any moment of the Record stage: on an open mic it ends the
-  // take now, before the mic opens it ends the take the moment it does, and on
-  // a saved take still waiting on its echo cleanup it moves on without it.
-  const onEchoStop = useStableHandler(() => {
-    if (!isSpeakStep(echoRef.current)) return;
-    setSpeakStopped(true);
-    if (take.phase === 'recording') {
-      clearRoom();
-      stopPlayback(player);
-      void player.seekTo(0);
-      take.finishNow();
-    } else if (take.take && take.take.recordedAt > speakStartedAt.current) {
-      rushClean.current = true;
-      setRushTick((n) => n + 1);
-    } else stopWhenOpen.current = true;
-  });
-  useEffect(() => {
-    if (take.phase !== 'recording' || !stopWhenOpen.current) return;
-    stopWhenOpen.current = false;
-    onEchoStop();
-  }, [take.phase, onEchoStop]);
   const onSheetDismissed = useStableHandler(runAfterSheet);
   const onMenuClose = useStableHandler(() => setSheet(null));
   const onMenuRename = useStableHandler((t: string) => closeSheetThen(() => void renameTitle(t)));
@@ -3831,7 +3633,7 @@ export default function IslandScreen() {
       if (leavingRef.current) return;
       leavingRef.current = true;
       dropChain();
-      stopEcho();
+      endRun();
       plainBack();
       return;
     }
@@ -3853,8 +3655,8 @@ export default function IslandScreen() {
   const homeLine = island ? undefined : openedLine(id);
   const headerLineCount = island?.lines.length ?? homeLine?.lineCount ?? 0;
   const headerLineIndex = island ? idx : (homeLine?.lineIndex ?? 0);
-  // The `?` help sits in the menu's slot while a ladder stage shows, as in the video and podcast headers.
-  const header = (withMenu: boolean, withHelp = false) => (
+  // While a ladder stage shows, it covers this header: its own header carries back and the `?`.
+  const header = (withMenu: boolean) => (
     <PlayerHeader
       id={id}
       title={headerTitleText}
@@ -3864,11 +3666,51 @@ export default function IslandScreen() {
       background={sky.top}
       onBack={guideLocked ? null : onHeaderBack} // bl57-intro-round2
       onMenu={withMenu && !guideLocked ? onHeaderMenu : null} // bl57-intro-round2
-      onHelp={withHelp ? onPassHelp : null}
       known={known.size} // bl58-easy-for-me
       onTouch={onHeaderTouch}
     />
   );
+
+  // The scene's giant digit: the breath's countdown, or a listening stage's
+  // count (a take's count rides the dock's button).
+  const sceneCountdown = countdown ?? (ladder.prelude?.phase === 'count' && !isArmedStep(ladder.step) ? ladder.beat : null);
+  // D54: the stage view is memoised, so its props are built once per change of what they read, not per render.
+  // The hook's stage, with the island's status-driven fill (aimEchoLine, aimTakeFill: this player loads its
+  // audio per line, so the hook's timed fill would drift), the word highlight, the Easy chip and the session's hold title.
+  const stageHoldTitle = autoUi?.next ?? null;
+  const stageProps = useMemo(
+    () =>
+      ladder.stage && {
+        ...ladder.stage,
+        fill: echoFill,
+        highlight,
+        chip: easyChipButton, // bl58-easy-for-me: E3, a mark ends the run
+        easy: easyChipAction,
+        // This player plays at its own rate (the hook runs at 1 here), so the speed chip and the sheet read
+        // that one: the speed picked last, heard at once even before its file lands (commitSpeed).
+        speed: speedLive,
+        holdTitle: stageHoldTitle,
+        onEnd: onEchoClose,
+        onHelp: onPassHelp,
+      },
+    [ladder.stage, echoFill, highlight, easyChipButton, easyChipAction, speedLive, stageHoldTitle, onEchoClose, onPassHelp],
+  );
+  // bl58-easy-for-me (D55): the 90+ offer lives in the dock, which the opaque stage view covers, and Auto Echo holds the
+  // run on Compare while it is up. The stage stays mounted and goes hidden for the offer's hold, so the bubble and the
+  // choices show, and No brings the stage back with no fade.
+  const stageCovers = stageProps !== null && easyOffer === null;
+  // focus-stories: the hop cover, opaque and over the header, the scene and the stage, laid out as the stage
+  // root lays out its page (under the top inset). TideScene waits under a hop until the cover drops (the
+  // live stage has fitted, or the cover timed out): the stage hides it anyway, and its mount stays out of the landing.
+  const hopFace =
+    hopCover && !error ? (
+      <View style={[StyleSheet.absoluteFill, styles.hopCover, { paddingTop: screenInsets.top }]} pointerEvents="none">
+        <StagePreview id={id} />
+      </View>
+    ) : null;
+  // Only the cover holds it: `hop.starts` stays true for the whole visit, so a stage test here would keep the
+  // scene away once the run ends.
+  const sceneDeferred = hop.starts && hopCover && !error;
 
   // What the floating dock covers at the scene's bottom: the dock and the
   // home indicator under it. The scene draws to the screen's edge, under the
@@ -3917,24 +3759,27 @@ export default function IslandScreen() {
             anchorMoved(w !== playerW.current);
             playerW.current = w;
           }}>
-          <TideScene
-            lineIndex={0}
-            lineCount={0}
-            lines={lines}
-            blind={hidden}
-            busy={false}
-            countdown={null}
-            banner={banner}
-            sentence={null}
-            scrollRef={scrollRef}
-            onLineTap={onLineTap}
-            instantReveal={coverUpNow}
-            widenWhen={coveredAtMount ? widenTranscript : undefined}
-            contentReveal={revealValues}
-            initialHeight={Math.max(0, sceneEstimateH - dockSpace)}
-            bottomInset={dockCover}
-          />
+          {sceneDeferred ? null : (
+            <TideScene
+              lineIndex={0}
+              lineCount={0}
+              lines={lines}
+              blind={hidden}
+              busy={false}
+              countdown={null}
+              banner={banner}
+              sentence={null}
+              scrollRef={scrollRef}
+              onLineTap={onLineTap}
+              instantReveal={coverUpNow}
+              widenWhen={coveredAtMount ? widenTranscript : undefined}
+              contentReveal={revealValues}
+              initialHeight={Math.max(0, sceneEstimateH - dockSpace)}
+              bottomInset={dockCover}
+            />
+          )}
         </Animated.View>
+        {hopFace}
       </View>
     );
   }
@@ -4010,94 +3855,22 @@ export default function IslandScreen() {
     );
   }
 
-  // The red button and the ring by run state (see onDockRecord).
-  const dockRun = (() => {
-    const counting = countIn !== null;
-    const recording = isSpeakStep(echoStep);
-    const taking = isPlayStep(echoStep);
-    const label =
-      echoStep === 'idle'
-        ? take.phase === 'recording'
-          ? t('player.stopRecording')
-          : t('player.shadow')
-        : echoStep === 'done'
-          ? t('player.startAgain')
-          : counting
-            ? t('player.cancelCountIn')
-            : recording
-              ? t('player.stopRecording')
-              : isArmedStep(echoStep)
-                ? t('player.record')
-                : t('player.recordNow');
-    const face: 'dot' | 'count' | 'stop' | 'dim' = counting ? 'count' : recording ? (speakStopped && !take.error ? 'dim' : 'stop') : taking ? 'dim' : 'dot';
-    return { label, face, ringDisabled: counting || recording || taking };
+  // The red button by run state: the hook's dock, with two island overrides (see onDockRecord).
+  const dockRun = ((): { label: string; face: 'dot' | 'count' | 'stop' | 'dim' } => {
+    const d = ladder.dock;
+    // A plain take (Record my take) records at idle: the button is its Stop.
+    if (ladder.step === 'idle' && take.phase === 'recording') return { label: t('player.stopRecording'), face: 'stop' };
+    // Under the guide a finished Compare parks the next line: the button runs it, not Start again on line 1.
+    if (ladder.step === 'done' && guideOn) return { label: t('player.shadow'), face: d.face };
+    return { label: d.recordLabel, face: d.face };
   })();
-  // The stage view's one hint line.
-  const stripHint =
-    prelude?.phase === 'announce' && stageOf(echoStep)
-      ? t('player.announce', { name: t(LADDER_PASSES[LADDER_STAGE_ORDER.indexOf(stageOf(echoStep)!)]!.titleKey) })
-      : prelude?.phase === 'gap'
-        ? t('player.again', { n: repeat, total: repeatsOf(echoStep, ladderPace) })
-        : t(hintKeyOf(echoStep));
-  const sceneCountdown = countdown ?? preludeBeat;
-  // The stage view's props for the ladder run; null outside a run and once it is done.
-  const stageKey = stageOf(echoStep);
-  const stageIndex = stageKey ? LADDER_STAGE_ORDER.indexOf(stageKey) : -1;
-  // Only a take saved in this line's run: an older one keeps its score to itself.
-  const stageFresh = take.phase === 'ready' && !!take.take && take.take.recordedAt > scoreSince.current;
-  const stageSc = stageFresh ? (take.take?.score ?? null) : null;
-  const stageKept = wordsKeptUp(stageSc);
-  // bl58-easy-for-me: the 90+ offer lives in the dock, which the opaque stage view hides, and Auto Echo holds the
-  // run on Compare while it is up. The stage steps aside for the offer's hold so its bubble and choices show.
-  const stageProps: LadderStageProps | null =
-    stageKey === null || stageIndex < 0 || easyOffer !== null
-      ? null
-      : {
-          stage: stageKey,
-          index: stageIndex,
-          total: LADDER_STAGE_ORDER.length,
-          phase: prelude ? prelude.phase : isArmedStep(echoStep) ? 'waiting' : 'run',
-          beat: prelude?.phase === 'count' ? prelude.beat : null,
-          repeat,
-          repeats: repeatsOf(echoStep, ladderPace),
-          isRecording: isSpeakStep(echoStep),
-          stopped:
-            isSpeakStep(echoStep) &&
-            (speakStopped || (take.phase === 'ready' && !!take.take && take.take.recordedAt > speakStartedAt.current)),
-          takePlaying: isPlayStep(echoStep),
-          textHidden: textShownAt(echoStep, blindTake, finalTake) === false,
-          round: finalTake ? 2 : 1,
-          finalOn: blindTake,
-          prep: prepOn, // bl57-intro-round2, bl58-easy-for-me
-          chip: easyChipButton, // bl58-easy-for-me: E3, a mark ends the run
-          text: line?.ja ?? '',
-          line: line ?? null,
-          level: take.level,
-          highlight,
-          fill: echoFill,
-          hint: stripHint,
-          colour: LADDER_PASSES[stageIndex]!.colour,
-          holdTitle: autoUi?.next,
-          score: {
-            total: stageSc?.total ?? null,
-            keptUp: stageKept ? t('player.keptUpWords', { kept: stageKept.kept, total: stageKept.total }) : undefined,
-            scoring: stageFresh && !stageSc && take.clean.state === 'working',
-            at: take.take?.recordedAt,
-          },
-          onJump: onJumpPass,
-          onStop: onEchoStop,
-          onRecord: onLadderRecord,
-          onFinal: onLadderFinal,
-          onEnd: onEchoClose,
-          onHelp: onPassHelp,
-        };
 
   const ringMode: RingMode = status.playing || pendingPlay ? (inBreath ? 'breath' : 'playing') : 'idle';
 
   return (
     <View style={[styles.fill, { backgroundColor: sky.top }]}>
       <StatusBar style="light" />
-      {header(true, stageProps !== null)}
+      {header(true)}
 
       <Animated.View
         style={[styles.fill, sceneInStyle]}
@@ -4107,27 +3880,29 @@ export default function IslandScreen() {
           anchorMoved(w !== playerW.current);
           playerW.current = w;
         }}>
-        <TideScene
-          lineIndex={idx}
-          lineCount={island.lines.length}
-          lines={lines}
-          blind={hidden}
-          busy={status.playing || take.phase === 'recording' || sceneCountdown !== null || prelude !== null}
-          countdown={sceneCountdown}
-          banner={banner}
-          sentence={sentence}
-          below={below}
-          pinned={grammarTag}
-          scrollRef={scrollRef}
-          onLineTap={onLineTap}
-          instantReveal={coverUpNow}
-          widenWhen={coveredAtMount ? widenTranscript : undefined}
-          contentReveal={revealValues}
-          initialHeight={Math.max(0, sceneEstimateH - dockSpace)}
-          bottomInset={dockCover}
-          onScrollSettled={guideOn ? remeasureGuide : undefined}
-          scrollLocked={guideOn && guideLocked}
-        />
+        {sceneDeferred ? null : (
+          <TideScene
+            lineIndex={idx}
+            lineCount={island.lines.length}
+            lines={lines}
+            blind={hidden}
+            busy={status.playing || take.phase === 'recording' || sceneCountdown !== null || ladder.prelude !== null}
+            countdown={sceneCountdown}
+            banner={banner}
+            sentence={sentence}
+            below={below}
+            pinned={grammarTag}
+            scrollRef={scrollRef}
+            onLineTap={onLineTap}
+            instantReveal={coverUpNow}
+            widenWhen={coveredAtMount ? widenTranscript : undefined}
+            contentReveal={revealValues}
+            initialHeight={Math.max(0, sceneEstimateH - dockSpace)}
+            bottomInset={dockCover}
+            onScrollSettled={guideOn ? remeasureGuide : undefined}
+            scrollLocked={guideOn && guideLocked}
+          />
+        )}
 
         {/* bl58-easy-for-me: the reaction after a mark (E4 b) and the 90+ offer's bubble (E4 c), above the dock. */}
         {easyDone ? (
@@ -4153,8 +3928,8 @@ export default function IslandScreen() {
         ) : null}
         <View
           // Hidden, not only covered, while the stage view is up.
-          style={[styles.dock, { bottom: screenInsets.bottom }, stageProps && styles.underStage]}
-          pointerEvents={stageProps ? 'none' : 'box-none'}
+          style={[styles.dock, { bottom: screenInsets.bottom }, stageCovers && styles.underStage]}
+          pointerEvents={stageCovers ? 'none' : 'box-none'}
           onLayout={(e) => {
             const { y, height } = e.nativeEvent.layout;
             anchorMoved(y !== dockY.current);
@@ -4180,14 +3955,14 @@ export default function IslandScreen() {
                       accessibilityLabel={t('ladder.easyOffer.yes')}
                       style={[styles.offerBtn, styles.offerBtnOn]}>
                       <Leaf size={14} />
-                      <Text style={[styles.offerText, styles.offerTextOn]}>{t('ladder.easyOffer.yes')}</Text>
+                      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.offerText, styles.offerTextOn]}>{t('ladder.easyOffer.yes')}</Text>
                     </PressScale>
                     <PressScale
                       onPress={() => setEasyOffer(null)}
                       accessibilityRole="button"
                       accessibilityLabel={t('ladder.easyOffer.no')}
                       style={styles.offerBtn}>
-                      <Text style={styles.offerText}>{t('ladder.easyOffer.no')}</Text>
+                      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.offerText}>{t('ladder.easyOffer.no')}</Text>
                     </PressScale>
                   </View>
                 </GlassPanel>
@@ -4205,15 +3980,15 @@ export default function IslandScreen() {
               onRecord={onDockRecord}
               recordLabel={dockRun.label}
               // bl56-shadow-button
-              stageIndex={stageIndex}
+              stageIndex={ladder.dock.stageIndex}
               face={dockRun.face}
-              countIn={countIn}
-              beatMs={pacing.beatMs}
-              ringDisabled={dockRun.ringDisabled}
+              countIn={ladder.dock.countIn}
+              beatMs={ladder.dock.beatMs}
+              ringDisabled={ladder.dock.ringDisabled}
               locked={echoActive}
               slot={
                 // auto-practice: the hold on the next island's title; a tap moves on now.
-                autoUi?.next && echoStep === 'done' ? (
+                autoUi?.next && ladder.step === 'done' ? (
                   <PrismButton
                     shape="pill"
                     verb="listen"
@@ -4283,8 +4058,17 @@ export default function IslandScreen() {
             onClose={() => setRepeatPopOpen(false)}
           />
         ) : null}
-        {stageProps ? <LadderStageView {...stageProps} top={0} followsReveal /> : null}
       </Animated.View>
+
+      {/* The stage covers the island's header as well (its own header has back and the `?`): one header on screen.
+          The header stays laid out under it, so the scene never shifts when the stage comes or goes. */}
+      {stageProps ? (
+        <Animated.View style={[StyleSheet.absoluteFill, stageInStyle]} pointerEvents="box-none" onTouchStart={onSceneTouch}>
+          <LadderStageView {...stageProps} top={0} ownsHeader followsReveal hidden={easyOffer !== null} still={hopCover} onFitted={onStageFitted} />
+        </Animated.View>
+      ) : null}
+      {/* A cube hop lands on the still stage face it turned to, over everything, until the live stage has fitted under it. */}
+      {hopFace}
 
       <PassHelpSheet
         open={helpOpen}
@@ -4312,7 +4096,7 @@ export default function IslandScreen() {
         onWatch={island.source === 'youtube' ? onMenuWatch : undefined} // youtube-shadowing
         onListen={island.source === 'podcast' ? onMenuListen : undefined} // podcast-listen
         onRevoice={onMenuRevoice}
-        onRegenerate={onMenuRegenerate}
+        onRegenerate={island.source_name === 'say' ? undefined : onMenuRegenerate} // say-it: re-said, not rewritten
         onCalibrate={onMenuCalibrate}
         onDelete={onMenuDelete}
       />
@@ -4338,15 +4122,14 @@ export default function IslandScreen() {
           dockY={dockY}
           sceneTop={screenInsets.top + HEADER_ROW_H}
           playing={ringMode !== 'idle'}
-          echoStep={echoStep}
-          stageActive={stageProps !== null}
+          echoStep={ladder.step}
+          stageActive={stageCovers}
         />
       ) : null}
     </View>
   );
 }
 
-const HEADER_ROW_H = PLAYER_HEADER_ROW_H;
 /** bl57-intro-round2: how long the guide waits for a line's audio to load before it unlocks the screen. */
 const GUIDE_AUDIO_MS = 15000;
 type TileBox = { x: number; y: number; width: number };
@@ -4354,135 +4137,10 @@ type TileBox = { x: number; y: number; width: number };
  * can hold its place before the lines (and the dock) arrive. 0 until then. */
 let lastDockH = 0;
 
-type PlayerHeaderProps = {
-  id: string;
-  title: string;
-  lineIndex: number;
-  lineCount: number;
-  /** Loading: the line row shows with a stand-in for the unknown count. */
-  placeholder: boolean;
-  background: string;
-  onBack: (() => void) | null; // bl57-intro-round2: null leaves an empty slot while the guide locks the screen
-  /** The `…` island menu; null leaves an empty slot of the same size. */
-  onMenu: (() => void) | null;
-  /** The ladder's `?` pass help, shown in the menu's slot; null shows the menu. */
-  onHelp: (() => void) | null;
-  /** bl58-easy-for-me: lines marked Easy for me on this island; 0 shows no pill. */
-  known: number;
-  /** A touch on the bar: closes an open word panel. */
-  onTouch: () => void;
-};
-
-/**
- * The player's header, drawn in the screen rather than as native bar items
- * (those get the system's glass button background, which replays its appear
- * animation whenever the options change). The title stays hidden while the
- * card morph's flying title stands in for it.
- */
-const PlayerHeader = memo(function PlayerHeader({
-  id,
-  title,
-  lineIndex,
-  lineCount,
-  placeholder,
-  background,
-  onBack,
-  onMenu,
-  onHelp,
-  known,
-  onTouch,
-}: PlayerHeaderProps) {
-  const { t } = useT();
-  const dir = useDir();
-  const insets = useSafeAreaInsets();
-  // The title and both buttons: the overlay draws them while a morph runs.
-  const titleHidden = useMorphHidesTitle(id, 'header');
-  const barRef = useRef<View>(null);
-  const reportBar = () => {
-    barRef.current?.measureInWindow((x, y, width, height) => setHeaderBoxRect({ x, y, width, height }));
-  };
-  return (
-    <View
-      ref={barRef}
-      onLayout={reportBar}
-      onTouchStart={onTouch}
-      style={[styles.header, dir.row, { paddingTop: insets.top, height: insets.top + HEADER_ROW_H, backgroundColor: background }]}>
-      <View pointerEvents="none" style={[styles.headerTitle, { top: insets.top }, known > 0 && (dir.rtl ? styles.headerTitleByPillRtl : styles.headerTitleByPill)]}>
-        <PlayerTitle
-          title={title}
-          lineIndex={lineIndex}
-          lineCount={lineCount}
-          placeholder={placeholder}
-          hidden={titleHidden}
-          onTitleRect={setHeaderTitleRect}
-        />
-      </View>
-      {onBack ? (
-        <PressScale onPress={onBack} hitSlop={12} accessibilityLabel={t('player.back')} style={styles.headerButton}>
-          <Text style={[styles.backGlyph, titleHidden ? styles.hiddenChrome : null]}>{dir.rtl ? '›' : '‹'}</Text>
-        </PressScale>
-      ) : (
-        <View style={styles.headerButton} />
-      )}{/* bl57-intro-round2 */}
-      {known > 0 ? (
-        // bl58-easy-for-me: E4 b, the "already yours" count beside the menu.
-        <View style={[styles.knownPill, dir.rtl && styles.knownPillRtl, titleHidden ? styles.hiddenChrome : null]} accessibilityLabel={t('ladder.alreadyYours', { count: known })}>
-          <Leaf size={14} />
-          <Text style={styles.knownText}>{known}</Text>
-        </View>
-      ) : null}
-      {onHelp ? (
-        <View style={styles.headerButton}>
-          <LadderHelpButton onPress={onHelp} />
-        </View>
-      ) : onMenu ? (
-        <PressScale onPress={onMenu} hitSlop={12} accessibilityLabel={t('player.islandMenu')} style={styles.headerButton}>
-          <Text style={[styles.menuGlyph, titleHidden ? styles.hiddenChrome : null]}>…</Text>
-        </PressScale>
-      ) : (
-        <View style={styles.headerButton} />
-      )}
-    </View>
-  );
-});
-
-/** bl58-easy-for-me: E4's leaf, drawn with two Views (a rounded leaf and its vein), no SVG. */
-function Leaf({ size }: { size: number }) {
-  const r = size / 2;
-  return (
-    <View
-      style={[
-        styles.leaf,
-        { width: size, height: size, borderTopRightRadius: r, borderBottomLeftRadius: r, borderTopLeftRadius: 0, borderBottomRightRadius: 0 },
-      ]}>
-      <View
-        style={[
-          styles.leafVein,
-          { left: size * 0.21, top: size * 0.21, width: size * 0.5, height: size * 0.29, borderLeftWidth: size * 0.115, borderBottomWidth: size * 0.115 },
-        ]}
-      />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.sm,
-  },
-  headerTitle: {
-    position: 'absolute',
-    left: Spacing.sm + 44,
-    right: Spacing.sm + 44,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  hiddenChrome: { opacity: 0 },
+  // Above the stage's own layer (zIndex 20): the stage fits under it.
+  hopCover: { zIndex: 40, elevation: 40, backgroundColor: tideSkies.night[0] },
   center: { alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: Spacing.xl, gap: Spacing.lg, flexGrow: 1, justifyContent: 'center' },
   ja: { fontFamily: fonts.serifJp, fontSize: 26, lineHeight: 38, textAlign: 'center', color: tide.text },
@@ -4528,7 +4186,6 @@ const styles = StyleSheet.create({
   // back to the string's own first-strong direction, which is right for
   // Hebrew text anyway.
   enRtl: { writingDirection: 'rtl' },
-  menuGlyph: { fontFamily: fonts.ui, fontSize: 22, color: tide.text },
   // bl58-easy-for-me: E4's pill, counter, toast and offer. Mint is verb.along (#3DDC97, #9AEFC9).
   easyRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 4, zIndex: 6 },
   easyChip: {
@@ -4545,24 +4202,6 @@ const styles = StyleSheet.create({
   },
   easyChipOn: { backgroundColor: 'rgba(61,220,151,0.14)' },
   easyChipText: { fontFamily: fonts.uiMedium, fontSize: 12, fontWeight: '600', color: verb.along.c2 },
-  headerTitleByPill: { right: Spacing.sm + 44 + 52 },
-  headerTitleByPillRtl: { left: Spacing.sm + 44 + 52 },
-  knownPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    height: 30,
-    paddingHorizontal: 12,
-    borderRadius: 15,
-    backgroundColor: 'rgba(61,220,151,0.14)',
-    borderWidth: 1,
-    borderColor: 'rgba(61,220,151,0.45)',
-    marginStart: 'auto',
-    marginEnd: 6,
-  },
-  // The header row is reversed, so the menu is on the left: the pill hugs it from the right.
-  knownPillRtl: { marginStart: 6, marginEnd: 'auto' },
-  knownText: { fontFamily: fonts.uiMedium, fontSize: 13, fontWeight: '600', color: verb.along.c2 },
   easyLayer: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 17 },
   easyToastTop: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 17 },
   easyToast: {
@@ -4584,7 +4223,7 @@ const styles = StyleSheet.create({
   offerBtn: {
     flex: 1,
     height: 40,
-    paddingHorizontal: 14,
+    paddingHorizontal: 10,
     borderRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
@@ -4597,9 +4236,6 @@ const styles = StyleSheet.create({
   offerBtnOn: { backgroundColor: 'rgba(61,220,151,0.16)', borderColor: 'rgba(61,220,151,0.6)' },
   offerText: { fontFamily: fonts.uiMedium, fontSize: 13, fontWeight: '600', color: tide.text },
   offerTextOn: { color: '#C9F7E0' },
-  leaf: { backgroundColor: verb.along.c1, transform: [{ rotate: '-8deg' }] },
-  leafVein: { position: 'absolute', borderColor: '#08231a', transform: [{ rotate: '-45deg' }] },
-  backGlyph: { fontFamily: fonts.ui, fontSize: 28, color: tide.text },
   // Above the tray backdrop (15) so the pills and the gear take taps; popovers sit at 20.
   // Floats over the scene's bottom: only the capsule, the tray and the slot draw.
   underStage: { opacity: 0 },

@@ -16,7 +16,7 @@ export const he = {
   'settings.section.feedback': 'משוב',
   'settings.row.practice': 'קריאה, גובה הצליל, ברירות מחדל',
   'settings.row.practiceOther': 'ברירות מחדל לתרגום ולתרגול עיוור',
-  'settings.row.playback': 'מהירות, קצב, חזרה, הפסקה, אקו אוטומטי',
+  'settings.row.playback': 'מהירות, קצב, חזרה, הפסקה, ללא ידיים',
   'settings.row.voice': 'קול',
   'settings.row.languages': 'שפת הלימוד, שפה מובנת',
   'settings.row.showAllLanguages': 'הצגת כל השפות',
@@ -126,11 +126,11 @@ export const he = {
     'כמה פעמים כל שורה מתנגנת לפני המעבר לבאה. ברירת מחדל לסשן חדש; אפשר לשנות לכל סשן מתוך אריח החזרה בנגן.',
   'settings.playback.timesAccessibility': 'פעמים, {label}',
   'settings.playback.pace': 'קצב',
-  'settings.playback.paceCalm': 'רגוע',
-  'settings.playback.paceSteady': 'יציב',
+  'settings.playback.paceCalm': 'עמוק',
+  'settings.playback.paceSteady': 'רגיל',
   'settings.playback.paceQuick': 'מהיר',
   'settings.playback.paceFootnote':
-    'כמה זמן כל שלב מוצג וסופר לאחור, וכמה פעמים חוזרים המלמול והקריאה יחד. רגוע: שתי חזרות וספירה ארוכה. מהיר: חזרה אחת וספירה קצרה.',
+    'כמה זמן כל שלב מוצג וסופר לאחור, וכמה פעמים חוזרים המלמול והקריאה יחד. עמוק: שתי חזרות וספירה ארוכה. מהיר: חזרה אחת וספירה קצרה.',
   'settings.playback.blindTake': 'הטייק האחרון בלי הטקסט',
   'settings.playback.blindTakeFootnote':
     'אחרי הטייק המוקלט, עוד טייק אחד מהזיכרון כשהמשפט מוסתר. כשההגדרה כבויה, מסיימים בטייק המוקלט.',
@@ -138,9 +138,9 @@ export const he = {
   'settings.playback.pauseFootnote':
     'שקט אחרי כל ניגון. ברירת מחדל לסשן חדש; אפשר לשנות לכל סשן מתוך אריח החזרה בנגן.',
   'settings.playback.pauseAccessibility': 'הפסקה, {label}',
-  'settings.playback.autoEcho': 'אקו אוטומטי',
+  'settings.playback.autoEcho': 'ללא ידיים',
   'settings.playback.autoRecord': 'הקלטה אוטומטית',
-  'settings.playback.autoRecordFootnote': 'הקלטה אוטומטית פותחת את המיקרופון מעצמה אחרי שלב האמירה. אקו אוטומטי רק קובע אם המשפט הבא מתחיל מעצמו.',
+  'settings.playback.autoRecordFootnote': 'הקלטה אוטומטית פותחת את המיקרופון מעצמה אחרי שלב האמירה. ללא ידיים קובע אם המשפט הבא מתחיל מעצמו אחרי הציון.',
   'settings.playback.screen': 'מסך',
   'settings.playback.keepScreenAwake': 'השארת המסך פעיל',
 

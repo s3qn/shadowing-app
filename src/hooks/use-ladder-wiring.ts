@@ -1,7 +1,8 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState, type MutableRefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 
-import { snapRate, useLadder, type LadderIo } from '@/hooks/use-ladder';
+import type { LadderIo } from '@/hooks/ladder/ladder-types';
+import { snapRate, useLadder } from '@/hooks/use-ladder';
 import type { useTake } from '@/hooks/use-take';
 import * as api from '@/lib/api';
 import { finishAutoIsland, finishSession, noteSessionLine, routeFor } from '@/lib/auto-practice';
@@ -29,7 +30,12 @@ type Opts = {
   onRecordStart?: 'ladder' | 'line';
   /** A practice session: lines are reported and the last line hops to the next project. */
   session?: boolean;
+  /** The dock speed, for the stage's speed ruler (the screen's `commitSpeed`). */
+  setSpeed?: (v: number) => void;
 };
+
+/** How many lines of dim context the stage shows on each side of the current one. */
+const CONTEXT_LINES = 2;
 
 /**
  * Review mode runs the shadowing ladder on each saved line (the same passes
@@ -43,6 +49,16 @@ export function useLadderWiring(o: Opts) {
   const [helpPass, setHelpPass] = useState<0 | 1 | 2 | 3 | 4>(0);
   // When the line's ladder started, for the session's seconds per line (0 = not started).
   const lineStart = useRef(0);
+  // The ladder's line: `lineRef` (frozen to the run's line while it runs, the player's line otherwise).
+  const at = o.lineRef.current;
+  const lines = o.lines;
+  const context = useMemo(
+    () => ({
+      before: lines.slice(Math.max(0, at - CONTEXT_LINES), at).map((l) => l.ja),
+      after: lines.slice(at + 1, at + 1 + CONTEXT_LINES).map((l) => l.ja),
+    }),
+    [lines, at],
+  );
   const io: LadderIo = {
     playLine: (speed) => {
       // The pass rate lives in `rate` only: speedLive stays the dock speed
@@ -88,10 +104,24 @@ export function useLadderWiring(o: Opts) {
       o.lineRef.current = next;
       return true;
     },
-    lineText: o.lines[o.activeLine]?.ja ?? '',
-    line: o.lines[o.activeLine] ?? null,
+    goTo: (i) => {
+      if (!(i >= 0 && i < o.lines.length)) return false;
+      lineStart.current = Date.now();
+      o.seekToLine(i);
+      o.lineRef.current = i;
+      return true;
+    },
+    lineIndex: at,
+    lineCount: o.lines.length,
+    context,
+    title: o.island?.title,
+    setSpeed: o.setSpeed,
+    lineText: lines[at]?.ja ?? '',
+    line: lines[at] ?? null,
+    // The stage's word tap (focus-stories D8): no Hear, these hosts play no single words.
+    word: o.island ? { islandId: o.island.id, language: o.island.language, native: o.island.native } : undefined,
   };
-  const ladder = useLadder(o.take, o.speedLive, o.lines[o.activeLine]?.duration ?? 0, io, {
+  const ladder = useLadder(o.take, o.speedLive, lines[at]?.duration ?? 0, io, {
     onRecordStart: o.onRecordStart,
   });
   o.ladderRef.current = ladder;

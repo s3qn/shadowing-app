@@ -21,7 +21,7 @@ export type TakeFeedbackProps = {
 
 // The palette's only green, tide.pos.verb, reused here for a nucleus hit.
 const HIT = '#5FD9A6';
-// Same ink RubyWord's pitch strip draws for the model line (ruby-word.tsx PITCH_INK).
+// Same ink RubyWord's pitch strip draws for the model line (pitch-strip.tsx PITCH_INK).
 const MODEL_INK = 'rgba(255,158,128,0.7)';
 
 const PLOT_HEIGHT = 18;

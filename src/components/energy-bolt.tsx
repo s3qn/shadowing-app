@@ -42,7 +42,19 @@ const AMBER_INK = '#FFE9A8';
 const SPRING = { damping: 18, stiffness: 180, overshootClamping: true };
 const AnimatedInput = Animated.createAnimatedComponent(TextInput);
 
-const boltPath = Skia.Path.MakeFromSVGString(BOLT);
+// Built on first use, not at import: Skia is not loaded when the web static
+// export imports this module, so a module-scope call would throw there.
+let boltCache: ReturnType<typeof Skia.Path.MakeFromSVGString> | undefined;
+function getBoltPath() {
+  if (boltCache === undefined) {
+    try {
+      boltCache = Skia.Path.MakeFromSVGString(BOLT);
+    } catch {
+      boltCache = null;
+    }
+  }
+  return boltCache;
+}
 
 const KIND_INDEX: Record<EnergyLevel, number> = { full: 0, low: 1, empty: 2 };
 
@@ -56,6 +68,7 @@ export function EnergyMeter({ left, max }: MeterProps) {
   const total = Math.max(1, max);
   const target = Math.min(1, Math.max(0, left / total));
   const kind = energyLevel(left);
+  const boltPath = getBoltPath();
 
   const level = useSharedValue(target);
   const tone = useSharedValue(KIND_INDEX[kind]);
@@ -86,7 +99,8 @@ export function EnergyMeter({ left, max }: MeterProps) {
     const raw = level.value;
     const l = Number.isFinite(raw) ? Math.min(1, Math.max(0, raw)) : 0;
     const v = l <= 0.0005 ? 0 : 0.09 + 0.91 * l;
-    return Skia.XYWHRect(0, Y0 - H * v, 24, 24);
+    // Plain object (what Skia.XYWHRect builds), so nothing throws where Skia is not loaded.
+    return { x: 0, y: Y0 - H * v, width: 24, height: 24 };
   });
   const colour = useDerivedValue(() => {
     const raw = tone.value;
@@ -151,6 +165,7 @@ const CHIP: Record<EnergyLevel, { text: string; bg: string; border: string }> = 
  * when some energy is left but less than the price, "Tomorrow" at 0. */
 export function EnergyChip({ energy, cost }: { energy: Energy | null; cost: number }) {
   const { t } = useT();
+  const boltPath = getBoltPath();
   if (!energy || !energy.on) return null;
   const left = energy.daily_left + energy.granted_left;
   const spent = !energy.owner && left < cost;

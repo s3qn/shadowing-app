@@ -30,6 +30,12 @@ const LOOP_MS = 4500;
 const STATIC_T = 0.7;
 const STAR_COUNT = 12;
 
+/** Where the clock starts, so the first frame already shows the whole cat and
+ * all three dots instead of an empty canvas that draws itself in. 3200 ms is
+ * 71% of the cat loop (outline done, not yet fading) and 800 ms into the dots
+ * loop (all three lit). */
+export const CAT_START_MS = 3200;
+
 const DOTS_LOOP_MS = 1200;
 const DOT_STEP_MS = 200;
 const LABEL_SIZE = 17;
@@ -102,16 +108,16 @@ export const CatConstellation = memo(function CatConstellation({
   const dir = useDir();
   const displayLabel = label ?? t('common.loading');
   const reducedMotion = useReducedMotion();
-  const ownNow = useSharedValue(0);
+  const ownNow = useSharedValue(CAT_START_MS);
   const now = sharedClock ?? ownNow;
   const frame = useFrameCallback((info) => {
-    ownNow.value = finiteOr(info.timeSinceFirstFrame, 0);
+    ownNow.value = CAT_START_MS + finiteOr(info.timeSinceFirstFrame, 0);
   }, false);
 
   useEffect(() => {
     if (sharedClock) return;
     frame.setActive(!reducedMotion);
-    if (reducedMotion) ownNow.value = 0;
+    if (reducedMotion) ownNow.value = CAT_START_MS;
     return () => frame.setActive(false);
   }, [reducedMotion, frame, ownNow, sharedClock]);
 

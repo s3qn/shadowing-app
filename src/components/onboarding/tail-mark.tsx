@@ -19,8 +19,19 @@ import { verb } from '@/constants/theme';
 // (180x210). Matches the approved mock; the tip lands at (126,87).
 const RAW_D =
   'M28 132 C 26 96, 64 94, 70 76 C 76 58, 62 44, 76 34 C 88 26, 106 34, 104 50 C 102 64, 86 66, 84 58';
-const RAW_PATH = Skia.Path.MakeFromSVGString(RAW_D);
-const TAIL_PATH = RAW_PATH ? RAW_PATH.copy().transform(Skia.Matrix().scale(1.5, 1.5)) : null;
+let tailCache: ReturnType<typeof Skia.Path.MakeFromSVGString> | undefined;
+/** Built on first use, not at import, so the web static export never calls Skia at module scope. */
+function getTailPath() {
+  if (tailCache === undefined) {
+    try {
+      const raw = Skia.Path.MakeFromSVGString(RAW_D);
+      tailCache = raw ? raw.copy().transform(Skia.Matrix().scale(1.5, 1.5)) : null;
+    } catch {
+      tailCache = null;
+    }
+  }
+  return tailCache;
+}
 
 const WIDTH = 180;
 const HEIGHT = 210;
@@ -111,6 +122,7 @@ export function TailMark() {
   const ringRadii = [ring0Radius, ring1Radius, ring2Radius];
   const ringOpacities = [ring0Opacity, ring1Opacity, ring2Opacity];
 
+  const TAIL_PATH = getTailPath();
   if (!TAIL_PATH) return null;
 
   return (

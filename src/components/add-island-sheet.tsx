@@ -83,7 +83,7 @@ export function AddIslandSheet({ open, onClose }: { open: boolean; onClose: () =
             // The ring sits on the tile's centre.
             hint={{ x: box.x + box.width / 2, y: box.y + box.height / 2 }}
             // The cat ends on the sheet's top edge and the chip sits above it, so neither covers the sheet title or the tiles (375x667 included).
-            bubble={{ kind: 'record', text: [t('guide.add'), t('guide.add.b2')], top: box.y - SHEET_HEAD - guideBubbleHeight('record', width) - 4 }}
+            bubble={{ kind: 'record', text: [t(beta.beta ? 'guide.add' : 'guide.add.plain'), t('guide.add.b2')], top: box.y - SHEET_HEAD - guideBubbleHeight('record', width) - 4 }}
             chip={{ text: t('guide.chip.island'), place: 'above' }}
             // A confirmed skip lands on Home, so the sheet closes with it.
             onSkip={() => void skipGuide().then(() => getGuideStep() === 'done' && onClose())}

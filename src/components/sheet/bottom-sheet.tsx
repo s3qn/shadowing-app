@@ -181,7 +181,7 @@ export function BottomSheet({ open, onClose, onDismissed, onOpened, title, conte
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   wrap: { flex: 1, justifyContent: 'flex-end' },
-  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: '#000000' },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: '#080C1A' },
   panel: {
     backgroundColor: 'rgba(11,10,16,0.97)',
     borderTopLeftRadius: 28,

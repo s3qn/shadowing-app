@@ -19,7 +19,7 @@ export const en = {
   'settings.section.feedback': 'Feedback',
   'settings.row.practice': 'Reading, pitch, defaults',
   'settings.row.practiceOther': 'Translation and blind defaults',
-  'settings.row.playback': 'Speed, pace, repeat, pause, Auto Echo',
+  'settings.row.playback': 'Speed, pace, repeat, pause, Hands-free',
   'settings.row.voice': 'Voice',
   'settings.row.languages': 'Learning, understood',
   'settings.row.showAllLanguages': 'Show all languages',
@@ -127,11 +127,11 @@ export const en = {
     'How many times each line plays before the next. Default for new sessions; change it per session from the player’s Repeat tile.',
   'settings.playback.timesAccessibility': 'Times, {label}',
   'settings.playback.pace': 'Pace',
-  'settings.playback.paceCalm': 'Calm',
-  'settings.playback.paceSteady': 'Steady',
+  'settings.playback.paceCalm': 'Deep',
+  'settings.playback.paceSteady': 'Normal',
   'settings.playback.paceQuick': 'Quick',
   'settings.playback.paceFootnote':
-    'How long each stage announces itself and counts in, and how often Mumble and Read along repeat. Calm: two repeats, longer counts. Quick: one repeat, short counts.',
+    'How long each stage announces itself and counts in, and how often Mumble and Read along repeat. Deep: two repeats, longer counts. Quick: one repeat, short counts.',
   'settings.playback.blindTake': 'Last take without the text',
   'settings.playback.blindTakeFootnote':
     'After the recorded take, one more take from memory with the sentence hidden. Off ends on the recorded take.',
@@ -139,10 +139,10 @@ export const en = {
   'settings.playback.pauseFootnote':
     'Silence after every play. Default for new sessions; change it per session from the player’s Repeat tile.',
   'settings.playback.pauseAccessibility': 'Pause, {label}',
-  'settings.playback.autoEcho': 'Auto Echo',
+  'settings.playback.autoEcho': 'Hands-free',
   'settings.playback.autoRecord': 'Auto record',
   'settings.playback.autoRecordFootnote':
-    'Auto record opens the mic after Say on its own. Auto Echo only decides whether the next line starts on its own.',
+    'Auto record opens the mic after Say on its own. Hands-free decides whether the next sentence starts on its own after the score.',
   'settings.playback.screen': 'Screen',
   'settings.playback.keepScreenAwake': 'Keep screen awake',
 

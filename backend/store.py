@@ -10,11 +10,12 @@ wav blobs in SQLite make the file awkward to inspect and back up.
 
 import json
 import os
+import re
 import sqlite3
 import threading
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import dbconn
@@ -74,6 +75,11 @@ CREATE TABLE IF NOT EXISTS explain_cache (
   answer      TEXT NOT NULL,
   created_at  TEXT NOT NULL,
   PRIMARY KEY (sentence, marked, question)
+);
+CREATE TABLE IF NOT EXISTS say_cache (
+  key         TEXT PRIMARY KEY,
+  value       TEXT NOT NULL,
+  created_at  TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS build_stats (
     kind TEXT NOT NULL,
@@ -199,6 +205,14 @@ CREATE TABLE IF NOT EXISTS llm_calls (
   created_at    TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_llm_calls_created ON llm_calls(created_at);
+CREATE TABLE IF NOT EXISTS client_ops (
+  owner      TEXT NOT NULL,
+  op         TEXT NOT NULL,
+  reply      TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (owner, op)
+);
+CREATE INDEX IF NOT EXISTS idx_client_ops_created ON client_ops(created_at);
 """
 
 
@@ -334,6 +348,65 @@ def init() -> None:
         ):
             if col not in video_cols:
                 conn.execute(f"ALTER TABLE videos ADD COLUMN {col} {ddl}")
+    prune_ops()
+
+
+# offline-first: client operation ids. A phone that posts from an outbox may
+# send the same practice chunk or take twice (a reply lost in flight, a retry
+# after a kill), so a post that carries an `op` is claimed once per owner and
+# its reply is kept for the replay. One small row per post, pruned after
+# OP_KEEP_DAYS; the payload itself never grows.
+OP_RE = re.compile(r"^[A-Za-z0-9_:-]{1,64}$")
+OP_KEEP_DAYS = 14
+
+
+def valid_op(op: str) -> bool:
+    return isinstance(op, str) and OP_RE.fullmatch(op) is not None
+
+
+def claim_op(owner: str, op: str) -> bool:
+    """True the first time `owner` posts `op`; False on every replay."""
+    with connect() as conn:
+        cur = conn.execute(
+            "INSERT OR IGNORE INTO client_ops (owner, op, reply, created_at) VALUES (?, ?, '', ?)",
+            (owner, op, _now()),
+        )
+    return cur.rowcount == 1
+
+
+def set_op_reply(owner: str, op: str, reply: dict) -> None:
+    with connect() as conn:
+        conn.execute(
+            "UPDATE client_ops SET reply=? WHERE owner=? AND op=?",
+            (json.dumps(reply, default=str), owner, op),
+        )
+
+
+def op_reply(owner: str, op: str) -> dict | None:
+    """The stored reply for a claimed op; `{}` when the first run died before
+    it stored one (the client treats that as accepted); None when the op was
+    never claimed."""
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT reply FROM client_ops WHERE owner=? AND op=?", (owner, op)
+        ).fetchone()
+    if row is None:
+        return None
+    if not row["reply"]:
+        return {}
+    try:
+        return json.loads(row["reply"])
+    except ValueError:
+        return {}
+
+
+def prune_ops(days: int = OP_KEEP_DAYS) -> int:
+    """Drops ops older than `days`. An outbox entry that old has long been
+    flushed or dropped, so nothing replays it."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="seconds")
+    with connect() as conn:
+        cur = conn.execute("DELETE FROM client_ops WHERE created_at < ?", (cutoff,))
+    return cur.rowcount
 
 
 def create_island(
@@ -562,6 +635,22 @@ def set_explain_answer(sentence: str, marked: list[str], question: str, answer: 
             "INSERT OR REPLACE INTO explain_cache (sentence, marked, question, answer, created_at)"
             " VALUES (?,?,?,?,?)",
             (sentence, json.dumps(marked, ensure_ascii=False), f"{EXPLAIN_CACHE_VERSION}:{question}", answer, _now()),
+        )
+
+
+def get_say_cache(key: str) -> dict | None:
+    """The stored say_lines reply for `key` (generate._say_key), or None on a
+    miss. Shared across devices: the key carries no device."""
+    with connect() as conn:
+        row = conn.execute("SELECT value FROM say_cache WHERE key=?", (key,)).fetchone()
+    return json.loads(row["value"]) if row is not None else None
+
+
+def set_say_cache(key: str, value: dict) -> None:
+    with connect() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO say_cache (key, value, created_at) VALUES (?,?,?)",
+            (key, json.dumps(value, ensure_ascii=False), _now()),
         )
 
 

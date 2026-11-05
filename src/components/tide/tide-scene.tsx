@@ -86,6 +86,8 @@ const REVEAL_MS = 180;
 // line: the tide rises from WL_MAX to WL_MIN as lineIndex approaches the end.
 const WL_MAX = 0.62;
 const WL_MIN = 0.42;
+/** The least sky kept above a card too tall for the waterline. */
+const CARD_TOP_GAP = 8;
 // The pinned slot's top as a share of the scene (GR2-B3: 131 of a 665 scene).
 const PIN_TOP = 0.2;
 
@@ -189,6 +191,7 @@ export const TideScene = memo(function TideScene({
   const autoScroll = useRef(true);
   const activeTop = useRef(0);
   const activeH = useRef(0);
+  const pastH = useRef<number | null>(null);
   const lastTarget = useRef<number | null>(null);
   const synced = useRef(false);
   // Set when the island's lines arrive after the scene mounted empty: the
@@ -254,7 +257,15 @@ export const TideScene = memo(function TideScene({
   // (see synced below) can tell a bail apart from a scroll.
   function syncScroll(animated: boolean) {
     if (sceneH === 0 || !autoScroll.current) return false;
-    const y = activeTop.current + activeH.current - waterlineFraction(lineIndex, lineCount) * sceneH;
+    // The card sits under the content's top padding, the past rows' signed margin and the
+    // past block. The card's own layout event does not fire on web when only its position moves.
+    if (pastH.current !== null) activeTop.current = WL_MAX * sceneH + pastOffset + pastH.current;
+    // The card's bottom sits on the waterline, but a card taller than the sky above it would grow past
+    // the scene's top and clip: it then keeps CARD_TOP_GAP below the top and hangs over the water.
+    const y = Math.min(
+      activeTop.current + activeH.current - waterlineFraction(lineIndex, lineCount) * sceneH,
+      activeTop.current - CARD_TOP_GAP,
+    );
     if (lastTarget.current !== null && Math.abs(y - lastTarget.current) <= 1) return false;
     lastTarget.current = y;
     scrollRef.current?.scrollTo({ y, animated });
@@ -271,12 +282,15 @@ export const TideScene = memo(function TideScene({
       synced.current = true;
     }
   }
-  // The effects below call syncNow through this, so they run only for the
+  // The effects below call syncNow through this ref, so they run only for the
   // deps they list (re-running for an autoScroll toggle, say, would fight
-  // the pill's own scrollTo) and still read this render's lineIndex,
-  // lineCount and sceneH.
-  const syncFromEffect = useEffectEvent(() => {
-    syncNow();
+  // the pill's own scrollTo) and still read the latest lineIndex, lineCount
+  // and sceneH. Not useEffectEvent: under the React Compiler it kept the first
+  // render's values (line 0, no dock inset), so a line change never scrolled
+  // the new card clear of the dock.
+  const syncNowRef = useRef(syncNow);
+  useLayoutEffect(() => {
+    syncNowRef.current = syncNow;
   });
 
   // lineIndex is handled by the line change effect below.
@@ -285,11 +299,11 @@ export const TideScene = memo(function TideScene({
       const t = setTimeout(() => {
         if (!arrivalPending.current) return;
         arrivalPending.current = false;
-        syncFromEffect();
+        syncNowRef.current();
       }, SYNC_FALLBACK_MS);
       return () => clearTimeout(t);
     }
-    syncFromEffect();
+    syncNowRef.current();
   }, [lineCount, sceneH]);
 
   // The active line's card stays mounted across a line change: remounting the
@@ -392,7 +406,7 @@ export const TideScene = memo(function TideScene({
     const t = setTimeout(() => {
       if (!syncPending.current) return;
       syncPending.current = false;
-      syncFromEffect();
+      syncNowRef.current();
     }, SYNC_FALLBACK_MS);
     return () => clearTimeout(t);
   }, [lineIndex]);
@@ -538,7 +552,17 @@ export const TideScene = memo(function TideScene({
           </View>
         ) : null}
         {/* The rows above the window, as a signed top margin (see pastOffset). */}
-        <Animated.View style={[rowsStyle, { marginTop: pastOffset }]}>
+        <Animated.View
+          style={[rowsStyle, { marginTop: pastOffset }]}
+          onLayout={(e) => {
+            // Only a size change reports on web, and a recentred window keeps this block's
+            // height while its margin moves, so the card's top is rebuilt from it (see syncScroll).
+            const { height } = e.nativeEvent.layout;
+            if (!Number.isFinite(height)) return;
+            pastH.current = height;
+            if (activeH.current > 0 && !arrivalPending.current) syncNowRef.current();
+          }}
+        >
           <View {...(rowsHidden ? HIDDEN_ROWS : null)}>
           {lines.slice(rowWindow.start, lineIndex).map((text, j) => {
             const i = rowWindow.start + j;

@@ -190,7 +190,7 @@ const DEFAULTS: Settings = {
   register: DEFAULT_REGISTER,
   autoEcho: true,
   autoRecord: true,
-  ladderPace: 'calm',
+  ladderPace: 'steady',
   sessionSize: 20,
   blindTake: true,
   defaultSpeed: DEFAULT_DEFAULT_SPEED,
@@ -307,7 +307,7 @@ async function read(): Promise<Settings> {
     register: REGISTER_OPTIONS.includes(parsed.register as Register) ? (parsed.register as Register) : DEFAULT_REGISTER,
     autoEcho: parsed.autoEcho !== false,
     autoRecord: parsed.autoRecord !== false,
-    ladderPace: LADDER_PACE_OPTIONS.includes(parsed.ladderPace as LadderPace) ? (parsed.ladderPace as LadderPace) : 'calm',
+    ladderPace: LADDER_PACE_OPTIONS.includes(parsed.ladderPace as LadderPace) ? (parsed.ladderPace as LadderPace) : 'steady',
     sessionSize: SESSION_SIZES.includes(parsed.sessionSize as SessionSize) ? (parsed.sessionSize as SessionSize) : 20,
     blindTake: parsed.blindTake !== false,
     // A file from before `version` holding 0.5 kept the old default: reset it

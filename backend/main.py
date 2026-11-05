@@ -1047,7 +1047,10 @@ def list_islands(authorization: str | None = Header(None), device: str = "",
                   x_shadow_device: str = Header("")) -> list[dict]:
     require_token(authorization)
     dev = _require_device(x_shadow_device, device)
-    rows = store.list_islands(dev)
+    # A say that failed (unclear, empty, no audio) already told the person on
+    # the record screen, which reads it by id. It never gets a Home row.
+    rows = [r for r in store.list_islands(dev)
+            if not (r["source_name"] == "say" and r["status"] == "failed")]
     for row in rows:
         row["eta_s"] = _eta_s(row)
         row["has_audio"] = store.line_audio_path(row["id"], 0).exists()
@@ -1409,17 +1412,25 @@ def _is_guide_island(island: dict) -> bool:
 def _run_clean(src: Path, ref_path: Path, profile, island_id: str, idx: int,
                line: dict, speed: float, span: tuple[int, int] | None,
                lag_ms: int, line_start_ms: int, language: str = "ja",
-               lenient: bool = False) -> dict:
+               lenient: bool = False, silent: bool = False) -> dict:
     """Take the played line back out of a take, store both versions, score
     the take's timing against the line's words, and analyse mora length and
-    pitch accent. Blocking, for the same reasons as _run_calibration."""
+    pitch accent. Blocking, for the same reasons as _run_calibration.
+
+    `silent` is a turn-taking take: the phone was on its speaker, so the
+    mic opened after the count with no line playing. There is no echo to
+    remove and no bleed to check for; the score anchors on `line_start_ms`
+    (0, the recording's start) like any uncleaned take."""
     import aec
     import take_analysis
     import take_score
 
     ref_audio = aec.decode(ref_path)
     mic = aec.decode(src)
-    result = aec.clean(ref_audio, mic, profile)
+    if silent:
+        result = aec.Result(cleaned=False, note="No line played under the take", output=mic.copy())
+    else:
+        result = aec.clean(ref_audio, mic, profile)
 
     raw_path, clean_path = store.take_paths(island_id, idx)
     aec.encode(raw_path, mic)
@@ -1472,9 +1483,10 @@ def _run_clean(src: Path, ref_path: Path, profile, island_id: str, idx: int,
     import take_content
 
     # An uncleaned take recorded over the speaker still holds the line
-    # itself, which whisper would read back as a perfect shadow.
+    # itself, which whisper would read back as a perfect shadow. A silent
+    # take had no line to pick up, so the check is skipped.
     try:
-        echo_left = not result.cleaned and aec.heard_speaker(ref_audio, mic)
+        echo_left = not silent and not result.cleaned and aec.heard_speaker(ref_audio, mic)
     except Exception:
         log.exception("bleed check failed island=%s idx=%d", island_id, idx)
         echo_left = False
@@ -1494,6 +1506,15 @@ def _run_clean(src: Path, ref_path: Path, profile, island_id: str, idx: int,
     }
 
 
+def _op_take_reply(response: dict) -> dict:
+    """The take reply as stored for an op replay: everything but the
+    analysis curve, which is the one large part and only draws a picture."""
+    analysis = response.get("analysis")
+    if not isinstance(analysis, dict) or "curve" not in analysis:
+        return response
+    return {**response, "analysis": {k: v for k, v in analysis.items() if k != "curve"}}
+
+
 @app.post("/shadow/islands/{island_id}/lines/{idx}/take")
 async def upload_take(
     island_id: str,
@@ -1506,6 +1527,8 @@ async def upload_take(
     lag: int = Form(0),
     line_start: int = Form(-1),
     guide: str = Form("0"),
+    silent: str = Form("0"),
+    op: str = Form(""),
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
@@ -1518,6 +1541,12 @@ async def upload_take(
     echo to find the anchor in) feed the take's timing score; both are
     ignored for a calibration upload. `guide=1` comes from the first-run
     guide's shadow moment: that island's first take is scored leniently.
+    `silent=1` is a turn-taking take (speaker, no line under the voice):
+    the speaker profile and the bleed check are skipped and the score
+    anchors on `line_start`, which the client sends as 0. `op` (offline-first)
+    is the phone's id for this take: a replay of a claimed op (the outbox
+    resending after a lost reply) scores nothing, pays nothing and gets the
+    first reply back, minus the analysis curve. Ignored for a calibration.
 
     A take uploaded before the phone has a stored profile is kept as
     recorded and scored on `line_start` rather than refused: with headphones
@@ -1529,11 +1558,18 @@ async def upload_take(
     device = _require_device(x_shadow_device)
     began_at = time.monotonic()
     is_calibration = calibrate == "1"
+    is_silent = silent == "1" and not is_calibration
+    op = "" if is_calibration or not isinstance(op, str) else op
+    if op and not store.valid_op(op):
+        raise HTTPException(400, "bad op")
 
     island = await asyncio.to_thread(_own_island, island_id, device)
     line = next((l for l in island["lines"] if l["idx"] == idx), None)
     if line is None:
         raise HTTPException(404, "no such line")
+    # Claimed before the daily slot and the clean, so a replay costs nothing.
+    if op and not await asyncio.to_thread(store.claim_op, device, op):
+        return await asyncio.to_thread(store.op_reply, device, op) or {}
     span = _span(start, end)
     # The same rounding _resolve_line_audio applies before it renders, so the
     # score's word windows use the speed the reference audio was actually
@@ -1549,7 +1585,7 @@ async def upload_take(
         raise HTTPException(503, "the take cleaner is not available") from exc
 
     profile = None
-    if not is_calibration:
+    if not is_calibration and not is_silent:
         profile = _load_take_profile(aec, device)
 
     raw = await take.read()
@@ -1578,7 +1614,7 @@ async def upload_take(
             response = await asyncio.to_thread(
                 _run_clean, src, ref_path, profile, island_id, idx,
                 line, render_speed, span, lag_ms, line_start, island.get("language", "ja"),
-                lenient,
+                lenient, silent=is_silent,
             )
             try:
                 response["award"] = await asyncio.to_thread(
@@ -1596,6 +1632,13 @@ async def upload_take(
                 )
             except Exception:
                 log.exception("take score save failed")
+            if op:
+                try:
+                    await asyncio.to_thread(
+                        store.set_op_reply, device, op, _op_take_reply(response)
+                    )
+                except Exception:
+                    log.exception("take op reply save failed")
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         log.info(
@@ -4000,3 +4043,122 @@ async def admin_beta_set(
     await asyncio.to_thread(beta.set_flag, body.owner, body.enabled, device)
     return {"owner": body.owner, "enabled": body.enabled}
 # --- end launch-basics ---
+
+
+# --- say-it ---
+DAILY_SAYS = int(os.getenv("SHADOW_DAILY_SAYS", "40"))
+
+
+def _take_say_slot(device: str) -> None:
+    """`_take_build_slot` for one said sentence: the switch, its own daily
+    cap, one energy unit, then the slot row. "say" is not in
+    guardrails.BUILD_KINDS, so it never eats the daily AI build budget.
+    Owner exempt, refunded by `_refund_build_slot(device, "say", "say")`."""
+    if _is_owner(device):
+        return
+    guardrails.check_switch("say")
+    if store.count_builds_today(device, "say") >= DAILY_SAYS:
+        raise HTTPException(429, {"code": "daily_limit", "limit": DAILY_SAYS, "kind": "say"})
+    energy.charge(device, "say", False)
+    store.log_build(device, "say")
+
+
+async def _build_say(island_id: str, wav: Path, speaker: int, register: str,
+                     learning: str, native: str, transcript: str = "") -> None:
+    """Transcribe the native sentence, ask for the line(s) in `learning`,
+    voice them, mark the island ready with the native sentence as its title.
+    A non-empty `transcript` (dev only) skips whisper. The whole clip is 1 to
+    15 s, so whisper runs with no VAD and no fast flag."""
+    try:
+        text = (transcript or "").strip()
+        if not text:
+            store.set_stage(island_id, "transcribing")
+            result = await asyncio.to_thread(transcribe.transcribe, wav, native)
+            text = (result.get("text") or "").strip()
+            if not text:
+                store.set_failed(
+                    island_id, "Nothing could be transcribed from that recording.",
+                    "transcribe_empty",
+                )
+                return
+        store.set_transcript(island_id, text)
+
+        store.set_stage(island_id, "writing")
+        said = await asyncio.to_thread(generate.say_lines, text, learning, native, register)
+        lines = said.get("lines") or []
+        if said.get("intent") == "unclear" or not lines:
+            store.set_failed(island_id, "I did not catch that. Say it again.", "say_unclear")
+            return
+
+        store.set_stage(island_id, "speaking")
+        made = await _synthesize_lines(island_id, lines, speaker, learning)
+        if made == 0:
+            store.set_failed(island_id, "The voice engine produced no audio.", "voice_no_audio")
+            return
+
+        store.set_ready(island_id, text[:40])
+        log.info("say %s ready: intent=%s %d lines", island_id, said.get("intent"), made)
+    except Exception as exc:
+        log.exception("say %s failed", island_id)
+        store.set_failed(island_id, str(exc))
+
+
+@app.post("/shadow/say")
+async def create_say(
+    background: BackgroundTasks,
+    audio: UploadFile = File(...),
+    language: str = Form("ja"),
+    native: str = Form("he"),
+    speaker: int = Form(voicevox.DEFAULT_SPEAKER),
+    register: str = Form("polite"),
+    dev_transcript: str = Form(""),
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    """One sentence said in `native`, built into a 1-line (or few-line)
+    voice island in `language`. `dev_transcript` stands in for whisper
+    outside prod only. The client polls GET /shadow/islands/{id}."""
+    require_token(authorization)
+    device = _require_device(x_shadow_device)
+    if register not in generate.REGISTER_RULES:
+        raise HTTPException(400, "register must be 'polite' or 'casual'")
+    if language not in ("ja", "es", "en"):
+        raise HTTPException(400, "language must be 'ja', 'es' or 'en'")
+    if native not in ("he", "en"):
+        raise HTTPException(400, "native must be 'he' or 'en'")
+    if language == native:
+        raise HTTPException(400, "the learning language must differ from the native one")
+    if voices.language_for(speaker) != language:
+        raise HTTPException(400, "that voice does not speak the chosen language")
+
+    raw = await audio.read()
+    if not raw:
+        raise HTTPException(400, {"code": "empty_upload"})
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, {"code": "recording_too_large"})
+    transcript = dev_transcript.strip() if dev_review.enabled() else ""
+
+    _take_say_slot(device)
+    island_id = store.create_island(
+        "simple", speaker, register, language, native=native, device=device,
+        source="voice", source_name="say",
+    )
+    suffix = Path(audio.filename or "rec.m4a").suffix or ".m4a"
+    tmp_dir = Path(tempfile.mkdtemp(prefix=f"say-{island_id}-"))
+    src = tmp_dir / f"input{suffix}"
+    src.write_bytes(raw)
+
+    wav = store.AUDIO_DIR / island_id / "source.wav"
+    if not _to_wav(src, wav):
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        store.set_failed(island_id, "That audio file could not be decoded.", "audio_undecodable")
+        _refund_build_slot(device, "say", "say")
+        raise HTTPException(400, {"code": "audio_undecodable"})
+    shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    background.add_task(
+        _refunding(_build_say, island_id, device, "say", "say"),
+        island_id, wav, speaker, register, language, native, transcript,
+    )
+    return {"id": island_id, "status": "pending"}
+# --- end say-it ---

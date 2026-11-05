@@ -24,7 +24,7 @@ import { TideScene } from '@/components/tide/tide-scene';
 import { useListeningCat } from '@/components/cat/listening-cat';
 import { SaveStar } from '@/components/save-star';
 import { PassHelpSheet } from '@/components/tide/pass-help-sheet';
-import { LadderHelpButton, LadderStageView } from '@/components/tide/ladder-stage';
+import { LadderStageView } from '@/components/tide/ladder-stage';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
 import { snapRate, takeWatchSec, type useLadder } from '@/hooks/use-ladder';
@@ -397,6 +397,7 @@ export default function VideoScreen() {
   const { ladder, helpOpen, setHelpOpen, helpPass, onPassHelp } = useLadderWiring({
     take, speedLive, lines, lineRef, ladderRef, island, activeLine, seekToLine, setRate, gradeOnce, session: inSession,
     onRecordStart: review ? 'ladder' : 'line',
+    setSpeed: (v) => commitSpeed(v),
     playLine: () => jump(lineRef.current),
     record: (snapped) => startLineTake(snapped),
     stop: () => setPlaying(false),
@@ -656,8 +657,8 @@ export default function VideoScreen() {
     // the take keeps the ladder's room after it (takeWatchSec).
     const wallSec = lineSec !== undefined && speed > 0 ? lineSec / speed : lineSec;
     takeRate.current = speed;
-    const localOnly = video?.captions_only !== false;
-    const res = await take.startTake(wallSec !== undefined && wallSec > 0 ? takeWatchSec(wallSec) : undefined, speed, 'take', 0, null, localOnly ? 'auto' : false);
+    // Speaker: turn-taking, the take is silent (no line under it) and scored on the clock.
+    const res = await take.startTake(wallSec !== undefined && wallSec > 0 ? takeWatchSec(wallSec) : undefined, speed, 'take', 0, null, 'auto');
     if (!res || res.silent) setPlaying(false);
     else {
       jump(at);
@@ -813,7 +814,6 @@ export default function VideoScreen() {
         options={{
           title: island?.title ?? '',
           headerShown: !fs,
-          headerRight: ladder.stage && onPassHelp ? () => <LadderHelpButton onPress={onPassHelp} /> : undefined,
         }}
       />
       {error ? (

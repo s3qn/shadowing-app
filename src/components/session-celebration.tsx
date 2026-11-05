@@ -24,7 +24,8 @@ import { GlassPanel, PrismButton } from '@/components/prism';
 import { HeroGlow, HeroNumber, heroText } from '@/components/tide/hero-number';
 import { Canvas, LinearGradient, RoundedRect, vec } from '@shopify/react-native-skia';
 
-import { Tile as GradTile, type Look } from '@/components/tide/ladder-stage';
+import type { Look } from '@/components/tide/ladder/stage-model';
+import { Tile as GradTile } from '@/components/tide/ladder/stage-tile';
 import { useEmotionPulse } from '@/hooks/use-emotion-pulse';
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
