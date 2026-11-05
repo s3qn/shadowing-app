@@ -11,6 +11,8 @@ from fastapi.testclient import TestClient
 import align
 import beta
 import main
+import config
+import media
 import store
 
 DEV = "dddddddd-0000-4000-8000-0000000000a1"
@@ -81,11 +83,11 @@ def test_route_rejections():
 
 def test_route_attempt_limit_and_size(monkeypatch):
     island_id = make_video()
-    for _ in range(main.ALIGN_MAX_ATTEMPTS):
+    for _ in range(config.ALIGN_MAX_ATTEMPTS):
         store.set_align_status(island_id, "failed", "x", count_attempt=True)
     assert post(island_id).status_code == 409
     other = make_video()
-    monkeypatch.setattr(main, "VIDEO_AUDIO_MAX_BYTES", 4)
+    monkeypatch.setattr(config, "VIDEO_AUDIO_MAX_BYTES", 4)
     resp = post(other, data=b"too big for the cap")
     assert resp.status_code == 413
     assert not store.video_audio_path(other, "src").exists()
@@ -103,8 +105,8 @@ def test_failed_upload_reverts_claim():
 
 def test_claim_is_single_winner():
     island_id = make_video()
-    assert store.claim_align(island_id, main.ALIGN_MAX_ATTEMPTS)
-    assert not store.claim_align(island_id, main.ALIGN_MAX_ATTEMPTS)
+    assert store.claim_align(island_id, config.ALIGN_MAX_ATTEMPTS)
+    assert not store.claim_align(island_id, config.ALIGN_MAX_ATTEMPTS)
     assert store.get_video(island_id)["align_status"] == "queued"
     store.set_align_status(island_id, "failed")
 
@@ -112,9 +114,9 @@ def test_claim_is_single_winner():
 def test_video_reports_closed_after_last_attempt():
     island_id = make_video()
     get = lambda: client.get(f"/shadow/islands/{island_id}/video", headers=HEAD).json()
-    for n in range(main.ALIGN_MAX_ATTEMPTS):
+    for n in range(config.ALIGN_MAX_ATTEMPTS):
         store.set_align_status(island_id, "failed", "x", count_attempt=True)
-        assert get()["align"] == ("closed" if n + 1 == main.ALIGN_MAX_ATTEMPTS else "failed")
+        assert get()["align"] == ("closed" if n + 1 == config.ALIGN_MAX_ATTEMPTS else "failed")
     assert "align_attempts" not in get()
 
 
@@ -148,7 +150,7 @@ def stage_upload(island_id):
 def test_align_one_updates_guarded_lines(monkeypatch):
     island_id = make_video()
     stage_upload(island_id)
-    monkeypatch.setattr(main, "_to_wav", fake_wav)
+    monkeypatch.setattr(media, "_to_wav", fake_wav)
 
     def fake_run(job, out, **kw):
         assert kw["unit"] == island_id
@@ -176,7 +178,7 @@ def test_align_one_updates_guarded_lines(monkeypatch):
 def test_align_one_respects_expected_guard(monkeypatch):
     island_id = make_video()
     stage_upload(island_id)
-    monkeypatch.setattr(main, "_to_wav", fake_wav)
+    monkeypatch.setattr(media, "_to_wav", fake_wav)
 
     def fake_run(job, out, **kw):
         store.set_words(island_id, 0, [{"text": "changed", "start": 0, "end": 1}])
@@ -192,7 +194,7 @@ def test_align_one_respects_expected_guard(monkeypatch):
 def test_align_one_failure_keeps_words(monkeypatch):
     island_id = make_video()
     stage_upload(island_id)
-    monkeypatch.setattr(main, "_to_wav", fake_wav)
+    monkeypatch.setattr(media, "_to_wav", fake_wav)
 
     def boom(job, out, **kw):
         raise align.AlignError("align_oom")
@@ -209,7 +211,7 @@ def test_align_one_failure_keeps_words(monkeypatch):
 def test_align_one_decode_failure(monkeypatch):
     island_id = make_video()
     stage_upload(island_id)
-    monkeypatch.setattr(main, "_to_wav", lambda *a, **k: False)
+    monkeypatch.setattr(media, "_to_wav", lambda *a, **k: False)
     run_align(island_id)
     assert store.get_video(island_id)["align_error"] == "align_decode"
 

@@ -11,11 +11,13 @@ import pytest
 from fastapi import HTTPException, UploadFile
 
 import main
+import config
+import dependencies
 import progression
 import schedule
 import store
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 
 
 @pytest.fixture(autouse=True)
@@ -318,9 +320,9 @@ def _wire_take(monkeypatch, tmp_path):
     async def fake_audio(*a, **k):
         return tmp_path / "ref.wav"
 
-    monkeypatch.setattr(main, "_own_island", lambda island_id, device: island)
+    monkeypatch.setattr(dependencies, "_own_island", lambda island_id, device: island)
     monkeypatch.setattr(main, "_load_take_profile", lambda aec, device: None)
-    monkeypatch.setattr(main, "_take_use_slot", lambda device, kind: None)
+    monkeypatch.setattr(dependencies, "_take_use_slot", lambda device, kind: None)
     monkeypatch.setattr(main, "_resolve_line_audio", fake_audio)
     monkeypatch.setattr(main, "_run_clean", lambda *a, **k: {"score": 1})
 

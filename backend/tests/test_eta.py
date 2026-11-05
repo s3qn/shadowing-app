@@ -8,6 +8,7 @@ import pytest
 
 import eta
 import main
+import config
 import store
 
 
@@ -83,18 +84,18 @@ def test_route_eta_int_while_working_null_when_ready():
     iid = store.create_island("simple", 3, source="import", device=DEV)
     store.set_stage(iid, "downloading")
     store.start_build(iid)
-    got = asyncio.run(main.get_island(iid, f"Bearer {main.SHADOW_TOKEN}", DEV))
+    got = asyncio.run(main.get_island(iid, f"Bearer {config.SHADOW_TOKEN}", DEV))
     assert got["eta_s"] is None  # media length not known yet
 
     store.set_media(iid, 600.0)
     store.set_stage(iid, "transcribing")
-    got = asyncio.run(main.get_island(iid, f"Bearer {main.SHADOW_TOKEN}", DEV))
+    got = asyncio.run(main.get_island(iid, f"Bearer {config.SHADOW_TOKEN}", DEV))
     assert isinstance(got["eta_s"], int) and got["eta_s"] > 0
-    listed = next(r for r in main.list_islands(f"Bearer {main.SHADOW_TOKEN}", DEV, DEV) if r["id"] == iid)
+    listed = next(r for r in main.list_islands(f"Bearer {config.SHADOW_TOKEN}", DEV, DEV) if r["id"] == iid)
     assert isinstance(listed["eta_s"], int)
 
     store.set_ready(iid, "t")
-    got = asyncio.run(main.get_island(iid, f"Bearer {main.SHADOW_TOKEN}", DEV))
+    got = asyncio.run(main.get_island(iid, f"Bearer {config.SHADOW_TOKEN}", DEV))
     assert got["eta_s"] is None
 
 

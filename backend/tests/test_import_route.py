@@ -2,8 +2,8 @@
 the source-aware guards on regenerate/revoice and _resolve_line_audio, and
 startup healing of an interrupted import.
 
-No ffmpeg, whisper or network: main._probe_streams, main._extract_audio,
-main._probe_duration, main._slice and transcribe.transcribe are all
+No ffmpeg, whisper or network: media._probe_streams, media._extract_audio,
+media._probe_duration, media._slice and transcribe.transcribe are all
 monkeypatched. A tiny real wav (written with the stdlib `wave` module) stands
 in for whatever ffmpeg would have produced, so store.get_island's duration
 and offset math has something real to read.
@@ -18,6 +18,8 @@ import pytest
 from fastapi import HTTPException
 
 import main
+import config
+import media
 import store
 
 
@@ -28,11 +30,11 @@ def _init_db():
 
 def _write_wav(path: Path, seconds: float = 1.0) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    n_frames = int(main.SLICE_RATE * seconds)
+    n_frames = int(config.SLICE_RATE * seconds)
     with wave.open(str(path), "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
-        w.setframerate(main.SLICE_RATE)
+        w.setframerate(config.SLICE_RATE)
         w.writeframes(b"\x00\x00" * n_frames)
 
 
@@ -40,22 +42,22 @@ def _write_wav(path: Path, seconds: float = 1.0) -> None:
 def fake_pipeline(monkeypatch, tmp_path):
     """Every ffmpeg/ffprobe touchpoint _build_import uses, faked to behave
     like a 4-second clip with one Japanese audio stream."""
-    monkeypatch.setattr(main, "_probe_streams", lambda path: {
+    monkeypatch.setattr(media, "_probe_streams", lambda path: {
         "streams": [{"index": 0, "codec_type": "audio", "tags": {"language": "jpn"}}]
     })
-    monkeypatch.setattr(main, "_probe_duration", lambda path: 4.0)
+    monkeypatch.setattr(media, "_probe_duration", lambda path: 4.0)
 
     def fake_extract(src, dst, stream, start_s=0.0, max_s=None):
         _write_wav(dst, 4.0)
         return True
 
-    monkeypatch.setattr(main, "_extract_audio", fake_extract)
+    monkeypatch.setattr(media, "_extract_audio", fake_extract)
 
     def fake_slice(src, dst, start, end):
         _write_wav(dst, max(end - start, 0.05))
         return True
 
-    monkeypatch.setattr(main, "_slice", fake_slice)
+    monkeypatch.setattr(media, "_slice", fake_slice)
     monkeypatch.setattr(main.generate, "translate_lines", lambda *a, **k: [])
     return tmp_path
 
@@ -134,7 +136,7 @@ def test_build_import_title_gets_a_range_suffix_when_trimmed(fake_pipeline, monk
     words = [{"text": "こんにちは", "start": 0.1, "end": 1.0}]
     monkeypatch.setattr(main.transcribe, "transcribe", lambda *a, **k: _fake_transcribe_result(words))
     # A 2-minute source, so a 1-minute start lies inside it; the extracted wav stays 4s.
-    monkeypatch.setattr(main, "_probe_duration", lambda path: 120.0 if path.suffix == ".mp4" else 4.0)
+    monkeypatch.setattr(media, "_probe_duration", lambda path: 120.0 if path.suffix == ".mp4" else 4.0)
 
     asyncio.run(main._build_import(island_id, fake_pipeline / "media.mp4", None, "Clip", 60.0))
 
@@ -230,7 +232,7 @@ def test_regenerate_refuses_an_imported_island():
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(main.regenerate(
             island_id, background=None, complexity="complex", count=8,
-            authorization=f"Bearer {main.SHADOW_TOKEN}", x_shadow_device="aaaaaaaa-0000-4000-8000-00000000000a",
+            authorization=f"Bearer {config.SHADOW_TOKEN}", x_shadow_device="aaaaaaaa-0000-4000-8000-00000000000a",
         ))
 
     assert exc_info.value.status_code == 409
@@ -245,7 +247,7 @@ def test_revoice_refuses_an_imported_island():
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(main.revoice(
-            island_id, background=None, speaker=3, authorization=f"Bearer {main.SHADOW_TOKEN}",
+            island_id, background=None, speaker=3, authorization=f"Bearer {config.SHADOW_TOKEN}",
             x_shadow_device="aaaaaaaa-0000-4000-8000-00000000000a",
         ))
 
@@ -266,7 +268,7 @@ def test_resolve_line_audio_stretches_an_imported_line_instead_of_synthesizing(m
         _write_wav(dst, 1.0 / speed)
         return True
 
-    monkeypatch.setattr(main, "_stretch", fake_stretch)
+    monkeypatch.setattr(media, "_stretch", fake_stretch)
     speak_called = []
     monkeypatch.setattr(
         main.voicevox, "speak",
@@ -322,7 +324,7 @@ def test_import_route_rejects_an_empty_upload():
 
 
 def test_import_route_rejects_an_upload_over_the_cap(monkeypatch):
-    monkeypatch.setattr(main, "IMPORT_MAX_BYTES", 4)
+    monkeypatch.setattr(config, "IMPORT_MAX_BYTES", 4)
     with pytest.raises(HTTPException) as e:
         _call(b"12345")
     assert e.value.status_code == 413

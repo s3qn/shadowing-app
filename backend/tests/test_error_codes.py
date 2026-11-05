@@ -12,9 +12,10 @@ import pytest
 from fastapi import BackgroundTasks, HTTPException
 
 import main
+import config
 import store
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 DEV = "dddddddd-0000-4000-8000-000000000004"
 
 
@@ -97,7 +98,7 @@ def test_a_failed_island_from_before_the_migration_reads_empty_error_code(
 
 
 def test_recording_too_large_is_a_413_with_a_code():
-    big = b"x" * (main.MAX_UPLOAD_BYTES + 1)
+    big = b"x" * (config.MAX_UPLOAD_BYTES + 1)
     with pytest.raises(HTTPException) as exc:
         asyncio.run(main.create_island(
             background=BackgroundTasks(), audio=_FakeUpload(big), complexity="simple",

@@ -8,11 +8,13 @@ import pytest
 from fastapi import UploadFile
 
 import main
+import config
+import dependencies
 import store
 import take_content as tc
 import transcribe
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 LINE = "おはようございます"  # 9 moras
 SILENT = "No voice heard in the take"
 
@@ -102,9 +104,9 @@ def test_upload_stores_a_row(monkeypatch, tmp_path):
     async def fake_audio(*a, **k):
         return tmp_path / "ref.wav"
 
-    monkeypatch.setattr(main, "_own_island", lambda island_id, device: island)
+    monkeypatch.setattr(dependencies, "_own_island", lambda island_id, device: island)
     monkeypatch.setattr(main, "_load_take_profile", lambda aec, device: None)
-    monkeypatch.setattr(main, "_take_use_slot", lambda device, kind: None)
+    monkeypatch.setattr(dependencies, "_take_use_slot", lambda device, kind: None)
     monkeypatch.setattr(main, "_resolve_line_audio", fake_audio)
     monkeypatch.setattr(main, "_run_clean", lambda *a, **k: {
         "score": {"words": ["ok"], "total": 88, "parts": {"content": 90, "timing": 80, "pitch": None}}})
@@ -136,9 +138,9 @@ def test_upload_silent_take_skips_the_profile(monkeypatch, tmp_path):
         seen.update(profile=profile, silent=k.get("silent"))
         return {"score": {"words": ["ok"], "total": 72, "parts": {"content": 70, "timing": 75, "pitch": None}}}
 
-    monkeypatch.setattr(main, "_own_island", lambda island_id, device: island)
+    monkeypatch.setattr(dependencies, "_own_island", lambda island_id, device: island)
     monkeypatch.setattr(main, "_load_take_profile", no_profile)
-    monkeypatch.setattr(main, "_take_use_slot", lambda device, kind: None)
+    monkeypatch.setattr(dependencies, "_take_use_slot", lambda device, kind: None)
     monkeypatch.setattr(main, "_resolve_line_audio", fake_audio)
     monkeypatch.setattr(main, "_run_clean", spy)
     asyncio.run(main.upload_take(

@@ -11,10 +11,11 @@ import pytest
 from fastapi import BackgroundTasks, HTTPException
 
 import main
+import config
 import store
 import suggest
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 
 
 @pytest.fixture(autouse=True)

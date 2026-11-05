@@ -9,10 +9,12 @@ import pytest
 from fastapi import HTTPException
 
 import main
+import config
+import dependencies
 import store
 import youtube
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 DEV = "eeeeeeee-0000-4000-8000-00000000000e"
 OTHER = "eeeeeeee-0000-4000-8000-00000000000f"
 VID = "dQw4w9WgXcQ"
@@ -21,7 +23,7 @@ VID = "dQw4w9WgXcQ"
 @pytest.fixture(autouse=True)
 def _init_db(monkeypatch):
     store.init()
-    monkeypatch.setattr(main, "DAILY_CREATES", 1000)
+    monkeypatch.setattr(dependencies, "DAILY_CREATES", 1000)
 
 
 @pytest.mark.parametrize("text", [

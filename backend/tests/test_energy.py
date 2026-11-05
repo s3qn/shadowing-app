@@ -12,11 +12,13 @@ from fastapi import HTTPException
 
 import energy
 import main
+import config
+import dependencies
 import store
 import suggest
 import user_profile
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 OWNER = "00000000-0000-4000-8000-00000000000f"
 
 
@@ -34,8 +36,8 @@ def on(monkeypatch):
     monkeypatch.setattr(energy, "ON", True)
     monkeypatch.setattr(energy, "DAILY_UNITS", 7)
     monkeypatch.setattr(energy, "GLOBAL_DAILY_UNITS", 1000)
-    monkeypatch.setattr(main, "OWNER_DEVICE", OWNER)
-    monkeypatch.setattr(main, "OWNER_ALIASES", frozenset())
+    monkeypatch.setattr(dependencies, "OWNER_DEVICE", OWNER)
+    monkeypatch.setattr(dependencies, "OWNER_ALIASES", frozenset())
 
 
 def _dev() -> str:
@@ -110,13 +112,13 @@ def test_a_charge_past_both_balances_is_429_and_writes_nothing(on):
 
 
 def test_a_cap_429_from_the_slot_helper_writes_no_ledger_row(on, monkeypatch):
-    monkeypatch.setattr(main, "DAILY_CREATES", 1)
+    monkeypatch.setattr(dependencies, "DAILY_CREATES", 1)
     dev = _dev()
-    main._take_build_slot(dev, "create", "phrases")
+    dependencies._take_build_slot(dev, "create", "phrases")
     assert len(_rows("energy_ledger", dev)) == 1
     assert store.count_builds_today(dev, "create") == 1
     with pytest.raises(HTTPException) as exc_info:
-        main._take_build_slot(dev, "create", "phrases")
+        dependencies._take_build_slot(dev, "create", "phrases")
     assert exc_info.value.detail["code"] == "daily_limit"
     assert len(_rows("energy_ledger", dev)) == 1
 
@@ -126,11 +128,11 @@ def test_a_refused_charge_never_burns_a_build_slot(on):
     energy.charge(dev, "create", False)
     energy.charge(dev, "phrases", False)  # 1 of 7 left
     with pytest.raises(HTTPException) as exc_info:
-        main._take_build_slot(dev, "create", "import")  # 10 > 1
+        dependencies._take_build_slot(dev, "create", "import")  # 10 > 1
     assert exc_info.value.detail["code"] == "no_energy"
     assert store.count_builds_today(dev, "create") == 0
     with pytest.raises(HTTPException) as exc_info:
-        main._take_use_slot(dev, "explain", "explain")
+        dependencies._take_use_slot(dev, "explain", "explain")
     assert exc_info.value.detail["code"] == "no_energy"
     assert store.count_builds_today(dev, "explain") == 0
 
@@ -209,7 +211,7 @@ def test_the_relay_keeps_its_suggestion_prefix_by_default(monkeypatch):
 def test_the_owner_is_full_and_never_charged(on):
     for _ in range(5):
         energy.charge(OWNER, "import", True)
-        main._take_build_slot(OWNER, "create", "import")
+        dependencies._take_build_slot(OWNER, "create", "import")
     st = energy.status(OWNER, True)
     assert (st["daily_left"], st["daily_max"], st["granted_left"], st["owner"]) == (7, 7, 0, True)
     assert _rows("energy_ledger", OWNER) == []
@@ -423,7 +425,7 @@ def test_flag_off_charge_writes_nothing_and_the_route_says_off(monkeypatch):
         energy.charge(dev, "create", False)  # would be no_energy with the flag on
     assert _rows("energy_ledger", dev) == []
     assert _get(dev) == {"on": False}
-    monkeypatch.setattr(main, "OWNER_DEVICE", OWNER)
+    monkeypatch.setattr(dependencies, "OWNER_DEVICE", OWNER)
     name = _name()
     user_profile.set_username(dev, name)
     assert _get(OWNER, name) == {"on": False}
@@ -439,16 +441,16 @@ def test_flag_off_the_slot_helpers_and_progress_behave_as_before(monkeypatch):
     uncharged one: the same builds row, no other table touched, the same
     429 at the cap, and progress has no energy key."""
     monkeypatch.setattr(energy, "ON", False)
-    monkeypatch.setattr(main, "DAILY_CREATES", 1)
+    monkeypatch.setattr(dependencies, "DAILY_CREATES", 1)
     dev = _dev()
     before = _counts()
-    main._take_build_slot(dev, "create", "import")
-    main._take_use_slot(dev, "explain", "explain")
+    dependencies._take_build_slot(dev, "create", "import")
+    dependencies._take_use_slot(dev, "explain", "explain")
     after = _counts()
     assert after == {**before, "builds": before["builds"] + 2}
     assert [r["kind"] for r in _rows("builds", dev)] == ["create", "explain"]
     with pytest.raises(HTTPException) as exc_info:
-        main._take_build_slot(dev, "create", "import")
+        dependencies._take_build_slot(dev, "create", "import")
     assert exc_info.value.detail == {"code": "daily_limit", "limit": 1, "kind": "create"}
     assert _counts() == after
     snap = _progress(dev)

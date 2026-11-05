@@ -15,9 +15,11 @@ import energy
 import generate
 import llm
 import main
+import config
+import media
 import store
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 JA_VOICE = 3
 ES_VOICE = 10011
 HE_WEATHER = "היום מזג האוויר יפה, אז אלך לטייל."
@@ -233,7 +235,7 @@ def pipeline(monkeypatch):
             {"ja": "今日は天気がいいので、散歩に行きます。", "kana": "きょう", "romaji": "kyou", "en": "x"},
         ]}
 
-    monkeypatch.setattr(main, "_to_wav", to_wav)
+    monkeypatch.setattr(media, "_to_wav", to_wav)
     monkeypatch.setattr(main.transcribe, "transcribe", transcribe)
     monkeypatch.setattr(main.generate, "say_lines", say_lines)
     monkeypatch.setattr(main.voices, "speak_timed", speak_timed)
@@ -306,7 +308,7 @@ def test_unclear_fails_with_say_unclear_and_refunds_the_slot(pipeline, monkeypat
 
 
 def test_daily_says_cap_is_429_with_kind_say(pipeline, monkeypatch):
-    monkeypatch.setattr(main, "DAILY_SAYS", 2)
+    monkeypatch.setattr(config, "DAILY_SAYS", 2)
     dev = _device()
     _post(dev)
     _post(dev)

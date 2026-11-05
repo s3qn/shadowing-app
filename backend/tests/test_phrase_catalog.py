@@ -11,10 +11,11 @@ import pytest
 from fastapi import BackgroundTasks, HTTPException
 
 import main
+import config
 import phrase_catalog
 import store
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 DEV = "dddddddd-0000-4000-8000-000000000004"
 JA_VOICE = 2  # not the default voice, so the live build path runs
 ES_VOICE = 10011

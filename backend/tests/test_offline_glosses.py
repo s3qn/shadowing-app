@@ -7,9 +7,10 @@ import pytest
 from fastapi import HTTPException
 
 import main
+import config
 import store
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 DEV = "dddddddd-0000-4000-8000-000000000004"
 OTHER = "dddddddd-0000-4000-8000-000000000005"
 

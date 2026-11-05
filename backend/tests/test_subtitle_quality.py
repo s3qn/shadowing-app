@@ -165,6 +165,7 @@ import uuid
 import align
 import generate
 import main
+import media
 import store
 
 
@@ -216,7 +217,7 @@ def _upload_while_building(monkeypatch):
     """An island mid-build with the phone's audio already queued."""
     monkeypatch.setattr(main, "_align_queue", None)
     monkeypatch.setattr(main, "_align_deferred", set())
-    monkeypatch.setattr(main, "_to_wav", _fake_wav)
+    monkeypatch.setattr(media, "_to_wav", _fake_wav)
     monkeypatch.setattr(main.repair, "job", lambda *a, **k: None)
     monkeypatch.setattr(generate, "translate_lines", lambda b, *a, **k: ["en"] * len(b))
     iid = _island()

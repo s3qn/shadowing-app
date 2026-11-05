@@ -12,9 +12,10 @@ from fastapi import HTTPException
 import catch
 import llm
 import main
+import config
 import store
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 DEV = "eeeeeeee-0000-4000-8000-0000000000c1"
 OTHER = "eeeeeeee-0000-4000-8000-0000000000c2"
 NOW = datetime(2026, 3, 1, 9, 0, tzinfo=timezone.utc)
@@ -520,7 +521,7 @@ def test_words_no_words_when_captions_can_never_arrive(monkeypatch):
     island_id = _store_island(lines, heard=False)
     with store.connect() as conn:
         conn.execute("UPDATE videos SET align_status='failed', align_attempts=?",
-                     (main.ALIGN_MAX_ATTEMPTS,))
+                     (config.ALIGN_MAX_ATTEMPTS,))
     assert _status(_words, island_id).detail == {"code": "no_words"}
 
 

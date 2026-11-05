@@ -11,6 +11,7 @@ from fastapi import HTTPException
 import energy
 import guardrails
 import main
+import dependencies
 import starter
 import store
 
@@ -25,10 +26,10 @@ def _setup(monkeypatch, tmp_path):
     monkeypatch.setenv("SHADOW_ADMIN_FILE", str(tmp_path / "admin.json"))
     monkeypatch.delenv("SHADOW_KILL", raising=False)
     guardrails._cache.update(path=None, mtime=None, values={})
-    monkeypatch.setattr(main, "OWNER_DEVICE", OWNER)
-    monkeypatch.setattr(main, "OWNER_ALIASES", frozenset())
-    monkeypatch.setattr(main, "DAILY_CREATES", 50)
-    monkeypatch.setattr(main, "DAILY_REWORKS", 50)
+    monkeypatch.setattr(dependencies, "OWNER_DEVICE", OWNER)
+    monkeypatch.setattr(dependencies, "OWNER_ALIASES", frozenset())
+    monkeypatch.setattr(dependencies, "DAILY_CREATES", 50)
+    monkeypatch.setattr(dependencies, "DAILY_REWORKS", 50)
     monkeypatch.setattr(energy, "ON", True)
     monkeypatch.setattr(energy, "DAILY_UNITS", 1000)
     monkeypatch.setattr(energy, "GLOBAL_DAILY_UNITS", 100000)
@@ -56,32 +57,32 @@ def _write(tmp_path, data, bump=0):
 def test_user_budget_blocks_the_sixth_build():
     d = _dev()
     for i in range(5):
-        main._take_build_slot(d, "create" if i % 2 else "rework", "revoice")
-    assert _code(main._take_build_slot, d, "create", "revoice") == (429, "daily_budget")
+        dependencies._take_build_slot(d, "create" if i % 2 else "rework", "revoice")
+    assert _code(dependencies._take_build_slot, d, "create", "revoice") == (429, "daily_budget")
 
 
 def test_global_budget_across_devices(monkeypatch):
     monkeypatch.setattr(guardrails, "GLOBAL_AI_BUILDS", 3)
     a, b = _dev(), _dev()
-    main._take_build_slot(a, "create", "revoice")
-    main._take_build_slot(a, "create", "revoice")
-    main._take_build_slot(b, "create", "revoice")
-    assert _code(main._take_build_slot, _dev(), "create", "revoice") == (429, "global_budget")
+    dependencies._take_build_slot(a, "create", "revoice")
+    dependencies._take_build_slot(a, "create", "revoice")
+    dependencies._take_build_slot(b, "create", "revoice")
+    assert _code(dependencies._take_build_slot, _dev(), "create", "revoice") == (429, "global_budget")
 
 
 def test_day_rollover_restores_the_budget(monkeypatch):
     d = _dev()
     monkeypatch.setattr(store, "_now", lambda: "2030-01-01T10:00:00+00:00")
     for _ in range(5):
-        main._take_build_slot(d, "create", "revoice")
-    assert _code(main._take_build_slot, d, "create", "revoice")[1] == "daily_budget"
+        dependencies._take_build_slot(d, "create", "revoice")
+    assert _code(dependencies._take_build_slot, d, "create", "revoice")[1] == "daily_budget"
     monkeypatch.setattr(store, "_now", lambda: "2030-01-02T00:00:01+00:00")
-    main._take_build_slot(d, "create", "revoice")
+    dependencies._take_build_slot(d, "create", "revoice")
 
 
 def test_owner_is_exempt():
     for _ in range(8):
-        main._take_build_slot(OWNER, "create", "import")
+        dependencies._take_build_slot(OWNER, "create", "import")
     assert store.count_builds_today_kinds(OWNER, ("create",)) == 0
 
 
@@ -110,25 +111,25 @@ def test_phrases_cache_hit_burns_nothing(monkeypatch):
 def test_switch_codes_and_live_flip(tmp_path, key, charge, code):
     d = _dev()
     _write(tmp_path, {key: False})
-    assert _code(main._take_build_slot, d, "create", charge) == (503, code)
+    assert _code(dependencies._take_build_slot, d, "create", charge) == (503, code)
     _write(tmp_path, {}, bump=10)
-    main._take_build_slot(d, "create", charge)
+    dependencies._take_build_slot(d, "create", charge)
 
 
 def test_imports_off_leaves_other_builds(tmp_path):
     _write(tmp_path, {"imports": False})
-    main._take_build_slot(_dev(), "create", "phrases")
+    dependencies._take_build_slot(_dev(), "create", "phrases")
 
 
 def test_ai_jobs_blocks_use_routes(tmp_path):
     _write(tmp_path, {"ai_jobs": False})
-    assert _code(main._take_use_slot, _dev(), "explain", "explain") == (503, "ai_paused")
-    main._take_use_slot(_dev(), "take")
+    assert _code(dependencies._take_use_slot, _dev(), "explain", "explain") == (503, "ai_paused")
+    dependencies._take_use_slot(_dev(), "take")
 
 
 def test_env_kill(monkeypatch):
     monkeypatch.setenv("SHADOW_KILL", "ai")
-    assert _code(main._take_build_slot, _dev(), "create", "create") == (503, "ai_paused")
+    assert _code(dependencies._take_build_slot, _dev(), "create", "create") == (503, "ai_paused")
 
 
 def test_malformed_file_keeps_last_value(tmp_path):
@@ -136,37 +137,37 @@ def test_malformed_file_keeps_last_value(tmp_path):
     assert guardrails.load_switches() == {"ai_jobs": False}
     _write(tmp_path, "{nope", bump=10)
     assert guardrails.load_switches() == {"ai_jobs": False}
-    assert _code(main._take_build_slot, _dev(), "create", "create")[1] == "ai_paused"
+    assert _code(dependencies._take_build_slot, _dev(), "create", "create")[1] == "ai_paused"
 
 
 def test_check_order(monkeypatch, tmp_path):
     d = _dev()
-    monkeypatch.setattr(main, "DAILY_CREATES", 1)
+    monkeypatch.setattr(dependencies, "DAILY_CREATES", 1)
     monkeypatch.setattr(guardrails, "USER_AI_BUILDS", 1)
     monkeypatch.setattr(energy, "DAILY_UNITS", 0)
     # cap beats budget beats energy
     main.energy.ON = False
-    main._take_build_slot(d, "create", "create")
+    dependencies._take_build_slot(d, "create", "create")
     main.energy.ON = True
-    assert _code(main._take_build_slot, d, "create", "create")[1] == "daily_limit"
-    monkeypatch.setattr(main, "DAILY_CREATES", 9)
-    assert _code(main._take_build_slot, d, "create", "create")[1] == "daily_budget"
+    assert _code(dependencies._take_build_slot, d, "create", "create")[1] == "daily_limit"
+    monkeypatch.setattr(dependencies, "DAILY_CREATES", 9)
+    assert _code(dependencies._take_build_slot, d, "create", "create")[1] == "daily_budget"
     monkeypatch.setattr(guardrails, "USER_AI_BUILDS", 9)
-    assert _code(main._take_build_slot, d, "create", "create")[1] == "no_energy"
+    assert _code(dependencies._take_build_slot, d, "create", "create")[1] == "no_energy"
     # switch beats all
     _write(tmp_path, {"ai_jobs": False})
-    assert _code(main._take_build_slot, d, "create", "create")[1] == "ai_paused"
+    assert _code(dependencies._take_build_slot, d, "create", "create")[1] == "ai_paused"
 
 
 def test_signup_switch(tmp_path):
     known = _dev()
     store.log_build(known, "create")
     _write(tmp_path, {"signups": False})
-    guardrails.check_signup(known, main._principal_known(known))
+    guardrails.check_signup(known, dependencies._principal_known(known))
     unknown = _dev()
-    assert _code(guardrails.check_signup, unknown, main._principal_known(unknown)) == (403, "signups_paused")
+    assert _code(guardrails.check_signup, unknown, dependencies._principal_known(unknown)) == (403, "signups_paused")
     _write(tmp_path, {}, bump=10)
-    assert main._principal_known(unknown) is True
+    assert dependencies._principal_known(unknown) is True
 
 
 def test_catch_slot_charges_and_blocks(tmp_path):
@@ -179,7 +180,7 @@ def test_catch_slot_charges_and_blocks(tmp_path):
 
 def test_energy_route_has_builds():
     d = _dev()
-    main._take_build_slot(d, "create", "create")
+    dependencies._take_build_slot(d, "create", "create")
     snap = asyncio.run(main.energy_get(
         username="", authorization="Bearer test-token", x_shadow_device=d))
     assert snap["on"] is True and snap["builds_left"] == 4 and snap["builds_max"] == 5
@@ -189,21 +190,21 @@ def test_energy_route_has_builds():
 @pytest.mark.parametrize("value", [False, 0, "false", "off", "no", "0", " OFF "])
 def test_off_values_in_the_admin_file(tmp_path, value):
     _write(tmp_path, {"ai_jobs": value})
-    assert _code(main._take_build_slot, _dev(), "create", "create") == (503, "ai_paused")
+    assert _code(dependencies._take_build_slot, _dev(), "create", "create") == (503, "ai_paused")
 
 
 @pytest.mark.parametrize("value", [True, 1, "true", "on", "yes", None])
 def test_on_values_in_the_admin_file(tmp_path, value):
     _write(tmp_path, {"ai_jobs": value})
-    main._take_build_slot(_dev(), "create", "create")
+    dependencies._take_build_slot(_dev(), "create", "create")
 
 
 # ---- a failed build gives its slot and energy back ----
 
 def _run_build(device, kind, charge, job):
-    main._take_build_slot(device, kind, charge)
+    dependencies._take_build_slot(device, kind, charge)
     iid = store.create_island("simple", 3, device=device)
-    asyncio.run(main._refunding(job, iid, device, kind, charge)(iid))
+    asyncio.run(dependencies._refunding(job, iid, device, kind, charge)(iid))
     return iid
 
 
@@ -249,7 +250,7 @@ def test_a_build_with_lines_keeps_its_charge():
 
 def test_the_owner_build_refund_touches_nothing():
     other = _dev()
-    main._take_build_slot(other, "create", "create")
+    dependencies._take_build_slot(other, "create", "create")
 
     async def fails(iid):
         store.set_failed(iid, "x")

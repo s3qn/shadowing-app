@@ -14,12 +14,13 @@ import pytest
 from fastapi import HTTPException
 
 import main
+import config
 import podcast
 import podcast_catalog
 
 FIXTURE = Path(__file__).parent / "fixtures" / "feed.xml"
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 
 
 def _is_hebrew(text: str) -> bool:

@@ -7,6 +7,7 @@ import pytest
 from fastapi import HTTPException
 
 import main
+import dependencies
 import user_profile as up
 
 A = "user_aaaaaaaa-1111"
@@ -87,14 +88,14 @@ def test_check_own_handle_available():
 
 
 def test_routes_reject_bare_device(monkeypatch):
-    monkeypatch.setattr(main, "require_token", lambda a: None)
+    monkeypatch.setattr(dependencies, "require_token", lambda a: None)
     with pytest.raises(HTTPException) as e:
         asyncio.run(main.username_get(authorization=None, x_shadow_device="abcdef123456"))
     assert e.value.status_code == 401
 
 
 def test_route_codes(monkeypatch):
-    monkeypatch.setattr(main, "require_token", lambda a: None)
+    monkeypatch.setattr(dependencies, "require_token", lambda a: None)
     run = lambda coro: asyncio.run(coro)
     assert run(main.username_set(username="Cat_One", authorization=None, x_shadow_device=A)) == {"username": "cat_one"}
     with pytest.raises(HTTPException) as e:

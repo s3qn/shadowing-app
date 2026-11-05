@@ -75,6 +75,7 @@ import schedule
 import segment
 import starter
 import stats
+import media as media_io
 import store
 import suggest
 import feedback
@@ -84,7 +85,10 @@ import voicevox
 import voices
 
 # --- sign-in ---
+import access
 import accounts
+import config
+import dependencies
 
 # Router modules. voices, grammar, youtube, align and repair share a name with
 # a top-level module main.py already uses, so those five are bound with an
@@ -120,20 +124,6 @@ class RedactAccessLog(logging.Filter):
 
 
 logging.getLogger("uvicorn.access").addFilter(RedactAccessLog())
-
-SHADOW_TOKEN = os.getenv("SHADOW_TOKEN", "")
-MAX_UPLOAD_BYTES = 25 * 1024 * 1024
-IMPORT_MAX_BYTES = 300 * 1024 * 1024
-IMPORT_MAX_SECONDS = 1800  # 30 minutes: how much of an import an island keeps
-# --- bl36-align ---
-VIDEO_AUDIO_MAX_BYTES = 40 * 1024 * 1024
-ALIGN_MAX_SECONDS = 1800
-ALIGN_TIMEOUT_S = 1800
-ALIGN_MAX_ATTEMPTS = 3
-ASR_MIN_ANCHORED = 0.2  # yt-precise: under this share of lines anchored is asr_low_match
-# --- end bl36-align ---
-SRT_MAX_BYTES = 2 * 1024 * 1024
-SLICE_RATE = 24000  # aec.SR: VOICEVOX's rate, which the take cleaner and slicer assume
 
 app = FastAPI(title="Shadowing Islands", version="0.1.0")
 
@@ -176,20 +166,6 @@ app.include_router(repair_r.router)
 app.include_router(admin.router)
 
 
-def require_token(authorization: str | None) -> None:
-    """Reject anything without the bearer token. Fails closed: an unset
-    SHADOW_TOKEN refuses every request rather than opening the service up."""
-    if not SHADOW_TOKEN:
-        raise HTTPException(503, "SHADOW_TOKEN is not configured")
-    prefix = "Bearer "
-    if not authorization or not authorization.startswith(prefix):
-        raise HTTPException(401, "missing bearer token")
-    if not secrets.compare_digest(
-        authorization[len(prefix):].encode("utf-8"), SHADOW_TOKEN.encode("utf-8")
-    ):
-        raise HTTPException(401, "bad token")
-
-
 @app.on_event("startup")
 def _startup() -> None:
     store.init()
@@ -199,7 +175,7 @@ def _startup() -> None:
     beta.init()
     review_deck.init()
     catch.init()
-    _claim_owner()
+    dependencies._claim_owner()
     log.info("store ready at %s", store.DB_PATH)
     # Background work dies with the process. Anything still marked as working
     # was interrupted, and must not sit in that state forever.
@@ -276,21 +252,12 @@ PREVIEW_TEXT = {
 PREVIEW_DIR = store.DATA_DIR / "previews"
 
 
-def _token_or_header(token: str, authorization: str | None) -> None:
-    """Media routes are fetched by players and Image views that cannot set a
-    header, so the token is accepted as a query parameter there as well."""
-    if token:
-        require_token(f"Bearer {token}")
-    else:
-        require_token(authorization)
-
-
 @app.get("/shadow/speakers")
 async def speakers(language: str = "ja",
                    authorization: str | None = Header(None)) -> list[dict]:
     """Every speaker for one learning language: VOICEVOX's own list for ja,
     one Kokoro entry with a style per voice for en or es."""
-    require_token(authorization)
+    dependencies.require_token(authorization)
     try:
         return await voices.list_speakers(language)
     except Exception as exc:
@@ -300,7 +267,7 @@ async def speakers(language: str = "ja",
 @app.get("/shadow/speakers/{speaker_uuid}/icon/{style_id}")
 async def speaker_icon(speaker_uuid: str, style_id: int, token: str = "",
                        authorization: str | None = Header(None)) -> Response:
-    _token_or_header(token, authorization)
+    dependencies._token_or_header(token, authorization)
     try:
         info = await voicevox.speaker_info(speaker_uuid)
         style = next((st for st in info["style_infos"] if st["id"] == style_id), None)
@@ -319,7 +286,7 @@ async def speaker_icon(speaker_uuid: str, style_id: int, token: str = "",
 async def voice_preview(style_id: int, token: str = "",
                         authorization: str | None = Header(None)) -> FileResponse:
     """The same sentence in any voice, rendered once and kept on disk."""
-    _token_or_header(token, authorization)
+    dependencies._token_or_header(token, authorization)
     PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
     path = PREVIEW_DIR / f"{style_id}.wav"
     if not path.exists():
@@ -331,200 +298,6 @@ async def voice_preview(style_id: int, token: str = "",
             raise HTTPException(502, {"code": "voice_unreachable"}) from exc
         path.write_bytes(wav)
     return FileResponse(path, media_type="audio/wav")
-
-
-def _to_wav(src: Path, dst: Path, max_seconds: float | None = None) -> bool:
-    """Normalise whatever the phone recorded to 16kHz mono wav for whisper."""
-    limit = ["-t", str(max_seconds)] if max_seconds else []
-    try:
-        subprocess.run(
-            ["ffmpeg", "-y", "-i", str(src), *limit, "-ac", "1", "-ar", "16000", str(dst)],
-            capture_output=True,
-            check=True,
-            timeout=120,
-        )
-        return dst.exists()
-    except Exception:
-        log.exception("ffmpeg failed for %s", src)
-        return False
-
-
-JAPANESE_TAGS = ("jpn", "ja")
-
-
-def pick_audio_stream(probe: dict) -> int | None:
-    """The ffprobe stream index of the audio track to import, from ffprobe's
-    parsed `-of json` output. Dual-audio releases often put an English dub
-    first, so the first audio stream tagged `jpn` or `ja` wins; with no such
-    tag, the first audio stream. None when there is no audio stream."""
-    audio = [s for s in probe.get("streams", []) if s.get("codec_type") == "audio"]
-    for stream in audio:
-        language = str((stream.get("tags") or {}).get("language", "")).lower()
-        if language in JAPANESE_TAGS:
-            return int(stream["index"])
-    return int(audio[0]["index"]) if audio else None
-
-
-def _probe_streams(path: Path) -> dict:
-    """ffprobe's stream list for a media file as parsed JSON, {} on failure.
-    Blocking; callers use asyncio.to_thread."""
-    try:
-        result = subprocess.run(
-            [
-                "ffprobe", "-v", "error",
-                "-show_entries", "stream=index,codec_type:stream_tags=language",
-                "-of", "json", str(path),
-            ],
-            capture_output=True,
-            check=True,
-            timeout=60,
-            text=True,
-        )
-        return json.loads(result.stdout)
-    except Exception:
-        log.exception("ffprobe streams failed for %s", path)
-        return {}
-
-
-def _unique_tmp(dst: Path) -> Path:
-    """A tmp path beside dst that no other call shares, so two ffmpeg runs
-    for the same target never write into one file."""
-    return dst.with_name(f".{dst.stem}.{secrets.token_hex(6)}.tmp")
-
-
-def _extract_audio(src: Path, dst: Path, stream: int, start_s: float = 0.0,
-                   max_s: float | None = None) -> bool:
-    """Pull audio stream `stream` (an ffprobe index, see pick_audio_stream)
-    out of an imported file, as 24kHz mono 16-bit PCM: VOICEVOX's rate, which
-    aec.SR and the take cleaner already assume. `start_s` and `max_s` trim
-    the source in the same ffmpeg call, which is how the 30-minute import
-    cap and a `start_min` offset are applied. Blocking; callers use
-    asyncio.to_thread."""
-    tmp = dst.with_suffix(".tmp")
-    cmd = ["ffmpeg", "-y"]
-    if start_s > 0:
-        cmd += ["-ss", f"{start_s:.3f}"]
-    cmd += ["-i", str(src)]
-    if max_s is not None:
-        cmd += ["-t", f"{max_s:.3f}"]
-    cmd += [
-        "-map", f"0:{stream}", "-ac", "1", "-ar", str(SLICE_RATE), "-c:a", "pcm_s16le",
-        "-f", "wav", str(tmp),
-    ]
-    try:
-        subprocess.run(cmd, capture_output=True, check=True, timeout=1200)
-        if not tmp.exists():
-            return False
-        os.replace(tmp, dst)
-        return dst.exists()
-    except Exception:
-        log.exception("ffmpeg extract failed for %s", src)
-        tmp.unlink(missing_ok=True)
-        return False
-
-
-def _slice(src: Path, dst: Path, start: float, end: float) -> bool:
-    """Cut one line's audio out of source.wav. `-ss` before `-i` on a wav is
-    sample-accurate. Blocking; callers use asyncio.to_thread."""
-    tmp = dst.with_suffix(".tmp")
-    try:
-        subprocess.run(
-            [
-                "ffmpeg", "-y",
-                "-ss", f"{start:.3f}", "-i", str(src),
-                "-t", f"{end - start:.3f}", "-c:a", "pcm_s16le",
-                "-f", "wav", str(tmp),
-            ],
-            capture_output=True,
-            check=True,
-            timeout=120,
-        )
-        if not tmp.exists():
-            return False
-        os.replace(tmp, dst)
-        return dst.exists()
-    except Exception:
-        log.exception("ffmpeg slice failed for %s [%.3f, %.3f)", src, start, end)
-        tmp.unlink(missing_ok=True)
-        return False
-
-
-def _stretch(src: Path, dst: Path, speed: float) -> bool:
-    """Slow (or speed up) a slice of imported audio with rubberband, pitch
-    preserved. Output length is 1/speed of the input, which is what the
-    client's w.start / speed assumes. Blocking; callers use asyncio.to_thread.
-
-    Two requests for the same line and speed can both miss the cache and get
-    here at once. Each writes its own tmp file and swaps it in with
-    os.replace, so both finish with a whole file at dst and neither can
-    read, move or delete the other's half-written output."""
-    tmp = _unique_tmp(dst)
-    try:
-        subprocess.run(
-            [
-                "ffmpeg", "-y", "-i", str(src),
-                "-filter:a", f"rubberband=tempo={speed}",
-                "-c:a", "pcm_s16le",
-                "-f", "wav", str(tmp),
-            ],
-            capture_output=True,
-            check=True,
-            timeout=120,
-        )
-        if not tmp.exists():
-            return False
-        os.replace(tmp, dst)
-        return dst.exists()
-    except Exception:
-        log.exception("ffmpeg stretch failed for %s at %s", src, speed)
-        tmp.unlink(missing_ok=True)
-        return False
-
-
-def _probe_duration(path: Path) -> float:
-    """The duration of an audio file in seconds, 0.0 on failure."""
-    try:
-        result = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
-            capture_output=True,
-            check=True,
-            timeout=30,
-            text=True,
-        )
-        return float(result.stdout.strip())
-    except Exception:
-        log.exception("ffprobe failed for %s", path)
-        return 0.0
-
-
-def _read_srt(path: Path) -> str:
-    """Japanese subtitle files show up as utf-8-sig or, less often, Shift-JIS
-    (cp932). Falls back to utf-8 with replacement rather than raising, so a
-    stranger encoding imports as garbage text instead of failing the import."""
-    raw = path.read_bytes()[:SRT_MAX_BYTES]
-    for encoding in ("utf-8-sig", "cp932"):
-        try:
-            return raw.decode(encoding)
-        except UnicodeDecodeError:
-            continue
-    return raw.decode("utf-8", errors="replace")
-
-
-def _stream_upload(upload: UploadFile, dst: Path, max_bytes: int) -> int:
-    """Copy an UploadFile to disk in chunks, so a large import is never held
-    whole in memory. Raises HTTPException(413) past `max_bytes`. Blocking;
-    callers use asyncio.to_thread."""
-    size = 0
-    with open(dst, "wb") as out:
-        while True:
-            chunk = upload.file.read(1024 * 1024)
-            if not chunk:
-                break
-            size += len(chunk)
-            if size > max_bytes:
-                raise HTTPException(413, {"code": "file_too_large"})
-            out.write(chunk)
-    return size
 
 
 async def _synthesize_lines(island_id: str, lines: list[dict], speaker: int,
@@ -698,8 +471,8 @@ async def create_island(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     if complexity not in generate.COMPLEXITY_RULES:
         raise HTTPException(400, "complexity must be 'simple' or 'complex'")
     if register not in generate.REGISTER_RULES:
@@ -716,10 +489,10 @@ async def create_island(
     raw = await audio.read()
     if not raw:
         raise HTTPException(400, {"code": "empty_upload"})
-    if len(raw) > MAX_UPLOAD_BYTES:
+    if len(raw) > config.MAX_UPLOAD_BYTES:
         raise HTTPException(413, {"code": "recording_too_large"})
 
-    _take_build_slot(device, "create", "create")
+    dependencies._take_build_slot(device, "create", "create")
     island_id = store.create_island(
         complexity, speaker, register, language, native=native, device=device,
         **({"source": "phrases", "source_name": "voice-topic"} if topic else {}),
@@ -730,15 +503,15 @@ async def create_island(
     src.write_bytes(raw)
 
     wav = store.AUDIO_DIR / island_id / "source.wav"
-    if not _to_wav(src, wav):
+    if not media_io._to_wav(src, wav):
         shutil.rmtree(tmp_dir, ignore_errors=True)
         store.set_failed(island_id, "That audio file could not be decoded.", "audio_undecodable")
-        _refund_build_slot(device, "create", "create")
+        dependencies._refund_build_slot(device, "create", "create")
         raise HTTPException(400, {"code": "audio_undecodable"})
     shutil.rmtree(tmp_dir, ignore_errors=True)
 
     background.add_task(
-        _refunding(_build_island, island_id, device, "create", "create"), island_id, wav, complexity, speaker, count, register, language, native,
+        dependencies._refunding(_build_island, island_id, device, "create", "create"), island_id, wav, complexity, speaker, count, register, language, native,
         bool(topic),
     )
     return {"id": island_id, "status": "pending"}
@@ -760,7 +533,7 @@ async def _build_from_cues(island_id: str, source_wav: Path, cue_list: list[dict
     for i, cue in enumerate(cue_list):
         start, end = cues.slice_bounds(cue_list, i, total)
         target = store.line_audio_path(island_id, made)
-        ok = await asyncio.to_thread(_slice, source_wav, target, start, end)
+        ok = await asyncio.to_thread(media_io._slice, source_wav, target, start, end)
         if not ok:
             continue
         duration = round(end - start, 3)
@@ -816,15 +589,15 @@ async def _build_import(island_id: str, media: Path, srt_text: str | None,
     .srt if one was given (whisper's own segments otherwise), then slice."""
     try:
         store.set_stage(island_id, "extracting")
-        probe = await asyncio.to_thread(_probe_streams, media)
+        probe = await asyncio.to_thread(media_io._probe_streams, media)
         if not probe.get("streams"):
             store.set_failed(island_id, "That media file could not be decoded.", "media_undecodable")
             return
-        stream = pick_audio_stream(probe)
+        stream = media_io.pick_audio_stream(probe)
         if stream is None:
             store.set_failed(island_id, "That media file has no audio track.", "media_no_audio")
             return
-        source_total = await asyncio.to_thread(_probe_duration, media)
+        source_total = await asyncio.to_thread(media_io._probe_duration, media)
         if source_total > 0 and start_s >= source_total:
             store.set_failed(
                 island_id,
@@ -835,12 +608,12 @@ async def _build_import(island_id: str, media: Path, srt_text: str | None,
             return
         wav = store.AUDIO_DIR / island_id / "source.wav"
         ok = await asyncio.to_thread(
-            _extract_audio, media, wav, stream, start_s, IMPORT_MAX_SECONDS
+            media_io._extract_audio, media, wav, stream, start_s, config.IMPORT_MAX_SECONDS
         )
         if not ok:
             store.set_failed(island_id, "That media file could not be decoded.", "media_undecodable")
             return
-        total = await asyncio.to_thread(_probe_duration, wav)
+        total = await asyncio.to_thread(media_io._probe_duration, wav)
         if total <= 0:
             store.set_failed(island_id, "That media file could not be decoded.", "media_undecodable")
             return
@@ -921,8 +694,8 @@ async def create_import_island(
 ) -> dict:
     """Import an audio file (plus an optional .srt) as an island that plays
     the original audio, sliced per line."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     if language not in ("ja", "es", "en"):
         raise HTTPException(400, "language must be 'ja', 'es' or 'en'")
     if native not in ("he", "en"):
@@ -938,7 +711,7 @@ async def create_import_island(
     suffix = Path(audio.filename or "audio").suffix or ".bin"
     media = tmp_dir / f"media{suffix}"
     try:
-        size = await asyncio.to_thread(_stream_upload, audio, media, IMPORT_MAX_BYTES)
+        size = await asyncio.to_thread(media_io._stream_upload, audio, media, config.IMPORT_MAX_BYTES)
     except HTTPException:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         raise
@@ -951,12 +724,12 @@ async def create_import_island(
         srt_raw = await subtitles.read()
         if srt_raw:
             srt_path = tmp_dir / "subs.srt"
-            srt_path.write_bytes(srt_raw[:SRT_MAX_BYTES])
-            srt_text = await asyncio.to_thread(_read_srt, srt_path)
+            srt_path.write_bytes(srt_raw[:config.SRT_MAX_BYTES])
+            srt_text = await asyncio.to_thread(media_io._read_srt, srt_path)
 
     island_title = title.strip() or Path(audio.filename or "import").stem
     try:
-        _take_build_slot(device, "create", "import")
+        dependencies._take_build_slot(device, "create", "import")
     except HTTPException:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         raise
@@ -966,7 +739,7 @@ async def create_import_island(
     )
     store.start_build(island_id)
     background.add_task(
-        _refunding(_build_import, island_id, device, "create", "import"), island_id, media, srt_text, island_title, float(start_min) * 60.0,
+        dependencies._refunding(_build_import, island_id, device, "create", "import"), island_id, media, srt_text, island_title, float(start_min) * 60.0,
         tmp_dir, language, native,
     )
     return {"id": island_id, "status": "pending"}
@@ -975,7 +748,7 @@ async def create_import_island(
 @app.get("/shadow/podcasts/episodes")
 async def podcast_episodes(url: str, authorization: str | None = Header(None)) -> dict:
     """List a podcast feed's episodes so one can be handed to the importer."""
-    require_token(authorization)
+    dependencies.require_token(authorization)
     try:
         await podcast.check_url(url)
     except ValueError:
@@ -996,7 +769,7 @@ async def _build_podcast(island_id: str, audio_url: str, title: str, start_s: fl
     try:
         store.set_stage(island_id, "downloading")
         media = tmp_dir / "episode"
-        await podcast.fetch(audio_url, media, IMPORT_MAX_BYTES)
+        await podcast.fetch(audio_url, media, config.IMPORT_MAX_BYTES)
     except podcast.PodcastError:
         store.set_failed(island_id, "The episode could not be downloaded.", "episode_download_failed")
         shutil.rmtree(tmp_dir, ignore_errors=True)
@@ -1023,8 +796,8 @@ async def import_podcast_episode(
 ) -> dict:
     """Download a podcast episode by URL and import it the same way an
     uploaded file is imported."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     if language not in ("ja", "es", "en"):
         raise HTTPException(400, "language must be 'ja', 'es' or 'en'")
     if native not in ("he", "en"):
@@ -1041,7 +814,7 @@ async def import_podcast_episode(
         raise HTTPException(400, "that url could not be used")
 
     island_title = title.strip() or "Podcast episode"
-    _take_build_slot(device, "create", "import")
+    dependencies._take_build_slot(device, "create", "import")
     tmp_dir = Path(tempfile.mkdtemp(prefix="podcast-"))
     island_id = store.create_island(
         "simple", speaker, language=language, native=native, source="podcast", source_name=title,
@@ -1049,7 +822,7 @@ async def import_podcast_episode(
     )
     store.start_build(island_id)
     background.add_task(
-        _refunding(_build_podcast, island_id, device, "create", "import"), island_id, audio_url, island_title, float(start_min) * 60.0, tmp_dir,
+        dependencies._refunding(_build_podcast, island_id, device, "create", "import"), island_id, audio_url, island_title, float(start_min) * 60.0, tmp_dir,
         language, native,
     )
     return {"id": island_id, "status": "pending"}
@@ -1070,8 +843,8 @@ def _eta_s(island: dict) -> int | None:
 @app.get("/shadow/islands")
 def list_islands(authorization: str | None = Header(None), device: str = "",
                   x_shadow_device: str = Header("")) -> list[dict]:
-    require_token(authorization)
-    dev = _require_device(x_shadow_device, device)
+    dependencies.require_token(authorization)
+    dev = dependencies._require_device(x_shadow_device, device)
     # A say that failed (unclear, empty, no audio) already told the person on
     # the record screen, which reads it by id. It never gets a Home row.
     rows = [r for r in store.list_islands(dev)
@@ -1140,9 +913,9 @@ async def _fill_accent(island: dict) -> None:
 @app.get("/shadow/islands/{island_id}")
 async def get_island(island_id: str, authorization: str | None = Header(None),
                       x_shadow_device: str = Header("")) -> dict:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
-    island = await asyncio.to_thread(_own_island, island_id, device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
+    island = await asyncio.to_thread(dependencies._own_island, island_id, device)
     island["known"] = await asyncio.to_thread(store.known_idxs, device, island_id)
     island["eta_s"] = await asyncio.to_thread(_eta_s, island)
     # A re-voice or regenerate rewrites lines while the phone polls this
@@ -1185,7 +958,7 @@ LEGACY_TAKE_PROFILE = "default"
 
 def _take_profile_name(device: str) -> str:
     """The profile file name for `device`. Safe as a file name only because
-    `_require_device` has already matched the id against DEVICE_ID_RE or
+    `dependencies._require_device` has already matched the id against dependencies.DEVICE_ID_RE or
     USER_RE."""
     return f"dev-{device}"
 
@@ -1194,7 +967,7 @@ def _load_take_profile(aec, device: str):
     """The device's own profile, or for the owner device the legacy shared
     one when it has not calibrated since device-scope."""
     profile = aec.load_profile(_take_profile_name(device))
-    if profile is None and OWNER_DEVICE and device == OWNER_DEVICE:
+    if profile is None and dependencies.OWNER_DEVICE and device == dependencies.OWNER_DEVICE:
         profile = aec.load_profile(LEGACY_TAKE_PROFILE)
     return profile
 
@@ -1252,7 +1025,7 @@ async def _resolve_line_audio(island: dict, idx: int, speed: float,
                 base = store.line_audio_path(island["id"], idx)
                 if not await asyncio.to_thread(base.exists):
                     raise HTTPException(404, "no audio for that line")
-                ok = await asyncio.to_thread(_stretch, base, path, speed)
+                ok = await asyncio.to_thread(media_io._stretch, base, path, speed)
                 if not ok:
                     raise HTTPException(502, "could not change the playback speed")
             else:
@@ -1298,9 +1071,9 @@ async def line_audio(island_id: str, idx: int, token: str = "", speed: float = 1
     served, cached beside the render the same way."""
     # Audio is fetched by the player, which cannot always set a header, so a
     # token query parameter is accepted here as well as the usual header.
-    _token_or_header(token, authorization)
-    dev = _require_device(x_shadow_device, device)
-    await asyncio.to_thread(_require_owner, island_id, dev)
+    dependencies._token_or_header(token, authorization)
+    dev = dependencies._require_device(x_shadow_device, device)
+    await asyncio.to_thread(dependencies._require_owner, island_id, dev)
     span = _span(start, end)
     path = await _resolve_line_audio({"id": island_id}, idx, speed, span)
     if not await asyncio.to_thread(path.exists):
@@ -1344,9 +1117,9 @@ async def episode_audio(island_id: str, token: str = "", device: str = "",
                         x_shadow_device: str = Header("")) -> FileResponse:
     """The whole podcast or imported episode as one m4a, for continuous
     listening. FileResponse answers Range requests, which players need to seek."""
-    _token_or_header(token, authorization)
-    dev = _require_device(x_shadow_device, device)
-    island = await asyncio.to_thread(_own_island, island_id, dev)
+    dependencies._token_or_header(token, authorization)
+    dev = dependencies._require_device(x_shadow_device, device)
+    island = await asyncio.to_thread(dependencies._own_island, island_id, dev)
     if island.get("source") not in ("podcast", "import"):
         raise HTTPException(409, detail={"code": "no_episode"})
     path = await _ensure_episode(island_id, island.get("title") or "Episode")
@@ -1368,9 +1141,9 @@ async def export_island(island_id: str, speed: float = 1.0, repeats: int = 2,
     `speed`, in the island's voice. Built once per distinct content and
     parameters and kept on disk under a content hash; dropped whenever the
     island is re-voiced or regenerated."""
-    _token_or_header(token, authorization)
-    dev = _require_device(x_shadow_device, device)
-    island = await asyncio.to_thread(_own_island, island_id, dev)
+    dependencies._token_or_header(token, authorization)
+    dev = dependencies._require_device(x_shadow_device, device)
+    island = await asyncio.to_thread(dependencies._own_island, island_id, dev)
     if island["status"] != "ready":
         raise HTTPException(409, "the island is still being built")
     if not island["lines"]:
@@ -1579,8 +1352,8 @@ async def upload_take(
     first upload on a new phone. Calibration still learns the speaker-to-mic
     path for anyone who later shadows over the speaker. See aec.py for how
     the path is learned and applied."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     began_at = time.monotonic()
     is_calibration = calibrate == "1"
     is_silent = silent == "1" and not is_calibration
@@ -1588,7 +1361,7 @@ async def upload_take(
     if op and not store.valid_op(op):
         raise HTTPException(400, "bad op")
 
-    island = await asyncio.to_thread(_own_island, island_id, device)
+    island = await asyncio.to_thread(dependencies._own_island, island_id, device)
     line = next((l for l in island["lines"] if l["idx"] == idx), None)
     if line is None:
         raise HTTPException(404, "no such line")
@@ -1616,10 +1389,10 @@ async def upload_take(
     raw = await take.read()
     if not raw:
         raise HTTPException(400, "empty upload")
-    if len(raw) > MAX_UPLOAD_BYTES:
+    if len(raw) > config.MAX_UPLOAD_BYTES:
         raise HTTPException(413, "take too large")
 
-    _take_use_slot(device, "take")
+    dependencies._take_use_slot(device, "take")
     tmp_dir = Path(tempfile.mkdtemp(prefix=f"take-{island_id}-{idx}-"))
     try:
         suffix = Path(take.filename or "take.wav").suffix or ".wav"
@@ -1681,9 +1454,9 @@ async def take_clean(island_id: str, idx: int, token: str = "", v: str = "", dev
     the player's cache key changes with each new take; the file is served
     with no-store regardless, since the same URL can point at a different
     take between calls."""
-    _token_or_header(token, authorization)
-    dev = _require_device(x_shadow_device, device)
-    await asyncio.to_thread(_require_owner, island_id, dev)
+    dependencies._token_or_header(token, authorization)
+    dev = dependencies._require_device(x_shadow_device, device)
+    await asyncio.to_thread(dependencies._require_owner, island_id, dev)
     _, clean_path = store.take_paths(island_id, idx)
     if not clean_path.exists():
         raise HTTPException(404, "no cleaned take for that line")
@@ -1703,11 +1476,11 @@ async def regenerate(
 ) -> dict:
     """Rebuild an island's lines at the other complexity, reusing the recording
     that is already on disk so the learner does not have to speak again."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     if complexity not in generate.COMPLEXITY_RULES:
         raise HTTPException(400, "complexity must be 'simple' or 'complex'")
-    island = await asyncio.to_thread(_own_island, island_id, device)
+    island = await asyncio.to_thread(dependencies._own_island, island_id, device)
     if island["source"] == "phrases":
         raise HTTPException(409, "a phrase island has no recording to rewrite from")
     if island["source"] != "voice":
@@ -1717,7 +1490,7 @@ async def regenerate(
     if not wav.exists():
         raise HTTPException(409, "the original recording is gone")
 
-    _take_build_slot(device, "rework", "regenerate")
+    dependencies._take_build_slot(device, "rework", "regenerate")
     store.clear_lines(island_id)
     with store.connect() as conn:
         conn.execute(
@@ -1726,7 +1499,7 @@ async def regenerate(
             (complexity, island_id),
         )
     background.add_task(
-        _refunding(_build_island, island_id, device, "rework", "regenerate"),
+        dependencies._refunding(_build_island, island_id, device, "rework", "regenerate"),
         island_id, wav, complexity, island["speaker"], count,
         island.get("register", "polite"), island.get("language", "ja"), island.get("native", "en"),
         transcript=island.get("transcript") or "",
@@ -1757,9 +1530,9 @@ async def revoice(
 ) -> dict:
     """Re-render an island's existing lines in another voice. Keeps the text,
     so there is no transcription or generation: a few seconds of synthesis."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
-    island = await asyncio.to_thread(_own_island, island_id, device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
+    island = await asyncio.to_thread(dependencies._own_island, island_id, device)
     if island["status"] != "ready":
         raise HTTPException(409, "the island is still being built")
     if island["source"] != "voice":
@@ -1773,7 +1546,7 @@ async def revoice(
     if voices.language_for(speaker) != island.get("language", "ja"):
         raise HTTPException(400, "that voice does not speak the island's language")
 
-    _take_build_slot(device, "rework", "revoice")
+    dependencies._take_build_slot(device, "rework", "revoice")
     store.set_speaker(island_id, speaker)
     store.set_stage(island_id, "speaking")
     # Lines are replaced one at a time as they render (INSERT OR REPLACE), so
@@ -1793,8 +1566,8 @@ async def word_audio(text: str, speaker: int = voicevox.DEFAULT_SPEAKER, token: 
     """One word rendered on its own, so hearing it again is a complete,
     natural utterance rather than a slice cut out of the line. Cached per
     voice and text."""
-    _token_or_header(token, authorization)
-    device = _require_device(x_shadow_device, device_q)
+    dependencies._token_or_header(token, authorization)
+    device = dependencies._require_device(x_shadow_device, device_q)
     clean = text.strip(WORD_STRIP)
     if not clean:
         raise HTTPException(400, "empty word")
@@ -1802,7 +1575,7 @@ async def word_audio(text: str, speaker: int = voicevox.DEFAULT_SPEAKER, token: 
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{hashlib.sha1(clean.encode()).hexdigest()[:16]}.wav"
     if not path.exists():
-        _take_use_slot(device, "word_audio")
+        dependencies._take_use_slot(device, "word_audio")
         try:
             wav, _, _, _ = await voices.speak(clean, speaker)
         except (voicevox.VoicevoxError, kokoro_tts.KokoroError) as exc:
@@ -1817,7 +1590,7 @@ async def word_audio(text: str, speaker: int = voicevox.DEFAULT_SPEAKER, token: 
 @app.get("/shadow/gloss")
 async def word_gloss(word: str, authorization: str | None = Header(None)) -> dict:
     """Base form, reading and dictionary senses for one word from a line."""
-    require_token(authorization)
+    dependencies.require_token(authorization)
     return await asyncio.to_thread(glossary.gloss, word)
 
 
@@ -1831,15 +1604,15 @@ async def explain_word(word: str, sentence_ja: str, sentence_en: str = "",
     in the same sentence answered in the same language always gets the same
     answer. A cache hit is free; a miss is a Claude call and takes an
     `explain_word` slot from the daily cap."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     # An English answer keeps the plain key it always had, so cached answers
     # from before other native languages existed still hit.
     cache_key = sentence_ja if native == "en" else f"{native}:{sentence_ja}"
     cached = await asyncio.to_thread(store.get_word_context, word, cache_key)
     if cached is not None:
         return {"context": cached}
-    _take_use_slot(device, "explain_word", "word")
+    dependencies._take_use_slot(device, "explain_word", "word")
     context = await asyncio.to_thread(
         explain.word_context, word, sentence_ja, sentence_en, language=language, native=native
     )
@@ -1847,7 +1620,7 @@ async def explain_word(word: str, sentence_ja: str, sentence_en: str = "",
         await asyncio.to_thread(store.set_word_context, word, cache_key, context)
     else:
         # The CLI failed and nothing was cached, so a retap would pay again.
-        await asyncio.to_thread(_refund_use_slot, device, "explain_word", "word")
+        await asyncio.to_thread(dependencies._refund_use_slot, device, "explain_word", "word")
     return {"context": context}
 
 
@@ -1873,7 +1646,7 @@ async def explain_chat(body: ExplainChatBody,
     the same selection, and it always gets the same answer. A follow-up turn
     carries history and is never cached, since it depends on the thread so
     far."""
-    require_token(authorization)
+    dependencies.require_token(authorization)
     question_key = body.question if body.native == "en" else f"{body.native}:{body.question}"
     if not body.history:
         cached = await asyncio.to_thread(
@@ -1886,8 +1659,8 @@ async def explain_chat(body: ExplainChatBody,
                 # A row sqlite cannot parse back is no better than no row:
                 # fall through to a fresh answer, which overwrites it below.
                 log.warning("explain cache row is not valid JSON, treating as a miss")
-    device = _require_device(x_shadow_device)
-    _take_use_slot(device, "explain", "explain")
+    device = dependencies._require_device(x_shadow_device)
+    dependencies._take_use_slot(device, "explain", "explain")
     raw = await asyncio.to_thread(
         explain.chat_answer, body.sentence_ja, body.sentence_en, body.marked,
         body.question, body.history, language=body.language, native=body.native,
@@ -1895,7 +1668,7 @@ async def explain_chat(body: ExplainChatBody,
     answer = explain.parse_explain_answer(raw, body.sentence_ja)
     if not answer:
         # The CLI failed and nothing was cached, so a retap would pay again.
-        await asyncio.to_thread(_refund_use_slot, device, "explain", "explain")
+        await asyncio.to_thread(dependencies._refund_use_slot, device, "explain", "explain")
     if answer and not body.history:
         await asyncio.to_thread(
             store.set_explain_answer, body.sentence_ja, body.marked, question_key,
@@ -1907,9 +1680,9 @@ async def explain_chat(body: ExplainChatBody,
 @app.delete("/shadow/islands/{island_id}")
 def delete_island(island_id: str, authorization: str | None = Header(None),
                    x_shadow_device: str = Header("")) -> dict:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
-    _require_owner(island_id, device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
+    dependencies._require_owner(island_id, device)
     store.delete_island(island_id)
     return {"ok": True}
 
@@ -1921,9 +1694,9 @@ def rename_island(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
-    _require_owner(island_id, device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
+    dependencies._require_owner(island_id, device)
     title = title.strip() or "Untitled island"
     store.set_title(island_id, title)
     return {"id": island_id, "title": title}
@@ -1935,7 +1708,7 @@ def podcasts_catalog(language: str, ui: str = "en",
     """The hand-picked, editorial podcast catalog for one learning language,
     written in the interface language `ui` (a separate setting: Hebrew
     section copy can sit over Japanese shows)."""
-    require_token(authorization)
+    dependencies.require_token(authorization)
     try:
         return podcast_catalog.catalog(language, ui)
     except KeyError:
@@ -1947,8 +1720,8 @@ async def podcasts_search(q: str, language: str,
                           authorization: str | None = Header(None),
                           x_shadow_device: str = Header("")) -> dict:
     """Resolve a pasted link or a plain query to a list of shows."""
-    require_token(authorization)
-    _take_use_slot(_require_device(x_shadow_device), "podcast_search")
+    dependencies.require_token(authorization)
+    dependencies._take_use_slot(dependencies._require_device(x_shadow_device), "podcast_search")
     try:
         results = await podcast_catalog.search(q, language)
     except (podcast.PodcastError, ValueError) as exc:
@@ -1981,8 +1754,8 @@ async def delete_account(
     authorization: str = Header(default=""),
     x_shadow_device: str = Header(default=""),
 ):
-    require_token(authorization)
-    principal = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    principal = dependencies._require_device(x_shadow_device)
     if not accounts.is_user(principal):
         raise HTTPException(401, "sign-in required")
     accounts.require_delete_configured()
@@ -1991,204 +1764,9 @@ async def delete_account(
     return {"ok": True}
 
 
-# device-scope: helpers
-#
-# Every phone gets an anonymous id (client-side, src/lib/device.ts) and sends
-# it as the X-Shadow-Device header, or a `device` query param for the few
-# media routes a player or Image view fetches without headers. These two
-# helpers are what a route checks: `_require_device` reads the id, and
-# `_own_island` refuses another device's island with a plain 404, never a
-# 403, so a stranger cannot even learn an id exists.
-DEVICE_ID_RE = re.compile(r"^[0-9a-f-]{8,64}$")
-
-
-def _require_device(x_shadow_device: str, device_q: str = "") -> str:
-    """Returns the device id from the header, falling back to the query
-    param media routes use. Raises 401 when both are empty or the id is
-    malformed: this is the route-level check direct-call tests exercise,
-    separate from the middleware below, and it checks the value the route
-    actually uses (a repeated header can differ from the one the middleware
-    saw)."""
-    device = x_shadow_device or device_q
-    if not device:
-        raise HTTPException(401, "missing device id")
-    if not (DEVICE_ID_RE.match(device) or accounts.USER_RE.match(device)):
-        raise HTTPException(401, "bad device id")
-    return device
-
-
-def _require_owner(island_id: str, device: str) -> None:
-    """404 unless `device` owns the island. Reads one column, no lines, for
-    routes that only need the check. `device == ''` never matches, even
-    against an unclaimed island (also device=''): an empty id must never be
-    treated as a valid owner."""
-    owner = store.island_device(island_id)
-    if owner is None or not device or owner != device:
-        raise HTTPException(404, "no such island")
-
-
-def _own_island(island_id: str, device: str) -> dict:
-    """The island with its lines, only if `device` owns it (see `_require_owner`)."""
-    island = store.get_island(island_id)
-    if island is None or not device or island["device"] != device:
-        raise HTTPException(404, "no such island")
-    return island
-
-
-# device-scope: owner claim and daily limit
-#
-# SHADOW_OWNER_DEVICE names Sean's own phone. Set, the islands and practice
-# rows left on device='' from before this feature (or from any request that
-# somehow reached storage without a device) become his, rather than staying
-# invisible to everyone. DAILY_CREATES and DAILY_REWORKS cap how many builds
-# (claude CLI, whisper, VOICEVOX) one device can start per UTC calendar day;
-# module-level constants, not inlined os.getenv calls, so a test can
-# monkeypatch them without touching the environment.
-OWNER_DEVICE = os.getenv("SHADOW_OWNER_DEVICE", "")
-# Sean's other device ids (a reinstall mints a new one): exempt from the daily
-# caps like OWNER_DEVICE, but never used to claim unowned rows.
-OWNER_ALIASES = frozenset(
-    d.strip() for d in os.getenv("SHADOW_OWNER_ALIASES", "").split(",") if d.strip()
-)
-DAILY_CREATES = int(os.getenv("SHADOW_DAILY_CREATES", "5"))
-DAILY_REWORKS = int(os.getenv("SHADOW_DAILY_REWORKS", "3"))
-
-
-def _is_owner(device: str) -> bool:
-    return bool(device) and (device == OWNER_DEVICE or device in OWNER_ALIASES)
-
-
-def _claim_owner() -> None:
-    """Idempotent, safe to run on every startup: rows already claimed have a
-    non-empty device and are left alone."""
-    if not OWNER_DEVICE:
-        return
-    n_islands = store.claim_unowned(OWNER_DEVICE)
-    n_practice = schedule.claim_unowned(OWNER_DEVICE)
-    if n_islands or n_practice:
-        log.info(
-            "device-scope: claimed %d island(s) and %d practice event(s) for the owner device",
-            n_islands, n_practice,
-        )
-
-
-DAILY_CAPS = {
-    name: int(os.getenv(f"SHADOW_DAILY_{name.upper()}", str(default)))
-    for name, default in (
-        ("explain", 100), ("explain_word", 100), ("word_audio", 400),
-        ("podcast_search", 60), ("take", 200), ("pick_sentences", 20),
-    )
-}
-
-
-AI_USE_KINDS = frozenset({"explain", "explain_word", "pick_sentences"})  # --- ai-guardrails ---
-guardrails.set_owner_check(_is_owner)  # --- ai-guardrails ---
-
-
-def _ai_paused() -> bool:
-    """The ai_jobs kill switch, read by llm.complete before every call so a
-    flip also stops queued repair, translation and catch refills."""
-    return guardrails._off("ai_jobs", "ai")
-
-
 import llm as _llm  # noqa: E402
 
-_llm.set_pause_check(_ai_paused)
-
-
-def _take_use_slot(device: str, kind: str, charge: str = "") -> None:
-    """Per-owner daily cap for the cheap-but-not-free routes, counted in the
-    same builds table. Same rules as `_take_build_slot`: owner device exempt,
-    called after validation, and only on a cache miss where there is a cache.
-    `charge` names the energy price (a key of `energy.PRICES`) the call
-    spends, between the cap check and the slot write: a refused charge never
-    burns a slot and a cap 429 never burns energy."""
-    if _is_owner(device):
-        return
-    # --- ai-guardrails ---
-    if kind in AI_USE_KINDS:
-        guardrails.check_switch(kind)
-    # --- end ai-guardrails ---
-    limit = DAILY_CAPS[kind]
-    if store.count_builds_today(device, kind) >= limit:
-        raise HTTPException(
-            429, {"code": "daily_limit", "limit": limit, "kind": kind}
-        )
-    if charge:
-        energy.charge(device, charge, False)
-    store.log_build(device, kind)
-
-
-def _principal_known(principal: str) -> bool:  # --- ai-guardrails ---
-    """Only asked while signups are off, so the normal path pays nothing."""
-    if not guardrails._off("signups", "signups"):
-        return True
-    if store.user_known(principal):
-        return True
-    return user_profile.connect().execute(
-        "SELECT 1 FROM profiles WHERE owner=?", (principal,)
-    ).fetchone() is not None
-
-
-def _refund_use_slot(device: str, kind: str, charge: str) -> None:
-    """Undoes `_take_use_slot` for a call whose AI step failed and cached
-    nothing: the energy and the cap slot both come back, so a failed call
-    costs nothing. Only when a charge was refunded, so with SHADOW_ENERGY off
-    the routes behave as before."""
-    if energy.refund(device, charge, _is_owner(device)):
-        store.unlog_build(device, kind)
-
-
-def _refund_build_slot(device: str, kind: str, charge: str) -> None:
-    """Undoes `_take_build_slot` for a build that failed before it made any
-    line: the energy (when SHADOW_ENERGY is on) and the build slot, which is
-    also the daily AI-build budget, both come back. Owner exempt, as the
-    take was."""
-    if _is_owner(device):
-        return
-    if charge:
-        energy.refund(device, charge, False)
-    store.unlog_build(device, kind)
-    log.info("build slot %s/%s refunded to %s", kind, charge, device)
-
-
-def _refunding(job, island_id: str, device: str, kind: str, charge: str):
-    """`job` wrapped for background.add_task: once it ends, an island left
-    failed with no lines gets its build slot and energy back. `__wrapped__`
-    keeps the job reachable for tests."""
-    @functools.wraps(job)
-    async def run(*args, **kwargs) -> None:
-        try:
-            await job(*args, **kwargs)
-        finally:
-            island = await asyncio.to_thread(store.get_island, island_id)
-            if island is not None and island["status"] == "failed" and not island["lines"]:
-                await asyncio.to_thread(_refund_build_slot, device, kind, charge)
-    return run
-
-
-def _take_build_slot(device: str, kind: str, charge: str = "") -> None:
-    """Called immediately before the first write of a build, so a 400 on bad
-    input never consumes a slot. The owner device is exempt. `kind` is
-    "create" (record, file import, podcast import) or "rework" (regenerate,
-    re-voice); each has its own daily cap. `charge` as in `_take_use_slot`."""
-    if _is_owner(device):
-        return
-    # --- ai-guardrails ---
-    # Order: switch, per-kind cap, daily AI-build budget, energy, then the
-    # slot row. The llm-api dollar cap sits inside llm.complete, so it runs
-    # after all of these by construction.
-    guardrails.check_switch(kind, imports=charge == "import")
-    # --- end ai-guardrails ---
-    limit = DAILY_CREATES if kind == "create" else DAILY_REWORKS
-    if store.count_builds_today(device, kind) >= limit:
-        raise HTTPException(
-            429, {"code": "daily_limit", "limit": limit, "kind": kind}
-        )
-    guardrails.check_budget(device)  # --- ai-guardrails ---
-    if charge:
-        energy.charge(device, charge, False)
-    store.log_build(device, kind)
+_llm.set_pause_check(dependencies._ai_paused)
 
 
 # --- privacy-pages ---
@@ -2271,7 +1849,7 @@ class DeviceGuard:
             # --- ai-guardrails ---
             principal = accounts.principal(sub)
             try:
-                known = await asyncio.to_thread(_principal_known, principal)
+                known = await asyncio.to_thread(dependencies._principal_known, principal)
                 guardrails.check_signup(principal, known)
             except HTTPException as exc:
                 response = JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
@@ -2286,7 +1864,7 @@ class DeviceGuard:
             response = JSONResponse({"detail": "sign-in required"}, status_code=401)
             await response(scope, receive, send)
             return
-        elif not DEVICE_ID_RE.match(device):
+        elif not dependencies.DEVICE_ID_RE.match(device):
             response = JSONResponse({"detail": "missing device id"}, status_code=401)
             await response(scope, receive, send)
             return
@@ -2294,7 +1872,7 @@ class DeviceGuard:
         # Only for a request with the shared token: without it the route's own
         # check answers 401, so a probe cannot tell gated paths from open ones.
         who = principal if user_token else device
-        if _shared_token_ok(headers, query) and await _beta_denied(scope["path"], who):
+        if access._shared_token_ok(headers, query) and await access._beta_denied(scope["path"], who):
             await JSONResponse({"detail": {"code": "not_beta"}}, status_code=403)(scope, receive, send)
             return
         # --- end launch-basics ---
@@ -2353,7 +1931,7 @@ def phrases_catalog(language: str, ui: str = "en",
                     authorization: str | None = Header(None),
                     x_shadow_device: str = Header("")) -> dict:
     """The ready-made phrase topics for one learning language."""
-    require_token(authorization)
+    dependencies.require_token(authorization)
     try:
         return phrase_catalog.mark_added(
             phrase_catalog.catalog(language, ui), _added_phrase_topics(x_shadow_device, language))
@@ -2380,7 +1958,7 @@ def phrases_search(language: str, ui: str = "en", q: str = "", category: str = "
                    authorization: str | None = Header(None),
                    x_shadow_device: str = Header("")) -> dict:
     """Catalog topics filtered by a search word and/or a category."""
-    require_token(authorization)
+    dependencies.require_token(authorization)
     try:
         return phrase_catalog.mark_added(
             phrase_catalog.search(language, ui, q, category),
@@ -2451,8 +2029,8 @@ async def import_phrases(
     """Add a catalogue topic as an island. A new island takes a slot from the
     daily create limit (it writes an island and renders audio); a repeat pick
     returns the island that already exists and is free."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     if language not in ("ja", "es", "en"):
         raise HTTPException(400, "language must be 'ja', 'es' or 'en'")
     if native not in ("he", "en"):
@@ -2492,13 +2070,13 @@ async def import_phrases(
         except Exception:
             log.exception("phrase cache copy failed for %s/%s", language, topic)
 
-    _take_build_slot(device, "create", "phrases")
+    dependencies._take_build_slot(device, "create", "phrases")
     island_id = store.create_island(
         "simple", speaker, language=language, native=native, source="phrases",
         source_name=topic, device=device,
     )
     background.add_task(
-        _refunding(_build_phrases, island_id, device, "create", "phrases"),
+        dependencies._refunding(_build_phrases, island_id, device, "create", "phrases"),
         island_id, [e["text"] for e in entries],
         [e.get(native, "") for e in entries],
         island_title, speaker, language, native, topic=topic,
@@ -2510,8 +2088,8 @@ async def import_phrases(
 @app.get("/shadow/grammar/levels")
 def grammar_levels(authorization: str | None = Header(None),
                    x_shadow_device: str = Header("")) -> dict:
-    require_token(authorization)
-    _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    dependencies._require_device(x_shadow_device)
     return {"levels": grammar.levels()}
 
 
@@ -2520,8 +2098,8 @@ def grammar_points(level: str = "", q: str = "",
                    authorization: str | None = Header(None),
                    x_shadow_device: str = Header(""), point: str = "") -> dict:
     """Points for a level or a search; `point` reads that one id directly."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     if point:
         row = grammar.get(point)
         points = [row] if row else []
@@ -2547,8 +2125,8 @@ async def import_grammar(
     x_shadow_device: str = Header(""),
 ) -> dict:
     """Add a grammar point as an island; a repeat pick returns the existing one."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     if register not in generate.REGISTER_RULES:
         raise HTTPException(400, "register must be 'polite' or 'casual'")
     if native not in ("he", "en"):
@@ -2563,7 +2141,7 @@ async def import_grammar(
                 and existing["source_name"] == row["id"]):
             return {"id": existing["id"], "status": existing["status"]}
 
-    _take_build_slot(device, "create", "create")
+    dependencies._take_build_slot(device, "create", "create")
     island_id = store.create_island(
         "simple", speaker, register, "ja", native=native, source="grammar",
         source_name=row["id"], device=device,
@@ -2576,7 +2154,7 @@ async def import_grammar(
             log.exception("island %s failed", island_id)
             store.set_failed(island_id, str(exc))
 
-    background.add_task(_refunding(run, island_id, device, "create", "create"))
+    background.add_task(dependencies._refunding(run, island_id, device, "create", "create"))
     return {"id": island_id, "status": "pending"}
 
 
@@ -2590,9 +2168,9 @@ async def island_glosses(island_id: str, authorization: str | None = Header(None
     the word-audio route cleans it. Lets the phone store them for offline
     use in one request instead of one per word. Other languages have no
     glosses and return {}."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
-    island = await asyncio.to_thread(_own_island, island_id, device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
+    island = await asyncio.to_thread(dependencies._own_island, island_id, device)
     if island.get("language", "ja") != "ja":
         return {}
     words: list[str] = []
@@ -2619,8 +2197,8 @@ import repair  # noqa: E402  youtube-asr-context-repair
 async def youtube_info(url: str, authorization: str | None = Header(None),
                        x_shadow_device: str = Header("")) -> dict:
     """Title, author and thumbnail for a pasted YouTube link."""
-    require_token(authorization)
-    _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    dependencies._require_device(x_shadow_device)
     video_id = youtube.parse_video_id(url)
     if video_id is None:
         raise HTTPException(400, {"code": "youtube_bad_link"})
@@ -2765,7 +2343,7 @@ def _asr_code(report: dict | None) -> str:
     or no tokens), asr_low_match (under a fifth of the lines anchored), asr."""
     if not report or not report.get("tokens", 1):
         return "asr_none"
-    if report["anchored"] < ASR_MIN_ANCHORED * report["lines"]:
+    if report["anchored"] < config.ASR_MIN_ANCHORED * report["lines"]:
         return "asr_low_match"
     return "asr"
 
@@ -2797,8 +2375,8 @@ async def import_youtube_captions(
     taken, so a bad request never burns a daily create. `asr_events`, the
     auto track when the picked track is manual, gives ja lines their word
     times (yt-precise)."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     body = await _captions_body(request)
     url, title = body.get("url"), body.get("title", "")
     speaker = body.get("speaker", voicevox.DEFAULT_SPEAKER)
@@ -2835,7 +2413,7 @@ async def import_youtube_captions(
         raise HTTPException(400, {"code": "no_captions"})
 
     island_title = title.strip()[:200] or "YouTube video"
-    _take_build_slot(device, "create", "import")
+    dependencies._take_build_slot(device, "create", "import")
     island_id = store.create_island(
         "simple", speaker, language=language, native=native, source="youtube",
         source_name=video_id, device=device,
@@ -2852,7 +2430,7 @@ async def import_youtube_captions(
              len(context["chapters"]))
     await asyncio.to_thread(_write_captions_json, island_id, video_id, body.get("events"), asr_events)
     background.add_task(
-        _refunding(_build_from_captions, island_id, device, "create", "import"),
+        dependencies._refunding(_build_from_captions, island_id, device, "create", "import"),
         island_id, lines, island_title, language, native,
         any(ln.get("pieces") for ln in lines), asr_tokens=tokens,
     )
@@ -2862,16 +2440,16 @@ async def import_youtube_captions(
 @app.get("/shadow/islands/{island_id}/video")
 async def island_video(island_id: str, authorization: str | None = Header(None),
                        x_shadow_device: str = Header("")) -> dict:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
-    await asyncio.to_thread(_require_owner, island_id, device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
+    await asyncio.to_thread(dependencies._require_owner, island_id, device)
     video = await asyncio.to_thread(store.get_video, island_id)
     if video is None:
         raise HTTPException(404, "no video for this island")
     video["captions_only"] = not store.line_audio_path(island_id, 0).exists()
     # bl36-align: 'closed' once the last allowed attempt failed, so clients stop uploading.
     status = video.pop("align_status", "")
-    if status == "failed" and video.pop("align_attempts", 0) >= ALIGN_MAX_ATTEMPTS:
+    if status == "failed" and video.pop("align_attempts", 0) >= config.ALIGN_MAX_ATTEMPTS:
         status = "closed"
     video.pop("align_attempts", None)
     video["align"] = status
@@ -2893,8 +2471,8 @@ async def island_video(island_id: str, authorization: str | None = Header(None),
 @app.get("/shadow/videos")
 async def list_videos(authorization: str | None = Header(None),
                       x_shadow_device: str = Header("")) -> list[dict]:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     return await asyncio.to_thread(store.list_videos, device)
 
 
@@ -2923,9 +2501,9 @@ async def upload_video_audio(
 ) -> dict:
     """The phone's audio for a video island. Queues forced alignment of the
     captions against it; the island is already playable and stays so."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
-    island = await asyncio.to_thread(_own_island, island_id, device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
+    island = await asyncio.to_thread(dependencies._own_island, island_id, device)
     if island["source"] != "youtube":
         raise HTTPException(400, {"code": "not_video"})
     video = await asyncio.to_thread(store.get_video, island_id)
@@ -2933,15 +2511,15 @@ async def upload_video_audio(
         raise HTTPException(400, {"code": "not_video"})
     if video["align_status"] in ("queued", "running"):
         raise HTTPException(409, {"code": "align_busy"})
-    if video["align_status"] == "done" or video["align_attempts"] >= ALIGN_MAX_ATTEMPTS:
+    if video["align_status"] == "done" or video["align_attempts"] >= config.ALIGN_MAX_ATTEMPTS:
         raise HTTPException(409, {"code": "align_closed"})
     # Claim the row before streaming, so a second upload racing this one gets
     # align_busy instead of overwriting the file.
-    if not await asyncio.to_thread(store.claim_align, island_id, ALIGN_MAX_ATTEMPTS):
+    if not await asyncio.to_thread(store.claim_align, island_id, config.ALIGN_MAX_ATTEMPTS):
         raise HTTPException(409, {"code": "align_busy"})
     src = store.video_audio_path(island_id, "src")
     try:
-        size = await asyncio.to_thread(_stream_upload, audio, src, VIDEO_AUDIO_MAX_BYTES)
+        size = await asyncio.to_thread(media_io._stream_upload, audio, src, config.VIDEO_AUDIO_MAX_BYTES)
         if size == 0:
             raise HTTPException(400, "empty upload")
     except BaseException:
@@ -2966,9 +2544,9 @@ async def post_captions_timing(
     claim and attempt rules as the audio upload, so the two never run at
     once and a video gets at most ALIGN_MAX_ATTEMPTS tries. 409 not_ready
     while the island is still being built."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
-    island = await asyncio.to_thread(_own_island, island_id, device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
+    island = await asyncio.to_thread(dependencies._own_island, island_id, device)
     if island["source"] != "youtube":
         raise HTTPException(400, {"code": "not_video"})
     video = await asyncio.to_thread(store.get_video, island_id)
@@ -2984,9 +2562,9 @@ async def post_captions_timing(
         raise HTTPException(400, {"code": "captions_invalid"})
     if video["align_status"] in ("queued", "running"):
         raise HTTPException(409, {"code": "align_busy"})
-    if video["align_status"] == "done" or video["align_attempts"] >= ALIGN_MAX_ATTEMPTS:
+    if video["align_status"] == "done" or video["align_attempts"] >= config.ALIGN_MAX_ATTEMPTS:
         raise HTTPException(409, {"code": "align_closed"})
-    if not await asyncio.to_thread(store.claim_align, island_id, ALIGN_MAX_ATTEMPTS):
+    if not await asyncio.to_thread(store.claim_align, island_id, config.ALIGN_MAX_ATTEMPTS):
         raise HTTPException(409, {"code": "align_busy"})
     try:
         await asyncio.to_thread(_write_captions_json, island_id, video["video_id"], None, asr_events)
@@ -3071,7 +2649,7 @@ async def _align_one(island_id: str) -> None:
         ]
         src = store.video_audio_path(island_id, "src")
         wav = store.video_audio_path(island_id, "wav")
-        if not src.exists() or not await asyncio.to_thread(_to_wav, src, wav, ALIGN_MAX_SECONDS):
+        if not src.exists() or not await asyncio.to_thread(media_io._to_wav, src, wav, config.ALIGN_MAX_SECONDS):
             raise align.AlignError("align_decode")
         try:
             audio_len = await asyncio.to_thread(_wav_seconds, wav)
@@ -3087,7 +2665,7 @@ async def _align_one(island_id: str) -> None:
             }, ensure_ascii=False), encoding="utf-8")
             result = await asyncio.to_thread(
                 align.run_job, job, store.video_audio_path(island_id, "out.json"),
-                timeout=ALIGN_TIMEOUT_S, unit=island_id,
+                timeout=config.ALIGN_TIMEOUT_S, unit=island_id,
             )
             by_idx = {ln["idx"]: ln for ln in lines}
             updates = align.apply(windows, lines, result)
@@ -3157,8 +2735,8 @@ async def get_progress(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     imm = await asyncio.to_thread(schedule.immersion, device)
     listened = imm["total"]
     # Heal the hours ladder on read, so listening from before it existed pays.
@@ -3169,7 +2747,7 @@ async def get_progress(
     snap["counted_seconds"] = imm["counted_total"]
     snap["known_lines"] = await asyncio.to_thread(store.count_known, device)
     if energy.ON:
-        snap["energy"] = await asyncio.to_thread(energy.status, device, _is_owner(device))
+        snap["energy"] = await asyncio.to_thread(energy.status, device, dependencies._is_owner(device))
     return snap
 
 
@@ -3189,8 +2767,8 @@ async def leaderboard(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     return await asyncio.to_thread(progression.leaderboard, device, limit, _all_handles)
 
 
@@ -3200,8 +2778,8 @@ async def cosmetics_catalog(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     imm = await asyncio.to_thread(schedule.immersion, device)
     listened = imm["total"]
     await asyncio.to_thread(progression.grant_hours, device, imm["counted_total"])
@@ -3217,8 +2795,8 @@ async def cosmetics_buy(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     return await asyncio.to_thread(progression.buy, device, item_id)
 
 
@@ -3229,15 +2807,15 @@ async def cosmetics_equip(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     return await asyncio.to_thread(progression.equip, device, slot, item_id)
 
 
 # cat-username routes
 def _require_user(x_shadow_device: str) -> str:
     """The signed-in owner id. A bare device id cannot own a handle."""
-    owner = _require_device(x_shadow_device)
+    owner = dependencies._require_device(x_shadow_device)
     if not accounts.USER_RE.match(owner):
         raise HTTPException(401, "sign in to set a username")
     return owner
@@ -3248,7 +2826,7 @@ async def username_get(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
+    dependencies.require_token(authorization)
     owner = _require_user(x_shadow_device)
     return {"username": await asyncio.to_thread(user_profile.get_username, owner)}
 
@@ -3259,7 +2837,7 @@ async def username_check(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
+    dependencies.require_token(authorization)
     owner = _require_user(x_shadow_device)
     return await asyncio.to_thread(user_profile.check, owner, name)
 
@@ -3270,7 +2848,7 @@ async def username_set(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
+    dependencies.require_token(authorization)
     owner = _require_user(x_shadow_device)
     try:
         name = await asyncio.to_thread(user_profile.set_username, owner, username)
@@ -3291,8 +2869,8 @@ async def profile_get(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
-    _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    dependencies._require_device(x_shadow_device)
     lang = ui if isinstance(ui, str) else "en"
     res = await asyncio.to_thread(stats.profile, username, _all_handles, lang)
     if res is None:
@@ -3311,9 +2889,9 @@ async def review_save(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
-    island = await asyncio.to_thread(_own_island, island_id, device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
+    island = await asyncio.to_thread(dependencies._own_island, island_id, device)
     line = next((l for l in island["lines"] if l["idx"] == idx), None)
     if line is None:
         raise HTTPException(404, "no such line")
@@ -3332,8 +2910,8 @@ async def review_delete(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     if not await asyncio.to_thread(review_deck.delete_card, device, card_id):
         raise HTTPException(404, "no such card")
     return {"ok": True}
@@ -3345,8 +2923,8 @@ async def review_list(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     cards = await asyncio.to_thread(review_deck.list_cards, device, island_id)
     return {"cards": cards}
 
@@ -3356,8 +2934,8 @@ async def review_due(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     due = await asyncio.to_thread(review_deck.due_cards, device, review_deck._today())
     total = await asyncio.to_thread(review_deck.count_cards, device)
     return {"due": due, "total": total}
@@ -3370,8 +2948,8 @@ async def review_grade(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     if result not in ("again", "got"):
         raise HTTPException(400, "result must be again or got")
     card = await asyncio.to_thread(
@@ -3390,8 +2968,8 @@ async def review_audio(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> FileResponse:
-    _token_or_header(token, authorization)
-    dev = _require_device(x_shadow_device, device)
+    dependencies._token_or_header(token, authorization)
+    dev = dependencies._require_device(x_shadow_device, device)
     card = await asyncio.to_thread(review_deck.get_card, dev, card_id)
     path = review_deck.clip_path(card_id)
     if card is None or card["kind"] != "clip" or not await asyncio.to_thread(path.exists):
@@ -3461,8 +3039,8 @@ async def review_session_finished(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     await asyncio.to_thread(
         review_session.finish, device, body.session_id, body.sentences, body.seconds,
         body.avg_score, [ln.model_dump() for ln in body.lines], body.completed,
@@ -3516,10 +3094,10 @@ async def review_session_plan(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     edit = _session_edit(projects)
-    on = await asyncio.to_thread(_beta_on, device)
+    on = await asyncio.to_thread(access._beta_on, device)
     return await asyncio.to_thread(review_session.plan, device,
                                    size if edit else _session_size(size),
                                    [k for k in order.split(",") if k], edit, language or None, on)
@@ -3531,9 +3109,9 @@ async def review_session_projects(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
-    on = await asyncio.to_thread(_beta_on, device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
+    on = await asyncio.to_thread(access._beta_on, device)
     return {"projects": await asyncio.to_thread(review_session.available, device,
                                                 language or None, on)}
 
@@ -3544,10 +3122,10 @@ async def review_session_start(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     edit = [(p.island_id, p.count) for p in body.projects] or None
-    on = await asyncio.to_thread(_beta_on, device)
+    on = await asyncio.to_thread(access._beta_on, device)
     return await asyncio.to_thread(review_session.start, device,
                                    body.size if edit else _session_size(body.size),
                                    body.order, edit, body.language or None, on)
@@ -3558,8 +3136,8 @@ async def starter_finish(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     owner = device
     return {"progress": await asyncio.to_thread(progression.grant_starter, owner),
             "item": progression.STARTER_ITEM}
@@ -3576,8 +3154,8 @@ async def starter_start(
     """The first-run starter island: seeded from the baked template for the
     level pick, free and instant. A repeat call with the same level returns
     the island the device already has; the other level seeds its own."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     if language not in ("ja", "es", "en"):
         raise HTTPException(400, "language must be 'ja', 'es' or 'en'")
     if native not in ("he", "en"):
@@ -3606,7 +3184,7 @@ async def starter_start(
 
 def _known_line(island_id: str, idx: int, device: str) -> None:
     """404 unless `device` owns the island and the line exists."""
-    island = _own_island(island_id, device)
+    island = dependencies._own_island(island_id, device)
     if not any(l["idx"] == idx for l in island["lines"]):
         raise HTTPException(404, "no such line")
 
@@ -3637,8 +3215,8 @@ async def mark_known(
     lines skip the prep passes. The award pays once per line, only when the
     mark is new and the line was ever taken whole; otherwise `award` is
     None. Returns the island's known idxs and the device's total."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     return await asyncio.to_thread(_mark_known, device, island_id, idx)
 
 
@@ -3650,8 +3228,8 @@ async def unmark_known(
     x_shadow_device: str = Header(""),
 ) -> dict:
     """Takes the mark back. Idempotent; a paid award stays paid."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     return await asyncio.to_thread(_unmark_known, device, island_id, idx)
 
 
@@ -3664,7 +3242,7 @@ def _energy_target(device: str, username: str) -> str:
     """Owner only: the device behind a handle. 403 for anyone else, flag or
     no flag, so the grant control has no server surface for other users;
     404 when no profile carries the handle."""
-    if not _is_owner(device):
+    if not dependencies._is_owner(device):
         raise HTTPException(403, {"code": "not_owner"})
     row = user_profile.lookup(username)
     if row is None:
@@ -3675,8 +3253,8 @@ def _energy_target(device: str, username: str) -> str:
 def _energy_with_builds(device: str) -> dict:  # --- ai-guardrails ---
     """energy.status plus the daily AI-build budget: `builds_left` and
     `builds_max` (owner sees a full budget)."""
-    snap = energy.status(device, _is_owner(device))
-    used = 0 if _is_owner(device) else store.count_builds_today_kinds(device, guardrails.BUILD_KINDS)
+    snap = energy.status(device, dependencies._is_owner(device))
+    used = 0 if dependencies._is_owner(device) else store.count_builds_today_kinds(device, guardrails.BUILD_KINDS)
     snap["builds_max"] = guardrails.USER_AI_BUILDS
     snap["builds_left"] = max(0, guardrails.USER_AI_BUILDS - used)
     return snap
@@ -3689,8 +3267,8 @@ async def energy_get(
     x_shadow_device: str = Header(""),
 ) -> dict:
     """Own status, or `?username=` for another user's (owner only)."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     if username:
         target = await asyncio.to_thread(_energy_target, device, username)
         if not energy.ON:
@@ -3711,14 +3289,14 @@ async def energy_grant(
 ) -> dict:
     """Owner only: adds `amount` to the user's grant balance and returns
     their status. Logged with the granter, the handle and the note."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     target = await asyncio.to_thread(_energy_target, device, username)
     if not energy.ON:
         return {"on": False}
     note = note.strip()[:200]
     return await asyncio.to_thread(
-        energy.grant, device, target, username, amount, note, _is_owner(target)
+        energy.grant, device, target, username, amount, note, dependencies._is_owner(target)
     )
 
 
@@ -3732,8 +3310,8 @@ async def leaderboard_weekly(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     return await asyncio.to_thread(stats.weekly_league, device, language, limit, _all_handles)
 
 
@@ -3748,9 +3326,9 @@ async def ai_picks(
 ) -> dict:
     """The AI picks 5 to 10 easy lines of a podcast episode that has no saved
     sentences and saves them as review cards, each with a grammar tag."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
-    island = await asyncio.to_thread(_own_island, island_id, device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
+    island = await asyncio.to_thread(dependencies._own_island, island_id, device)
     if island.get("source") != "podcast":
         raise HTTPException(409, {"code": "not_podcast"})
     if await asyncio.to_thread(review_deck.list_cards, device, island_id):
@@ -3760,12 +3338,12 @@ async def ai_picks(
     usable = [l for l in island["lines"] if generate.PICK_MIN_S <= float(l.get("duration") or 0) <= generate.PICK_MAX_S]
     if len(usable) < generate.PICK_MIN_PICKS:
         raise HTTPException(409, {"code": "no_lines"})
-    await asyncio.to_thread(_take_use_slot, device, "pick_sentences", "pick")
+    await asyncio.to_thread(dependencies._take_use_slot, device, "pick_sentences", "pick")
     picks = await asyncio.to_thread(
         generate.pick_shadow_lines, island["lines"], island.get("native") or "en"
     )
     if len(picks) < generate.PICK_MIN_PICKS:
-        await asyncio.to_thread(_refund_use_slot, device, "pick_sentences", "pick")
+        await asyncio.to_thread(dependencies._refund_use_slot, device, "pick_sentences", "pick")
         raise HTTPException(502, {"code": "pick_failed"})
     by_idx = {l["idx"]: l for l in island["lines"]}
     video = await asyncio.to_thread(store.get_video, island_id)
@@ -3779,7 +3357,7 @@ async def ai_picks(
             if str(exc) == "full":
                 break  # keep what is saved so far
     if not cards:
-        await asyncio.to_thread(_refund_use_slot, device, "pick_sentences", "pick")
+        await asyncio.to_thread(dependencies._refund_use_slot, device, "pick_sentences", "pick")
         raise HTTPException(502, {"code": "pick_failed"})
     return {"cards": cards, "picked": len(cards)}
 
@@ -3801,8 +3379,8 @@ async def dev_coins(
     """Dev only: grants coins to the calling device. 404 in prod."""
     if not dev_review.enabled():
         raise HTTPException(404, "not found")
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     return await asyncio.to_thread(progression.grant_coins, device, body.amount, body.clear_freezes)
 
 _PURCHASE_ID = re.compile(r"[A-Za-z0-9-]{8,64}")
@@ -3814,8 +3392,8 @@ async def streak_freeze_buy(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     if not _PURCHASE_ID.fullmatch(purchase_id):
         raise HTTPException(422, {"code": "bad_purchase_id"})
     return await asyncio.to_thread(progression.buy_freeze, device, purchase_id)
@@ -3859,9 +3437,9 @@ async def post_video_repair(
     Replies {repair: queued | running | done}. 404 not the owner, 400
     not_video, 409 not_ready while building, 409 repair_closed when the
     attempts are spent."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
-    island = await asyncio.to_thread(_own_island, island_id, device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
+    island = await asyncio.to_thread(dependencies._own_island, island_id, device)
     if island["source"] != "youtube":
         raise HTTPException(400, {"code": "not_video"})
     video = await asyncio.to_thread(store.get_video, island_id)
@@ -3881,7 +3459,7 @@ async def post_video_repair(
         raise HTTPException(409, {"code": "repair_closed"})
     # Switch and cap first, so a refusal claims nothing; the slot row is
     # written only once the claim is won, so a lost race costs no slot.
-    owner = _is_owner(device)
+    owner = dependencies._is_owner(device)
     if not owner:  # --- ai-guardrails ---
         await asyncio.to_thread(guardrails.check_ai_call, device, "repair")
     if not await asyncio.to_thread(store.claim_repair, island_id, repair.REPAIR_MAX_ATTEMPTS, repair.VERSION):
@@ -3902,8 +3480,8 @@ async def catch_collection(
     x_shadow_device: str = Header(""),
 ) -> dict:
     """The device's caught words, with Known/Learning counts. Read only."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     return await asyncio.to_thread(catch.collection, device, language)
 # --- end bl72-known-words ---
 
@@ -3918,9 +3496,9 @@ async def llm_spend(
     x_shadow_device: str = Header(""),
 ) -> dict:
     """This month's LLM bill: backend, cap, calls and USD by tag. Owner only."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
-    if not _is_owner(device):
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
+    if not dependencies._is_owner(device):
         raise HTTPException(403, {"code": "not_owner"})
     summary = await asyncio.to_thread(store.llm_spend_summary)
     return {"backend": llm.backend(), "cap_usd": llm.MONTHLY_USD, **summary}
@@ -3928,118 +3506,15 @@ async def llm_spend(
 
 
 # --- launch-basics: beta routes ---
-# Admins are the owner devices plus the user ids in SHADOW_ADMIN_USERS (comma
-# list, read at import so a test can monkeypatch the constant). One switch per
-# principal (`beta`) turns on everything that is not shadowing: content
-# sources (youtube, podcast, import), the cat and XP layer, streaks and the
-# social screens. `admin` only says who may open the Admin screen.
-def _parse_admin_users(raw: str | None) -> frozenset[str]:
-    return frozenset(u.strip() for u in (raw or "").split(",") if u.strip())
-
-
-ADMIN_USERS = _parse_admin_users(os.getenv("SHADOW_ADMIN_USERS"))
-
-
-def _is_admin(principal: str) -> bool:
-    return bool(principal) and (principal in ADMIN_USERS or _is_owner(principal))
-
-
-def _require_admin(principal: str) -> None:
-    if not _is_admin(principal):
-        raise HTTPException(403, {"code": "not_admin"})
-
-
-def _beta_on(principal: str) -> bool:
-    """The effective switch: a stored flag wins; with no row an admin is on
-    and everyone else is off. An admin who flips himself off really is off."""
-    flag = beta.flag(principal)
-    return flag if flag is not None else _is_admin(principal)
-
-
-# Routes the switch gates: DeviceGuard answers 403 not_beta when it is off.
-# Every other route is core shadowing and stays open: islands CRUD, line
-# audio, takes, regenerate, revoice, export, lines/{idx}/known, word audio,
-# gloss and explain, phrases, grammar, starter, review/due and
-# review/session, energy, username, account, speakers, health, privacy, dev,
-# llm/spend, beta and admin/beta. A new beta route must be added here or it
-# is open to everyone (test_beta.py has a row per family).
-BETA_PATHS = tuple(
-    re.compile(p)
-    for p in (
-        r"^/shadow/islands/import$",
-        r"^/shadow/podcasts(/.*)?$",
-        r"^/shadow/youtube/.*$",
-        r"^/shadow/videos$",
-        r"^/shadow/islands/[^/]+/(video|video-audio|captions-timing|episode|repair|ai-picks)$",
-        r"^/shadow/catch/.*$",
-        r"^/shadow/progress$",
-        r"^/shadow/leaderboard(/.*)?$",
-        r"^/shadow/cosmetics/.*$",
-        r"^/shadow/profile/.*$",
-        r"^/shadow/streak/.*$",
-        r"^/shadow/review/cards(/.*)?$",
-    )
-)
-
-
-def _shared_token_ok(headers: dict, query: dict) -> bool:
-    """The bearer header or the media `token` query matches SHADOW_TOKEN,
-    the same two ways require_token and _token_or_header accept it."""
-    if not SHADOW_TOKEN:
-        return False
-    want = SHADOW_TOKEN.encode("utf-8")
-    auth = headers.get(b"authorization", b"")
-    sent = [auth[len(b"Bearer "):]] if auth.startswith(b"Bearer ") else []
-    sent += [t.encode("utf-8") for t in query.get("token", [])]
-    return any(secrets.compare_digest(t, want) for t in sent)
-
-
-async def _beta_denied(path: str, principal: str) -> bool:
-    """True when the path is beta-only and the principal's switch is off.
-    Core routes return at once without touching sqlite."""
-    if not any(p.match(path) for p in BETA_PATHS):
-        return False
-    return not await asyncio.to_thread(_beta_on, principal)
-
-
-def _beta_people(me: str) -> list[dict]:
-    flags = beta.list_flags()
-    handles = user_profile.all_usernames()
-    with store.connect() as conn:
-        devices = {
-            r[0]
-            for r in conn.execute("SELECT DISTINCT device FROM islands WHERE device != ''")
-            if DEVICE_ID_RE.match(r[0]) and not accounts.USER_RE.match(r[0])
-        }
-    owners = set(handles) | devices | set(flags) | {me}
-    people = [
-        {
-            "owner": o,
-            "handle": handles.get(o),
-            "kind": "user" if o in handles or accounts.USER_RE.match(o) else "device",
-            "enabled": flags.get(o, _is_admin(o)),
-            "me": o == me,
-        }
-        for o in owners
-    ]
-    people.sort(key=lambda p: (not p["me"], p["handle"] is None, p["handle"] or p["owner"]))
-    return people
-
-
-class BetaBody(BaseModel):
-    owner: str
-    enabled: bool
-
-
 @app.get("/shadow/beta")
 async def beta_get(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ):
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
-    admin = _is_admin(device)
-    on = await asyncio.to_thread(_beta_on, device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
+    admin = access._is_admin(device)
+    on = await asyncio.to_thread(access._beta_on, device)
     return {"admin": admin, "beta": on, "youtube": on, "podcast": on, "import": on}
 
 
@@ -4048,22 +3523,22 @@ async def admin_beta_list(
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ):
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
-    _require_admin(device)
-    return {"people": await asyncio.to_thread(_beta_people, device)}
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
+    access._require_admin(device)
+    return {"people": await asyncio.to_thread(access._beta_people, device)}
 
 
 @app.put("/shadow/admin/beta")
 async def admin_beta_set(
-    body: BetaBody,
+    body: access.BetaBody,
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ):
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
-    _require_admin(device)
-    if not (DEVICE_ID_RE.match(body.owner) or accounts.USER_RE.match(body.owner)):
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
+    access._require_admin(device)
+    if not (dependencies.DEVICE_ID_RE.match(body.owner) or accounts.USER_RE.match(body.owner)):
         raise HTTPException(400, {"code": "bad_owner"})
     await asyncio.to_thread(beta.set_flag, body.owner, body.enabled, device)
     return {"owner": body.owner, "enabled": body.enabled}
@@ -4071,23 +3546,6 @@ async def admin_beta_set(
 
 
 # --- say-it ---
-DAILY_SAYS = int(os.getenv("SHADOW_DAILY_SAYS", "40"))
-
-
-def _take_say_slot(device: str) -> None:
-    """`_take_build_slot` for one said sentence: the switch, its own daily
-    cap, one energy unit, then the slot row. "say" is not in
-    guardrails.BUILD_KINDS, so it never eats the daily AI build budget.
-    Owner exempt, refunded by `_refund_build_slot(device, "say", "say")`."""
-    if _is_owner(device):
-        return
-    guardrails.check_switch("say")
-    if store.count_builds_today(device, "say") >= DAILY_SAYS:
-        raise HTTPException(429, {"code": "daily_limit", "limit": DAILY_SAYS, "kind": "say"})
-    energy.charge(device, "say", False)
-    store.log_build(device, "say")
-
-
 async def _build_say(island_id: str, wav: Path, speaker: int, register: str,
                      learning: str, native: str, transcript: str = "") -> None:
     """Transcribe the native sentence, ask for the line(s) in `learning`,
@@ -4143,8 +3601,8 @@ async def create_say(
     """One sentence said in `native`, built into a 1-line (or few-line)
     voice island in `language`. `dev_transcript` stands in for whisper
     outside prod only. The client polls GET /shadow/islands/{id}."""
-    require_token(authorization)
-    device = _require_device(x_shadow_device)
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
     if register not in generate.REGISTER_RULES:
         raise HTTPException(400, "register must be 'polite' or 'casual'")
     if language not in ("ja", "es", "en"):
@@ -4159,11 +3617,11 @@ async def create_say(
     raw = await audio.read()
     if not raw:
         raise HTTPException(400, {"code": "empty_upload"})
-    if len(raw) > MAX_UPLOAD_BYTES:
+    if len(raw) > config.MAX_UPLOAD_BYTES:
         raise HTTPException(413, {"code": "recording_too_large"})
     transcript = dev_transcript.strip() if dev_review.enabled() else ""
 
-    _take_say_slot(device)
+    dependencies._take_say_slot(device)
     island_id = store.create_island(
         "simple", speaker, register, language, native=native, device=device,
         source="voice", source_name="say",
@@ -4174,15 +3632,15 @@ async def create_say(
     src.write_bytes(raw)
 
     wav = store.AUDIO_DIR / island_id / "source.wav"
-    if not _to_wav(src, wav):
+    if not media_io._to_wav(src, wav):
         shutil.rmtree(tmp_dir, ignore_errors=True)
         store.set_failed(island_id, "That audio file could not be decoded.", "audio_undecodable")
-        _refund_build_slot(device, "say", "say")
+        dependencies._refund_build_slot(device, "say", "say")
         raise HTTPException(400, {"code": "audio_undecodable"})
     shutil.rmtree(tmp_dir, ignore_errors=True)
 
     background.add_task(
-        _refunding(_build_say, island_id, device, "say", "say"),
+        dependencies._refunding(_build_say, island_id, device, "say", "say"),
         island_id, wav, speaker, register, language, native, transcript,
     )
     return {"id": island_id, "status": "pending"}

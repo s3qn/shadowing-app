@@ -11,6 +11,9 @@ import accounts
 import beta
 import catch
 import main
+import access
+import config
+import dependencies
 import store
 
 from test_accounts import _token, key  # noqa: F401  (key is a fixture)
@@ -24,10 +27,10 @@ client = TestClient(main.app)
 
 @pytest.fixture(autouse=True)
 def env(monkeypatch):
-    monkeypatch.setattr(main, "SHADOW_TOKEN", "t0k")
-    monkeypatch.setattr(main, "ADMIN_USERS", frozenset({ADMIN}))
-    monkeypatch.setattr(main, "OWNER_DEVICE", "")
-    monkeypatch.setattr(main, "OWNER_ALIASES", frozenset())
+    monkeypatch.setattr(config, "SHADOW_TOKEN", "t0k")
+    monkeypatch.setattr(access, "ADMIN_USERS", frozenset({ADMIN}))
+    monkeypatch.setattr(dependencies, "OWNER_DEVICE", "")
+    monkeypatch.setattr(dependencies, "OWNER_ALIASES", frozenset())
     beta.init()
     store.init()
     catch.init()
@@ -101,9 +104,9 @@ def test_beta_get_states():
 def test_admin_who_flips_himself_off_is_off():
     beta.set_flag(ADMIN, False, ADMIN)
     assert _get(ADMIN) == _state(admin=True, on=False)
-    assert main._beta_on(ADMIN) is False
+    assert access._beta_on(ADMIN) is False
     beta.delete_owner(ADMIN)
-    assert main._beta_on(ADMIN) is True
+    assert access._beta_on(ADMIN) is True
 
 
 def test_people_row_for_fresh_admin_is_enabled():
@@ -117,7 +120,7 @@ def test_people_row_for_fresh_admin_is_enabled():
 
 def test_owner_device_is_admin(monkeypatch):
     d = _dev()
-    monkeypatch.setattr(main, "OWNER_DEVICE", d)
+    monkeypatch.setattr(dependencies, "OWNER_DEVICE", d)
     assert _get(d)["admin"] is True
 
 
@@ -129,42 +132,42 @@ def test_admin_routes_403_for_non_admin_and_flagged():
             _run(main.admin_beta_list(AUTH, dev))
         assert e.value.status_code == 403 and e.value.detail == {"code": "not_admin"}
         with pytest.raises(HTTPException) as e:
-            _run(main.admin_beta_set(main.BetaBody(owner=d, enabled=True), AUTH, dev))
+            _run(main.admin_beta_set(access.BetaBody(owner=d, enabled=True), AUTH, dev))
         assert e.value.status_code == 403
 
 
 def test_admin_set_then_target_sees_it_and_list():
     d = _dev()
-    _run(main.admin_beta_set(main.BetaBody(owner=d, enabled=True), AUTH, ADMIN))
+    _run(main.admin_beta_set(access.BetaBody(owner=d, enabled=True), AUTH, ADMIN))
     assert _get(d)["podcast"] is True
     people = _run(main.admin_beta_list(AUTH, ADMIN))["people"]
     assert people[0]["me"] is True and people[0]["owner"] == ADMIN
     row = next(p for p in people if p["owner"] == d)
     assert row["enabled"] is True and row["kind"] == "device" and row["handle"] is None
-    _run(main.admin_beta_set(main.BetaBody(owner=d, enabled=False), AUTH, ADMIN))
+    _run(main.admin_beta_set(access.BetaBody(owner=d, enabled=False), AUTH, ADMIN))
     assert _get(d)["podcast"] is False
 
 
 def test_bad_owner_400():
     with pytest.raises(HTTPException) as e:
-        _run(main.admin_beta_set(main.BetaBody(owner="nope!", enabled=True), AUTH, ADMIN))
+        _run(main.admin_beta_set(access.BetaBody(owner="nope!", enabled=True), AUTH, ADMIN))
     assert e.value.status_code == 400
 
 
 def test_admin_users_parsing(monkeypatch):
     monkeypatch.setenv("SHADOW_ADMIN_USERS", f" {ADMIN} , ,x ")
-    parsed = main._parse_admin_users(main.os.getenv("SHADOW_ADMIN_USERS"))
+    parsed = access._parse_admin_users(main.os.getenv("SHADOW_ADMIN_USERS"))
     assert parsed == {ADMIN, "x"}
-    assert main._parse_admin_users(None) == frozenset()
-    assert main._parse_admin_users(" , ") == frozenset()
-    monkeypatch.setattr(main, "ADMIN_USERS", parsed)
-    assert main._is_admin(ADMIN) and not main._is_admin("y")
-    assert not main._is_admin("")
+    assert access._parse_admin_users(None) == frozenset()
+    assert access._parse_admin_users(" , ") == frozenset()
+    monkeypatch.setattr(access, "ADMIN_USERS", parsed)
+    assert access._is_admin(ADMIN) and not access._is_admin("y")
+    assert not access._is_admin("")
 
 
 # --- DeviceGuard beta gate ---
 
-# One row per family in main.BETA_PATHS, and the core routes next to them that
+# One row per family in access.BETA_PATHS, and the core routes next to them that
 # must stay open. A route added to the backend lands in one of the two lists.
 GATED = [
     "/shadow/islands/import",
@@ -238,12 +241,12 @@ CORE = [
 def test_beta_paths_by_family():
     d = _dev()
     for path in GATED:
-        assert _run(main._beta_denied(path, d)) is True, path
+        assert _run(access._beta_denied(path, d)) is True, path
     for path in CORE:
-        assert _run(main._beta_denied(path, d)) is False, path
+        assert _run(access._beta_denied(path, d)) is False, path
     beta.set_flag(d, True, ADMIN)
     for path in GATED:
-        assert _run(main._beta_denied(path, d)) is False, path
+        assert _run(access._beta_denied(path, d)) is False, path
 
 
 def test_gate_403_for_fresh_device_until_flagged():
@@ -258,7 +261,7 @@ def test_gate_403_for_fresh_device_until_flagged():
 
 def test_gate_owner_device_on_by_default_then_off(monkeypatch):
     d = _dev()
-    monkeypatch.setattr(main, "OWNER_DEVICE", d)
+    monkeypatch.setattr(dependencies, "OWNER_DEVICE", d)
     assert client.get("/shadow/leaderboard", headers=_hdr(d)).status_code != 403
     beta.set_flag(d, False, ADMIN)
     r = client.get("/shadow/leaderboard", headers=_hdr(d))

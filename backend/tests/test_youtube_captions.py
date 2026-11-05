@@ -9,10 +9,12 @@ import pytest
 from fastapi import BackgroundTasks, HTTPException
 
 import main
+import config
+import dependencies
 import store
 import youtube
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 VID = "dQw4w9WgXcQ"
 
 
@@ -24,7 +26,7 @@ def _init_db(monkeypatch):
     global DEV
     DEV = str(uuid.uuid4())
     store.init()
-    monkeypatch.setattr(main, "DAILY_CREATES", 1000)
+    monkeypatch.setattr(dependencies, "DAILY_CREATES", 1000)
     # youtube-asr-context-repair: the build hands the island to the repair
     # pass; these tests cover the build, test_repair.py covers the pass.
     monkeypatch.setattr(main.repair, "job", lambda *a, **k: None)

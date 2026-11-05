@@ -565,14 +565,14 @@ def _sentence_for(island: dict, word: str, language: str) -> str:
 def _captions_may_arrive(island_id: str) -> bool:
     """A YouTube island whose align is queued or running, or not yet tried
     with attempts left, can still get captions.json."""
-    from main import ALIGN_MAX_ATTEMPTS  # main imports this module
+    import config
     video = store.get_video(island_id)
     if not video:
         return False
     status = video.get("align_status") or ""
     if status in ("queued", "running"):
         return True
-    return status == "" and (video.get("align_attempts") or 0) < ALIGN_MAX_ATTEMPTS
+    return status == "" and (video.get("align_attempts") or 0) < config.ALIGN_MAX_ATTEMPTS
 
 
 def _words_sync(island_id: str, device: str) -> dict:

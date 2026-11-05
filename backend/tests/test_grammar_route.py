@@ -9,9 +9,11 @@ from fastapi import BackgroundTasks, HTTPException, UploadFile
 
 import grammar
 import main
+import config
+import media
 import store
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 JA_VOICE = 3
 ES_VOICE = 10011
 POINT = {"id": "ながら", "pattern": "AながらB", "reading": "ながら", "level": "N4",
@@ -58,7 +60,7 @@ def fakes(monkeypatch):
                         lambda *a, **k: {"title": "T", "lines": [{"ja": "走る。", "en": "r"}]})
     monkeypatch.setattr(main.voices, "speak_timed", speak_timed)
     monkeypatch.setattr(main.segment, "align", lambda *a, **k: [])
-    monkeypatch.setattr(main, "_to_wav", to_wav)
+    monkeypatch.setattr(media, "_to_wav", to_wav)
     return seen
 
 

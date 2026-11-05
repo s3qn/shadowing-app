@@ -10,11 +10,12 @@ import pytest
 from fastapi import HTTPException
 
 import main
+import config
 import progression
 import schedule
 import store
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 
 
 @pytest.fixture(autouse=True)

@@ -21,6 +21,8 @@ import pytest
 from fastapi import BackgroundTasks, HTTPException
 
 import main
+import config
+import dependencies
 import podcast
 import store
 
@@ -32,7 +34,7 @@ def _init_db():
     store.init()
 
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 DEV = "dddddddd-0000-4000-8000-00000000000d"
 
 
@@ -416,7 +418,7 @@ import review_deck
 import schedule
 
 PICK_DEV = "eeeeeeee-0000-4000-8000-0000000000c1"
-PICK_AUTH = f"Bearer {main.SHADOW_TOKEN}"
+PICK_AUTH = f"Bearer {config.SHADOW_TOKEN}"
 
 
 def _pick_island(source="podcast", device=PICK_DEV, count=12):
@@ -484,8 +486,8 @@ def test_ai_picks_too_few_is_502_and_free(monkeypatch):
 def test_ai_picks_refunds_energy_on_failure(monkeypatch):
     iid = _pick_island()
     calls = []
-    monkeypatch.setattr(main, "_take_use_slot", lambda d, k, c="": calls.append(("take", k, c)))
-    monkeypatch.setattr(main, "_refund_use_slot", lambda d, k, c: calls.append(("refund", k, c)))
+    monkeypatch.setattr(dependencies, "_take_use_slot", lambda d, k, c="": calls.append(("take", k, c)))
+    monkeypatch.setattr(dependencies, "_refund_use_slot", lambda d, k, c: calls.append(("refund", k, c)))
     _cli(monkeypatch, {"picks": []})
     assert _code(_picks, iid).status_code == 502
     assert calls == [("take", "pick_sentences", "pick"), ("refund", "pick_sentences", "pick")]
@@ -508,7 +510,7 @@ def test_ai_picks_not_podcast_and_other_device(monkeypatch):
 def test_ai_picks_daily_cap(monkeypatch):
     iid = _pick_island()
     _cli(monkeypatch, {"picks": [{"n": n, "tag": "t"} for n in (1, 2, 3)]})
-    monkeypatch.setitem(main.DAILY_CAPS, "pick_sentences", 0)
+    monkeypatch.setitem(dependencies.DAILY_CAPS, "pick_sentences", 0)
     err = _code(_picks, iid)
     assert err.status_code == 429
     assert err.detail["code"] == "daily_limit" and err.detail["kind"] == "pick_sentences"

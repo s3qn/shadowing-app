@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 
 import llm
 import main
+import dependencies
 import store
 import suggest
 
@@ -227,7 +228,7 @@ def test_ai_jobs_switch_pauses_background_calls(monkeypatch, tmp_path):
 
     admin = tmp_path / "admin.json"
     monkeypatch.setenv("SHADOW_ADMIN_FILE", str(admin))
-    monkeypatch.setattr(llm, "_pause_check", main._ai_paused)
+    monkeypatch.setattr(llm, "_pause_check", dependencies._ai_paused)
     fake = use(monkeypatch, FakeClient(text_reply("g")))
     assert llm.complete("p", {"type": "string"}, tag="repair") == "g"
     admin.write_text('{"ai_jobs": false}')
@@ -404,7 +405,7 @@ def test_run_cli_strips_keys_and_routes_the_model(monkeypatch):
 # ---- owner spend route ----
 
 def test_spend_route_is_owner_only(monkeypatch):
-    monkeypatch.setattr(main, "OWNER_DEVICE", OWNER)
+    monkeypatch.setattr(dependencies, "OWNER_DEVICE", OWNER)
     assert client.get("/shadow/llm/spend", headers=_head(STRANGER)).status_code == 403
     store.log_llm_call("repair", llm.TIERS["sonnet"], 100, 50, 0.001, True, "vid9")
     r = client.get("/shadow/llm/spend", headers=_head(OWNER))

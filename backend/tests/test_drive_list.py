@@ -4,9 +4,10 @@ per-line audio (caption-only YouTube islands)."""
 from fastapi.testclient import TestClient
 
 import main
+import config
 import store
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 DEV = "eeeeeeee-0000-4000-8000-000000000005"
 
 client = TestClient(main.app)

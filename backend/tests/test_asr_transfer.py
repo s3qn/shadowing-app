@@ -11,6 +11,7 @@ import asr_transfer
 import caption_timing
 import beta
 import main
+import config
 import segment
 import store
 import youtube
@@ -320,7 +321,7 @@ def test_route_rejections():
     store.set_align_status(island_id, "running")
     assert post(island_id, body).json()["detail"] == {"code": "align_busy"}
     store.set_align_status(island_id, "failed", "x", count_attempt=True)
-    for _ in range(main.ALIGN_MAX_ATTEMPTS - 1):
+    for _ in range(config.ALIGN_MAX_ATTEMPTS - 1):
         store.set_align_status(island_id, "failed", "x", count_attempt=True)
     assert post(island_id, body).json()["detail"] == {"code": "align_closed"}
 

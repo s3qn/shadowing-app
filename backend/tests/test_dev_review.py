@@ -7,6 +7,7 @@ from fastapi import HTTPException
 
 import dev_review
 import main
+import config
 
 AUTH = "Bearer t0k"
 
@@ -120,7 +121,7 @@ def test_done_route_absent_in_prod(monkeypatch):
 def test_dev_coins_grants_in_dev_and_404_in_prod(monkeypatch):
     import asyncio
 
-    monkeypatch.setattr(main, "SHADOW_TOKEN", "t0k")
+    monkeypatch.setattr(config, "SHADOW_TOKEN", "t0k")
     body = main.DevCoinsBody(amount=500)
     dev = "dec0ffee-1234"
     before = main.progression.snapshot(dev)["coins"]
@@ -135,7 +136,7 @@ def test_dev_coins_grants_in_dev_and_404_in_prod(monkeypatch):
 def test_dev_coins_clear_freezes_lets_a_test_buy_again(monkeypatch):
     import asyncio
 
-    monkeypatch.setattr(main, "SHADOW_TOKEN", "t0k")
+    monkeypatch.setattr(config, "SHADOW_TOKEN", "t0k")
     dev = "dec0ffee-5678"
     main.progression.grant_coins(dev, 10_000)
     cap = main.progression.snapshot(dev)["freeze_cap"]

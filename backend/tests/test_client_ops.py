@@ -17,6 +17,8 @@ import pytest
 from fastapi import HTTPException, UploadFile
 
 import main
+import config
+import dependencies
 import progression
 import schedule
 import store
@@ -29,7 +31,7 @@ def _init_db():
     schedule.init()
 
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 
 
 def _own(island_id: str, device: str) -> None:
@@ -43,7 +45,7 @@ def _own(island_id: str, device: str) -> None:
 
 
 def _owner() -> str:
-    # main._require_device accepts only the app's own device id shape.
+    # dependencies._require_device accepts only the app's own device id shape.
     return f"user_{uuid.uuid4().hex}"
 
 
@@ -155,9 +157,9 @@ def _fake_take(monkeypatch, tmp_path, owner: str, calls: list) -> None:
             "analysis": {"note": "", "coverage": 1.0, "curve": {"line": [1, 2], "take": [3]}},
         }
 
-    monkeypatch.setattr(main, "_own_island", lambda island_id, device: island)
+    monkeypatch.setattr(dependencies, "_own_island", lambda island_id, device: island)
     monkeypatch.setattr(main, "_load_take_profile", lambda aec, device: None)
-    monkeypatch.setattr(main, "_take_use_slot", lambda device, kind: None)
+    monkeypatch.setattr(dependencies, "_take_use_slot", lambda device, kind: None)
     monkeypatch.setattr(main, "_resolve_line_audio", fake_audio)
     monkeypatch.setattr(main, "_run_clean", clean)
 

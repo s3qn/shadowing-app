@@ -11,6 +11,8 @@ from fastapi.testclient import TestClient
 
 import beta
 import main
+import config
+import dependencies
 import podcast
 import store
 import suggest
@@ -19,7 +21,7 @@ import voicevox
 from test_accounts import _token, key  # noqa: F401  (key is a fixture)
 
 client = TestClient(main.app)
-AUTH = {"Authorization": f"Bearer {main.SHADOW_TOKEN}"}
+AUTH = {"Authorization": f"Bearer {config.SHADOW_TOKEN}"}
 DEV = "0123456789abcdef0123456789abcdef"
 
 
@@ -155,20 +157,20 @@ def test_valid_jwt_passes_and_bad_jwt_is_401(monkeypatch, key):  # noqa: F811
 # --- F2: per-owner caps ---
 def test_use_slot_caps_then_429(monkeypatch):
     dev = uuid.uuid4().hex
-    monkeypatch.setitem(main.DAILY_CAPS, "explain", 2)
-    main._take_use_slot(dev, "explain")
-    main._take_use_slot(dev, "explain")
+    monkeypatch.setitem(dependencies.DAILY_CAPS, "explain", 2)
+    dependencies._take_use_slot(dev, "explain")
+    dependencies._take_use_slot(dev, "explain")
     with pytest.raises(HTTPException) as err:
-        main._take_use_slot(dev, "explain")
+        dependencies._take_use_slot(dev, "explain")
     assert err.value.status_code == 429
     assert err.value.detail == {"code": "daily_limit", "limit": 2, "kind": "explain"}
 
 
 def test_use_slot_owner_is_exempt(monkeypatch):
     owner = uuid.uuid4().hex
-    monkeypatch.setattr(main, "OWNER_DEVICE", owner)
-    monkeypatch.setitem(main.DAILY_CAPS, "take", 0)
-    main._take_use_slot(owner, "take")
+    monkeypatch.setattr(dependencies, "OWNER_DEVICE", owner)
+    monkeypatch.setitem(dependencies.DAILY_CAPS, "take", 0)
+    dependencies._take_use_slot(owner, "take")
 
 
 def test_cached_word_audio_does_not_use_a_slot(monkeypatch, tmp_path):
@@ -186,7 +188,7 @@ def test_cached_word_audio_does_not_use_a_slot(monkeypatch, tmp_path):
 
     monkeypatch.setattr(main.voices, "speak_timed", speak_timed)
     monkeypatch.setattr(store, "DATA_DIR", tmp_path)
-    monkeypatch.setitem(main.DAILY_CAPS, "word_audio", 1)
+    monkeypatch.setitem(dependencies.DAILY_CAPS, "word_audio", 1)
     h = {**AUTH, "X-Shadow-Device": dev}
     assert client.get("/shadow/word-audio", params={"text": "猫"}, headers=h).status_code == 200
     assert client.get("/shadow/word-audio", params={"text": "猫"}, headers=h).status_code == 200

@@ -9,6 +9,7 @@ from datetime import date
 import pytest
 
 import main
+import config
 import schedule
 import spacing
 import store
@@ -20,7 +21,7 @@ def _init_db():
     schedule.init()
 
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 DEV = "dev-a"
 
 

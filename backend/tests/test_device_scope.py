@@ -11,6 +11,8 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 import main
+import config
+import dependencies
 import schedule
 import store
 
@@ -21,7 +23,7 @@ def _init_db():
     schedule.init()
 
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 DEV_A = "aaaaaaaa-0000-4000-8000-000000000001"
 DEV_B = "bbbbbbbb-0000-4000-8000-000000000002"
 
@@ -142,7 +144,7 @@ def test_line_audio_checks_ownership_without_loading_the_lines(monkeypatch):
 def test_require_owner_never_matches_an_empty_device_on_an_unclaimed_island():
     iid = store.create_island("simple", 3)
     with pytest.raises(HTTPException) as exc_info:
-        main._require_owner(iid, "")
+        dependencies._require_owner(iid, "")
     assert exc_info.value.status_code == 404
 
 
@@ -194,8 +196,8 @@ def test_claim_owner_moves_unowned_island_and_practice_row(monkeypatch):
             (iid,),
         )
 
-    monkeypatch.setattr(main, "OWNER_DEVICE", DEV_A)
-    main._claim_owner()
+    monkeypatch.setattr(dependencies, "OWNER_DEVICE", DEV_A)
+    dependencies._claim_owner()
 
     assert store.get_island(iid)["device"] == DEV_A
     with schedule.connect() as conn:
@@ -207,7 +209,7 @@ def test_claim_owner_moves_unowned_island_and_practice_row(monkeypatch):
     # Idempotent: running it again changes nothing (there is nothing left to claim).
     n_before = store.claim_unowned("")  # no-op probe: nothing left at ''
     assert n_before == 0
-    main._claim_owner()
+    dependencies._claim_owner()
     assert store.get_island(iid)["device"] == DEV_A
 
 
@@ -254,7 +256,7 @@ def _profile(delay: int):
 def test_take_profile_is_per_device(monkeypatch):
     import aec
 
-    monkeypatch.setattr(main, "OWNER_DEVICE", "")
+    monkeypatch.setattr(dependencies, "OWNER_DEVICE", "")
     aec.save_profile(main._take_profile_name(DEV_A), _profile(7))
 
     assert main._load_take_profile(aec, DEV_A).delay == 7
@@ -265,7 +267,7 @@ def test_owner_device_falls_back_to_the_shared_default_profile(monkeypatch):
     import aec
 
     owner = "cccccccc-0000-4000-8000-000000000003"
-    monkeypatch.setattr(main, "OWNER_DEVICE", owner)
+    monkeypatch.setattr(dependencies, "OWNER_DEVICE", owner)
     aec.save_profile(main.LEGACY_TAKE_PROFILE, _profile(11))
     try:
         assert main._load_take_profile(aec, owner).delay == 11
@@ -276,6 +278,6 @@ def test_owner_device_falls_back_to_the_shared_default_profile(monkeypatch):
 
 def test_require_device_rejects_a_malformed_id():
     with pytest.raises(HTTPException) as exc:
-        main._require_device("../../etc")
+        dependencies._require_device("../../etc")
     assert exc.value.status_code == 401
-    assert main._require_device(DEV_A) == DEV_A
+    assert dependencies._require_device(DEV_A) == DEV_A

@@ -14,12 +14,14 @@ from fastapi.testclient import TestClient
 
 import accounts
 import main
+import config
+import dependencies
 import review_deck
 import schedule
 import store
 
 KID = "test-kid-1"
-AUTH = {"Authorization": f"Bearer {main.SHADOW_TOKEN}"}
+AUTH = {"Authorization": f"Bearer {config.SHADOW_TOKEN}"}
 client = TestClient(main.app)
 
 
@@ -255,13 +257,13 @@ def test_legacy_device_request_is_unchanged():
 
 
 def test_build_slot_counts_per_user(monkeypatch):
-    monkeypatch.setattr(main, "DAILY_CREATES", 1)
+    monkeypatch.setattr(dependencies, "DAILY_CREATES", 1)
     a = accounts.principal(str(uuid.uuid4()))
     b = accounts.principal(str(uuid.uuid4()))
-    main._take_build_slot(a, "create")
-    main._take_build_slot(b, "create")
+    dependencies._take_build_slot(a, "create")
+    dependencies._take_build_slot(b, "create")
     with pytest.raises(HTTPException) as exc:
-        main._take_build_slot(a, "create")
+        dependencies._take_build_slot(a, "create")
     assert exc.value.status_code == 429
 
 

@@ -9,9 +9,11 @@ import pytest
 from fastapi import BackgroundTasks, HTTPException, UploadFile
 
 import main
+import config
+import media
 import store
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 JA_VOICE = 3
 ES_VOICE = 10011
 ROWS = [
@@ -59,7 +61,7 @@ def pipeline(monkeypatch):
              **({"tatoeba_id": None} if tid else {})},
         ]}
 
-    monkeypatch.setattr(main, "_to_wav", to_wav)
+    monkeypatch.setattr(media, "_to_wav", to_wav)
     monkeypatch.setattr(main.transcribe, "transcribe",
                         lambda *a, **k: {"text": "phrases for the gym", "language": "en"})
     monkeypatch.setattr(main.generate, "expand_topic", expand)

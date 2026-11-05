@@ -16,6 +16,7 @@ import generate
 import llm
 import beta
 import main
+import dependencies
 import repair
 import segment
 import store
@@ -688,7 +689,7 @@ def test_build_claims_the_repair_before_ready_so_an_open_mid_translation_is_a_no
 
 
 def test_import_route_stores_the_context(monkeypatch):
-    monkeypatch.setattr(main, "DAILY_CREATES", 1000)
+    monkeypatch.setattr(dependencies, "DAILY_CREATES", 1000)
     monkeypatch.setattr(main.repair, "job", lambda *a, **k: None)
     monkeypatch.setattr(generate, "translate_lines", lambda b, *a, **k: ["en"] * len(b))
     body = {"url": f"https://youtu.be/{VID}", "title": "Clip", "speaker": 3,
@@ -785,8 +786,8 @@ def test_capped_job_ends_done_with_the_capped_reason(monkeypatch):
 def test_repair_slot_is_taken_only_after_a_won_claim(monkeypatch):
     stranger = "dddddddd-0000-4000-8000-0000000000c9"
     head = {"Authorization": "Bearer test-token", "X-Shadow-Device": stranger}
-    monkeypatch.setattr(main, "OWNER_DEVICE", "not-this-device")
-    monkeypatch.setattr(main, "OWNER_ALIASES", frozenset())
+    monkeypatch.setattr(dependencies, "OWNER_DEVICE", "not-this-device")
+    monkeypatch.setattr(dependencies, "OWNER_ALIASES", frozenset())
     iid = make_island(["a"], device=stranger, video_id="slot-video")
     monkeypatch.setattr(store, "claim_repair", lambda *a: False)
     assert _post(iid, headers=head).json() == {"repair": "queued"}

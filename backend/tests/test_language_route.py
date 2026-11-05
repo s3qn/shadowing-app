@@ -15,9 +15,10 @@ import pytest
 from fastapi import BackgroundTasks, HTTPException
 
 import main
+import config
 import store
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 # device-scope: every island route needs a device id.
 DEV = "cccccccc-0000-4000-8000-000000000003"
 

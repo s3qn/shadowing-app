@@ -13,12 +13,13 @@ from fastapi import BackgroundTasks, HTTPException
 
 import llm
 import main
+import config
 import phrase_catalog
 import starter
 import store
 import voices
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 
 
 @pytest.fixture(autouse=True)

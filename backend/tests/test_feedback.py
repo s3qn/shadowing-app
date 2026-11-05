@@ -10,9 +10,10 @@ from fastapi import BackgroundTasks, HTTPException, UploadFile
 
 import feedback
 import main
+import config
 
 REAL_TRANSCRIBE_REPORT = feedback.transcribe_report
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 JPEG = b"\xff\xd8\xff\xe0" + b"0" * 64
 PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 64
 HEIC = b"\x00\x00\x00\x18ftypheic" + b"0" * 64

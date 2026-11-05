@@ -9,6 +9,7 @@ import asyncio
 import pytest
 
 import main
+import config
 import store
 
 
@@ -17,7 +18,7 @@ def _init_db():
     store.init()
 
 
-AUTH = f"Bearer {main.SHADOW_TOKEN}"
+AUTH = f"Bearer {config.SHADOW_TOKEN}"
 
 
 def test_explain_chat_corrupt_cache_row_is_treated_as_a_miss(monkeypatch):
