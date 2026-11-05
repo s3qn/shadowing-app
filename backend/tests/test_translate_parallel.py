@@ -3,8 +3,8 @@ import threading
 import time
 
 import generate
-import main
 import store
+from services import captions
 
 
 def test_parallel_translation_keeps_order_and_saves_each_batch(monkeypatch):
@@ -24,9 +24,9 @@ def test_parallel_translation_keeps_order_and_saves_each_batch(monkeypatch):
 
     monkeypatch.setattr(generate, "translate_lines", fake)
     monkeypatch.setattr(store, "set_en", lambda iid, idx, en: saved.__setitem__(idx, en))
-    asyncio.run(main._translate_batches("x", texts, "ja", "en"))
+    asyncio.run(captions._translate_batches("x", texts, "ja", "en"))
     assert saved == {i: f"en-t{i}" for i in range(len(texts))}
-    assert 1 < live["max"] <= main.TRANSLATE_WORKERS
+    assert 1 < live["max"] <= captions.TRANSLATE_WORKERS
 
 
 def test_failed_batch_keeps_the_others(monkeypatch):
@@ -41,7 +41,7 @@ def test_failed_batch_keeps_the_others(monkeypatch):
     monkeypatch.setattr(generate, "translate_lines", fake)
     monkeypatch.setattr(store, "set_en", lambda iid, idx, en: saved.__setitem__(idx, en))
     try:
-        asyncio.run(main._translate_batches("x", texts, "ja", "en"))
+        asyncio.run(captions._translate_batches("x", texts, "ja", "en"))
         raise AssertionError("expected the error")
     except RuntimeError:
         pass

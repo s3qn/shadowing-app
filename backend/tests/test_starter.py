@@ -9,6 +9,7 @@ import pytest
 from fastapi import BackgroundTasks, HTTPException, UploadFile
 
 import main
+from services import line_audio
 import config
 import dependencies
 import phrase_catalog
@@ -16,6 +17,7 @@ import progression
 import starter
 import store
 import voices
+from services import build
 
 AUTH = f"Bearer {config.SHADOW_TOKEN}"
 CASES = [(lang, t["id"]) for lang in ("ja", "en", "es")
@@ -70,7 +72,7 @@ def test_import_with_the_default_voice_is_instant_and_free():
 
 def test_import_with_another_voice_builds(monkeypatch):
     store.init()
-    monkeypatch.setattr(main, "_build_phrases", lambda *a, **k: None)
+    monkeypatch.setattr(build, "_build_phrases",lambda *a, **k: None)
     assert _import(_dev(), speaker=2)["status"] == "pending"
 
 
@@ -108,9 +110,9 @@ def test_upload_is_lenient_only_on_the_guides_first_greetings_take(monkeypatch, 
         return {"score": {"words": ["ok"], "total": 50, "parts": {}}}
 
     monkeypatch.setattr(dependencies, "_own_island", lambda island_id, device: island)
-    monkeypatch.setattr(main, "_load_take_profile", lambda aec, device: None)
+    monkeypatch.setattr(line_audio, "_load_take_profile", lambda aec, device: None)
     monkeypatch.setattr(dependencies, "_take_use_slot", lambda device, kind: None)
-    monkeypatch.setattr(main, "_resolve_line_audio", fake_audio)
+    monkeypatch.setattr(line_audio, "_resolve_line_audio", fake_audio)
     monkeypatch.setattr(main, "_run_clean", fake_clean)
     monkeypatch.setattr(progression, "award_take", lambda *a, **k: None)
 

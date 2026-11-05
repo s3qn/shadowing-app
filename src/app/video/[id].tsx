@@ -1,7 +1,7 @@
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState, BackHandler, Linking, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import type { ScrollView } from 'react-native-gesture-handler';
 import { SymbolView } from 'expo-symbols';
@@ -36,11 +36,10 @@ import { useTake } from '@/hooks/use-take';
 import { useWatchClock } from '@/hooks/use-watch-clock';
 import { playIntent, useVideoHighlight } from '@/hooks/use-video-highlight';
 import * as api from '@/lib/api';
-import { devRepairPending, devRepairPhase } from '@/lib/dev-simulate';
+import { useVideoLoad } from '@/hooks/video/use-video-load';
 import { clearEndPending, mapCandidateLines, startTranscripts, stopTranscripts, useTranscriptStore } from '@/lib/dev-transcripts'; // transcript-review
 import { TranscriptTagBar } from '@/components/transcript-tag-bar'; // transcript-review
 import { BottomSheet } from '@/components/sheet/bottom-sheet'; // transcript-review
-import { syncVideoRepair, syncVideoTiming } from '@/lib/video-timing';
 import { useT } from '@/lib/i18n';
 import { getLastLine, resumeLine, setLastLine } from '@/lib/last-line';
 import { getSettingsSync, TIMES_MAX } from '@/lib/settings';
@@ -112,13 +111,17 @@ export default function VideoScreen() {
     </Pressable>
   );
 
-  const [island, setIsland] = useState<api.Island | null>(null);
-  const [video, setVideo] = useState<api.IslandVideo | null>(null);
-  const [error, setError] = useState('');
+  // The load hook runs before useSavedCards (which needs the island), so the
+  // review cards reach loadReviewCards through a ref set once it exists.
+  const reviewCardsRef = useRef<(cards: api.ReviewCard[]) => void>(() => {});
+  const { island, video, error } = useVideoLoad(id, preview, review, (cards) => reviewCardsRef.current(cards));
   // review-deck: saved sentences of this island, line idx to card id.
   // "Shadow the best bits" hops here as a review of three picked lines.
   const picked = useMemo(() => parsePick(pick), [pick]);
   const { savedCards, saveError, reviewSet, loadReviewCards, toggleSaved, autoSave, gradeOnce } = useSavedCards(island?.id, id, !!review, inSession, picked);
+  useLayoutEffect(() => {
+    reviewCardsRef.current = loadReviewCards;
+  });
   const [playing, setPlaying] = useState(false);
   const stateRef = useRef('unstarted');
   const [cannotPlay, setCannotPlay] = useState(false);
@@ -164,83 +167,6 @@ export default function VideoScreen() {
     trayOpen, setTrayOpen, dockH, onAnchor, onDockLayout,
   } = dock;
   const insets = useSafeAreaInsets();
-  // Server jobs the player waits on: caption timing and caption repair.
-  const [alignWait, setAlignWait] = useState(false);
-  const [repairWait, setRepairWait] = useState(false);
-
-  useEffect(() => {
-    if (preview) return;
-    let alive = true;
-    Promise.all([api.getIsland(id), api.getIslandVideo(id), review ? api.listReviewCards(id) : null])
-      .then(([i, v, cards]) => {
-        if (!alive) return;
-        if (cards) loadReviewCards(cards);
-        setIsland(i);
-        setVideo(v);
-        // Caption timing: an island built before the ASR transfer (or whose
-        // job failed) posts the automatic track once, then polls below.
-        if (v.align === '' || v.align === 'failed') {
-          void syncVideoTiming(id, v.video_id, i.language).then((ok) => ok && alive && setAlignWait(true));
-        } else if (v.align === 'queued' || v.align === 'running') setAlignWait(true);
-        // Caption repair: an island built before the repair pass (or whose
-        // job failed, while attempts remain) posts the video's context once.
-        if (v.repair === '' || v.repair === 'failed') {
-          void syncVideoRepair(id, v.video_id).then(
-            (r) => (r === 'queued' || r === 'running') && alive && setRepairWait(true),
-          );
-        } else if (v.repair === 'queued' || v.repair === 'running') setRepairWait(true);
-        if (devRepairPending()) setRepairWait(true);
-      })
-      .catch((e) => alive && setError(e instanceof Error ? e.message : t('video.loadFailed')));
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, preview]);
-
-  // Poll while the server retimes or repairs the lines; reload them in place
-  // when a job lands (one reload when both land on the same tick). The
-  // active line index and the catch state live outside `island`, so they
-  // carry over to the new text.
-  useEffect(() => {
-    if (!alignWait && !repairWait) return;
-    let alive = true;
-    const t0 = Date.now();
-    const timer = setInterval(async () => {
-      if (Date.now() - t0 > 15 * 60 * 1000) {
-        setAlignWait(false);
-        setRepairWait(false);
-        return;
-      }
-      try {
-        const v = await api.getIslandVideo(id);
-        if (!alive) return;
-        let landed = false;
-        if (alignWait) {
-          if (v.align === 'done') {
-            setAlignWait(false);
-            landed = true;
-          } else if (v.align === 'failed' || v.align === 'closed') setAlignWait(false);
-        }
-        if (repairWait) {
-          const repair = devRepairPhase() ?? v.repair;
-          if (repair === 'done') {
-            setRepairWait(false);
-            landed = true;
-          } else if (repair === 'failed' || repair === 'closed') setRepairWait(false);
-        }
-        if (landed) {
-          const i = await api.getIsland(id);
-          if (alive) setIsland(i);
-        }
-      } catch {}
-    }, 5000);
-    return () => {
-      alive = false;
-      clearInterval(timer);
-    };
-  }, [alignWait, repairWait, id]);
-
   // Repeat. The highlight clock stops at the end of each line and calls
   // onLineEnd before the next line shows: a count left seeks back to the
   // line's start, a pause holds the video with the line still on screen. A

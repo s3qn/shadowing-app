@@ -25,6 +25,7 @@ import config
 import dependencies
 import podcast
 import store
+from services import build
 
 FIXTURE = Path(__file__).parent / "fixtures" / "feed.xml"
 
@@ -294,7 +295,7 @@ def test_import_podcast_episode_creates_a_podcast_island_and_hands_off(monkeypat
         captured["media_exists"] = media.exists()
         captured["tmp_dir"] = tmp_dir
 
-    monkeypatch.setattr(main, "_build_import", fake_build_import)
+    monkeypatch.setattr(build, "_build_import", fake_build_import)
 
     background = BackgroundTasks()
     result = asyncio.run(
@@ -400,7 +401,7 @@ def test_build_podcast_fails_the_island_when_the_download_errors(tmp_path, monke
 
     monkeypatch.setattr(main.podcast, "fetch", failing_fetch)
 
-    asyncio.run(main._build_podcast(island_id, "https://example.com/a.mp3", "Episode", 0.0, tmp_path))
+    asyncio.run(build._build_podcast(island_id, "https://example.com/a.mp3", "Episode", 0.0, tmp_path))
 
     island = store.get_island(island_id)
     assert island["status"] == "failed"

@@ -17,6 +17,7 @@ from fastapi import BackgroundTasks, HTTPException
 import main
 import config
 import store
+from services import build
 
 AUTH = f"Bearer {config.SHADOW_TOKEN}"
 # device-scope: every island route needs a device id.
@@ -100,7 +101,7 @@ def test_build_island_for_es_and_he_stores_latin_aligned_words(monkeypatch, tmp_
     island_id = store.create_island("simple", 10011, register="polite", language="es", native="he")
     wav = tmp_path / "source.wav"
 
-    asyncio.run(main._build_island(
+    asyncio.run(build._build_island(
         island_id, wav, "simple", 10011, 8, "polite", learning="es", native="he",
     ))
 
@@ -121,7 +122,7 @@ def test_build_island_marks_failed_when_generation_returns_no_lines(monkeypatch,
     island_id = store.create_island("simple", 10011, register="polite", language="es", native="he")
     wav = tmp_path / "source.wav"
 
-    asyncio.run(main._build_island(
+    asyncio.run(build._build_island(
         island_id, wav, "simple", 10011, 8, "polite", learning="es", native="he",
     ))
 
@@ -147,7 +148,7 @@ def test_regenerate_passes_learning_and_native(monkeypatch, tmp_path):
         captured["learning"] = learning
         captured["native"] = native
 
-    monkeypatch.setattr(main, "_build_island", fake_build_island)
+    monkeypatch.setattr(build, "_build_island", fake_build_island)
 
     background = BackgroundTasks()
     asyncio.run(main.regenerate(

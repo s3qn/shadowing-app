@@ -5,15 +5,15 @@ no whisper model."""
 import pytest
 from fastapi import HTTPException
 
-import main
+from services import line_audio
 
 
 def test_span_both_minus_one_is_the_whole_line():
-    assert main._span(-1, -1) is None
+    assert line_audio._span(-1, -1) is None
 
 
 def test_span_valid_pair_passes_through():
-    assert main._span(120, 900) == (120, 900)
+    assert line_audio._span(120, 900) == (120, 900)
 
 
 @pytest.mark.parametrize(
@@ -29,5 +29,5 @@ def test_span_valid_pair_passes_through():
 )
 def test_span_rejects_bad_pairs_with_400(start, end):
     with pytest.raises(HTTPException) as exc:
-        main._span(start, end)
+        line_audio._span(start, end)
     assert exc.value.status_code == 400

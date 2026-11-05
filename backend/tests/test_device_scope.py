@@ -11,6 +11,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 import main
+from services import line_audio
 import config
 import dependencies
 import schedule
@@ -257,10 +258,10 @@ def test_take_profile_is_per_device(monkeypatch):
     import aec
 
     monkeypatch.setattr(dependencies, "OWNER_DEVICE", "")
-    aec.save_profile(main._take_profile_name(DEV_A), _profile(7))
+    aec.save_profile(line_audio._take_profile_name(DEV_A), _profile(7))
 
-    assert main._load_take_profile(aec, DEV_A).delay == 7
-    assert main._load_take_profile(aec, DEV_B) is None
+    assert line_audio._load_take_profile(aec, DEV_A).delay == 7
+    assert line_audio._load_take_profile(aec, DEV_B) is None
 
 
 def test_owner_device_falls_back_to_the_shared_default_profile(monkeypatch):
@@ -268,12 +269,12 @@ def test_owner_device_falls_back_to_the_shared_default_profile(monkeypatch):
 
     owner = "cccccccc-0000-4000-8000-000000000003"
     monkeypatch.setattr(dependencies, "OWNER_DEVICE", owner)
-    aec.save_profile(main.LEGACY_TAKE_PROFILE, _profile(11))
+    aec.save_profile(line_audio.LEGACY_TAKE_PROFILE, _profile(11))
     try:
-        assert main._load_take_profile(aec, owner).delay == 11
-        assert main._load_take_profile(aec, DEV_B) is None
+        assert line_audio._load_take_profile(aec, owner).delay == 11
+        assert line_audio._load_take_profile(aec, DEV_B) is None
     finally:
-        (aec.AEC_DIR / f"{main.LEGACY_TAKE_PROFILE}.npz").unlink(missing_ok=True)
+        (aec.AEC_DIR / f"{line_audio.LEGACY_TAKE_PROFILE}.npz").unlink(missing_ok=True)
 
 
 def test_require_device_rejects_a_malformed_id():

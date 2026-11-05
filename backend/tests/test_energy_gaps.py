@@ -18,6 +18,7 @@ import phrase_catalog
 import starter
 import store
 import voices
+from services import build
 
 AUTH = f"Bearer {config.SHADOW_TOKEN}"
 
@@ -90,7 +91,7 @@ def test_build_island_with_a_transcript_never_transcribes(monkeypatch):
     monkeypatch.setattr(main.generate, "generate_lines",
                         lambda text, *a, **k: seen.append(text) or {"lines": []})
     island_id, wav = _voice_island(_dev())
-    asyncio.run(main._build_island(island_id, wav, "simple", 3, 8, transcript="x"))
+    asyncio.run(build._build_island(island_id, wav, "simple", 3, 8, transcript="x"))
     assert seen == ["x"]
     assert store.get_island(island_id)["status"] == "failed"  # no lines, as monkeypatched
 
@@ -100,9 +101,9 @@ def test_a_regenerate_reads_the_language_from_the_script(monkeypatch):
     monkeypatch.setattr(main.generate, "generate_lines",
                         lambda text, c, n, language, *a, **k: seen.append(language) or {"lines": []})
     island_id, wav = _voice_island(_dev())
-    asyncio.run(main._build_island(island_id, wav, "simple", 3, 8, transcript="猫を見ました"))
-    asyncio.run(main._build_island(island_id, wav, "simple", 3, 8, transcript="ראיתי חתול"))
-    asyncio.run(main._build_island(island_id, wav, "simple", 3, 8, transcript="I saw a cat"))
+    asyncio.run(build._build_island(island_id, wav, "simple", 3, 8, transcript="猫を見ました"))
+    asyncio.run(build._build_island(island_id, wav, "simple", 3, 8, transcript="ראיתי חתול"))
+    asyncio.run(build._build_island(island_id, wav, "simple", 3, 8, transcript="I saw a cat"))
     assert seen == ["ja", "he", ""]
 
 
@@ -113,7 +114,7 @@ def test_regenerate_passes_the_stored_transcript():
     out = asyncio.run(main.regenerate(
         island_id, bg, complexity="simple", count=8, authorization=AUTH, x_shadow_device=dev))
     assert out["status"] == "working"
-    assert bg.tasks[0].func.__wrapped__ is main._build_island
+    assert bg.tasks[0].func.__wrapped__ is build._build_island
     assert bg.tasks[0].kwargs["transcript"] == "stored words"
 
 
@@ -142,7 +143,7 @@ def test_phrases_build_is_cached_and_the_next_device_copies_it(monkeypatch):
 
     async def fake_synth(*a, **k):
         return _fake_synth(*a, **k)
-    monkeypatch.setattr(main, "_synthesize_lines", fake_synth)
+    monkeypatch.setattr(build, "_synthesize_lines", fake_synth)
     assert not starter.has_cached("ja", "greetings", OTHER_JA, "en")
 
     first = _dev()
@@ -181,7 +182,7 @@ def _build_once(monkeypatch, native="en", synth=_fake_synth, translate=None):
 
     async def fake_synth(*a, **k):
         return synth(*a, **k)
-    monkeypatch.setattr(main, "_synthesize_lines", fake_synth)
+    monkeypatch.setattr(build, "_synthesize_lines", fake_synth)
     if translate is not None:
         monkeypatch.setattr(main.generate, "translate_lines", translate)
         # The catalogue now ships Hebrew glosses; drop them so the stub runs.
@@ -232,7 +233,7 @@ def test_a_cache_missing_a_wav_falls_through_to_a_build(monkeypatch):
     cache = starter.cache_dir("ja", "greetings", OTHER_JA, "en")
     (cache / "2.wav").unlink()
     assert not starter.has_cached("ja", "greetings", OTHER_JA, "en")
-    monkeypatch.setattr(main, "_build_phrases", lambda *a, **k: None)
+    monkeypatch.setattr(build, "_build_phrases", lambda *a, **k: None)
     assert _import(_dev())["status"] == "pending"
 
 
@@ -275,7 +276,7 @@ def test_a_cache_failure_never_fails_the_island(monkeypatch):
 
     async def fake_synth(*a, **k):
         return _fake_synth(*a, **k)
-    monkeypatch.setattr(main, "_synthesize_lines", fake_synth)
+    monkeypatch.setattr(build, "_synthesize_lines", fake_synth)
 
     def boom(*a, **k):
         raise OSError("disk full")

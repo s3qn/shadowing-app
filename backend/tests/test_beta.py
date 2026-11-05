@@ -11,6 +11,7 @@ import accounts
 import beta
 import catch
 import main
+import middleware
 import access
 import config
 import dependencies
@@ -276,7 +277,7 @@ def test_gate_leaves_core_routes_open():
 
 
 def test_gate_user_principal_with_flag(key, monkeypatch):
-    monkeypatch.setattr(main, "REQUIRE_SIGNIN", True)
+    monkeypatch.setattr(middleware, "REQUIRE_SIGNIN", True)
     sub = str(uuid.uuid4())
     hdr = {"Authorization": AUTH, "X-Shadow-User": _token(key, sub=sub)}
     r = client.get("/shadow/leaderboard", headers=hdr)

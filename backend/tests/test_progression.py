@@ -11,6 +11,7 @@ import pytest
 from fastapi import HTTPException, UploadFile
 
 import main
+from services import line_audio
 import config
 import dependencies
 import progression
@@ -321,9 +322,9 @@ def _wire_take(monkeypatch, tmp_path):
         return tmp_path / "ref.wav"
 
     monkeypatch.setattr(dependencies, "_own_island", lambda island_id, device: island)
-    monkeypatch.setattr(main, "_load_take_profile", lambda aec, device: None)
+    monkeypatch.setattr(line_audio, "_load_take_profile", lambda aec, device: None)
     monkeypatch.setattr(dependencies, "_take_use_slot", lambda device, kind: None)
-    monkeypatch.setattr(main, "_resolve_line_audio", fake_audio)
+    monkeypatch.setattr(line_audio, "_resolve_line_audio", fake_audio)
     monkeypatch.setattr(main, "_run_clean", lambda *a, **k: {"score": 1})
 
 

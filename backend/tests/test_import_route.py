@@ -18,9 +18,11 @@ import pytest
 from fastapi import HTTPException
 
 import main
+from services import line_audio
 import config
 import media
 import store
+from services import build
 
 
 @pytest.fixture(autouse=True)
@@ -85,7 +87,7 @@ def test_build_import_with_srt_produces_lines_with_offset_and_kana(fake_pipeline
     ]
     monkeypatch.setattr(main.transcribe, "transcribe", lambda *a, **k: _fake_transcribe_result(words))
 
-    asyncio.run(main._build_import(island_id, fake_pipeline / "media.mp4", srt, "Clip", 0.0))
+    asyncio.run(build._build_import(island_id, fake_pipeline / "media.mp4", srt, "Clip", 0.0))
 
     island = store.get_island(island_id)
     assert island["status"] == "ready"
@@ -110,7 +112,7 @@ def test_build_import_without_srt_uses_whisper_segments(fake_pipeline, monkeypat
     ]
     monkeypatch.setattr(main.transcribe, "transcribe", lambda *a, **k: _fake_transcribe_result(words))
 
-    asyncio.run(main._build_import(island_id, fake_pipeline / "media.mp4", None, "Clip", 0.0))
+    asyncio.run(build._build_import(island_id, fake_pipeline / "media.mp4", None, "Clip", 0.0))
 
     island = store.get_island(island_id)
     assert island["status"] == "ready"
@@ -125,7 +127,7 @@ def test_build_import_fails_the_island_when_whisper_is_not_ok(fake_pipeline, mon
         lambda *a, **k: {"ok": False, "text": "", "language": "", "segments": [], "words": []},
     )
 
-    asyncio.run(main._build_import(island_id, fake_pipeline / "media.mp4", None, "Clip", 0.0))
+    asyncio.run(build._build_import(island_id, fake_pipeline / "media.mp4", None, "Clip", 0.0))
 
     island = store.get_island(island_id)
     assert island["status"] == "failed"
@@ -138,7 +140,7 @@ def test_build_import_title_gets_a_range_suffix_when_trimmed(fake_pipeline, monk
     # A 2-minute source, so a 1-minute start lies inside it; the extracted wav stays 4s.
     monkeypatch.setattr(media, "_probe_duration", lambda path: 120.0 if path.suffix == ".mp4" else 4.0)
 
-    asyncio.run(main._build_import(island_id, fake_pipeline / "media.mp4", None, "Clip", 60.0))
+    asyncio.run(build._build_import(island_id, fake_pipeline / "media.mp4", None, "Clip", 60.0))
 
     island = store.get_island(island_id)
     assert island["status"] == "ready"
@@ -150,7 +152,7 @@ def test_build_import_fails_clearly_when_the_start_is_past_the_end(fake_pipeline
     island_id = store.create_island("simple", 3, source="import", source_name="clip.mp3")
     monkeypatch.setattr(main.transcribe, "transcribe", lambda *a, **k: _fake_transcribe_result([]))
 
-    asyncio.run(main._build_import(island_id, fake_pipeline / "media.mp4", None, "Clip", 600.0))
+    asyncio.run(build._build_import(island_id, fake_pipeline / "media.mp4", None, "Clip", 600.0))
 
     island = store.get_island(island_id)
     assert island["status"] == "failed"
@@ -172,7 +174,7 @@ def test_build_from_cues_translates_in_batches_by_count(fake_pipeline, monkeypat
 
     monkeypatch.setattr(main.generate, "translate_lines", fake_translate)
 
-    asyncio.run(main._build_from_cues(island_id, fake_pipeline / "source.wav", _cues(n), "Clip", n + 1.0))
+    asyncio.run(build._build_from_cues(island_id, fake_pipeline / "source.wav", _cues(n), "Clip", n + 1.0))
 
     assert sizes == [generate_batch(), generate_batch(), 5]
     island = store.get_island(island_id)
@@ -195,7 +197,7 @@ def test_build_import_stays_ready_when_translation_raises(fake_pipeline, monkeyp
 
     monkeypatch.setattr(main.generate, "translate_lines", broken_translate)
 
-    asyncio.run(main._build_import(island_id, fake_pipeline / "media.mp4", None, "Clip", 0.0))
+    asyncio.run(build._build_import(island_id, fake_pipeline / "media.mp4", None, "Clip", 0.0))
 
     island = store.get_island(island_id)
     assert island["status"] == "ready"
@@ -276,7 +278,7 @@ def test_resolve_line_audio_stretches_an_imported_line_instead_of_synthesizing(m
     )
 
     island = store.get_island(island_id)
-    path = asyncio.run(main._resolve_line_audio(island, 0, 0.7))
+    path = asyncio.run(line_audio._resolve_line_audio(island, 0, 0.7))
 
     assert path.exists()
     assert len(calls) == 1

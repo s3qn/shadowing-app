@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 import beta
 import main
+import middleware
 import config
 import dependencies
 import podcast
@@ -125,14 +126,14 @@ def test_suggestion_at_sign_is_neutralised():
 
 # --- F1: sign-in required ---
 def test_sign_in_is_required_by_default_and_env_can_turn_it_off():
-    assert main._signin_required(None) is True
-    assert main._signin_required("1") is True
-    assert main._signin_required("0") is False
-    assert main._signin_required("off") is False
+    assert middleware._signin_required(None) is True
+    assert middleware._signin_required("1") is True
+    assert middleware._signin_required("0") is False
+    assert middleware._signin_required("off") is False
 
 
 def test_device_only_request_is_401_when_required(monkeypatch):
-    monkeypatch.setattr(main, "REQUIRE_SIGNIN", True)
+    monkeypatch.setattr(middleware, "REQUIRE_SIGNIN", True)
     assert client.get("/shadow/health").status_code == 200
     assert client.get("/shadow/privacy").status_code == 200
     r = client.get("/shadow/islands", headers={**AUTH, "X-Shadow-Device": DEV})
@@ -147,7 +148,7 @@ def test_device_only_request_passes_when_switch_is_off():
 
 
 def test_valid_jwt_passes_and_bad_jwt_is_401(monkeypatch, key):  # noqa: F811
-    monkeypatch.setattr(main, "REQUIRE_SIGNIN", True)
+    monkeypatch.setattr(middleware, "REQUIRE_SIGNIN", True)
     ok = client.get("/shadow/islands", headers={**AUTH, "X-Shadow-User": _token(key)})
     assert ok.status_code == 200
     bad = client.get("/shadow/islands", headers={**AUTH, "X-Shadow-User": "garbage"})

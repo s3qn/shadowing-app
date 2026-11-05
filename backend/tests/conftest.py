@@ -55,6 +55,6 @@ def _device_only_requests(monkeypatch):
     """Sign-in is required by default; most route tests drive the routes with
     a bare device id, so they run with the switch off. tests/test_security.py
     turns it back on for the tests that cover it."""
-    import main
+    import middleware
 
-    monkeypatch.setattr(main, "REQUIRE_SIGNIN", False)
+    monkeypatch.setattr(middleware, "REQUIRE_SIGNIN", False)

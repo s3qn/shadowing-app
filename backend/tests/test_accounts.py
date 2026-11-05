@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 import accounts
 import main
+import middleware
 import config
 import dependencies
 import review_deck
@@ -165,7 +166,7 @@ def test_access_log_redacts_user_and_token_query_values():
         ("127.0.0.1:1", "GET", "/shadow/islands/x/lines/0/audio?token=secret&device=abc&user=eyJ.a.b&v=3", "1.1", 200),
         None,
     )
-    assert main.RedactAccessLog().filter(record) is True
+    assert middleware.RedactAccessLog().filter(record) is True
     line = record.getMessage()
     assert "secret" not in line and "eyJ.a.b" not in line
     assert "token=REDACTED" in line and "user=REDACTED" in line
@@ -176,7 +177,7 @@ def test_access_log_filter_is_installed():
     import logging
 
     filters = logging.getLogger("uvicorn.access").filters
-    assert any(isinstance(f, main.RedactAccessLog) for f in filters)
+    assert any(isinstance(f, middleware.RedactAccessLog) for f in filters)
 
 
 # --- through the ASGI app ---

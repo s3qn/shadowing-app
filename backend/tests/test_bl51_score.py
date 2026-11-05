@@ -8,6 +8,7 @@ import pytest
 from fastapi import UploadFile
 
 import main
+from services import line_audio
 import config
 import dependencies
 import store
@@ -105,9 +106,9 @@ def test_upload_stores_a_row(monkeypatch, tmp_path):
         return tmp_path / "ref.wav"
 
     monkeypatch.setattr(dependencies, "_own_island", lambda island_id, device: island)
-    monkeypatch.setattr(main, "_load_take_profile", lambda aec, device: None)
+    monkeypatch.setattr(line_audio, "_load_take_profile", lambda aec, device: None)
     monkeypatch.setattr(dependencies, "_take_use_slot", lambda device, kind: None)
-    monkeypatch.setattr(main, "_resolve_line_audio", fake_audio)
+    monkeypatch.setattr(line_audio, "_resolve_line_audio", fake_audio)
     monkeypatch.setattr(main, "_run_clean", lambda *a, **k: {
         "score": {"words": ["ok"], "total": 88, "parts": {"content": 90, "timing": 80, "pitch": None}}})
     asyncio.run(main.upload_take(
@@ -139,9 +140,9 @@ def test_upload_silent_take_skips_the_profile(monkeypatch, tmp_path):
         return {"score": {"words": ["ok"], "total": 72, "parts": {"content": 70, "timing": 75, "pitch": None}}}
 
     monkeypatch.setattr(dependencies, "_own_island", lambda island_id, device: island)
-    monkeypatch.setattr(main, "_load_take_profile", no_profile)
+    monkeypatch.setattr(line_audio, "_load_take_profile", no_profile)
     monkeypatch.setattr(dependencies, "_take_use_slot", lambda device, kind: None)
-    monkeypatch.setattr(main, "_resolve_line_audio", fake_audio)
+    monkeypatch.setattr(line_audio, "_resolve_line_audio", fake_audio)
     monkeypatch.setattr(main, "_run_clean", spy)
     asyncio.run(main.upload_take(
         island_id="isl", idx=0, speed=1.0, calibrate="0", start=-1, end=-1, lag=0, line_start=0,

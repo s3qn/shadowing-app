@@ -89,6 +89,7 @@ import access
 import accounts
 import config
 import dependencies
+import middleware
 
 # Router modules. voices, grammar, youtube, align and repair share a name with
 # a top-level module main.py already uses, so those five are bound with an
@@ -99,6 +100,9 @@ from routers import grammar as grammar_r
 from routers import youtube as youtube_r
 from routers import align as align_r
 from routers import repair as repair_r
+from services import captions
+from services import line_audio as line_audio_svc
+from services import build
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s"
@@ -106,24 +110,7 @@ logging.basicConfig(
 log = logging.getLogger("shadow")
 
 
-class RedactAccessLog(logging.Filter):
-    """Blanks the `user=` (a Supabase JWT) and `token=` query values in
-    uvicorn's access log lines, so the log never holds a usable credential."""
-
-    _SECRET = re.compile(r"([?&](?:user|token)=)[^&\s\"]*")
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        if isinstance(record.args, tuple):
-            record.args = tuple(
-                self._SECRET.sub(r"\1REDACTED", a) if isinstance(a, str) else a
-                for a in record.args
-            )
-        if isinstance(record.msg, str):
-            record.msg = self._SECRET.sub(r"\1REDACTED", record.msg)
-        return True
-
-
-logging.getLogger("uvicorn.access").addFilter(RedactAccessLog())
+logging.getLogger("uvicorn.access").addFilter(middleware.RedactAccessLog())
 
 app = FastAPI(title="Shadowing Islands", version="0.1.0")
 
@@ -300,163 +287,6 @@ async def voice_preview(style_id: int, token: str = "",
     return FileResponse(path, media_type="audio/wav")
 
 
-async def _synthesize_lines(island_id: str, lines: list[dict], speaker: int,
-                            language: str = "ja") -> int:
-    """Render every line to its own wav. Returns how many succeeded.
-
-    ja's word timing comes from VOICEVOX's own mora timeline. Kokoro (es,
-    en) is timed from the model's own phoneme durations (latin.align_phonemes)
-    when the export has them; otherwise the line is re-transcribed with whisper
-    right after rendering and the words mapped on with latin.align; a
-    transcription failure never fails the island, just that line's timing
-    (steady-pace fallback, logged)."""
-    done = 0
-    for idx, line in enumerate(lines):
-        try:
-            wav, timeline, duration, _, timings = await voices.speak_timed(line["ja"], speaker)
-        except (voicevox.VoicevoxError, kokoro_tts.KokoroError):
-            log.exception("synthesis failed for line %d of %s", idx, island_id)
-            continue
-        # Write beside the target and swap, so a player streaming the old file
-        # never reads a half-written one.
-        target = store.line_audio_path(island_id, idx)
-        tmp = target.with_suffix(".tmp")
-        tmp.write_bytes(wav)
-        os.replace(tmp, target)
-        if language == "ja":
-            words = await asyncio.to_thread(segment.align, line["ja"], timeline)
-        else:
-            words = latin.align_phonemes(line["ja"], timings, duration)
-            if not words:
-                log.info("no phoneme timings for line %d, timing with whisper", idx)
-                result = await asyncio.to_thread(
-                    transcribe.transcribe, target, language, word_timestamps=True
-                )
-                if not result.get("ok"):
-                    log.warning(
-                        "island %s: whisper could not time line %d, falling back to a steady pace",
-                        island_id, idx,
-                    )
-                words = await asyncio.to_thread(latin.align, line["ja"], result.get("words", []), duration)
-        store.add_line(island_id, idx, line, duration, timeline, words)
-        done += 1
-    # A re-voice or regenerate with fewer lines must not leave old wavs behind.
-    for stale in (store.AUDIO_DIR / island_id).glob("*.wav"):
-        base = stale.stem.split("@")[0]
-        if base.isdigit() and (int(base) >= len(lines) or "@" in stale.stem):
-            stale.unlink(missing_ok=True)
-    # An export built from the old lines no longer matches this island's
-    # content, so it must not be served again under the same cache key.
-    export.clear_exports(island_id)
-    # A take was cleaned against the line that used to be at this index. A
-    # regenerate or revoice replaces that line, so the old take (and its
-    # cleaned copy) no longer matches anything and would be misleading.
-    shutil.rmtree(store.TAKES_DIR / island_id, ignore_errors=True)
-    return done
-
-
-async def _build_grammar(island_id: str, point: dict, speaker: int,
-                         register: str = "polite", native: str = "en") -> None:
-    """Build-up lines for one grammar point (picked or heard on the mic).
-    The caller owns the try/except and the island row."""
-    store.set_stage(island_id, "writing")
-    alts = [a for a in re.split(r"[・/／]", point["pattern"].replace("～", "").replace("〜", ""))
-            if a.strip()]
-    seed = await asyncio.to_thread(
-        corpus.search, "ja", [*alts, point["reading"]], "complex", 12)
-    generated = await asyncio.to_thread(
-        generate.generate_grammar, point, seed, register, native)
-    lines = generated.get("lines") or []
-    if not lines:
-        store.set_failed(island_id, "No lines could be generated.", "no_lines")
-        return
-    store.set_stage(island_id, "speaking")
-    made = await _synthesize_lines(island_id, lines, speaker, "ja")
-    if made == 0:
-        store.set_failed(island_id, "The voice engine produced no audio.", "voice_no_audio")
-        return
-    title = point["pattern"] + (f" · {point['meaning_short']}" if point.get("meaning_short") else "")
-    store.set_ready(island_id, title)
-    log.info("island %s ready: %d grammar lines", island_id, made)
-
-
-def _script_language(text: str) -> str:
-    """A stored transcript's language from its script, standing in for
-    whisper's guess on a regenerate. Latin script cannot tell English from
-    Spanish, so it stays "" and the prompt says so."""
-    if re.search(r"[\u0590-\u05FF]", text):
-        return "he"
-    if re.search(r"[\u3040-\u30FF\u4E00-\u9FFF]", text):
-        return "ja"
-    return ""
-
-
-async def _build_island(island_id: str, audio_path: Path, complexity: str,
-                        speaker: int, count: int, register: str = "polite",
-                        learning: str = "ja", native: str = "en",
-                        topic: bool = False, transcript: str = "") -> None:
-    """The whole pipeline, run in the background so the upload returns at
-    once. `learning` is the island's own language (what the lines are
-    written in); `language` below is whatever whisper hears the recording
-    itself spoken in, which only informs the writing prompt. A non-empty
-    `transcript` (regenerate) skips whisper: the first build already stored
-    what the recording says."""
-    try:
-        text, language = transcript, _script_language(transcript)
-        if not text:
-            store.set_stage(island_id, "transcribing")
-            result = await asyncio.to_thread(transcribe.transcribe, audio_path)
-            text = result.get("text", "")
-            language = result.get("language", "")
-            if not text:
-                store.set_failed(
-                    island_id, "Nothing could be transcribed from that recording.",
-                    "transcribe_empty",
-                )
-                return
-            store.set_transcript(island_id, text)
-            log.info("island %s transcript: %d chars, language=%s",
-                     island_id, len(text), language)
-
-        # voice-topic: expand the spoken topic into keywords, pull real
-        # Tatoeba sentences as seeds for the generator.
-        seed = None
-        if topic and learning == "ja":
-            # A whole-string match on a grammar point switches modes.
-            point = await asyncio.to_thread(grammar.match, text)
-            if point:
-                store.set_source(island_id, "grammar", point["id"])
-                await _build_grammar(island_id, point, speaker, register, native)
-                return
-        if topic:
-            store.set_stage(island_id, "writing")
-            keywords = await asyncio.to_thread(generate.expand_topic, text, learning)
-            seed = await asyncio.to_thread(corpus.search, learning, keywords, complexity)
-
-        store.set_stage(island_id, "writing")
-        generated = await asyncio.to_thread(
-            generate.generate_lines, text, complexity, count, language, register,
-            learning=learning, native=native, **({"seed": seed} if topic else {}),
-        )
-        lines = generated.get("lines") or []
-        if not lines:
-            store.set_failed(island_id, "No lines could be generated.", "no_lines")
-            return
-
-        store.set_stage(island_id, "speaking")
-        made = await _synthesize_lines(island_id, lines, speaker, learning)
-        if made == 0:
-            store.set_failed(island_id, "The voice engine produced no audio.", "voice_no_audio")
-            return
-
-        title = generated.get("title") or text[:40]
-        store.set_ready(island_id, title)
-        log.info("island %s ready: %d lines", island_id, made)
-    except Exception as exc:
-        log.exception("island %s failed", island_id)
-        store.set_failed(island_id, str(exc))
-
-
 @app.post("/shadow/islands")
 async def create_island(
     background: BackgroundTasks,
@@ -511,172 +341,10 @@ async def create_island(
     shutil.rmtree(tmp_dir, ignore_errors=True)
 
     background.add_task(
-        dependencies._refunding(_build_island, island_id, device, "create", "create"), island_id, wav, complexity, speaker, count, register, language, native,
+        dependencies._refunding(build._build_island, island_id, device, "create", "create"), island_id, wav, complexity, speaker, count, register, language, native,
         bool(topic),
     )
     return {"id": island_id, "status": "pending"}
-
-
-async def _build_from_cues(island_id: str, source_wav: Path, cue_list: list[dict],
-                           title: str, total: float, language: str = "ja",
-                           native: str = "en") -> None:
-    """The shared tail of the import pipeline: slice one wav per cue out of
-    source_wav, give each line its reading and word timings, and mark the
-    island ready. `total` is source_wav's duration, the same value the words
-    were attached with (cues.attach_words), so every attached word lies
-    inside its line's slice. `made` may be less than len(cue_list) when a
-    slice fails, so lines stay contiguously indexed from 0."""
-    store.set_stage(island_id, "slicing")
-    made = 0
-    with_words = 0
-    ja_texts: list[str] = []
-    for i, cue in enumerate(cue_list):
-        start, end = cues.slice_bounds(cue_list, i, total)
-        target = store.line_audio_path(island_id, made)
-        ok = await asyncio.to_thread(media_io._slice, source_wav, target, start, end)
-        if not ok:
-            continue
-        duration = round(end - start, 3)
-        pieces = [
-            {"text": w["text"], "start": w["start"] - start, "end": w["end"] - start}
-            for w in cue.get("words", [])
-        ]
-        if language == "ja":
-            words = await asyncio.to_thread(segment.align_pieces, cue["text"], pieces, duration)
-            kana = segment.reading(cue["text"])
-        else:
-            words = await asyncio.to_thread(latin.align, cue["text"], pieces, duration)
-            kana = ""
-        line = {"ja": cue["text"], "kana": kana, "romaji": "", "en": ""}
-        store.add_line(island_id, made, line, duration, [], words, offset=start)
-        if cue.get("words"):
-            with_words += 1
-        ja_texts.append(cue["text"])
-        made += 1
-    if made == 0:
-        store.set_failed(island_id, "No line could be cut from that audio.", "no_line_cut")
-        return
-    store.set_ready(island_id, title)
-    log.info(
-        "island %s ready: %d lines, %d with whisper words (%d fell back to a steady pace)",
-        island_id, made, with_words, made - with_words,
-    )
-
-    # The island is already ready, so a translation error only costs the
-    # English. It must never reach _build_import's handler, which would mark
-    # the island failed.
-    try:
-        for batch_start in range(0, len(ja_texts), generate.TRANSLATE_BATCH):
-            batch = ja_texts[batch_start:batch_start + generate.TRANSLATE_BATCH]
-            translations = await asyncio.to_thread(generate.translate_lines, batch, language, native)
-            for offset, en in enumerate(translations):
-                if en:
-                    store.set_en(island_id, batch_start + offset, en)
-            log.info(
-                "island %s translated lines %d..%d (%d ok)",
-                island_id, batch_start, batch_start + len(batch), len(translations),
-            )
-    except Exception:
-        log.exception("island %s: translation stopped early, the island stays ready", island_id)
-
-
-async def _build_import(island_id: str, media: Path, srt_text: str | None,
-                        title: str, start_s: float, tmp_dir: Path | None = None,
-                        language: str = "ja", native: str = "en") -> None:
-    """The import pipeline, run in the background so the upload returns at
-    once: pull the audio out (trimmed to the 30-minute cap from `start_s`),
-    run whisper once over the whole clip for word timings, get cues from the
-    .srt if one was given (whisper's own segments otherwise), then slice."""
-    try:
-        store.set_stage(island_id, "extracting")
-        probe = await asyncio.to_thread(media_io._probe_streams, media)
-        if not probe.get("streams"):
-            store.set_failed(island_id, "That media file could not be decoded.", "media_undecodable")
-            return
-        stream = media_io.pick_audio_stream(probe)
-        if stream is None:
-            store.set_failed(island_id, "That media file has no audio track.", "media_no_audio")
-            return
-        source_total = await asyncio.to_thread(media_io._probe_duration, media)
-        if source_total > 0 and start_s >= source_total:
-            store.set_failed(
-                island_id,
-                f"The start time ({start_s / 60.0:.0f} min) is past the end of the media"
-                f" ({source_total / 60.0:.0f} min).",
-                "start_past_end",
-            )
-            return
-        wav = store.AUDIO_DIR / island_id / "source.wav"
-        ok = await asyncio.to_thread(
-            media_io._extract_audio, media, wav, stream, start_s, config.IMPORT_MAX_SECONDS
-        )
-        if not ok:
-            store.set_failed(island_id, "That media file could not be decoded.", "media_undecodable")
-            return
-        total = await asyncio.to_thread(media_io._probe_duration, wav)
-        if total <= 0:
-            store.set_failed(island_id, "That media file could not be decoded.", "media_undecodable")
-            return
-
-        # A suffix whenever the island does not cover the source from its
-        # very start to its very end, so the range is never a silent surprise.
-        trimmed = start_s > 0 or (source_total > 0 and source_total - start_s > total + 0.5)
-        if trimmed:
-            start_min, end_min = start_s / 60.0, (start_s + total) / 60.0
-            title = f"{title} ({start_min:.0f}–{end_min:.0f} min)"
-
-        store.set_media(island_id, total)
-        store.set_stage(island_id, "transcribing")
-        result = await asyncio.to_thread(transcribe.transcribe, wav, language, True, True)
-        if not result.get("ok"):
-            store.set_failed(
-                island_id,
-                "Whisper could not transcribe that audio, so the lines would have no word"
-                " timings. Check the backend log, then delete this island and import again.",
-                "whisper_no_timings",
-            )
-            return
-        if not result["words"]:
-            log.warning(
-                "island %s: whisper heard no words in %s; every line falls back to a steady pace",
-                island_id, wav,
-            )
-
-        if srt_text:
-            cue_list = cues.parse_srt(srt_text)
-            cue_list = cues.window(cue_list, start_s, total)
-            if not cue_list:
-                store.set_failed(
-                    island_id, "No subtitle lines fall inside that time range.", "no_subtitles_in_range"
-                )
-                return
-            cue_list = cues.attach_words(cue_list, result["words"], total)
-        else:
-            seg_cues = [
-                {"start": s["start"], "end": s["end"], "text": s["text"], "words": s["words"]}
-                for s in result["segments"]
-                if s["text"]
-            ]
-            cue_list = cues.split_long(seg_cues, max_seconds=8.0)
-            if not cue_list:
-                store.set_failed(
-                    island_id, "Nothing could be transcribed from that audio.", "transcribe_empty"
-                )
-                return
-
-        await _build_from_cues(island_id, wav, cue_list, title, total, language, native)
-        built = store.get_island(island_id)
-        if built and built["status"] == "ready":
-            try:
-                await _ensure_episode(island_id, title)
-            except Exception:
-                log.exception("episode encode for %s failed; it will build on first open", island_id)
-    except Exception as exc:
-        log.exception("import %s failed", island_id)
-        store.set_failed(island_id, str(exc))
-    finally:
-        if tmp_dir is not None:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 @app.post("/shadow/islands/import")
@@ -739,7 +407,7 @@ async def create_import_island(
     )
     store.start_build(island_id)
     background.add_task(
-        dependencies._refunding(_build_import, island_id, device, "create", "import"), island_id, media, srt_text, island_title, float(start_min) * 60.0,
+        dependencies._refunding(build._build_import, island_id, device, "create", "import"), island_id, media, srt_text, island_title, float(start_min) * 60.0,
         tmp_dir, language, native,
     )
     return {"id": island_id, "status": "pending"}
@@ -759,27 +427,6 @@ async def podcast_episodes(url: str, authorization: str | None = Header(None)) -
         log.warning("feed fetch failed: %s", exc)
         raise HTTPException(502, "that feed could not be fetched")
     return podcast.parse_feed(xml)
-
-
-async def _build_podcast(island_id: str, audio_url: str, title: str, start_s: float,
-                         tmp_dir: Path, language: str = "ja", native: str = "en") -> None:
-    """Download the episode audio into `tmp_dir`, then hand off to the same
-    pipeline a file import uses. `_build_import` owns `tmp_dir` once it takes
-    over; this only cleans up itself if the download never gets that far."""
-    try:
-        store.set_stage(island_id, "downloading")
-        media = tmp_dir / "episode"
-        await podcast.fetch(audio_url, media, config.IMPORT_MAX_BYTES)
-    except podcast.PodcastError:
-        store.set_failed(island_id, "The episode could not be downloaded.", "episode_download_failed")
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-        return
-    except Exception as exc:
-        log.exception("podcast download %s failed", island_id)
-        store.set_failed(island_id, str(exc))
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-        return
-    await _build_import(island_id, media, None, title, start_s, tmp_dir, language, native)
 
 
 @app.post("/shadow/podcasts/import")
@@ -822,22 +469,10 @@ async def import_podcast_episode(
     )
     store.start_build(island_id)
     background.add_task(
-        dependencies._refunding(_build_podcast, island_id, device, "create", "import"), island_id, audio_url, island_title, float(start_min) * 60.0, tmp_dir,
+        dependencies._refunding(build._build_podcast, island_id, device, "create", "import"), island_id, audio_url, island_title, float(start_min) * 60.0, tmp_dir,
         language, native,
     )
     return {"id": island_id, "status": "pending"}
-
-
-def _eta_s(island: dict) -> int | None:
-    """Seconds left for a building island, None once it settles or while the
-    media length is unknown (bl70-eta)."""
-    if island.get("status") not in ("pending", "working"):
-        return None
-    kind = store.build_kind(island.get("source", ""))
-    t0 = island.get("build_t0") or 0
-    if not kind or t0 <= 0:
-        return None
-    return eta.estimate(kind, island.get("media_s") or 0, time.time() - t0, store.build_history(kind))
 
 
 @app.get("/shadow/islands")
@@ -850,64 +485,9 @@ def list_islands(authorization: str | None = Header(None), device: str = "",
     rows = [r for r in store.list_islands(dev)
             if not (r["source_name"] == "say" and r["status"] == "failed")]
     for row in rows:
-        row["eta_s"] = _eta_s(row)
+        row["eta_s"] = build._eta_s(row)
         row["has_audio"] = store.line_audio_path(row["id"], 0).exists()
     return rows
-
-
-# Old islands get their word timings, furigana and pitch marks on first read
-# rather than through a migration. Timings and ruby are local (janome) and
-# fill every line in one read. Accent needs one VOICEVOX audio_query per
-# line (no synthesis, about 50ms), so it is capped per read and an island
-# with hundreds of lines fills over a few opens.
-ACCENT_FILL_PER_READ = 16
-
-
-def _fill_words(island_id: str, lines: list[dict]) -> None:
-    """Word timings and ruby for lines stored before either existed. Blocking
-    (janome), so the route runs it in a thread. Writes only when something
-    was added, so a second read of the same island writes nothing, and only
-    over the words it read, so a line replaced meanwhile is left alone."""
-    for line in lines:
-        before = copy.deepcopy(line["words"])
-        if not line["words"] and line["timeline"]:
-            line["words"] = segment.align(line["ja"], line["timeline"])
-            # A whole-line fallback is not worth persisting; a later read may
-            # do better once whatever failed is fixed.
-            if not segment.is_fallback(line["ja"], line["words"]):
-                store.set_words(island_id, line["idx"], line["words"], expected=before)
-        elif segment.ensure_ruby(line["words"], line["timeline"]):
-            store.set_words(island_id, line["idx"], line["words"], expected=before)
-
-
-async def _fill_accent(island: dict) -> None:
-    """`high` per mora for timelines stored before pitch marks existed, from
-    a fresh audio_query of the same text. At most ACCENT_FILL_PER_READ engine
-    calls, each with a short timeout; the first failure ends the pass (no
-    marks this time, tried again next read). A line whose moras do not line
-    up with the fresh query is stored with None so it is never asked again.
-    Empty timelines have nothing to fill and are skipped. Writes only over
-    the timeline it read."""
-    calls = 0
-    for line in island["lines"]:
-        if not voicevox.needs_accent(line["timeline"]):
-            continue
-        if calls >= ACCENT_FILL_PER_READ:
-            break
-        calls += 1
-        try:
-            query = await voicevox.audio_query(
-                line["ja"], island["speaker"], timeout=voicevox.BACKFILL_TIMEOUT_S
-            )
-        except Exception:
-            log.warning("accent backfill: VOICEVOX unreachable or slow for %s", island["id"])
-            break
-        filled = voicevox.backfill_accent(line["timeline"], query)
-        if filled is None:
-            log.warning("accent backfill: moras differ for %s line %d", island["id"], line["idx"])
-            filled = [{**m, "high": None} for m in line["timeline"]]
-        if store.set_timeline(island["id"], line["idx"], filled, expected=line["timeline"]):
-            line["timeline"] = filled
 
 
 @app.get("/shadow/islands/{island_id}")
@@ -917,143 +497,16 @@ async def get_island(island_id: str, authorization: str | None = Header(None),
     device = dependencies._require_device(x_shadow_device)
     island = await asyncio.to_thread(dependencies._own_island, island_id, device)
     island["known"] = await asyncio.to_thread(store.known_idxs, device, island_id)
-    island["eta_s"] = await asyncio.to_thread(_eta_s, island)
+    island["eta_s"] = await asyncio.to_thread(build._eta_s, island)
     # A re-voice or regenerate rewrites lines while the phone polls this
     # route, so backfill only a settled island.
     if island["status"] == "ready":
-        await asyncio.to_thread(_fill_words, island_id, island["lines"])
-        await _fill_accent(island)
+        await asyncio.to_thread(build._fill_words, island_id, island["lines"])
+        await build._fill_accent(island)
     return island
 
 
 SPEED_MIN, SPEED_MAX = 0.5, 1.5
-
-
-def _variant(idx: int, speed: float, span: tuple[int, int] | None) -> str:
-    """Stem of a cached render: the speed and, for a phrase, its span in
-    ms. `speed` is already rounded to 0.05."""
-    stem = f"{idx}@{speed:.2f}"
-    return f"{stem}~{span[0]}-{span[1]}" if span else stem
-
-
-def _span(start: int, end: int) -> tuple[int, int] | None:
-    """The (start, end) ms pair a route was asked for, or None for the whole
-    line. Both default to -1; any other negative value, giving one without
-    the other, or an empty or backwards span, is a client error."""
-    if start < -1 or end < -1:
-        raise HTTPException(400, "start and end must be milliseconds, or -1 for the whole line")
-    if start < 0 and end < 0:
-        return None
-    if start < 0 or end <= start:
-        raise HTTPException(400, "start and end must be milliseconds with start < end")
-    return (start, end)
-
-
-# One calibration profile per device for the phone's speaker-to-mic path (see
-# the take-bleed plan). It is not scoped to an island: the room and the phone
-# are what it models, not any one recording. Before device-scope there was one
-# shared profile, "default"; the owner device still falls back to it.
-LEGACY_TAKE_PROFILE = "default"
-
-
-def _take_profile_name(device: str) -> str:
-    """The profile file name for `device`. Safe as a file name only because
-    `dependencies._require_device` has already matched the id against dependencies.DEVICE_ID_RE or
-    USER_RE."""
-    return f"dev-{device}"
-
-
-def _load_take_profile(aec, device: str):
-    """The device's own profile, or for the owner device the legacy shared
-    one when it has not calibrated since device-scope."""
-    profile = aec.load_profile(_take_profile_name(device))
-    if profile is None and dependencies.OWNER_DEVICE and device == dependencies.OWNER_DEVICE:
-        profile = aec.load_profile(LEGACY_TAKE_PROFILE)
-    return profile
-
-
-def _write_atomic(path: Path, data: bytes) -> None:
-    """Write `data` to `path` via a temp file and rename, so a reader never
-    sees a partial write. The tmp name carries a random suffix so two
-    concurrent writers targeting the same `path` (two requests racing to
-    render the same line) never share, and clobber, one tmp file. Blocking
-    IO, meant to run in a thread."""
-    tmp = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
-    try:
-        tmp.write_bytes(data)
-        os.replace(tmp, path)
-    except BaseException:
-        tmp.unlink(missing_ok=True)
-        raise
-
-
-def _cached_transform(src: Path, dest: Path, transform) -> None:
-    """If `dest` is not already on disk, read `src`, run the CPU-only
-    `transform` over its bytes and atomically write the result to `dest`.
-    Used for both the phrase slice and the pause pad: a stat, a read, the
-    transform and a write-plus-rename, all blocking, so callers run this
-    with asyncio.to_thread instead of on the event loop, matching every
-    other route in this file that touches disk or does real work."""
-    if dest.exists():
-        return
-    _write_atomic(dest, transform(src.read_bytes()))
-
-
-async def _resolve_line_audio(island: dict, idx: int, speed: float,
-                               span: tuple[int, int] | None = None) -> Path:
-    """Path to a line's rendered wav at the given speed, rendering and caching
-    it first if it is not already on disk. Shared by the line audio route and
-    the take cleaner, which needs the exact reference the phone played: the
-    whole line, or (`span` set) the phrase that was looping when the take was
-    recorded."""
-    speed = round(min(SPEED_MAX, max(SPEED_MIN, speed)) * 20) / 20
-    path = store.line_audio_path(island["id"], idx)
-    if speed != 1.0:
-        path = path.with_name(f"{idx}@{speed:.2f}.wav")
-        if not await asyncio.to_thread(path.exists):
-            if "lines" not in island:
-                # The line route passes only the id; load the lines for a render.
-                island = await asyncio.to_thread(store.get_island, island["id"])
-                if island is None:
-                    raise HTTPException(404, "no such island")
-            line = next((l for l in island.get("lines", []) if l["idx"] == idx), None)
-            if line is None:
-                raise HTTPException(404, "no such line")
-            if island["source"] != "voice":
-                # Imported islands play the source recording, not VOICEVOX:
-                # slow it down (pitch preserved) instead of re-synthesizing.
-                base = store.line_audio_path(island["id"], idx)
-                if not await asyncio.to_thread(base.exists):
-                    raise HTTPException(404, "no audio for that line")
-                ok = await asyncio.to_thread(media_io._stretch, base, path, speed)
-                if not ok:
-                    raise HTTPException(502, "could not change the playback speed")
-            else:
-                try:
-                    wav, _, _, _ = await voices.speak(line["ja"], island["speaker"], speed)
-                except (voicevox.VoicevoxError, kokoro_tts.KokoroError) as exc:
-                    log.warning("voice failed: %s", exc)
-                    raise HTTPException(502, {"code": "voice_unreachable"}) from exc
-                await asyncio.to_thread(_write_atomic, path, wav)
-    if span:
-        sliced = path.with_name(_variant(idx, speed, span) + ".wav")
-        try:
-            await asyncio.to_thread(
-                _cached_transform, path, sliced, lambda b: voicevox.slice_wav(b, *span)
-            )
-        except ValueError as exc:
-            raise HTTPException(400, str(exc)) from exc
-        path = sliced
-    return path
-
-
-# The longest silence the line audio route appends. The player's Pause stops at
-# 10 s, but Drive's shadow gap (1.2 x a slow line) needs up to 20 s.
-PAD_MAX_MS = 20000
-
-
-def _clamp_pad(pad: int) -> int:
-    return max(0, min(PAD_MAX_MS, pad))
 
 
 @app.get("/shadow/islands/{island_id}/lines/{idx}/audio")
@@ -1074,41 +527,19 @@ async def line_audio(island_id: str, idx: int, token: str = "", speed: float = 1
     dependencies._token_or_header(token, authorization)
     dev = dependencies._require_device(x_shadow_device, device)
     await asyncio.to_thread(dependencies._require_owner, island_id, dev)
-    span = _span(start, end)
-    path = await _resolve_line_audio({"id": island_id}, idx, speed, span)
+    span = line_audio_svc._span(start, end)
+    path = await line_audio_svc._resolve_line_audio({"id": island_id}, idx, speed, span)
     if not await asyncio.to_thread(path.exists):
         raise HTTPException(404, "no audio for that line")
-    pad = _clamp_pad(pad)
+    pad = line_audio_svc._clamp_pad(pad)
     if pad > 0:
         speed_r = round(min(SPEED_MAX, max(SPEED_MIN, speed)) * 20) / 20
         # The "@" is what the stale sweep in _synthesize_lines (line 210) keys
         # on, so a padded file is removed along with the render it came from.
-        padded = path.with_name(f"{_variant(idx, speed_r, span)}+{pad}.wav")
-        await asyncio.to_thread(_cached_transform, path, padded, lambda b: voicevox.pad_wav(b, pad))
+        padded = path.with_name(f"{line_audio_svc._variant(idx, speed_r, span)}+{pad}.wav")
+        await asyncio.to_thread(line_audio_svc._cached_transform, path, padded, lambda b: voicevox.pad_wav(b, pad))
         path = padded
     return FileResponse(path, media_type="audio/wav")
-
-
-_episode_locks: dict[str, asyncio.Lock] = {}
-
-
-async def _ensure_episode(island_id: str, title: str) -> Path:
-    """The whole episode as m4a at AUDIO_DIR/<id>/episode.m4a, built once from
-    source.wav under a per-island lock. Raises HTTPException 409 no_episode
-    when there is no source.wav."""
-    folder = store.AUDIO_DIR / island_id
-    wav = folder / "source.wav"
-    dst = folder / "episode.m4a"
-    async with _episode_locks.setdefault(island_id, asyncio.Lock()):
-        if await asyncio.to_thread(dst.exists):
-            return dst
-        if not await asyncio.to_thread(wav.exists):
-            raise HTTPException(409, detail={"code": "no_episode"})
-        await asyncio.to_thread(
-            export.encode_file_m4a, wav, dst, title,
-            bitrate="64k", sample_rate=24000, timeout_s=600,
-        )
-    return dst
 
 
 @app.get("/shadow/islands/{island_id}/episode")
@@ -1122,7 +553,7 @@ async def episode_audio(island_id: str, token: str = "", device: str = "",
     island = await asyncio.to_thread(dependencies._own_island, island_id, dev)
     if island.get("source") not in ("podcast", "import"):
         raise HTTPException(409, detail={"code": "no_episode"})
-    path = await _ensure_episode(island_id, island.get("title") or "Episode")
+    path = await line_audio_svc._ensure_episode(island_id, island.get("title") or "Episode")
     return FileResponse(path, media_type="audio/mp4")
 
 
@@ -1159,7 +590,7 @@ async def export_island(island_id: str, speed: float = 1.0, repeats: int = 2,
             if not path.exists():
                 wavs = []
                 for line in island["lines"]:
-                    p = await _resolve_line_audio(island, line["idx"], spec.speed)
+                    p = await line_audio_svc._resolve_line_audio(island, line["idx"], spec.speed)
                     if not p.exists():
                         raise HTTPException(409, f"line {line['idx'] + 1} has no audio")
                     wavs.append(p.read_bytes())
@@ -1190,7 +621,7 @@ def _run_calibration(src: Path, ref_path: Path, device: str) -> dict:
     import aec
 
     profile = aec.calibrate(aec.decode(ref_path), aec.decode(src))
-    aec.save_profile(_take_profile_name(device), profile)
+    aec.save_profile(line_audio_svc._take_profile_name(device), profile)
     return {
         "cleaned": True,
         "erleDb": _round(profile.erle_db),
@@ -1368,7 +799,7 @@ async def upload_take(
     # Claimed before the daily slot and the clean, so a replay costs nothing.
     if op and not await asyncio.to_thread(store.claim_op, device, op):
         return await asyncio.to_thread(store.op_reply, device, op) or {}
-    span = _span(start, end)
+    span = line_audio_svc._span(start, end)
     # The same rounding _resolve_line_audio applies before it renders, so the
     # score's word windows use the speed the reference audio was actually
     # played at rather than the raw value the client sent.
@@ -1384,7 +815,7 @@ async def upload_take(
 
     profile = None
     if not is_calibration and not is_silent:
-        profile = _load_take_profile(aec, device)
+        profile = line_audio_svc._load_take_profile(aec, device)
 
     raw = await take.read()
     if not raw:
@@ -1398,7 +829,7 @@ async def upload_take(
         suffix = Path(take.filename or "take.wav").suffix or ".wav"
         src = tmp_dir / f"upload{suffix}"
         src.write_bytes(raw)
-        ref_path = await _resolve_line_audio(island, idx, speed, span)
+        ref_path = await line_audio_svc._resolve_line_audio(island, idx, speed, span)
 
         # ffmpeg and the filter are seconds of blocking CPU. On the event loop
         # they would stall every other request for the duration, including the
@@ -1499,25 +930,12 @@ async def regenerate(
             (complexity, island_id),
         )
     background.add_task(
-        dependencies._refunding(_build_island, island_id, device, "rework", "regenerate"),
+        dependencies._refunding(build._build_island, island_id, device, "rework", "regenerate"),
         island_id, wav, complexity, island["speaker"], count,
         island.get("register", "polite"), island.get("language", "ja"), island.get("native", "en"),
         transcript=island.get("transcript") or "",
     )
     return {"id": island_id, "status": "working", "complexity": complexity}
-
-
-async def _revoice(island_id: str, lines: list[dict], speaker: int, title: str,
-                   language: str = "ja") -> None:
-    try:
-        made = await _synthesize_lines(island_id, lines, speaker, language)
-        if made == 0:
-            store.set_failed(island_id, "The voice engine produced no audio.", "voice_no_audio")
-            return
-        store.set_ready(island_id, title)
-    except Exception as exc:
-        log.exception("revoice %s failed", island_id)
-        store.set_failed(island_id, str(exc))
 
 
 @app.post("/shadow/islands/{island_id}/revoice")
@@ -1551,7 +969,7 @@ async def revoice(
     store.set_stage(island_id, "speaking")
     # Lines are replaced one at a time as they render (INSERT OR REPLACE), so
     # an interruption leaves a mix of voices rather than an empty island.
-    background.add_task(_revoice, island_id, lines, speaker, island["title"], island.get("language", "ja"))
+    background.add_task(build._revoice, island_id, lines, speaker, island["title"], island.get("language", "ja"))
     return {"id": island_id, "status": "working", "speaker": speaker}
 
 
@@ -1746,7 +1164,7 @@ def _erase_owner(owner: str) -> None:
     review_deck.delete_owner(owner)
     import aec
 
-    (aec.AEC_DIR / f"{_take_profile_name(owner)}.npz").unlink(missing_ok=True)
+    (aec.AEC_DIR / f"{line_audio_svc._take_profile_name(owner)}.npz").unlink(missing_ok=True)
 
 
 @app.delete("/shadow/account")
@@ -1786,143 +1204,8 @@ def privacy_page() -> Response:
     return Response(_PRIVACY_HTML, media_type="text/html; charset=utf-8")
 
 
-def _signin_required(raw: str | None) -> bool:
-    """On unless SHADOW_REQUIRE_SIGNIN is set to 0, false or off."""
-    return (raw or "1").strip().lower() not in ("0", "false", "off")
-
-
-# When on, every non-public /shadow/* request needs a verified x-shadow-user
-# JWT; the raw device id is no longer an owner. On by default. Set
-# SHADOW_REQUIRE_SIGNIN=0 to accept device-only requests again.
-REQUIRE_SIGNIN = _signin_required(os.getenv("SHADOW_REQUIRE_SIGNIN"))
-
-PUBLIC_PATHS = ("/health", "/shadow/health", "/shadow", "/shadow/", "/shadow/privacy", "/shadow/app/latest")
-
-
-# device-scope: middleware
-class DeviceGuard:
-    """Pure ASGI middleware, not BaseHTTPMiddleware: background tasks and
-    FileResponse must keep working, which BaseHTTPMiddleware's
-    request/response buffering does not reliably preserve. Runs before the
-    bearer check; a request with no token still ends up 401 either way, just
-    from a different check."""
-
-    def __init__(self, app) -> None:
-        self.app = app
-
-    async def __call__(self, scope, receive, send) -> None:
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-        if scope["method"] == "OPTIONS" or scope["path"] in PUBLIC_PATHS:
-            await self.app(scope, receive, send)
-            return
-        # Dev upload page and API: opened in a plain browser, no device id or
-        # sign-in; every API call still needs the bearer token (dev_upload).
-        if dev_upload.enabled() and (
-            scope["path"] == "/shadow/dev/upload" or scope["path"].startswith("/shadow/dev/upload/")
-        ):
-            await self.app(scope, receive, send)
-            return
-        headers = dict(scope["headers"])
-        query = parse_qs(scope["query_string"].decode("latin-1"))
-        device = headers.get(b"x-shadow-device", b"").decode("latin-1")
-        if not device:
-            device = (query.get("device") or [""])[0]
-        # --- sign-in: a user principal comes only from a verified JWT ---
-        sent = [v.decode("latin-1") for k, v in scope["headers"] if k == b"x-shadow-device"]
-        sent += query.get("device", [])
-        if any(d.lower().startswith(accounts.USER_PREFIX) for d in sent):
-            response = JSONResponse({"detail": "bad device id"}, status_code=401)
-            await response(scope, receive, send)
-            return
-        user_token = headers.get(b"x-shadow-user", b"").decode("latin-1")
-        if not user_token:
-            user_token = (query.get("user") or [""])[0]
-        if user_token:
-            try:
-                sub = await asyncio.to_thread(accounts.verify, user_token)
-            except accounts.BadToken:
-                response = JSONResponse({"detail": "bad user token"}, status_code=401)
-                await response(scope, receive, send)
-                return
-            # --- ai-guardrails ---
-            principal = accounts.principal(sub)
-            try:
-                known = await asyncio.to_thread(dependencies._principal_known, principal)
-                guardrails.check_signup(principal, known)
-            except HTTPException as exc:
-                response = JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
-                await response(scope, receive, send)
-                return
-            # --- end ai-guardrails ---
-            kept = [(k, v) for k, v in scope["headers"] if k != b"x-shadow-device"]
-            kept.append((b"x-shadow-device", principal.encode()))
-            scope["headers"] = kept
-        # --- end sign-in ---
-        elif REQUIRE_SIGNIN:
-            response = JSONResponse({"detail": "sign-in required"}, status_code=401)
-            await response(scope, receive, send)
-            return
-        elif not dependencies.DEVICE_ID_RE.match(device):
-            response = JSONResponse({"detail": "missing device id"}, status_code=401)
-            await response(scope, receive, send)
-            return
-        # --- launch-basics: beta gate (BETA_PATHS and _beta_denied at file end) ---
-        # Only for a request with the shared token: without it the route's own
-        # check answers 401, so a probe cannot tell gated paths from open ones.
-        who = principal if user_token else device
-        if access._shared_token_ok(headers, query) and await access._beta_denied(scope["path"], who):
-            await JSONResponse({"detail": {"code": "not_beta"}}, status_code=403)(scope, receive, send)
-            return
-        # --- end launch-basics ---
-        await self.app(scope, receive, send)
-
-
-app.add_middleware(DeviceGuard)
-
-
-# --- security headers ---
-_HTML_CSP = (
-    b"default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; "
-    b"base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
-)
-# The dev upload page is one inline script plus inline style that calls its own API.
-_UPLOAD_CSP = (
-    b"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
-    b"connect-src 'self'; img-src 'self' data:; "
-    b"base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
-)
-
-
-class SecurityHeaders:
-    """Pure ASGI, for the same reason as DeviceGuard. Added last so it is
-    outermost and also decorates the 401s DeviceGuard sends itself."""
-
-    def __init__(self, app) -> None:
-        self.app = app
-
-    async def __call__(self, scope, receive, send) -> None:
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-
-        async def wrapped(message) -> None:
-            if message["type"] == "http.response.start":
-                headers = list(message.get("headers", []))
-                headers.append((b"x-content-type-options", b"nosniff"))
-                headers.append((b"referrer-policy", b"no-referrer"))
-                ctype = next((v for k, v in headers if k.lower() == b"content-type"), b"")
-                if ctype.lower().startswith(b"text/html"):
-                    upload = dev_upload.enabled() and scope["path"] == "/shadow/dev/upload"
-                    headers.append((b"content-security-policy", _UPLOAD_CSP if upload else _HTML_CSP))
-                message = {**message, "headers": headers}
-            await send(message)
-
-        await self.app(scope, receive, wrapped)
-
-
-app.add_middleware(SecurityHeaders)
+app.add_middleware(middleware.DeviceGuard)
+app.add_middleware(middleware.SecurityHeaders)
 
 
 # --- phrase-islands ---
@@ -1965,55 +1248,6 @@ def phrases_search(language: str, ui: str = "en", q: str = "", category: str = "
             _added_phrase_topics(x_shadow_device, language))
     except KeyError:
         raise HTTPException(404, f"no phrase catalog for language: {language}")
-
-
-async def _build_phrases(island_id: str, texts: list[str], glosses: list[str], title: str,
-                         speaker: int, language: str, native: str,
-                         topic: str = "") -> None:
-    """Voice a catalogue topic. No recording and no transcription: the lines
-    are the catalogue's own phrases. A translator failure only costs the
-    native text, the island still becomes ready. With `topic` set, the
-    finished island is also kept as the shared render for (language, topic,
-    speaker, native), so the next person who picks it gets a copy instead of
-    a new synthesis."""
-    try:
-        store.set_stage(island_id, "speaking")
-        translations = glosses
-        translated = True
-        if native != "en" and not all(glosses):
-            try:
-                translations = await asyncio.to_thread(
-                    generate.translate_lines, texts, language, native
-                )
-            except Exception:
-                log.exception("island %s: phrase translation failed", island_id)
-                translations, translated = [], False
-        lines = []
-        for i, text in enumerate(texts):
-            gloss = translations[i] if i < len(translations) else ""
-            kana = await asyncio.to_thread(segment.reading, text) if language == "ja" else ""
-            lines.append({"ja": text, "kana": kana, "romaji": "", "en": gloss or ""})
-        made = await _synthesize_lines(island_id, lines, speaker, language)
-        if made == 0:
-            store.set_failed(island_id, "The voice engine produced no audio.", "voice_no_audio")
-            return
-        store.set_ready(island_id, title)
-        log.info("island %s ready: %d phrase lines", island_id, made)
-    except Exception as exc:
-        log.exception("island %s failed", island_id)
-        store.set_failed(island_id, str(exc))
-        return
-    # Only a complete render is shared: a missing translation or a silent
-    # line would otherwise reach every later learner of this key. save_cache
-    # checks the stored lines again (count, idx and gloss).
-    if not topic or not translated or made < len(texts):
-        return
-    # The island is ready whatever happens below: a cache that cannot be
-    # written only means the next pick synthesises again.
-    try:
-        await asyncio.to_thread(starter.save_cache, island_id, language, topic, speaker, native)
-    except Exception:
-        log.exception("island %s: phrase cache not saved", island_id)
 
 
 @app.post("/shadow/phrases/import")
@@ -2076,7 +1310,7 @@ async def import_phrases(
         source_name=topic, device=device,
     )
     background.add_task(
-        dependencies._refunding(_build_phrases, island_id, device, "create", "phrases"),
+        dependencies._refunding(build._build_phrases, island_id, device, "create", "phrases"),
         island_id, [e["text"] for e in entries],
         [e.get(native, "") for e in entries],
         island_title, speaker, language, native, topic=topic,
@@ -2149,7 +1383,7 @@ async def import_grammar(
 
     async def run() -> None:
         try:
-            await _build_grammar(island_id, row, speaker, register, native)
+            await build._build_grammar(island_id, row, speaker, register, native)
         except Exception as exc:
             log.exception("island %s failed", island_id)
             store.set_failed(island_id, str(exc))
@@ -2212,157 +1446,6 @@ async def youtube_info(url: str, authorization: str | None = Header(None),
     }
 
 
-async def _build_from_captions(island_id: str, lines: list[dict], title: str,
-                               language: str = "ja", native: str = "en", asr: bool = False,
-                               asr_tokens: list[dict] | None = None) -> None:
-    """Build a video island from caption lines. No audio exists, so lines get
-    their reading and word times from the json3 seg onsets (an even pace when the track has none), with `offset` = the caption start.
-    ja lines are split at clause ends; ASR ja text is repaired after the
-    island is ready (repair.job, below).
-    `asr_tokens` (youtube.asr_tokens of the auto track, when the picked track
-    is manual) move ja lines onto the voice first: see asr_transfer."""
-    asr_report: dict | None = None
-    try:
-        store.set_media(island_id, max((ln["end"] for ln in lines), default=0.0))
-        # yt-drift: a manual caption runs until the next caption, so a ja line
-        # with no pieces ends its speech at mora count / the track's mora rate
-        # and the rest is silence (segment.speech_end); the same clock places
-        # the split cuts.
-        rate = 0.0
-        trimmed_s = 0.0
-        if language == "ja":
-            lines = await asyncio.to_thread(youtube.stretch_lumps, lines)
-            rate = await asyncio.to_thread(
-                segment.mora_rate, [(ln["text"], ln["end"] - ln["start"]) for ln in lines])
-            if asr_tokens:
-                lines, asr_report = await asyncio.to_thread(asr_transfer.attach, lines, asr_tokens, rate)
-                log.info("island %s asr transfer: anchored %d of %d, median shift %.2f s, max %.2f s",
-                         island_id, asr_report["anchored"], asr_report["lines"],
-                         asr_report["median_shift_s"], asr_report["max_shift_s"])
-            lines = youtube.split_lines(lines, rate=rate)
-            if asr_report is not None:
-                lines = asr_transfer.trim_tails(lines)
-        cue_list = youtube.cues_from_lines(lines)
-        store.set_stage(island_id, "aligning")
-        ja_texts: list[str] = []
-        last_end = 0.0
-        for i, cue in enumerate(cue_list):
-            duration = max(cue["end"] - cue["start"], 0.05)
-            pieces = cue.get("pieces", [])
-            if language == "ja":
-                speech_end = None if pieces else segment.speech_end(cue["text"], duration, rate)
-                if speech_end is not None:
-                    trimmed_s += duration - speech_end
-                words = await asyncio.to_thread(segment.align_pieces, cue["text"], pieces, duration, speech_end)
-                kana = segment.reading(cue["text"])
-            else:
-                words = await asyncio.to_thread(latin.align, cue["text"], pieces, duration)
-                kana = ""
-            line = {"ja": cue["text"], "kana": kana, "romaji": "", "en": ""}
-            store.add_line(island_id, i, line, round(duration, 3), [], words, offset=cue["start"])
-            ja_texts.append(cue["text"])
-            last_end = max(last_end, cue["end"])
-        store.set_video_duration(island_id, last_end)
-        # yt-precise: the timing is settled at build; the video screen only
-        # syncs islands whose align status is still empty.
-        store.set_align_status(island_id, "done", _asr_code(asr_report))
-        # youtube-asr-context-repair: claim the text pass before the island
-        # reads as ready, so the player's first open finds it queued and does
-        # not start a second pass that races the translation loop below.
-        repair_claimed = store.claim_repair(island_id, repair.REPAIR_MAX_ATTEMPTS, repair.VERSION)
-        store.set_ready(island_id, title)
-        _align_resume(island_id)  # bl36-align: an upload that came in mid-build
-        log.info("island %s ready from captions: %d lines, mora rate %.1f/s, trimmed %.1f s of silence",
-                 island_id, len(ja_texts), rate, trimmed_s)
-    except Exception as exc:
-        log.exception("captions build %s failed", island_id)
-        store.set_failed(island_id, str(exc))
-        _align_resume(island_id)
-        return
-
-    # Ready already: a translation error only costs the English.
-    try:
-        await _translate_batches(island_id, ja_texts, language, native)
-    except Exception:
-        log.exception("island %s: translation stopped early, the island stays ready", island_id)
-    # youtube-asr-context-repair: the text pass runs once the English is in,
-    # inside this background task, one video at a time.
-    if repair_claimed:
-        await _repair_job(island_id, asr and language == "ja")
-
-
-TRANSLATE_WORKERS = 3
-
-
-async def _translate_batches(island_id: str, texts: list[str], language: str, native: str) -> None:
-    """Translate in TRANSLATE_BATCH chunks, TRANSLATE_WORKERS at a time. Each
-    batch is saved as it lands, so a failure keeps the finished ones; the
-    first error is raised after the rest settle."""
-    sem = asyncio.Semaphore(TRANSLATE_WORKERS)
-    n = generate.TRANSLATE_BATCH
-
-    async def one(b: int) -> None:
-        batch = texts[b:b + n]
-        async with sem:
-            translations = await asyncio.to_thread(
-                generate.translate_lines, batch, language, native,
-                texts[max(0, b - 2):b], texts[b + len(batch):b + len(batch) + 2])
-        for offset, en in enumerate(translations):
-            if en:
-                store.set_en(island_id, b + offset, en)
-
-    results = await asyncio.gather(*(one(b) for b in range(0, len(texts), n)),
-                                   return_exceptions=True)
-    for r in results:
-        if isinstance(r, BaseException):
-            raise r
-
-
-async def _captions_body(request: Request) -> dict:
-    """A caption request's JSON object, streamed under CAPTIONS_MAX_BODY:
-    413 when bigger, 400 captions_invalid when not a JSON object."""
-    declared = request.headers.get("content-length")
-    if declared and declared.isdigit() and int(declared) > youtube.CAPTIONS_MAX_BODY:
-        raise HTTPException(413, {"code": "captions_invalid"})
-    raw = bytearray()
-    async for chunk in request.stream():
-        raw += chunk
-        if len(raw) > youtube.CAPTIONS_MAX_BODY:
-            raise HTTPException(413, {"code": "captions_invalid"})
-    try:
-        body = json.loads(bytes(raw))
-    except ValueError:
-        raise HTTPException(400, {"code": "captions_invalid"})
-    if not isinstance(body, dict):
-        raise HTTPException(400, {"code": "captions_invalid"})
-    return body
-
-
-def _asr_code(report: dict | None) -> str:
-    """The align_error word for a finished transfer: asr_none (no ASR track
-    or no tokens), asr_low_match (under a fifth of the lines anchored), asr."""
-    if not report or not report.get("tokens", 1):
-        return "asr_none"
-    if report["anchored"] < config.ASR_MIN_ANCHORED * report["lines"]:
-        return "asr_low_match"
-    return "asr"
-
-
-def _write_captions_json(island_id: str, video_id: str, events: list | None, asr_events: list) -> None:
-    """audio/<id>/captions.json: both raw tracks, the retime's input and the
-    fixture source. Keeps the manual events already on disk when the caller
-    has none."""
-    path = store.AUDIO_DIR / island_id / "captions.json"
-    if events is None and path.exists():
-        try:
-            events = json.loads(path.read_text()).get("events")
-        except (OSError, ValueError):
-            events = None
-    path.parent.mkdir(parents=True, exist_ok=True)
-    _write_atomic(path, json.dumps({"video_id": video_id, "events": events or [],
-                                    "asr_events": asr_events}, ensure_ascii=False).encode())
-
-
 @app.post("/shadow/youtube/captions")
 async def import_youtube_captions(
     request: Request,
@@ -2377,7 +1460,7 @@ async def import_youtube_captions(
     times (yt-precise)."""
     dependencies.require_token(authorization)
     device = dependencies._require_device(x_shadow_device)
-    body = await _captions_body(request)
+    body = await captions._captions_body(request)
     url, title = body.get("url"), body.get("title", "")
     speaker = body.get("speaker", voicevox.DEFAULT_SPEAKER)
     language, native = body.get("language", "ja"), body.get("native", "en")
@@ -2428,9 +1511,9 @@ async def import_youtube_captions(
     log.info("youtube import %s: context title=%r description=%d chars keywords=%d chapters=%d",
              video_id, context["title"], len(context["description"]), len(context["keywords"]),
              len(context["chapters"]))
-    await asyncio.to_thread(_write_captions_json, island_id, video_id, body.get("events"), asr_events)
+    await asyncio.to_thread(captions._write_captions_json, island_id, video_id, body.get("events"), asr_events)
     background.add_task(
-        dependencies._refunding(_build_from_captions, island_id, device, "create", "import"),
+        dependencies._refunding(captions._build_from_captions,island_id, device, "create", "import"),
         island_id, lines, island_title, language, native,
         any(ln.get("pieces") for ln in lines), asr_tokens=tokens,
     )
@@ -2554,7 +1637,7 @@ async def post_captions_timing(
         raise HTTPException(400, {"code": "not_video"})
     if island["status"] != "ready":
         raise HTTPException(409, {"code": "not_ready"})
-    body = await _captions_body(request)
+    body = await captions._captions_body(request)
     asr_events = body.get("asr_events")
     try:
         youtube.asr_tokens(asr_events)
@@ -2567,7 +1650,7 @@ async def post_captions_timing(
     if not await asyncio.to_thread(store.claim_align, island_id, config.ALIGN_MAX_ATTEMPTS):
         raise HTTPException(409, {"code": "align_busy"})
     try:
-        await asyncio.to_thread(_write_captions_json, island_id, video["video_id"], None, asr_events)
+        await asyncio.to_thread(captions._write_captions_json, island_id, video["video_id"], None, asr_events)
     except BaseException:
         store.set_align_status(island_id, video["align_status"], video["align_error"])
         raise
@@ -2589,7 +1672,7 @@ async def _asr_retime(island_id: str) -> None:
             return caption_timing.transfer(island_id, tokens, apply=True)
 
         report = await asyncio.to_thread(work)
-        store.set_align_status(island_id, "done", _asr_code(report))
+        store.set_align_status(island_id, "done", captions._asr_code(report))
         log.info("island %s asr transfer: anchored %d of %d, %d lines written, median shift %.2f s, max %.2f s",
                  island_id, report["anchored"], report["lines"], report["written"],
                  report["median_shift_s"], report["max_shift_s"])
@@ -2722,7 +1805,7 @@ async def _align_startup() -> None:
     # A worker from the previous process may still hold 3G: stop it before requeueing.
     await asyncio.to_thread(align.stop_leftover_scopes)
     _align_recover()
-    _repair_recover()  # youtube-asr-context-repair
+    captions._repair_recover()  # youtube-asr-context-repair
     asyncio.create_task(_align_consumer())
 # --- end bl36-align ---
 
@@ -3400,30 +2483,6 @@ async def streak_freeze_buy(
 
 
 # --- youtube-asr-context-repair ---
-# One video repairs at a time: the pass shares the claude CLI with builds and
-# catch meanings. The island is already playable while it waits.
-_repair_gate = asyncio.Semaphore(1)
-
-
-async def _repair_job(island_id: str, asr: bool | None = None) -> None:
-    """Run repair.job for one claimed island under the gate. The job sets
-    the final status itself (done or failed)."""
-    try:
-        async with _repair_gate:
-            await asyncio.to_thread(store.set_repair_status, island_id, "running")
-            await asyncio.to_thread(repair.job, island_id, asr)
-    except Exception:
-        log.exception("repair job %s crashed", island_id)
-        store.set_repair_status(island_id, "failed", "repair_error")
-
-
-def _repair_recover() -> None:
-    """Rows still queued or running died with the old process: run them again."""
-    for island_id in store.list_repair_pending():
-        store.set_repair_status(island_id, "queued")
-        asyncio.get_event_loop().create_task(_repair_job(island_id))
-
-
 @app.post("/shadow/islands/{island_id}/repair")
 async def post_video_repair(
     island_id: str,
@@ -3447,8 +2506,8 @@ async def post_video_repair(
         raise HTTPException(400, {"code": "not_video"})
     if island["status"] != "ready":
         raise HTTPException(409, {"code": "not_ready"})
-    body = await _captions_body(request)
-    context = repair.clean_context(body.get("context"))
+    body = await captions._captions_body(request)
+    context =repair.clean_context(body.get("context"))
     await asyncio.to_thread(store.set_repair_context, video["video_id"], context)
     status = video.get("repair_status", "")
     if status in ("queued", "running"):
@@ -3467,7 +2526,7 @@ async def post_video_repair(
         return {"repair": "queued"}
     if not owner:
         await asyncio.to_thread(store.log_build, device, "repair")
-    background.add_task(_repair_job, island_id)
+    background.add_task(captions._repair_job, island_id)
     return {"repair": "queued"}
 # --- end youtube-asr-context-repair ---
 
@@ -3546,46 +2605,6 @@ async def admin_beta_set(
 
 
 # --- say-it ---
-async def _build_say(island_id: str, wav: Path, speaker: int, register: str,
-                     learning: str, native: str, transcript: str = "") -> None:
-    """Transcribe the native sentence, ask for the line(s) in `learning`,
-    voice them, mark the island ready with the native sentence as its title.
-    A non-empty `transcript` (dev only) skips whisper. The whole clip is 1 to
-    15 s, so whisper runs with no VAD and no fast flag."""
-    try:
-        text = (transcript or "").strip()
-        if not text:
-            store.set_stage(island_id, "transcribing")
-            result = await asyncio.to_thread(transcribe.transcribe, wav, native)
-            text = (result.get("text") or "").strip()
-            if not text:
-                store.set_failed(
-                    island_id, "Nothing could be transcribed from that recording.",
-                    "transcribe_empty",
-                )
-                return
-        store.set_transcript(island_id, text)
-
-        store.set_stage(island_id, "writing")
-        said = await asyncio.to_thread(generate.say_lines, text, learning, native, register)
-        lines = said.get("lines") or []
-        if said.get("intent") == "unclear" or not lines:
-            store.set_failed(island_id, "I did not catch that. Say it again.", "say_unclear")
-            return
-
-        store.set_stage(island_id, "speaking")
-        made = await _synthesize_lines(island_id, lines, speaker, learning)
-        if made == 0:
-            store.set_failed(island_id, "The voice engine produced no audio.", "voice_no_audio")
-            return
-
-        store.set_ready(island_id, text[:40])
-        log.info("say %s ready: intent=%s %d lines", island_id, said.get("intent"), made)
-    except Exception as exc:
-        log.exception("say %s failed", island_id)
-        store.set_failed(island_id, str(exc))
-
-
 @app.post("/shadow/say")
 async def create_say(
     background: BackgroundTasks,
@@ -3640,7 +2659,7 @@ async def create_say(
     shutil.rmtree(tmp_dir, ignore_errors=True)
 
     background.add_task(
-        dependencies._refunding(_build_say, island_id, device, "say", "say"),
+        dependencies._refunding(build._build_say, island_id, device, "say", "say"),
         island_id, wav, speaker, register, language, native, transcript,
     )
     return {"id": island_id, "status": "pending"}

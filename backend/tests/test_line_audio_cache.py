@@ -1,4 +1,4 @@
-"""Tests for main._write_atomic and main._cached_transform: the file IO and
+"""Tests for main._write_atomic and line_audio._cached_transform: the file IO and
 slice/pad work the line audio route now runs through asyncio.to_thread
 instead of on the event loop (see D1 in the pipe declogger ledger).
 Importing main starts nothing: no server, no VOICEVOX, no whisper model
@@ -9,7 +9,7 @@ import threading
 
 import pytest
 
-import main
+from services import line_audio
 
 
 def test_write_atomic_concurrent_writers_do_not_collide_on_the_tmp_name(tmp_path):
@@ -24,7 +24,7 @@ def test_write_atomic_concurrent_writers_do_not_collide_on_the_tmp_name(tmp_path
 
     def write(data):
         try:
-            main._write_atomic(dest, data)
+            line_audio._write_atomic(dest, data)
         except Exception as exc:  # pragma: no cover - surfaced via errors
             errors.append(exc)
 
@@ -45,7 +45,7 @@ def test_write_atomic_concurrent_writers_do_not_collide_on_the_tmp_name(tmp_path
 def test_write_atomic_writes_bytes_and_leaves_no_tmp_file(tmp_path):
     dest = tmp_path / "out.wav"
 
-    main._write_atomic(dest, b"hello")
+    line_audio._write_atomic(dest, b"hello")
 
     assert dest.read_bytes() == b"hello"
     assert not dest.with_suffix(".tmp").exists()
@@ -56,7 +56,7 @@ def test_cached_transform_writes_the_transform_of_the_source(tmp_path):
     src.write_bytes(b"raw-audio")
     dest = tmp_path / "sliced.wav"
 
-    main._cached_transform(src, dest, lambda data: data.upper())
+    line_audio._cached_transform(src, dest, lambda data: data.upper())
 
     assert dest.read_bytes() == b"RAW-AUDIO"
 
@@ -68,7 +68,7 @@ def test_cached_transform_skips_the_transform_when_dest_already_exists(tmp_path)
     dest.write_bytes(b"already-there")
 
     calls = []
-    main._cached_transform(src, dest, lambda data: calls.append(data) or data)
+    line_audio._cached_transform(src, dest, lambda data: calls.append(data) or data)
 
     # The cache hit must not even read the source, matching the original
     # `if not sliced.exists(): ...` gate this replaced.
@@ -85,7 +85,7 @@ def test_cached_transform_propagates_a_transform_error(tmp_path):
         raise ValueError("bad span")
 
     with pytest.raises(ValueError):
-        main._cached_transform(src, dest, boom)
+        line_audio._cached_transform(src, dest, boom)
 
     # A failed transform must not leave a partial file behind for a later
     # request to serve as if it were valid.
@@ -100,7 +100,7 @@ def test_cached_transform_runs_cleanly_off_the_event_loop(tmp_path):
     dest = tmp_path / "sliced.wav"
 
     async def run():
-        await asyncio.to_thread(main._cached_transform, src, dest, lambda d: d[::-1])
+        await asyncio.to_thread(line_audio._cached_transform, src, dest, lambda d: d[::-1])
 
     asyncio.run(run())
 

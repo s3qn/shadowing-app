@@ -10,9 +10,17 @@ import { getSettingsSync, setBlind as persistBlind, setReading as persistReading
  * podcast players: tile anchors, the dock's height and top, which popover is
  * open, and the reading and blind toggles that persist to Settings.
  */
-export function useDockPopovers(opts?: { onAnchorExtra?: (key: DockAnchorKey, box: DockAnchor) => void }) {
+export function useDockPopovers(opts?: {
+  onAnchorExtra?: (key: DockAnchorKey, box: DockAnchor) => void;
+  /** Island: run alongside the reading pick, the blind toggle (with the new value) and the English toggle. */
+  onPickReading?: (mode: ReadingMode) => void;
+  onToggleBlind?: (next: boolean) => void;
+  onToggleEnglish?: () => void;
+}) {
   const extraRef = useRef(opts?.onAnchorExtra);
   extraRef.current = opts?.onAnchorExtra;
+  const changeRef = useRef(opts);
+  changeRef.current = opts;
   const [explainOpen, setExplainOpen] = useState(false);
   const [explainSpan, setExplainSpan] = useState<ExplainSelection['span'] | null>(null);
   const [explainMarked, setExplainMarked] = useState<string[]>([]);
@@ -59,19 +67,32 @@ export function useDockPopovers(opts?: { onAnchorExtra?: (key: DockAnchorKey, bo
     setExplainOpen(true);
   }, []);
   const pickReading = (mode: ReadingMode) => {
+    changeRef.current?.onPickReading?.(mode);
     setReadingMode(mode);
     persistReading(mode).catch(() => {});
   };
   const toggleBlind = () => {
     const next = !blind;
+    changeRef.current?.onToggleBlind?.(next);
     setBlind(next);
     persistBlind(next).catch(() => {});
   };
-  const toggleEnglish = () => setEnglishShown((v) => !v);
+  const toggleEnglish = () => {
+    changeRef.current?.onToggleEnglish?.();
+    setEnglishShown((v) => !v);
+  };
 
   return {
     explainOpen,
     setExplainOpen,
+    setExplainSpan,
+    setExplainMarked,
+    setExplainWhole,
+    setReadingMode,
+    setBlind,
+    setEnglishShown,
+    setDockH,
+    anchorMoved,
     explainSpan,
     explainMarked,
     explainWhole,

@@ -6,6 +6,7 @@ import pytest
 
 import main
 import store
+from services import build
 
 LINE = {"ja": "Hola mundo", "kana": "", "romaji": "", "en": "Hello world"}
 TIMINGS = [
@@ -40,7 +41,7 @@ def _run(language, speaker, timings, monkeypatch, timeline=None):
     monkeypatch.setattr(main.voices, "speak_timed", fake_timed)
     island_id = store.create_island("simple", speaker, register="polite", language=language)
     (store.AUDIO_DIR / island_id).mkdir(parents=True, exist_ok=True)
-    done = asyncio.run(main._synthesize_lines(island_id, [LINE], speaker, language))
+    done = asyncio.run(build._synthesize_lines(island_id, [LINE], speaker, language))
     assert done == 1
     return store.get_island(island_id)["lines"][0]
 

@@ -17,6 +17,7 @@ import llm
 import beta
 import main
 import dependencies
+from services import captions
 import repair
 import segment
 import store
@@ -659,7 +660,7 @@ def test_build_from_captions_hands_the_island_to_the_repair_job(monkeypatch):
     monkeypatch.setattr(generate, "translate_lines", lambda b, *a, **k: ["en"] * len(b))
     iid = make_island([], ready=False)
     lines = [{"start": 0.0, "end": 2.0, "text": "上緒がある", "pieces": [{"text": "上緒がある", "start": 0.0, "end": 2.0}]}]
-    asyncio.run(main._build_from_captions(iid, lines, "Clip", asr=True))
+    asyncio.run(captions._build_from_captions(iid, lines, "Clip", asr=True))
     island = store.get_island(iid)
     assert island["status"] == "ready" and island["stage"] != "correcting"
     assert calls == [(iid, True)]
@@ -682,7 +683,7 @@ def test_build_claims_the_repair_before_ready_so_an_open_mid_translation_is_a_no
 
     monkeypatch.setattr(generate, "translate_lines", translate)
     lines = [{"start": 0.0, "end": 2.0, "text": "上緒がある", "pieces": [{"text": "上緒がある", "start": 0.0, "end": 2.0}]}]
-    asyncio.run(main._build_from_captions(iid, lines, "Clip", asr=True))
+    asyncio.run(captions._build_from_captions(iid, lines, "Clip", asr=True))
     assert seen == [("ready", "queued", {"repair": "queued"}, [])]
     assert calls == [(iid, True)]
     assert store.get_video(iid)["repair_attempts"] == 1
@@ -796,6 +797,6 @@ def test_repair_slot_is_taken_only_after_a_won_claim(monkeypatch):
     async def no_job(*a, **k):
         return None
 
-    monkeypatch.setattr(main, "_repair_job", no_job)
+    monkeypatch.setattr(captions, "_repair_job", no_job)
     assert _post(iid, headers=head).json() == {"repair": "queued"}
     assert store.count_builds_today(stranger, "repair") == 1

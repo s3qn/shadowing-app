@@ -3,7 +3,6 @@ import {
   type AudioStatus,
   useAudioPlayer,
 } from 'expo-audio';
-import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
@@ -19,7 +18,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { Gesture, GestureDetector, ScrollView } from 'react-native-gesture-handler';
+import { Gesture, ScrollView } from 'react-native-gesture-handler';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -46,26 +45,18 @@ import type { LadderIo } from '@/hooks/ladder/ladder-types';
 import { takeRoomSec, takeWatchSec, useLadder } from '@/hooks/use-ladder';
 import { TideScene } from '@/components/tide/tide-scene';
 import { useContentReveal, usePieceStyle } from '@/components/tide/use-content-reveal';
-import { CompactDock, DOCK_GOLD_INK, type DockAnchor, type DockAnchorKey, type DockPill } from '@/components/tide/compact-dock';
-import { BlindPopover, blindValueLabel } from '@/components/tide/blind-popover';
-import { READING_LABEL_KEY, ReadingPopover } from '@/components/tide/reading-popover';
-import { RepeatPopover, repeatTileLabel } from '@/components/tide/repeat-popover';
-import { speedLabel, SpeedPopover } from '@/components/tide/speed-popover';
-import { BlindIcon, ReadingIcon, RepeatIcon } from '@/components/tide/toolbar-icons';
+import { CompactDock } from '@/components/tide/compact-dock';
+import { DockPopovers } from '@/components/tide/dock-popovers';
+import { useDockPopovers } from '@/hooks/use-dock-popovers';
+import { useTrayPills } from '@/hooks/use-tray-pills';
 import { fitScale } from '@/lib/fit-line';
 import { PressScale } from '@/components/press-scale';
 import { CatConstellation } from '@/components/cat-constellation';
 import { ExplainSheet } from '@/components/explain-sheet';
 import { PhraseBar } from '@/components/phrase-bar';
-import { Frost } from '@/components/frost';
 import { type RingMode } from '@/components/ring-button';
-import { GRAMMAR_LILAC, RubyWord } from '@/components/ruby-word';
-import { SELECTION_HANDLE_CLEARANCE, SelectionHandles } from '@/components/selection-handles';
-import { SELECTION_POPUP_WIDTH, SelectionPopup } from '@/components/selection-popup';
+import { GRAMMAR_LILAC } from '@/components/ruby-word';
 import { useWordHighlight } from '@/components/word-highlight';
-import { POPOVER_WIDTH, WordPanel } from '@/components/word-panel';
-import { SlideReveal } from '@/components/slide-reveal';
-import { TakeFeedback } from '@/components/take-feedback';
 import { SymbolView } from 'expo-symbols'; // icon-buttons: retry/regenerate/refresh
 import { PrismButton } from '@/components/prism'; // icon-buttons: retry/regenerate/refresh
 import { fonts } from '@/constants/fonts';
@@ -92,19 +83,19 @@ import { invalidateCachedIsland, peekCachedIsland, readCachedIsland, writeCached
 import { requestLoader } from '@/lib/loading-overlay';
 import { IslandGuide } from '@/components/onboarding/island-guide';
 import { useBetaFeatures } from '@/lib/beta'; // beta-gate
-import { getGuideStep, noteGuideEasyTap, setGuideStep, useGuideAnchor, useGuideLock, useGuideStep } from '@/lib/guide'; // bl57-intro-round2
+import { getGuideStep, setGuideStep, useGuideAnchor, useGuideLock, useGuideStep } from '@/lib/guide'; // bl57-intro-round2
 import { GuideBubble } from '@/components/onboarding/guide-bubble'; // bl58-easy-for-me
-import { GlassPanel } from '@/components/prism/glass-panel'; // bl58-easy-for-me
-import { noteAward } from '@/lib/progression'; // bl58-easy-for-me
+import { useEasyMark } from '@/hooks/island/use-easy-mark';
+import { EasyOffer } from '@/components/island/easy-offer';
 import { useIslandExport } from '@/hooks/use-island-export';
 import { getLastLine, peekLastLine, resumeLine, setLastLine } from '@/lib/last-line';
 import { useSkyStyle } from '@/lib/sky';
-import { textSpanToWords, usePhrase, type PhraseSpan } from '@/hooks/use-phrase';
+import { usePhrase } from '@/hooks/use-phrase';
 import { useLineStatus } from '@/hooks/use-line-status';
 import { usePracticeClock } from '@/hooks/use-practice-clock';
 import { TAIL_MS, useTake, WATCHDOG_FALLBACK_MS, type TakeMode } from '@/hooks/use-take';
 import * as api from '@/lib/api';
-import { isDownloaded, offlineGloss, offlineWordAudio, preloadOfflineGlosses, snapOffline } from '@/lib/offline-islands'; // offline-islands
+import { isDownloaded, preloadOfflineGlosses, snapOffline } from '@/lib/offline-islands'; // offline-islands
 import {
   applyPlaybackMode,
   lockArtwork,
@@ -142,21 +133,21 @@ import {
   DEFAULT_VOICE_BY_LANGUAGE,
   getSettings,
   getSettingsSync,
-  setBlind as persistBlind,
-  setReading as persistReading,
   TIMES_MAX,
-  type ReadingMode,
 } from '@/lib/settings';
 import { deleteTakes, wordsKeptUp } from '@/lib/takes';
 import { invalidateLineAudio, localLineAudio, prefetchLineAudio } from '@/lib/line-audio-cache';
 import { useSlideReveal } from '@/lib/slide-reveal';
-import { breathOf, DRAG_LIMIT, lineEndOf, rubberBandDragY, spanUpdate } from '@/lib/island/player-timing';
+import { breathOf, DRAG_LIMIT, lineEndOf, rubberBandDragY } from '@/lib/island/player-timing';
 import { useStableHandler } from '@/hooks/use-stable-handler';
+import { IslandSentenceCard } from '@/components/island/island-sentence-card';
 import { HEADER_ROW_H, Leaf, PlayerHeader } from '@/components/island/player-header';
 import { useDir, useT } from '@/lib/i18n'; // offline-islands: useDir
-import { AUTO_NEXT_HOLD_MS, CONTEXT_LINES, EASY_GLIDE_MS, EASY_OFFER_HOLD_MS, ECHO_RESULT_HOLD_MS, EXPORT_GAP_MS, FINISH_GUARD_MS, GUIDE_AUDIO_MS, OFFLINE_RETRY_MS, OPEN_HOLD_MAX_MS, PENDING_PLAY_MS, RATE_MAX, RATE_MIN, REFRESH_AFTER_COVER_MS, SEEK_WAIT_MS, SPEED_LOAD_WAIT_MS, SWAP_STALE_MS, TAKE_LAG_MAX_MS, TAKE_READ_AFTER_COVER_MS, TRANSCRIPT_WIDEN_MS, lockScreen, noop, noopLayout } from '@/lib/island/island-consts';
-import { hitTest as hitWord, nextLongerIdx as nextLongerIdxPure, type WordBoxes } from '@/lib/island/word-hit';
+import { AUTO_NEXT_HOLD_MS, CONTEXT_LINES, EASY_OFFER_HOLD_MS,EXPORT_GAP_MS, FINISH_GUARD_MS, GUIDE_AUDIO_MS, OFFLINE_RETRY_MS, OPEN_HOLD_MAX_MS, PENDING_PLAY_MS, RATE_MAX, RATE_MIN, REFRESH_AFTER_COVER_MS, SEEK_WAIT_MS, SPEED_LOAD_WAIT_MS, SWAP_STALE_MS, TAKE_LAG_MAX_MS, TAKE_READ_AFTER_COVER_MS, TRANSCRIPT_WIDEN_MS, lockScreen } from '@/lib/island/island-consts';
+import { useIslandWordPanel } from '@/hooks/island/use-island-word-panel';
 import type { IslandCore } from '@/hooks/island/island-core';
+import { readWarmStart, useIslandLoad } from '@/hooks/island/use-island-load';
+import { useIslandRebuild } from '@/hooks/island/use-island-rebuild';
 
 // languages: short code shown on the Blind dock tile and Home's language pill.
 
@@ -188,15 +179,7 @@ export default function IslandScreen() {
   // the island is on screen when the morph lands instead of one more heavy
   // render later. It takes this path only if the saved line is already known.
   // focus-stories: a cube hop takes it too: the hop hook kept the neighbour's copy read and parsed.
-  const [warmStart] = useState(() => {
-    if (!morphActive() && hopParam !== '1') return null;
-    const cached = peekCachedIsland(id);
-    if (!cached) return null;
-    const n = cached.island.lines.length;
-    const saved = peekLastLine(id);
-    if (saved === undefined) return null;
-    return { ...cached, idx: resumeLine(saved, n) };
-  });
+  const [warmStart] = useState(() => readWarmStart(id, hopParam));
   const warmStartRef = useRef(warmStart);
   const [loadedIsland, setIsland] = useState<api.Island | null>(() => warmStart?.island ?? null);
   // Only ever the island this screen is for: a copy left from another id
@@ -235,13 +218,6 @@ export default function IslandScreen() {
   const playsDone = useRef(0);
   // Which toolbar or header sheet is open, if any: one at a time.
   const [sheet, setSheet] = useState<'echo' | 'island' | null>(null);
-  // The Speed tile's popover and the tile's box, anchored like Repeat's.
-  const [speedPopOpen, setSpeedPopOpen] = useState(false);
-  // Tile boxes, the dock's top and the player's width live in refs: the
-  // first layout must not render the screen, and a popover opening renders
-  // anyway, which is when they are read.
-  const anchors = useRef<Partial<Record<DockAnchorKey, DockAnchor>>>({});
-  const [trayOpen, setTrayOpen] = useState(false);
   // The readout the Speed popover's ruler follows live; only its settle
   // commits to `speed` and restarts the line, like the Pause ruler's padMs.
   const [speedLive, setSpeedLive] = useState<number>(() => peekRung(id)?.speed ?? getSettingsSync().defaultSpeed);
@@ -274,14 +250,6 @@ export default function IslandScreen() {
     rateRef.current = r;
     setLiveRateState(r);
   }
-  // The Repeat tile's popover and the tile's box, anchored like Blind's.
-  const [repeatPopOpen, setRepeatPopOpen] = useState(false);
-  // The Blind tile's popover, and where to anchor it: the tile's box in the
-  // toolbar row, the dock's in the player, and the player's width.
-  const [blindPopOpen, setBlindPopOpen] = useState(false);
-  // The Reading tile's popover and the tile's box, anchored like Blind's.
-  const [readingPopOpen, setReadingPopOpen] = useState(false);
-  const dockY = useRef(0);
   // bl56-first-run-flow: the guide's first island parks each played line and shows IslandGuide.
   const guideStep = useGuideStep();
   const beta = useBetaFeatures().beta; // beta-gate: Drive in the menu
@@ -351,29 +319,34 @@ export default function IslandScreen() {
   useEffect(() => {
     if (guideOn && island && island.source !== 'starter') setGuideStep('home');
   }, [guideOn, island]);
-  // An open popover reads those refs at render time, so a tile, dock or width
-  // change while one is open renders the screen once more. Closed, it is free.
-  const popOpenRef = useRef(false);
-  useLayoutEffect(() => {
-    popOpenRef.current = speedPopOpen || repeatPopOpen || blindPopOpen || readingPopOpen;
-  }, [speedPopOpen, repeatPopOpen, blindPopOpen, readingPopOpen]);
-  const [, bumpAnchors] = useState(0);
   const [, bumpGuide] = useState(0); // first-run guide: re-place the spotlight when a dock control moves
-  const anchorMoved = useCallback((moved: boolean) => {
-    if (moved && popOpenRef.current) bumpAnchors((n) => n + 1);
-  }, []);
-  const onAnchor = useCallback(
-    (key: DockAnchorKey, box: DockAnchor) => {
-      const old = anchors.current[key];
-      anchors.current[key] = box;
+  // The dock's popovers, tile anchors, dock height and the reading, blind and
+  // English toggles. The touched refs keep a slow settings load from overriding
+  // a choice made on this visit.
+  const dock = useDockPopovers({
+    onAnchorExtra: (key) => {
       if (key === 'play' || key === 'record') bumpGuide((n) => n + 1);
-      anchorMoved(!old || old.x !== box.x || old.y !== box.y || old.width !== box.width);
     },
-    [anchorMoved],
-  );
-  // The dock's height is layout (the scene's bottom inset): state, set only on a
-  // real change.
-  const [dockH, setDockH] = useState(0);
+    onPickReading: () => {
+      readingTouched.current = true;
+    },
+    onToggleBlind: (next) => {
+      blindTouched.current = true;
+      if (next) {
+        closePanel();
+        clearDragSpan();
+      }
+    },
+    onToggleEnglish: () => {
+      englishTouched.current = true;
+    },
+  });
+  const {
+    setSpeedPopOpen, repeatPopOpen, setRepeatPopOpen, blindPopOpen, setBlindPopOpen,
+    readingPopOpen, setReadingPopOpen, trayOpen, setTrayOpen, anchors, dockY, dockH, setDockH, onAnchor, anchorMoved,
+    englishShown, setEnglishShown, blind, setBlind, readingMode, setReadingMode,
+    explainOpen, setExplainOpen, explainMarked, setExplainMarked, explainWhole, setExplainWhole, explainSpan, setExplainSpan,
+  } = dock;
   // The scene's height before its first layout (the window under the header,
   // above the bottom inset), so the water is drawn from the first frame.
   const { height: windowH, width: windowW } = useWindowDimensions();
@@ -430,15 +403,12 @@ export default function IslandScreen() {
   }
   // The English line under the sentence, clear or frosted. Starts from the
   // Settings default; the Blind popover flips it for this visit only.
-  const [englishShown, setEnglishShown] = useState(() => !getSettingsSync().hideEnglish);
-  const [blind, setBlind] = useState(false);
   // Set once the user taps Blind, so a slow settings load does not overwrite
   // the choice.
   const blindTouched = useRef(false);
   const englishTouched = useRef(false);
   // How the reading is shown (furigana over the kanji, the kana line, or
   // romaji) and whether pitch marks are drawn. Remembered like Blind.
-  const [readingMode, setReadingMode] = useState<ReadingMode>('furigana');
   const [pitch, setPitchOn] = useState(true);
   const readingTouched = useRef(false);
   // Whether to keep the screen from locking while this player is open.
@@ -459,44 +429,6 @@ export default function IslandScreen() {
   // instead of carrying an old selection onto the new line.
   const lineKey = `${generation}:${idx}`;
   const enFrosted = !englishShown;
-  // The tapped word, its dictionary result, and the timer that ends Hear it.
-  const [selected, setSelected] = useState<number | null>(null);
-  const [glossData, setGlossData] = useState<api.Gloss | null>(null);
-  // How the tapped word functions in this sentence: undefined until the
-  // fetch resolves, null once it resolves empty or fails. Guarded by
-  // wordRequestId so a slow answer for a word that's no longer selected
-  // never lands under a different one.
-  const [explainContext, setExplainContext] = useState<string | null | undefined>(undefined);
-  const wordRequestId = useRef(0);
-  // Where each word sits inside the sentence block, so the popover can sit
-  // right under the tapped one without moving anything else, and so the drag
-  // gesture below can hit-test a touch point to a word.
-  const wordBoxes = useRef<WordBoxes>({});
-  const [blockWidth, setBlockWidth] = useState(0);
-  const scrollRef = useRef<ScrollView>(null);
-  // The run of words a drag has selected. Set on the pan gesture's start and
-  // update, left alone on end: that is what shows the Repeat popup.
-  const [dragSpan, setDragSpan] = useState<PhraseSpan | null>(null);
-  // True while a selection handle is being dragged: hides the popup so it
-  // does not sit under the finger, and keeps the two clear functions below
-  // from stepping on each other.
-  const [handleDragging, setHandleDragging] = useState(false);
-  // The span edge a handle grab holds fixed, so dragging past it swaps
-  // cleanly instead of leaving a gap or a stuck handle.
-  const handleFixed = useRef(0);
-  // Set by the sentence block's own onTouchStart so the scene wrapper's
-  // touch guard below can tell a touch inside the block from one outside it.
-  const blockTouched = useRef(false);
-  const anchorWord = useRef(0);
-  // The Explain sheet: one answer per line, so it clears alongside the rest
-  // of the panel state on a line or speed change.
-  const [explainOpen, setExplainOpen] = useState(false);
-  const [explainMarked, setExplainMarked] = useState<string[]>([]);
-  const [explainWhole, setExplainWhole] = useState(false);
-  const [explainSpan, setExplainSpan] = useState<PhraseSpan | null>(null);
-  // Bumped on every line or speed change, so an answer that lands after the
-  // line moved on can tell it no longer belongs to the sentence on screen.
-  const [chatGeneration, setChatGeneration] = useState(0);
 
   const line = island?.lines[idx];
   // bl58-easy-for-me: from the first Easy mark on an island, every later line (backend order) runs Listen, Shadow,
@@ -921,19 +853,13 @@ export default function IslandScreen() {
     if (ladder.paused || ladder.step === 'done' || (isArmedStep(ladder.step) && ladder.prelude === null)) scheduleAudioSessionRelease();
   }, [ladder.step, ladder.paused, ladder.prelude]);
 
-  // The tapped word has its own render and its own player, so hearing it never
-  // moves the line's player or the highlight.
-  // focus-stories D8: the stage panel's Hear word plays here too, when the player's own sentence has none selected.
-  const hearText = line && selected !== null && line.words[selected] ? line.words[selected]!.text : stageWord.hearText;
-  const wordSource = useMemo(
-    () => (island && hearText ? { uri: offlineWordAudio(island.id, hearText, island.speaker) ?? api.wordAudioUrl(hearText, island.speaker) } : null), // offline-islands
-    [island, hearText],
-  );
-  // keepAudioSessionActive for the same reason as the line player: closePanel
-  // pauses this one just before a take starts, and a pause tears the audio
-  // session down 100ms later, which would land on the prepared recorder.
-  const wordPlayer = useAudioPlayer(wordSource, { keepAudioSessionActive: true });
-  // Rendered only when the word loads or its playing flag flips, not per tick.
+  // The word panel: the tapped word, its gloss and its own player, the drag selection and its handles.
+  const {
+    selected, glossData, explainContext, wordBoxes, blockWidth, scrollRef, dragSpan, handleDragging, blockTouched,
+    chatGeneration, wordPlayer, wordStatus,
+    closePanel, resetPanel, clearDragSpan, tapWord, hearWord, hitTest, startDrag, dragTo,
+    grabHandle, dragHandle, releaseHandle, clearSelection, onSceneTouch, copySelection, onBlockLayout,
+  } = useIslandWordPanel({ core, player, status, hidden, line, island, isJa, stageWord });
   // auto-practice: the sheet opens by itself once this island is ready.
   useEffect(() => {
     // focus-stories D3: a hop (`hop.starts`) starts the run the same way, without forcing hands-free on.
@@ -962,22 +888,6 @@ export default function IslandScreen() {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [guideOn, island, status.isLoaded]);
-  const { status: wordStatus } = useLineStatus(wordPlayer, noop, (s) => `${s.isLoaded}:${s.playing}`);
-  useSessionPlayer(wordPlayer);
-  const autoPlayed = useRef<string | null>(null);
-
-  // Play the word once as soon as its audio is ready, for each new selection.
-  useEffect(() => {
-    const key = wordSource?.uri ?? null;
-    // No word (the panel closed): forget the last one, so the same word asked for again plays again.
-    if (!key) {
-      autoPlayed.current = null;
-      return;
-    }
-    if (!wordStatus.isLoaded || autoPlayed.current === key) return;
-    autoPlayed.current = key;
-    startPlayback(wordPlayer);
-  }, [wordSource, wordStatus.isLoaded, wordPlayer]);
   // Under the open morph's cover, the session waits until the cover is gone.
   useEffect(() => {
     const stop = afterCoverGone(id, () => void applyPlaybackMode());
@@ -1006,6 +916,29 @@ export default function IslandScreen() {
   // A message set just before a deliberate reload survives that reload. Every
   // other error is cleared once the island loads.
   const carryError = useRef('');
+  const { doRevoice, awaitRevoice, renameTitle, confirmRegenerate, confirmDelete } = useIslandRebuild({
+    core,
+    island,
+    voice,
+    revoicing,
+    regenerating,
+    player,
+    carryError,
+    isMounted: () => mountedRef.current,
+    forSession,
+    resetHighlight,
+    removeIsland,
+    setIdx,
+    setIsland,
+    setError,
+    setRevoicing,
+    setRegenerating,
+    setBuildStage,
+    setGeneration,
+    setAttempt,
+    // The rebuild hook only ever clears the span; the word panel exposes no raw setter.
+    setDragSpan: clearDragSpan,
+  });
   // Opened while a re-voice is still running on the server (a second way in,
   // or Retry): wait for it with the same loader rather than show lines whose
   // audio is half old voice, half new. An effect event, so the load effect
@@ -1015,166 +948,30 @@ export default function IslandScreen() {
     setRevoicing(true);
     void awaitRevoice(islandId);
   });
-  useEffect(() => {
-    let alive = true;
-    // The raw text of what is on screen, once something is: the local copy
-    // or the network's answer, whichever lands first.
-    let shownText: string | null = null;
-    let cachedText: string | null = null;
-    // The first render already showed the local copy: only the network
-    // refresh is left to run.
-    const warm = attempt === 0 && warmStartRef.current?.island.id === id ? warmStartRef.current : null;
-    if (warm) {
-      shownText = warm.text;
-      cachedText = warm.text;
-    }
-    // Puts an island on screen for the first time on this open.
-    async function show(data: api.Island, text: string) {
-      // A ready island reopens where it was left; a chain starts at the top.
-      if (ytLine !== undefined && Number.isFinite(Number(ytLine))) { // youtube-shadowing
-        setIdx(Math.max(0, Math.min(Math.floor(Number(ytLine)), data.lines.length - 1))); // youtube-shadowing
-      } else if (auto === '1') {
-        setIdx((i) => Math.max(0, Math.min(i, data.lines.length - 1)));
-      } else if (data.status === 'ready') {
-        const saved = await getLastLine(id);
-        if (!alive || shownText !== null) return false;
-        setIdx(resumeLine(saved, data.lines.length));
-      } else {
-        setIdx((i) => Math.max(0, Math.min(i, data.lines.length - 1)));
-      }
-      shownText = text;
-      setIsland(forSession(data));
-      setError(carryError.current);
-      carryError.current = '';
-      return true;
-    }
-    async function readCache() {
-      const cached = await readCachedIsland(id);
-      if (!alive) return;
-      if (!cached) {
-        setCacheMissed(true);
-        return;
-      }
-      cachedText = cached.text;
-      if (shownText !== null) return;
-      await show(cached.island, cached.text);
-    }
-    // The local copy is read and parsed after the first frame, so the open
-    // transition starts before any of that work. Under a card morph the
-    // transition already ran (and Home started this read on press-in), so
-    // it is picked up at once.
-    const raf = warm
-      ? null
-      : morphActive()
-        ? null
-        : requestAnimationFrame(() => {
-            setTimeout(() => void readCache(), 0);
-          });
-    if (!warm && raf === null) void readCache();
-    const refresh = async () => {
-      try {
-        const text = await api.getIslandText(id);
-        if (!alive) return;
-        setOffline(false); // offline-islands
-        // The same bytes as what is on screen (and so in the local copy):
-        // nothing to parse, set or write.
-        if (shownText !== null && text === shownText) {
-          return;
-        }
-        const data = JSON.parse(text) as api.Island;
-        // Lines with a working status: a re-voice is running on the server.
-        if (data.status === 'working' && data.lines.length > 0) resumeRevoice(id);
-        if (shownText === null && (await show(data, text))) {
-          // Nothing left to do here: show() already put the island on screen.
-        } else if (!alive) {
-          return;
-        } else if (shownText !== null && text !== shownText) {
-          // The server moved past the local copy: swap it in where the
-          // user is now, inside the new line count.
-          shownText = text;
-          setIdx((i) => Math.max(0, Math.min(i, data.lines.length - 1)));
-          setIsland(forSession(data));
-        }
-        if (text && data.status === 'ready') {
-          if (text !== cachedText) setTimeout(() => writeCachedIsland(data, text), 0);
-        } else {
-          invalidateCachedIsland(id);
-        }
-      } catch (e) {
-        // offline-islands: only a failed fetch (no response) means offline; an HTTP error surfaces as before.
-        if (e instanceof TypeError && isDownloaded(id)) {
-          if (alive) setOffline(true);
-          return;
-        }
-        // night-wave: offline in an auto-practice chain with nothing on screen: skip it.
-        if (e instanceof TypeError && shownText === null && alive && skipUnloadedIsland()) return;
-        if (alive) setError(e instanceof Error ? e.message : t('player.couldNotLoadIsland'));
-      }
-    };
-    // Opened from the local copy under the morph: the refresh waits until the
-    // cover is gone and the reveal has run, so its download and any parse
-    // stay out of the landing.
-    const stopRefresh = warm ? afterCoverGone(id, () => void refresh(), REFRESH_AFTER_COVER_MS) : null;
-    if (!warm) void refresh();
-    refreshRef.current = refresh; // offline-islands
-    return () => {
-      alive = false;
-      refreshRef.current = null; // offline-islands
-      stopRefresh?.();
-      if (raf !== null) cancelAnimationFrame(raf);
-    };
-  }, [id, attempt]);
-
-  // offline-islands: while offline, try the server again on return to the app
-  // and every 15 s; a success clears offline inside refresh.
-  useEffect(() => {
-    if (!offline) return;
-    const retry = () => void refreshRef.current?.();
-    const timer = setInterval(retry, OFFLINE_RETRY_MS);
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') retry();
-    });
-    return () => {
-      clearInterval(timer);
-      sub.remove();
-    };
-  }, [offline]);
-
-  // Tells a covering card morph the player has its first content on screen:
-  // the island, an error, or no local copy (the network's answer then fades
-  // in on its own). Two frames, so the content is laid out and drawn first.
-  const firstContent = island !== null || !!error || cacheMissed;
-  const readySentRef = useRef(false);
-  // One-shot: fires from commit (not from an effect that waits a tick after
-  // it), one frame so the content just committed is laid out and drawn
-  // first, then never again for this mount.
-  // The ref is set inside the frame, so a cancelled frame (a StrictMode
-  // remount) sends again. With the lines in hand the loader is cleared right
-  // here, without waiting for the landing render and its effect.
-  // Sent straight from the commit, not from a frame: a frame waits out the
-  // whole JS backlog, and the morph's landing worklet does the rest on the UI
-  // thread. The ref makes it once per mount (a StrictMode re-run sends
-  // nothing new).
-  // An effect event: island and error are read once, at the first content.
-  const sendReady = useEffectEvent(() => {
-    if (!firstContent || readySentRef.current) return;
-    const waiting = island === null && !error;
-    readySentRef.current = true;
-    playerReady(id, { waiting });
-    if (!waiting && !openHoldRef.current) requestLoader(false);
+  useIslandLoad({
+    id,
+    attempt,
+    auto,
+    ytLine,
+    island,
+    error,
+    cacheMissed,
+    offline,
+    lineIdx,
+    warmStartRef,
+    refreshRef,
+    carryError,
+    openHoldRef,
+    autoRunRef,
+    forSession,
+    setIdx,
+    setIsland,
+    setError,
+    setOffline,
+    setCacheMissed,
+    resumeRevoice,
+    skipUnloadedIsland,
   });
-  useLayoutEffect(() => {
-    sendReady();
-  }, [firstContent, id]);
-
-  // A back morph waits for this before it shrinks into the card.
-  useEffect(() => () => playerGone(id), [id]);
-  useEffect(() => () => endAutoPractice(id), [id]); // auto-practice
-
-  // Remembers the line an island was left on, so reopening it resumes here.
-  useEffect(() => {
-    if (island && !autoRunRef.current) setLastLine(id, lineIdx);
-  }, [id, lineIdx, island]);
 
   // Loads blind mode and the player defaults from the settings file.
   useEffect(() => {
@@ -1188,7 +985,7 @@ export default function IslandScreen() {
         setBlind(settings.blind);
         if (settings.blind) {
           closePanel();
-          setDragSpan(null);
+          clearDragSpan();
         }
       }
       if (!englishTouched.current) setEnglishShown(!settings.hideEnglish);
@@ -1263,174 +1060,6 @@ export default function IslandScreen() {
       if (on) void deactivateKeepAwake(tag);
     };
   }, [id, keepAwake]);
-
-  // Polls until the island settles. Returns the ready island, throws with the
-  // island's error when it failed, returns null when maxSeconds pass first.
-  // A poll can fail while the server is briefly unreachable; that is not the
-  // island failing, so keep polling.
-  async function waitForIsland(
-    islandId: string,
-    maxSeconds: number,
-    onStage?: (stage: string) => void,
-  ): Promise<api.Island | null> {
-    for (let i = 0; i < maxSeconds; i += 1) {
-      await new Promise((r) => setTimeout(r, 1000));
-      let data: api.Island;
-      try {
-        data = await api.getIsland(islandId);
-      } catch {
-        continue;
-      }
-      onStage?.(data.stage);
-      if (data.status === 'ready') return data;
-      if (data.status === 'failed') throw new Error(api.islandErrorText(data));
-    }
-    return null;
-  }
-
-  // The backend replaces the lines' audio one by one and flips the island to
-  // working meanwhile. The scene and dock leave the screen for the wait (the
-  // `revoicing` render branch), so no old clip can start, and the screen
-  // comes back on the same line with the new voice.
-  async function doRevoice() {
-    if (!island || voice === null || revoicing || regenerating) return;
-    setRevoicing(true);
-    setPlayWhenLoaded(false);
-    dropTake();
-    stopPlayback(player);
-    closePanel();
-    setDragSpan(null);
-    try {
-      await api.revoice(island.id, voice);
-    } catch (e) {
-      // Nothing was started, so the island on the server still matches what
-      // is on screen. Say why and go back to it.
-      setRevoicing(false);
-      setError(e instanceof Error ? e.message : t('player.reVoicingFailed'));
-      return;
-    }
-    invalidateLineAudio(island.id);
-    invalidateCachedIsland(island.id);
-    await awaitRevoice(island.id);
-  }
-
-  // Waits for a running re-voice to land, then swaps the fresh island in on
-  // the same line. Shared by doRevoice and the load effect, which finds an
-  // island still being re-voiced when the player is opened again mid-way.
-  // A failure or the 60 s timeout drops to the error screen, whose Retry
-  // reloads (and waits again if the server is still working).
-  async function awaitRevoice(islandId: string) {
-    // A promise finally, not a try finally: the compiler does not lower those.
-    const run = async () => {
-      try {
-        const data = await waitForIsland(islandId, 60);
-        if (!mountedRef.current) return;
-        // Once more after the wait: a clip fetched while the server was
-        // still speaking would be the old voice.
-        invalidateLineAudio(islandId);
-        invalidateCachedIsland(islandId);
-        if (!data) {
-          setIsland(null);
-          setError(t('player.reVoicingTakingLong'));
-          return;
-        }
-        // A new generation gives the player a new source URL, so the native
-        // player drops the old clip instead of keeping it.
-        setGeneration((g) => g + 1);
-        resetForNewAudio();
-        setIdx((i) => Math.max(0, Math.min(i, data.lines.length - 1)));
-        setIsland(forSession(data));
-        setError('');
-      } catch (e) {
-        if (!mountedRef.current) return;
-        setIsland(null);
-        setError(e instanceof Error ? e.message : t('player.reVoicingFailed'));
-      }
-    };
-    await run().finally(() => setRevoicing(false));
-  }
-
-  async function renameTitle(title: string) {
-    if (!island) return;
-    const finalTitle = title.trim() || t('player.untitledIsland');
-    try {
-      await api.renameIsland(island.id, finalTitle);
-      invalidateCachedIsland(island.id);
-      // Functional update: this runs after the sheet's exit animation
-      // (`onDismissed`), so `island` closed over at call time may already be
-      // stale if a build or revoice updated it in the meantime.
-      setIsland((cur) => cur && { ...cur, title: finalTitle });
-    } catch (e) {
-      void alertSheet(t('player.couldNotRename'), e instanceof Error ? e.message : t('player.serverDidNotAnswer'));
-    }
-  }
-
-  async function confirmRegenerate() {
-    if (!island || revoicing || regenerating) return;
-    const target: api.Complexity = island.complexity === 'simple' ? 'complex' : 'simple';
-    const pick = await confirmSheet({
-      title: target === 'complex' ? t('player.regenerateComplexTitle') : t('player.regenerateSimpleTitle'),
-      message: t('player.regenerateBody'),
-      actions: [
-        { label: t('common.cancel'), verb: 'tools' },
-        { label: t('player.regenerateLabel'), verb: 'tools' },
-      ],
-    });
-    if (pick === 1) void doRegenerate(target);
-  }
-
-  // The backend drops the old lines as soon as the route runs and rebuilds
-  // from the stored recording: transcribe, write, speak. The screen shows the
-  // stage until the island is ready again, then starts over at line 0.
-  async function doRegenerate(target: api.Complexity) {
-    if (!island) return;
-    setRegenerating(true);
-    setBuildStage('transcribing');
-    setPlayWhenLoaded(false);
-    dropTake();
-    stopPlayback(player);
-    closePanel();
-    setDragSpan(null);
-    // A promise finally, not a try finally: the compiler does not lower those.
-    const run = async () => {
-      try {
-        try {
-          await api.regenerate(island.id, target);
-          invalidateLineAudio(island.id);
-          invalidateCachedIsland(island.id);
-        } catch (e) {
-          // Nothing was started, so the island on the server still matches what
-          // is on screen. Say why and go back to it.
-          setError(e instanceof Error ? e.message : t('player.regenerateFailed'));
-          return;
-        }
-        deleteTakes(island.id);
-        const data = await waitForIsland(island.id, 240, setBuildStage);
-        resetHighlight();
-        setGeneration((g) => g + 1);
-        resetForNewAudio();
-        setIdx(0);
-        if (!data) {
-          // Each new line is written over the same audio path, so by now the
-          // server has already replaced the lines this screen is holding.
-          // Reload onto whatever it has rather than showing old text.
-          const message = t('player.stillBuildingShowsWhatServerHas');
-          carryError.current = message;
-          setError(message);
-          setAttempt((n) => n + 1);
-          return;
-        }
-        setIsland(forSession(data));
-        setError('');
-      } catch (e) {
-        // The server now holds a failed island with no lines. Reloading shows
-        // the failed screen, which already offers Regenerate.
-        setError(e instanceof Error ? e.message : t('player.regenerateFailed'));
-        setAttempt((n) => n + 1);
-      }
-    };
-    await run().finally(() => setRegenerating(false));
-  }
 
   // Speed is baked into the audio by VOICEVOX, so the player runs at 1.0,
   // except between a mid-play speed pick and its landing (rateRef, see
@@ -1932,66 +1561,14 @@ export default function IslandScreen() {
     onLineFinish();
   }, [status.didJustFinish]);
 
-  function closePanel() {
-    stopPlayback(wordPlayer);
-    setSelected(null);
-    setGlossData(null);
-    setExplainContext(undefined);
-    wordRequestId.current++;
-  }
-
   // A new line or speed means new audio, so the panel, any drag selection and
   // the Explain thread (which is about the old line's sentence) no longer apply.
   // Called by every handler that changes the line or the speed, next to that
   // change, so React batches all of it into the change's one render.
   function resetForNewAudio() {
-    closePanel();
-    setDragSpan(null);
-    setHandleDragging(false);
+    resetPanel();
     setExplainOpen(false);
-    setChatGeneration((g) => g + 1);
     setLadderMove(null);
-  }
-
-  async function tapWord(i: number) {
-    if (!line) return;
-    if (hidden) return;
-    setPlayWhenLoaded(false);
-    dropTake();
-    if (status.playing) stopPlayback(player);
-    setSelected(i);
-    setGlossData(null);
-    setExplainContext(undefined);
-    const requestId = ++wordRequestId.current;
-    const word = line.words[i]!.text;
-    // languages: JMdict only covers Japanese, so es and en skip straight to
-    // the context line instead of a dictionary lookup.
-    if (isJa) {
-      try {
-        const g = offlineGloss(island.id, word) ?? (await api.gloss(word)); // offline-islands
-        setGlossData(g);
-      } catch {
-        setGlossData({ word, base: '', reading: '', entries: [], found: false });
-      }
-    } else {
-      setGlossData({ word, base: '', reading: '', entries: [], found: false });
-    }
-    try {
-      const ctx = await api.explainWord(word, line.ja, line.en, island?.language ?? 'ja', island?.native ?? 'en');
-      if (wordRequestId.current === requestId) setExplainContext(ctx || null);
-    } catch {
-      if (wordRequestId.current === requestId) setExplainContext(null);
-    }
-  }
-
-  async function hearWord() {
-    await wordPlayer.seekTo(0);
-    startPlayback(wordPlayer);
-  }
-
-  function hitTest(x: number, y: number): number | null {
-    if (!line || hidden) return null;
-    return hitWord(wordBoxes.current, line.words.length, x, y);
   }
 
   // A tap on empty space inside the active card, not a word: restarts the
@@ -2020,6 +1597,8 @@ export default function IslandScreen() {
     closePanel,
     tapWord,
     tapEmptySentence,
+    startDrag,
+    dragTo,
     clearSelection,
     go,
     runLine,
@@ -2063,15 +1642,13 @@ export default function IslandScreen() {
         const l = live.current;
         const i = l.hitTest(e.x, e.y);
         if (i === null) return;
-        l.closePanel();
-        anchorWord.current = i;
-        setDragSpan(spanUpdate(i, i));
+        l.startDrag(i);
       })
       .onUpdate((e) => {
-        const i = live.current.hitTest(e.x, e.y);
+        const l = live.current;
+        const i = l.hitTest(e.x, e.y);
         if (i === null) return;
-        const a = anchorWord.current;
-        setDragSpan(spanUpdate(Math.min(a, i), Math.max(a, i)));
+        l.dragTo(i);
       });
     const tap = Gesture.Tap()
       .runOnJS(true)
@@ -2190,51 +1767,11 @@ export default function IslandScreen() {
   const revealValues = contentReveal.values;
   const bottomInStyle = usePieceStyle(revealValues.dock, revealValues.rise);
 
-  // A handle grab fixes the opposite edge of the span, so dragging past it
-  // swaps the selection instead of leaving a gap or a stuck handle: the
-  // start handle fixes `to`, the end handle fixes `from`.
-  function grabHandle(which: 'start' | 'end') {
-    if (!dragSpan) return;
-    handleFixed.current = which === 'start' ? dragSpan.to : dragSpan.from;
-    setHandleDragging(true);
-    closePanel();
-  }
-
-  // Block coordinates of the dragged finger, every update: hit-test to a
-  // word and rebuild the span around the fixed edge from the grab.
-  function dragHandle(x: number, y: number) {
-    const i = hitTest(x, y);
-    if (i === null) return;
-    const f = handleFixed.current;
-    setDragSpan(spanUpdate(Math.min(f, i), Math.max(f, i)));
-  }
-
-  function releaseHandle() {
-    setHandleDragging(false);
-  }
-
-  // The one place a selection actually clears, so handleDragging can never
-  // stick once dragSpan is gone.
-  function clearSelection() {
-    setDragSpan(null);
-    setHandleDragging(false);
-  }
-
-  // Any touch outside the sentence block clears a selection: the block's own
-  // onTouchStart sets blockTouched first since child touch handlers fire
-  // before the parent's, so a touch inside the block (words, handles, popup)
-  // never reaches here as an outside touch.
-  function onSceneTouch() {
-    if (!blockTouched.current && dragSpan) clearSelection();
-    if (!blockTouched.current && selected !== null) closePanel();
-    blockTouched.current = false;
-  }
-
   // The drag selection's popup Repeat button: same follow-up as picking a
   // phrase used to run, then the selection (and its popup) is done.
   function repeatSelection() {
     const span = dragSpan;
-    setDragSpan(null);
+    clearDragSpan();
     if (offline) { // offline-islands
       setError(t('player.offlinePhrase'));
       return;
@@ -2266,24 +1803,9 @@ export default function IslandScreen() {
     setExplainMarked(words);
     setExplainWhole(span.from === 0 && span.to === line.words.length - 1);
     setExplainSpan(span);
-    setDragSpan(null);
+    clearDragSpan();
     pausePlayback();
     setExplainOpen(true);
-  }
-
-  // The drag selection's popup Copy button: the same surface text Explain
-  // marks, joined with no separator, to the clipboard. Unlike Repeat and
-  // Explain this leaves the selection in place, so the learner can copy more
-  // than once or still hit Repeat or Explain after.
-  function copySelection() {
-    const span = dragSpan;
-    if (!span || !line) return;
-    const text = line.words
-      .slice(span.from, span.to + 1)
-      .map((w) => w.text)
-      .join('');
-    void Clipboard.setStringAsync(text);
-    void hapticImpact();
   }
 
   // Closing the sheet leaves the player paused on the same line, even when
@@ -2301,7 +1823,7 @@ export default function IslandScreen() {
     take.discardTake();
     stopPlayback(player);
     setPlayWhenLoaded(wasActive);
-    setDragSpan(null);
+    clearDragSpan();
     phrase.clear();
   }
 
@@ -2338,114 +1860,9 @@ export default function IslandScreen() {
     setIdx(clamped);
   }
 
-  // bl58-easy-for-me: Easy for me. A mark is a skip, never a grade: the line leaves Practice now and every later
-  // line on this island runs Listen, Shadow, Compare. Nothing marks by itself; the 90+ offer only asks.
-  const goLater = useStableHandler(go);
-  function glideTo(target: number) {
-    if (!island) return;
-    const clamped = Math.max(0, Math.min(island.lines.length - 1, target));
-    if (clamped === idx) return;
-    if (reducedMotion) {
-      go(clamped);
-      return;
-    }
-    if (glideTimer.current) clearTimeout(glideTimer.current);
-    const sink = { duration: EASY_GLIDE_MS, easing: Easing.bezier(0.4, 0, 1, 1) };
-    glideY.value = withTiming(60, sink);
-    glideOp.value = withTiming(0, sink);
-    glideTimer.current = setTimeout(() => {
-      goLater(clamped);
-      glideY.value = 60;
-      // The next line rises from the waterline 120 ms after the old one has sunk.
-      glideTimer.current = setTimeout(() => {
-        glideTimer.current = null;
-        glideY.value = withSpring(0, { damping: 20, stiffness: 180 });
-        glideOp.value = withTiming(1, { duration: 200 });
-      }, 120);
-    }, EASY_GLIDE_MS);
-  }
-  function nextLongerIdx(i: number): number {
-    return nextLongerIdxPure(island, known, i);
-  }
-  function showEasyDone(count: number) {
-    setEasyDone({ count });
-    if (easyTimer.current) clearTimeout(easyTimer.current);
-    easyTimer.current = setTimeout(() => {
-      easyTimer.current = null;
-      setEasyDone(null);
-    }, ECHO_RESULT_HOLD_MS);
-  }
-  const markEasy = useStableHandler(async (i: number) => {
-    const l = island?.lines[i];
-    if (!island || !l) return;
-    const islandId = island.id;
-    const lineIdx = l.idx;
-    setEasyOffer(null);
-    // A run in progress ends first, as Pause does.
-    // In a session the run carries on to the next line instead (below), as a Next tap inside a run does.
-    const wasRun = ladder.active;
-    const carryOn = wasRun && auto === '1' && !guideOn;
-    if (wasRun && !carryOn) endRun();
-    setKnown((s) => new Set(s).add(lineIdx));
-    if (guideOn) {
-      // Under the guide the mark is best effort and the island moves on as a finished Compare would; two taps end it.
-      api.markKnown(islandId, lineIdx).catch(() => undefined);
-      const step = getGuideStep();
-      if (noteGuideEasyTap() >= 2 || step === 'solo') {
-        setGuideStep('topics');
-        router.replace('/phrases');
-        return;
-      }
-      go(i + 1);
-      if (step === 'listen' || step === 'shadow') setGuideStep('prep');
-      else if (step === 'prep') setGuideStep('solo');
-      return;
-    }
-    showEasyDone(known.has(lineIdx) ? known.size : known.size + 1);
-    // A session keeps its order and its run; otherwise the island moves to the next longer line.
-    if (carryOn && i + 1 < island.lines.length) runLine(i + 1);
-    else if (carryOn) {
-      endRun();
-      if (autoRunRef.current) autoIslandDone();
-    } else glideTo(auto === '1' ? i + 1 : nextLongerIdx(i));
-    try {
-      const res = await api.markKnown(islandId, lineIdx);
-      setKnown(new Set(res.known));
-      setIsland((cur) => (cur && cur.id === islandId ? { ...cur, known: res.known } : cur));
-      noteAward(res.award);
-      if (easyTimer.current) showEasyDone(res.known.length);
-    } catch {
-      setKnown((cur) => {
-        const n = new Set(cur);
-        n.delete(lineIdx);
-        return n;
-      });
-      setEasyDone(null);
-      void alertSheet(t('ladder.easyFailed'));
-    }
-  });
-  const unmarkEasy = useStableHandler(async (i: number) => {
-    const l = island?.lines[i];
-    if (!island || !l) return;
-    const islandId = island.id;
-    const lineIdx = l.idx;
-    // An unmark ends the count toast of the mark it undoes.
-    if (easyTimer.current) clearTimeout(easyTimer.current);
-    easyTimer.current = null;
-    setEasyDone(null);
-    setKnown((cur) => {
-      const n = new Set(cur);
-      n.delete(lineIdx);
-      return n;
-    });
-    try {
-      const res = await api.unmarkKnown(islandId, lineIdx);
-      setKnown(new Set(res.known));
-      setIsland((cur) => (cur && cur.id === islandId ? { ...cur, known: res.known } : cur));
-    } catch {
-      setKnown((cur) => new Set(cur).add(lineIdx));
-      void alertSheet(t('ladder.easyFailed'));
-    }
+  const { glideTo, markEasy, unmarkEasy, easyChipAction } = useEasyMark({
+    island, setIsland, idx, line, lineKnown, known, setKnown, setEasyOffer, setEasyDone, easyTimer, glideTimer, glideY, glideOp,
+    reducedMotion, go, ladderActive: ladder.active, auto, guideOn, endRun, runLine, autoRunRef, autoIslandDone, t,
   });
   // A new run takes the offer with it.
   useEffect(() => {
@@ -2469,11 +1886,6 @@ export default function IslandScreen() {
         </PressScale>
       ) : null,
     [hasLine, lineKnown, idx, t, markEasy, unmarkEasy],
-  );
-  // The same mark for the stage view's small Easy chip above its hint.
-  const easyChipAction = useMemo(
-    () => (hasLine ? { on: lineKnown, onPress: () => (lineKnown ? unmarkEasy(idx) : markEasy(idx)) } : undefined),
-    [hasLine, lineKnown, idx, markEasy, unmarkEasy],
   );
   // Inside a run the neighbours restart it from their first pass.
   const next = () => (ladder.active ? runLine(idx + 1) : go(idx + 1));
@@ -2525,32 +1937,12 @@ export default function IslandScreen() {
   async function toggle() {
     // Between two plays of a run the button shows Stop, so a tap there stops.
     const active = status.playing || pendingPlayRef.current;
-    setDragSpan(null);
+    clearDragSpan();
     if (active) {
       pausePlayback();
       return;
     }
     await playFromTop();
-  }
-
-  function toggleBlind() {
-    const next = !blind;
-    blindTouched.current = true;
-    setBlind(next);
-    if (next) {
-      closePanel();
-      setDragSpan(null);
-    }
-    // The pill already shows the new value; a failed save only means it is
-    // not remembered next time.
-    persistBlind(next).catch(() => {});
-  }
-
-  // The Blind popover's translate toggle: frost or clear the English. Not
-  // saved; the Settings default decides how the next visit starts.
-  function toggleEnglish() {
-    englishTouched.current = true;
-    setEnglishShown((v) => !v);
   }
 
   // Times is not part of the audio: the line playing carries on, and the
@@ -2578,15 +1970,6 @@ export default function IslandScreen() {
     stopPlayback(player);
     setPlayWhenLoaded(wasActive);
     setPadMs(ms);
-  }
-
-  // Neither touches playback: switching the reading never stops the line, a
-  // take or the popover. A failed save only means it is not remembered next
-  // time.
-  function pickReading(mode: ReadingMode) {
-    readingTouched.current = true;
-    setReadingMode(mode);
-    persistReading(mode).catch(() => {});
   }
 
   // The Speed popover's ruler follows every step live; only used to update
@@ -2679,7 +2062,7 @@ export default function IslandScreen() {
     const run = async () => {
       setPlayWhenLoaded(false);
       closePanel();
-      setDragSpan(null);
+      clearDragSpan();
       // dropTake(), but waiting for the cancel: it stops a take still
       // recording and releases the session, and that must be done before the
       // new recorder is prepared rather than land under it.
@@ -2897,19 +2280,6 @@ export default function IslandScreen() {
     setSheet('island');
   }
 
-  async function confirmDelete() {
-    if (!island) return;
-    const pick = await confirmSheet({
-      title: t('player.deleteIslandTitle', { title: island.title || t('player.untitledIsland') }),
-      message: t('player.deleteIslandBody'),
-      actions: [
-        { label: t('common.cancel'), verb: 'tools' },
-        { label: t('common.delete'), verb: 'speak', destructive: true },
-      ],
-    });
-    if (pick === 1) void removeIsland();
-  }
-
   async function removeIsland() {
     if (!island) return;
     dropChain(); // auto-practice
@@ -2930,55 +2300,24 @@ export default function IslandScreen() {
 
   // The dock's settings tray: Repeat, Reading and Blind, each opening its own
   // popover. Opening one closes the others, and never touches playback.
-  const trayPills = useMemo((): DockPill[] => {
-    const repeatOn = times > 1 || pauseMs > 0;
-    const readingOn = readingMode !== 'off';
-    const blindOn = blind || !englishShown;
-    const ink = (on: boolean) => (on ? DOCK_GOLD_INK : tide.textDim);
-    const open = (which: 'repeat' | 'reading' | 'blind') => {
-      setSpeedPopOpen(false);
-      setRepeatPopOpen(which === 'repeat' ? (v) => !v : false);
-      setReadingPopOpen(which === 'reading' ? (v) => !v : false);
-      setBlindPopOpen(which === 'blind' ? (v) => !v : false);
-    };
-    const pills: DockPill[] = [
-      {
-        key: 'repeat',
-        icon: <RepeatIcon color={ink(repeatOn)} size={15} />,
-        value: repeatTileLabel(t, times, pauseMs),
-        on: repeatOn,
-        selected: repeatPopOpen,
-        onPress: () => open('repeat'),
-      },
-    ];
-    // languages: reading modes (furigana, kana, romaji) only exist for Japanese.
-    if (isJa) {
-      pills.push({
-        key: 'reading',
-        icon: <ReadingIcon color={ink(readingOn)} size={15} />,
-        value: t(READING_LABEL_KEY[readingMode]),
-        on: readingOn,
-        selected: readingPopOpen,
-        onPress: () => open('reading'),
-      });
-    }
-    pills.push({
-      key: 'blind',
-      icon: <BlindIcon color={ink(blindOn)} size={15} />,
-      value: blindValueLabel(t, blind, englishShown, island?.language ?? 'ja', island?.native ?? 'en'),
-      on: blindOn,
-      selected: blindPopOpen,
-      onPress: () => open('blind'),
-    });
-    return pills;
-  }, [t, times, pauseMs, readingMode, blind, englishShown, isJa, island?.language, island?.native, repeatPopOpen, readingPopOpen, blindPopOpen]);
+  const repeatOpts = useMemo(() => ({ times, pauseMs }), [times, pauseMs]);
+  const { trayPills, onSpeedChip } = useTrayPills({
+    t,
+    language: island?.language ?? 'ja',
+    native: island?.native ?? 'en',
+    readingMode,
+    blind,
+    englishShown,
+    readingPopOpen,
+    blindPopOpen,
+    repeatPopOpen,
+    setSpeedPopOpen,
+    setRepeatPopOpen,
+    setReadingPopOpen,
+    setBlindPopOpen,
+    repeat: repeatOpts,
+  });
   const speedOn = Math.abs(speedLive - getSettingsSync().defaultSpeed) > 0.001;
-  const onSpeedChip = useCallback(() => {
-    setRepeatPopOpen(false);
-    setReadingPopOpen(false);
-    setBlindPopOpen(false);
-    setSpeedPopOpen((v) => !v);
-  }, []);
 
   // A tapped transcript line jumps there and plays it, even from a paused
   // state (go alone would leave a paused line paused).
@@ -3151,7 +2490,6 @@ export default function IslandScreen() {
   const onRepeatSelection = useStableHandler(repeatSelection);
   const onOpenExplain = useStableHandler(openExplain);
   const onCopySelection = useStableHandler(copySelection);
-  const onBlockLayout = useCallback((e: LayoutChangeEvent) => setBlockWidth(e.nativeEvent.layout.width), []);
   const onBlockTouch = useCallback(() => {
     blockTouched.current = true;
   }, []);
@@ -3164,312 +2502,61 @@ export default function IslandScreen() {
     () => (line ? fitScale(line, blockWidth, { base: 22, min: 18, em: isJa ? 1 : 0.6 }) : 1),
     [line, blockWidth, isJa],
   );
-  const sentence = useMemo(() => {
-    if (!line) {
-      return null;
-    }
-    // Popover under the tapped word, centred on it, kept inside the block.
-    const box = selected !== null ? wordBoxes.current[selected] : undefined;
-    const popLeft = box
-      ? Math.max(0, Math.min(blockWidth - POPOVER_WIDTH, box.x + box.width / 2 - POPOVER_WIDTH / 2))
-      : 0;
-    const popTop = box ? box.y + box.height + 6 : 0;
-
-    // The Repeat popup under a drag selection: the same clamping approach as
-    // the word popover above, but anchored to the union of the span's word
-    // boxes instead of one box.
-    const dragBoxes = dragSpan
-      ? Array.from(
-          { length: dragSpan.to - dragSpan.from + 1 },
-          (_, k) => wordBoxes.current[dragSpan.from + k],
-        ).filter((b): b is { x: number; y: number; width: number; height: number } => !!b)
-      : [];
-    const dragUnion = dragBoxes.length
-      ? dragBoxes.reduce(
-          (acc, b) => ({
-            x: Math.min(acc.x, b.x),
-            y: Math.min(acc.y, b.y),
-            right: Math.max(acc.right, b.x + b.width),
-            bottom: Math.max(acc.bottom, b.y + b.height),
-          }),
-          { x: Infinity, y: Infinity, right: -Infinity, bottom: -Infinity },
-        )
-      : null;
-    const dragPopLeft = dragUnion
-      ? Math.max(
-          0,
-          Math.min(
-            blockWidth - SELECTION_POPUP_WIDTH,
-            dragUnion.x + (dragUnion.right - dragUnion.x) / 2 - SELECTION_POPUP_WIDTH / 2,
-          ),
-        )
-      : 0;
-    const dragPopTop = dragUnion ? dragUnion.bottom + SELECTION_HANDLE_CLEARANCE : 0;
-
-    // Chunks for the wordless fallback's per-character reveal and the
-    // English strip's per-word reveal.
-    const jaChars = Array.from(line.ja);
-    const gSpan = isGrammar ? textSpanToWords(line, line.span) : null;
-    const enWords = line.en ? line.en.split(' ') : [];
-
-    // The sentence sits on the waterline: the tappable block when words are
-    // known, the fallback line when they are not, then the reading row and the
-    // English strip, all inside one card. Blind keeps all of it in place and
-    // frosts the Japanese; dragging a finger across it sharpens whichever
-    // words sit under the touch, live, so a line change mid-drag (the island
-    // moving on) shows the new line's word under the finger sharp right away.
-    // The gesture sits outside the Frost because the frosted copy takes no
-    // touches; the Frost adds no offset, so the gesture's coordinates still
-    // match the word boxes.
-    return (
-      <Animated.View ref={cardAnchor.ref} onLayout={remeasureGuide} style={[styles.activeCard, cardDragStyle]}>
-        {/* bl58-easy-for-me: E4, the quiet pill beside the line number (the header carries the number). */}
-        <View style={styles.easyRow} pointerEvents="box-none">
-          <View ref={chipAnchor.ref} onLayout={chipAnchor.onLayout} collapsable={false}>
-            {easyChipButton}
-          </View>
-        </View>
-        {line.words.length > 0 ? (
-          <>
-            {/* Fills the whole card, behind the block: catches a tap on the
-                card's own padding, which sits outside the block's bounds and
-                so never reaches the GestureDetector or its hitTest miss. Off in
-                Blind mode, where only a hold on the sentence does anything. */}
-            <Pressable
-              style={StyleSheet.absoluteFill}
-              onPress={onTapEmpty}
-              disabled={blind}
-              accessible={false}
-            />
-            <View
-              style={styles.block}
-              onLayout={onBlockLayout}
-              onTouchStart={onBlockTouch}>
-              <GestureDetector gesture={blind ? jaReveal.gesture : sentenceGesture}>
-                <View collapsable={false}>
-                  {hidden ? (
-                    <SlideReveal
-                      finger={jaReveal.finger}
-                      count={line.words.length}
-                      rowStyle={styles.words}
-                      blur={4.5}
-                      renderChunk={(i, sharp) => (
-                        <RubyWord
-                          key={i}
-                          word={line.words[i]!}
-                          showRuby={isJa && readingMode === 'furigana'}
-                          showPosAndRomaji={isJa}
-                          index={i}
-                          highlight={highlight}
-                          concealed={!sharp}
-                          selected={false}
-                          grammar={!!gSpan && i >= gSpan.from && i <= gSpan.to}
-                          dimmed={!!phrase.span && (i < phrase.span.from || i > phrase.span.to)}
-                          mark={marks && marks[i] !== 'ok' && marks[i] !== 'none' ? marks[i] : null}
-                          pitch={pitches?.[i]}
-                          scale={fit}
-                          onLayout={noopLayout}
-                        />
-                      )}
-                    />
-                  ) : (
-                    <>
-                      <View style={styles.words}>
-                        {line.words.map((w, i) => (
-                          <RubyWord
-                            key={i}
-                            word={w}
-                            showRuby={isJa && readingMode === 'furigana'}
-                            showPosAndRomaji={isJa}
-                            index={i}
-                            highlight={highlight}
-                            concealed={hidden}
-                            selected={i === selected || (!!dragSpan && i >= dragSpan.from && i <= dragSpan.to)}
-                            grammar={!!gSpan && i >= gSpan.from && i <= gSpan.to}
-                            dimmed={!!phrase.span && (i < phrase.span.from || i > phrase.span.to)}
-                            mark={marks && marks[i] !== 'ok' && marks[i] !== 'none' ? marks[i] : null}
-                            pitch={pitches?.[i]}
-                            scale={fit}
-                            onLayout={onWordLayout}
-                          />
-                        ))}
-                      </View>
-                    </>
-                  )}
-                </View>
-              </GestureDetector>
-              {dragSpan && wordBoxes.current[dragSpan.from] && wordBoxes.current[dragSpan.to] ? (
-                <SelectionHandles
-                  start={wordBoxes.current[dragSpan.from]!}
-                  end={wordBoxes.current[dragSpan.to]!}
-                  scrollRef={scrollRef}
-                  onGrab={onGrabHandle}
-                  onDrag={onDragHandle}
-                  onRelease={onReleaseHandle}
-                />
-              ) : null}
-              {selected !== null && line.words[selected] ? (
-                <WordPanel
-                  word={line.words[selected]!.text}
-                  gloss={glossData}
-                  context={explainContext}
-                  left={popLeft}
-                  top={popTop}
-                  romaji={isJa && readingMode === 'romaji'}
-                  dictionary={isJa}
-                  onHear={onHearWord}
-                  onClose={onClosePanel}
-                />
-              ) : null}
-              {dragSpan && dragUnion && !handleDragging ? (
-                <SelectionPopup
-                  left={dragPopLeft}
-                  top={dragPopTop}
-                  onRepeat={onRepeatSelection}
-                  onExplain={onOpenExplain}
-                  onCopy={onCopySelection}
-                />
-              ) : null}
-            </View>
-          </>
-        ) : (
-          <GestureDetector gesture={jaReveal.gesture}>
-            <View collapsable={false}>
-              {hidden ? (
-                <SlideReveal
-                  finger={jaReveal.finger}
-                  count={jaChars.length}
-                  rowStyle={styles.words}
-                  blur={4.5}
-                  renderChunk={(i) => (
-                    <Text key={i} style={[styles.ja, fit < 1 && { fontSize: 26 * fit, lineHeight: 38 * fit }]}>
-                      {jaChars[i]}
-                    </Text>
-                  )}
-                />
-              ) : (
-                <Text style={[styles.ja, fit < 1 && { fontSize: 26 * fit, lineHeight: 38 * fit }]}>{line.ja}</Text>
-              )}
-            </View>
-          </GestureDetector>
-        )}
-
-        {modeLine !== null ? (
-          <Frost frosted={hidden} ink={tide.textDim}>
-            <Text style={styles.reading}>{modeLine}</Text>
-          </Frost>
-        ) : null}
-
-        {/* languages: mora feedback only exists for Japanese timelines. */}
-        {isJa && feedback && !hidden ? <TakeFeedback moras={line.timeline} analysis={feedback} /> : null}
-
-        {total !== null || keptUp !== null || ladderNote ? (
-          <Text
-            style={[
-              styles.keptUp,
-              ladderNote ? { color: ladderNote.dir === 'up' ? tide.listen : tide.text } : null,
-            ]}
-          >
-            {total !== null ? (
-              <Text style={{ color: total >= 80 ? tide.listen : total >= 50 ? tide.text : tide.record }}>
-                {t('player.takeScore', { score: total })}
-              </Text>
-            ) : null}
-            {keptUp !== null
-              ? `${total !== null ? ' · ' : ''}${t('player.keptUpWords', { kept: keptUp.kept, total: keptUp.total })}`
-              : ''}
-            {ladderNote
-              ? `${keptUp !== null || total !== null ? ' · ' : ''}${t(ladderNote.dir === 'up' ? 'player.ladderUp' : 'player.ladderDown', { speed: speedLabel(ladderNote.speed) })}`
-              : ''}
-          </Text>
-        ) : null}
-
-        {/* The English in its own inset strip at the foot of the card. Blind
-            frosts it; dragging a finger across the words sharpens whichever
-            ones sit under it and the rest frost again once the finger lifts.
-            The Pressable stays outermost (its padding would otherwise offset
-            the gesture's x/y from the word boxes, which measure from the
-            content inside that padding) and the strip sits above the card's
-            tap-to-play fill, so a press here never plays. */}
-        {line.en ? (
-          <Pressable style={styles.enStrip} accessibilityLabel={englishShown ? line.en : t('player.translationHidden')}>
-            <GestureDetector gesture={enReveal.gesture}>
-              <View collapsable={false}>
-                {enFrosted ? (
-                  <SlideReveal
-                    finger={enReveal.finger}
-                    count={enWords.length}
-                    // languages: a Hebrew translation reveals right to left,
-                    // so wrapping still fills each row starting from the right.
-                    rowStyle={isRtl ? [styles.words, { flexDirection: 'row-reverse' as const }] : styles.words}
-                    ink={tide.textDim}
-                    blur={3.5}
-                    renderChunk={(i) => (
-                      <Text key={i} style={[styles.en, isRtl && styles.enRtl]}>
-                        {enWords[i]}
-                        {i < enWords.length - 1 ? ' ' : ''}
-                      </Text>
-                    )}
-                  />
-                ) : (
-                  <Text style={[styles.en, isRtl && styles.enRtl]}>{line.en}</Text>
-                )}
-              </View>
-            </GestureDetector>
-          </Pressable>
-        ) : null}
-      </Animated.View>
-    );
-  }, [
-    // bl58-easy-for-me: the chip's label and tap follow the mark.
-    lineKnown,
-    t,
-    isGrammar,
-    line,
-    blind,
-    hidden,
-    readingMode,
-    isJa,
-    isRtl,
-    highlight,
-    selected,
-    dragSpan,
-    phrase.span,
-    marks,
-    keptUp,
-    total,
-    ladderNote,
-    feedback,
-    pitches,
-    glossData,
-    explainContext,
-    blockWidth,
-    fit,
-    handleDragging,
-    modeLine,
-    enFrosted,
-    englishShown,
-    cardDragStyle,
-    sentenceGesture,
-    jaReveal,
-    enReveal,
-    // Stable for the screen's life: handlers from useStableHandler or an
-    // empty useCallback, and a shared value.
-    onBlockLayout,
-    cardAnchor.ref,
-    remeasureGuide,
-    onBlockTouch,
-    onClosePanel,
-    onCopySelection,
-    onDragHandle,
-    onGrabHandle,
-    onHearWord,
-    onOpenExplain,
-    onReleaseHandle,
-    onRepeatSelection,
-    onTapEmpty,
-    onWordLayout,
-  ]);
+  // The card is memo'd on these props, the same containment the useMemo had:
+  // the chip element (memo'd on lineKnown) stands in for the old lineKnown dep.
+  const sentence = line ? (
+    <IslandSentenceCard
+      line={line}
+      blind={blind}
+      hidden={hidden}
+      readingMode={readingMode}
+      isJa={isJa}
+      isRtl={isRtl}
+      isGrammar={isGrammar}
+      highlight={highlight}
+      selected={selected}
+      dragSpan={dragSpan}
+      phraseSpan={phrase.span}
+      marks={marks}
+      keptUp={keptUp}
+      total={total}
+      ladderNote={ladderNote}
+      feedback={feedback}
+      pitches={pitches}
+      glossData={glossData}
+      explainContext={explainContext}
+      blockWidth={blockWidth}
+      fit={fit}
+      handleDragging={handleDragging}
+      modeLine={modeLine}
+      enFrosted={enFrosted}
+      englishShown={englishShown}
+      t={t}
+      gesture={sentenceGesture}
+      dragStyle={cardDragStyle}
+      jaReveal={jaReveal}
+      enReveal={enReveal}
+      cardRef={cardAnchor.ref}
+      onCardLayout={remeasureGuide}
+      chipRef={chipAnchor.ref}
+      onChipLayout={chipAnchor.onLayout}
+      easyChip={easyChipButton}
+      wordBoxes={wordBoxes}
+      scrollRef={scrollRef}
+      onBlockLayout={onBlockLayout}
+      onBlockTouch={onBlockTouch}
+      onTapEmpty={onTapEmpty}
+      onWordLayout={onWordLayout}
+      onGrabHandle={onGrabHandle}
+      onDragHandle={onDragHandle}
+      onReleaseHandle={onReleaseHandle}
+      onHearWord={onHearWord}
+      onClosePanel={onClosePanel}
+      onRepeatSelection={onRepeatSelection}
+      onOpenExplain={onOpenExplain}
+      onCopySelection={onCopySelection}
+    />
+  ) : null;
 
   // Leaves without the card morph. A route opened by the morph does not
   // animate on its own, so it gets its fade back first, or the pop is a cut.
@@ -3836,28 +2923,7 @@ export default function IslandScreen() {
           }}>
           <Animated.View style={bottomInStyle} pointerEvents="box-none">
             {easyOffer !== null ? (
-              // bl58-easy-for-me: E4 c, the capsule holds the offer's two choices while it is up.
-              <View style={styles.offerRoot} pointerEvents="box-none">
-                <GlassPanel radius={Radius.pill} style={styles.offerCapsule}>
-                  <View style={styles.offerRow}>
-                    <PressScale
-                      onPress={() => markEasy(easyOffer)}
-                      accessibilityRole="button"
-                      accessibilityLabel={t('ladder.easyOffer.yes')}
-                      style={[styles.offerBtn, styles.offerBtnOn]}>
-                      <Leaf size={14} />
-                      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.offerText, styles.offerTextOn]}>{t('ladder.easyOffer.yes')}</Text>
-                    </PressScale>
-                    <PressScale
-                      onPress={() => setEasyOffer(null)}
-                      accessibilityRole="button"
-                      accessibilityLabel={t('ladder.easyOffer.no')}
-                      style={styles.offerBtn}>
-                      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.offerText}>{t('ladder.easyOffer.no')}</Text>
-                    </PressScale>
-                  </View>
-                </GlassPanel>
-              </View>
+              <EasyOffer onYes={() => markEasy(easyOffer)} onNo={() => setEasyOffer(null)} />
             ) : (
             <CompactDock
               playMode={ringMode === 'idle' ? 'idle' : 'playing'}
@@ -3901,52 +2967,16 @@ export default function IslandScreen() {
             )}
           </Animated.View>
         </View>
-        {speedPopOpen && anchors.current.speed && playerW.current > 0 ? (
-          <SpeedPopover
-            anchorX={anchors.current.speed.x + anchors.current.speed.width / 2}
-            anchorTop={dockY.current + anchors.current.speed.y}
+        {playerW.current > 0 ? (
+          <DockPopovers
+            dock={dock}
             width={playerW.current}
+            language={island?.language ?? 'ja'}
+            native={island?.native ?? 'en'}
             speed={speedLive}
             onSpeed={pickSpeed}
-            onSettle={commitSpeed}
-            onClose={() => setSpeedPopOpen(false)}
-          />
-        ) : null}
-        {readingPopOpen && anchors.current.reading && playerW.current > 0 ? (
-          <ReadingPopover
-            anchorX={anchors.current.reading.x + anchors.current.reading.width / 2}
-            anchorTop={dockY.current + anchors.current.reading.y}
-            width={playerW.current}
-            value={readingMode}
-            onChange={pickReading}
-            onClose={() => setReadingPopOpen(false)}
-          />
-        ) : null}
-        {blindPopOpen && anchors.current.blind && playerW.current > 0 ? (
-          <BlindPopover
-            anchorX={anchors.current.blind.x + anchors.current.blind.width / 2}
-            anchorTop={dockY.current + anchors.current.blind.y}
-            width={playerW.current}
-            jaHidden={blind}
-            enHidden={!englishShown}
-            onToggleJa={toggleBlind}
-            onToggleEn={toggleEnglish}
-            onClose={() => setBlindPopOpen(false)}
-            lang={island?.language ?? 'ja'}
-            native={island?.native ?? 'en'}
-          />
-        ) : null}
-        {repeatPopOpen && anchors.current.repeat && playerW.current > 0 ? (
-          <RepeatPopover
-            anchorX={anchors.current.repeat.x + anchors.current.repeat.width / 2}
-            anchorTop={dockY.current + anchors.current.repeat.y}
-            width={playerW.current}
-            times={times}
-            pauseMs={pauseMs}
-            onTimes={pickTimes}
-            onPause={pickPause}
-            onPauseSettle={commitPause}
-            onClose={() => setRepeatPopOpen(false)}
+            onSpeedSettle={commitSpeed}
+            repeat={{ times, pauseMs, onTimes: pickTimes, onPause: pickPause, onPauseSettle: commitPause }}
           />
         ) : null}
       </Animated.View>
@@ -4031,7 +3061,6 @@ const styles = StyleSheet.create({
   hopCover: { zIndex: 40, elevation: 40, backgroundColor: tideSkies.night[0] },
   center: { alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: Spacing.xl, gap: Spacing.lg, flexGrow: 1, justifyContent: 'center' },
-  ja: { fontFamily: fonts.serifJp, fontSize: 26, lineHeight: 38, textAlign: 'center', color: tide.text },
   gTag: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
@@ -4048,34 +3077,7 @@ const styles = StyleSheet.create({
   gChip: { height: 20, paddingHorizontal: 7, borderRadius: 10, justifyContent: 'center', backgroundColor: 'rgba(185,166,255,0.28)' },
   gChipText: { fontFamily: fonts.uiMedium, fontSize: 11, fontWeight: '700', color: GRAMMAR_LILAC },
   gTagText: { fontFamily: fonts.uiMedium, fontSize: 12.5, fontWeight: '600', color: GRAMMAR_LILAC, flexShrink: 1 },
-  activeCard: {
-    borderRadius: Radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,158,128,0.35)',
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  block: { position: 'relative', zIndex: 5 },
-  words: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
-  reading: { fontFamily: fonts.serifJp, fontSize: 16, lineHeight: 24, textAlign: 'center', color: tide.textDim },
-  keptUp: { fontFamily: fonts.ui, fontSize: 12, textAlign: 'center', color: tide.textDim, marginTop: 2 },
-  enStrip: {
-    marginTop: 10,
-    paddingVertical: 6,
-    paddingHorizontal: 16,
-    borderRadius: Radius.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.12)',
-    backgroundColor: 'rgba(255,255,255,0.04)',
-  },
-  en: { fontFamily: fonts.ui, fontSize: 13, lineHeight: 18, textAlign: 'center', color: tide.textDim },
-  // languages: iOS honours writingDirection; Android ignores it and falls
-  // back to the string's own first-strong direction, which is right for
-  // Hebrew text anyway.
-  enRtl: { writingDirection: 'rtl' },
   // bl58-easy-for-me: E4's pill, counter, toast and offer. Mint is verb.along (#3DDC97, #9AEFC9).
-  easyRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 4, zIndex: 6 },
   easyChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -4105,25 +3107,6 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   easyToastText: { fontFamily: fonts.uiMedium, fontSize: 14, fontWeight: '600', color: '#C9F7E0' },
-  offerRoot: { alignItems: 'center', paddingTop: 8, paddingBottom: 8 },
-  offerCapsule: { height: 56 },
-  offerRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 10 },
-  offerBtn: {
-    flex: 1,
-    height: 40,
-    paddingHorizontal: 10,
-    borderRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-  },
-  offerBtnOn: { backgroundColor: 'rgba(61,220,151,0.16)', borderColor: 'rgba(61,220,151,0.6)' },
-  offerText: { fontFamily: fonts.uiMedium, fontSize: 13, fontWeight: '600', color: tide.text },
-  offerTextOn: { color: '#C9F7E0' },
   // Above the tray backdrop (15) so the pills and the gear take taps; popovers sit at 20.
   // Floats over the scene's bottom: only the capsule, the tray and the slot draw.
   underStage: { opacity: 0 },

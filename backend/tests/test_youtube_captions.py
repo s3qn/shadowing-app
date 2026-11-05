@@ -10,6 +10,7 @@ from fastapi import BackgroundTasks, HTTPException
 
 import main
 import config
+from services import captions
 import dependencies
 import store
 import youtube
@@ -104,7 +105,7 @@ def test_build_from_captions_makes_a_ready_island_without_audio(monkeypatch):
         {"start": 1.5, "end": 3.0, "text": "こんにちは"},
         {"start": 4.0, "end": 6.5, "text": "さようなら"},
     ]
-    asyncio.run(main._build_from_captions(iid, cues, "Clip"))
+    asyncio.run(captions._build_from_captions(iid, cues, "Clip"))
     island = store.get_island(iid)
     assert island["status"] == "ready"
     assert [l["idx"] if "idx" in l else i for i, l in enumerate(island["lines"])] == [0, 1]
@@ -239,7 +240,7 @@ def _build(monkeypatch, tokens):
     iid = store.create_island("simple", 3, source="youtube", source_name=VID, device=DEV)
     store.add_video(iid, VID, 0.0, "Clip", "")
     lines = youtube.json3_to_lines(FIXTURE["events"])
-    asyncio.run(main._build_from_captions(iid, lines, "Clip", asr_tokens=tokens))
+    asyncio.run(captions._build_from_captions(iid, lines, "Clip", asr_tokens=tokens))
     island = store.get_island(iid)
     assert island["status"] == "ready"
     return iid, island["lines"]
@@ -313,7 +314,7 @@ def test_build_spreads_an_asr_lump_over_its_voice(monkeypatch):
     monkeypatch.setattr(main.generate, "translate_lines", lambda b, *a, **k: [""] * len(b))
     iid = store.create_island("simple", 3, source="youtube", source_name=VID, device=DEV)
     store.add_video(iid, VID, 0.0, "Clip", "")
-    asyncio.run(main._build_from_captions(iid, youtube.json3_to_lines(_lump_events()), "Clip"))
+    asyncio.run(captions._build_from_captions(iid, youtube.json3_to_lines(_lump_events()), "Clip"))
     lines = store.get_island(iid)["lines"]
     lump = [ln for ln in lines if ln["ja"] in LUMP_TEXT and ln["offset"] >= 25.0 and not ln["ja"].startswith("6")]
     assert len(lump) >= 3
