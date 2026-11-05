@@ -9,13 +9,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
 import { ExplainSheet } from '@/components/explain-sheet';
-import { BlindPopover, blindValueLabel } from '@/components/tide/blind-popover';
+import { DockPopovers } from '@/components/tide/dock-popovers';
 import { PassHelpSheet } from '@/components/tide/pass-help-sheet';
 import { LadderStageView } from '@/components/tide/ladder-stage';
-import { CompactDock, DOCK_GOLD_INK, type DockPill } from '@/components/tide/compact-dock';
-import { READING_LABEL_KEY, ReadingPopover } from '@/components/tide/reading-popover';
-import { SpeedPopover } from '@/components/tide/speed-popover';
-import { BlindIcon, ReadingIcon } from '@/components/tide/toolbar-icons';
+import { CompactDock } from '@/components/tide/compact-dock';
 import { TappableSentence, type ExplainSelection } from '@/components/tide/tappable-sentence';
 import { TideScene } from '@/components/tide/tide-scene';
 import { useListeningCat } from '@/components/cat/listening-cat';
@@ -25,6 +22,7 @@ import { GRAMMAR_LILAC } from '@/components/ruby-word';
 import { Spacing, tide, verb } from '@/constants/theme';
 import { snapRate, takeWatchSec, type useLadder } from '@/hooks/use-ladder';
 import { useDockPopovers } from '@/hooks/use-dock-popovers';
+import { useTrayPills } from '@/hooks/use-tray-pills';
 import { useLadderWiring } from '@/hooks/use-ladder-wiring';
 import { autoPlaceOf, endAutoPractice } from '@/lib/auto-practice';
 import { parsePick, pickBestBits } from '@/lib/best-bits';
@@ -97,12 +95,13 @@ export default function PodcastScreen() {
   const { highlight, activeLine, seekToLine } = useTrackHighlight(player, lines);
 
   const [generation, setGeneration] = useState(0);
+  const dock = useDockPopovers();
   const {
     explainOpen, setExplainOpen, explainSpan, explainMarked, explainWhole, openExplain,
-    readingMode, blind, englishShown, pickReading, toggleBlind, toggleEnglish,
-    speedPopOpen, setSpeedPopOpen, readingPopOpen, setReadingPopOpen, blindPopOpen, setBlindPopOpen,
-    trayOpen, setTrayOpen, anchors, dockY, dockH, onAnchor, onDockLayout,
-  } = useDockPopovers();
+    readingMode, blind, englishShown,
+    setSpeedPopOpen, repeatPopOpen, setRepeatPopOpen, readingPopOpen, setReadingPopOpen, blindPopOpen, setBlindPopOpen,
+    trayOpen, setTrayOpen, dockH, onAnchor, onDockLayout,
+  } = dock;
   const insets = useSafeAreaInsets();
 
   // One take machine: useLadder runs both the review ladder and the single
@@ -456,45 +455,13 @@ export default function PodcastScreen() {
     setSpeedLive(v);
     setRate(v);
   };
-  const trayPills = useMemo((): DockPill[] => {
-    const ink = (on: boolean) => (on ? DOCK_GOLD_INK : tide.textDim);
-    const readingOn = readingMode !== 'off';
-    const blindOn = blind || !englishShown;
-    const pills: DockPill[] = [];
-    if ((island?.language ?? 'ja') === 'ja') {
-      pills.push({
-        key: 'reading',
-        icon: <ReadingIcon color={ink(readingOn)} size={15} />,
-        value: t(READING_LABEL_KEY[readingMode]),
-        on: readingOn,
-        selected: readingPopOpen,
-        onPress: () => {
-          setSpeedPopOpen(false);
-          setBlindPopOpen(false);
-          setReadingPopOpen((v) => !v);
-        },
-      });
-    }
-    pills.push({
-      key: 'blind',
-      icon: <BlindIcon color={ink(blindOn)} size={15} />,
-      value: blindValueLabel(t, blind, englishShown, island?.language ?? 'ja', island?.native ?? 'en'),
-      on: blindOn,
-      selected: blindPopOpen,
-      onPress: () => {
-        setSpeedPopOpen(false);
-        setReadingPopOpen(false);
-        setBlindPopOpen((v) => !v);
-      },
-    });
-    return pills;
-  }, [t, readingMode, blind, englishShown, island, readingPopOpen, blindPopOpen]);
-
-  const onSpeedChip = () => {
-    setReadingPopOpen(false);
-    setBlindPopOpen(false);
-    setSpeedPopOpen((v) => !v);
-  };
+  const { trayPills, onSpeedChip } = useTrayPills({
+    t,
+    language: island?.language ?? 'ja',
+    native: island?.native ?? 'en',
+    readingMode, blind, englishShown, readingPopOpen, blindPopOpen, repeatPopOpen,
+    setSpeedPopOpen, setRepeatPopOpen, setReadingPopOpen, setBlindPopOpen,
+  });
   const language = island?.language ?? 'ja';
 
   const canAiPick = !!island && loaded && !review && !inSession && !picking && savedCards.size === 0 && lines.length > 0;
@@ -658,41 +625,15 @@ export default function PodcastScreen() {
               </View>
             </>
           ) : null}
-          {speedPopOpen && anchors.current.speed ? (
-            <SpeedPopover
-              anchorX={anchors.current.speed.x + anchors.current.speed.width / 2}
-              anchorTop={dockY.current + anchors.current.speed.y}
-              width={playerW}
-              speed={speedLive}
-              onSpeed={setSpeedLive}
-              onSettle={commitSpeed}
-              onClose={() => setSpeedPopOpen(false)}
-            />
-          ) : null}
-          {readingPopOpen && anchors.current.reading ? (
-            <ReadingPopover
-              anchorX={anchors.current.reading.x + anchors.current.reading.width / 2}
-              anchorTop={dockY.current + anchors.current.reading.y}
-              width={playerW}
-              value={readingMode}
-              onChange={pickReading}
-              onClose={() => setReadingPopOpen(false)}
-            />
-          ) : null}
-          {blindPopOpen && anchors.current.blind ? (
-            <BlindPopover
-              anchorX={anchors.current.blind.x + anchors.current.blind.width / 2}
-              anchorTop={dockY.current + anchors.current.blind.y}
-              width={playerW}
-              jaHidden={blind}
-              enHidden={!englishShown}
-              onToggleJa={toggleBlind}
-              onToggleEn={toggleEnglish}
-              onClose={() => setBlindPopOpen(false)}
-              lang={island?.language ?? 'ja'}
-              native={island?.native ?? 'en'}
-            />
-          ) : null}
+          <DockPopovers
+            dock={dock}
+            width={playerW}
+            language={island?.language ?? 'ja'}
+            native={island?.native ?? 'en'}
+            speed={speedLive}
+            onSpeed={setSpeedLive}
+            onSpeedSettle={commitSpeed}
+          />
         </>
       )}
       {ladder.stage ? <LadderStageView {...ladder.stage} highlight={highlight} top={0} onHelp={onPassHelp} /> : null}

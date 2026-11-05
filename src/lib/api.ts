@@ -14,220 +14,26 @@ import { Platform } from 'react-native';
 import { Directory, File, Paths } from 'expo-file-system';
 
 import type { ArtSpec, Slot } from '@/constants/cosmetics';
-import { accessTokenSync } from '@/lib/auth';
 import { BASE, ORIGIN, TOKEN, expoFetch, fetch } from '@/lib/api-http';
+import { headers, json, userParam } from '@/lib/api-core';
+import type {
+  AudioSpan,
+  Complexity,
+  Island,
+  IslandSource,
+  IslandSummary,
+  Language,
+  NativeLanguage,
+  PosGroup,
+  Register,
+  RubySegment,
+  Speaker,
+  Word,
+} from '@/lib/api-types';
 import { refreshEnergyAfterAi, withEnergy } from '@/lib/energy';
 import { deviceIdSync } from '@/lib/device';
-import { t } from '@/lib/i18n';
 import type { StarterLevel } from '@/lib/settings';
 import type { VideoContext } from '@/lib/youtube-captions';
-import { en, type Key } from '@/locales/en';
-
-export type Complexity = 'simple' | 'complex';
-
-/** Speech register for generated Japanese: です/ます polite, or plain casual
- * form. Keep in sync with `Register` in `src/lib/settings.ts`. */
-export type Register = 'polite' | 'casual';
-
-/** The learning language an island was built in. */
-export type Language = 'ja' | 'es' | 'en';
-
-/** One syllable of the synthesized line, with the timing VOICEVOX reported. */
-export type Mora = {
-  text: string;
-  kana: string;
-  start: number;
-  end: number;
-  phrase: number;
-  /** Pitch, true on a high mora; missing on islands built before accent marks existed, null when the backend could not recover it. */
-  high?: boolean | null;
-};
-
-/** One run of a word's text with the reading shown above it; rt is empty for kana, digits and punctuation. */
-export type RubySegment = { text: string; rt: string };
-
-/** Coarse part of speech group used to colour a word's underline. Keep the
- * five names in sync with `_POS_GROUP`/`_pos_group` in `backend/segment.py`. */
-export type PosGroup = 'noun' | 'verb' | 'adjective' | 'particle' | 'other';
-
-/** One word of a line with the span of audio it is spoken in. `ruby` is
- * missing only on lines served by a backend older than furigana. `pos` is
- * missing on lines from a backend older than the pos underline. */
-export type Word = { text: string; start: number; end: number; ruby?: RubySegment[]; pos?: PosGroup };
-
-/** A stretch of a line's rendered audio, in milliseconds at the requested speed. */
-export type AudioSpan = { startMs: number; endMs: number };
-
-export type Line = {
-  idx: number;
-  ja: string;
-  kana: string;
-  romaji: string;
-  en: string;
-  duration: number;
-  timeline: Mora[];
-  words: Word[];
-  /** Where this line starts in the source audio, in seconds. */ // youtube-shadowing
-  offset?: number;
-  /** Tatoeba sentence id when the line came from the corpus (voice topics). */
-  tatoeba_id?: number | null;
-  /** Grammar islands: the exact piece of `ja` that realises the point, '' when none. */
-  span?: string;
-  /** Video islands: 1 once the repair pass verified the text, 0 when it is
-   * unsure (catch-the-word skips it), null or absent before the pass. */ // youtube-asr-context-repair
-  sure?: 0 | 1 | null;
-};
-
-export type SpeakerStyle = { id: number; name: string; icon: string };
-export type Speaker = { uuid: string; name: string; policy: string; styles: SpeakerStyle[] };
-
-/** The language the learner already understands, `native` on the island. */
-export type NativeLanguage = 'he' | 'en';
-
-/** How an island was made. */ // youtube-shadowing
-export type IslandSource = 'voice' | 'phrases' | 'import' | 'podcast' | 'youtube' | 'grammar' | 'starter';
-
-export type IslandSummary = {
-  id: string;
-  title: string;
-  status: 'pending' | 'working' | 'ready' | 'failed';
-  stage: string;
-  complexity: Complexity;
-  language: Language;
-  native: NativeLanguage;
-  created_at: string;
-  line_count: number;
-  source?: IslandSource; // youtube-shadowing
-  /** False when line 0 has no audio file (a captions-only island). Absent from an older backend: treat as true. */
-  has_audio?: boolean;
-  /** Seconds of media and seconds left of the build. Absent from an older backend. */
-  media_s?: number;
-  eta_s?: number | null;
-};
-
-/** A code the backend sends (`daily_limit`, `no_lines`, `transcribing`) is only
- * a catalogue key if the catalogue actually holds it. An older client meeting a
- * newer backend must fall back, not show the person "islandError.some_new_code". */
-function codeKey(prefix: 'api' | 'islandError' | 'stage', code: string): Key | undefined {
-  const key = `${prefix}.${code}`;
-  return key in en ? (key as Key) : undefined;
-}
-
-/** What each backend build stage means to the person waiting for it. */
-export function stageLabel(stage: string): string {
-  return t(codeKey('stage', stage) ?? 'stage.working');
-}
-
-export type Island = IslandSummary & {
-  error: string;
-  /** Machine-readable twin of `error`. Empty for an island that failed before
-   * the backend started sending codes, and for the catch-all failure paths. */
-  error_code: string;
-  speaker: number;
-  transcript: string;
-  lines: Line[];
-  /** How the island was made. Only a recorded ('voice') island can be
-   * re-voiced or regenerated. Absent in a local copy saved before the client
-   * read it. */
-  source?: IslandSource;
-  /** The grammar point id on a grammar island. */
-  source_name?: string;
-  /** bl58-easy-for-me: line idxs marked Easy for me. Absent in a copy cached before this build. */
-  known?: number[];
-};
-
-/** Why an island failed, in the reader's language. Falls back to the English
- * sentence the backend also sends, so an unknown code still says something. */
-export function islandErrorText(island: { error?: string; error_code?: string }): string {
-  const key = island.error_code ? codeKey('islandError', island.error_code) : undefined;
-  if (key) return t(key);
-  return island.error || t('islandError.unknown');
-}
-
-/** The signed-in access token for URLs that cannot carry headers (the player,
- * Image), the same split the device id uses. Empty when signed out. */
-function userParam(): string {
-  const user = accessTokenSync();
-  return user ? `&user=${encodeURIComponent(user)}` : '';
-}
-
-/** Adds the current access token to a URL built by lineAudioUrl, at the
- * moment it is handed to the player or a download. The logical URL stays
- * token-free, so a token refresh does not look like a new source. */
-export function withUser(url: string): string {
-  return `${url}${userParam()}`;
-}
-
-function headers(): Record<string, string> {
-  const h: Record<string, string> = { Authorization: `Bearer ${TOKEN}`, 'X-Shadow-Device': deviceIdSync() };
-  const user = accessTokenSync();
-  if (user) h['X-Shadow-User'] = user;
-  return h;
-}
-
-/** Turns any failed response into a short, readable message. Gateway errors
- * (the tunnel could not reach the server) come back as full HTML pages, which
- * are useless on a phone screen. */
-async function json<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    // FastAPI sends `detail` as a plain string for developer errors, and as an
-    // object carrying a code plus its values for anything a person reads. A
-    // gateway error is neither: it arrives as a full HTML page.
-    const detail = parseDetail(body);
-    if (detail && typeof detail === 'object') {
-      const key = codeKey('api', detail.code);
-      if (key) throw new Error(t(key, scalarsOf(detail)));
-    }
-    if (res.status === 502 || res.status === 503 || res.status === 504) {
-      throw new Error(t('api.unreachable'));
-    }
-    if (res.status === 429) {
-      throw new Error(t('api.daily_limit_any'));
-    }
-    // A plain-string detail is English developer text: never shown, only the status.
-    throw new Error(t('api.requestFailed', { status: res.status }));
-  }
-  return (await res.json()) as T;
-}
-
-/** The values a message can interpolate: `{limit}` and its like, never a
- * nested object. */
-function scalarsOf(detail: Record<string, unknown>): Record<string, string | number> {
-  const out: Record<string, string | number> = {};
-  for (const [name, value] of Object.entries(detail)) {
-    if (typeof value === 'string' || typeof value === 'number') out[name] = value;
-  }
-  return out;
-}
-
-/** The `detail` of a FastAPI error, when the body is JSON at all. */
-function parseDetail(body: string): string | ({ code: string } & Record<string, unknown>) | null {
-  try {
-    const parsed = JSON.parse(body) as { detail?: unknown };
-    const detail = parsed.detail;
-    if (typeof detail === 'string') return detail;
-    if (detail && typeof detail === 'object' && typeof (detail as { code?: unknown }).code === 'string') {
-      return detail as { code: string } & Record<string, unknown>;
-    }
-  } catch {
-    // Not JSON: an HTML gateway page, or an empty body.
-  }
-  return null;
-}
-
-export function configured(): boolean {
-  return BASE.length > 0 && TOKEN.length > 0;
-}
-
-export async function health(): Promise<boolean> {
-  try {
-    const res = await fetch(`${BASE}/health`, { headers: headers() });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
 
 export type ReviewVerdict = 'accept' | 'fix' | 'remove';
 export type ReviewStep = {
@@ -1155,7 +961,6 @@ export async function listVideos(): Promise<VideoListItem[]> {
 
 // ---- Progression and cosmetics ----
 
-export type { ArtSpec, Slot };
 export type Progress = {
   xp: number;
   /** Fast-band XP earned today (UTC day), 0..xp_today_cap. */
@@ -1731,3 +1536,16 @@ export async function postTranscriptScore(body: { session: string; video: string
     return false;
   }
 }
+
+// Transitional shim: callers still import from '@/lib/api'. New code imports the
+// domain file directly. A later codemod deletes this block.
+export * from './api-types';
+export { withUser, configured, health } from './api-core';
+export * from './api-islands';
+export * from './api-podcasts';
+export * from './api-words';
+export * from './api-takes';
+export * from './api-library';
+export * from './api-progress';
+export * from './api-review';
+export * from './api-catch';

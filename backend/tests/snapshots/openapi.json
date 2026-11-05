@@ -1,0 +1,7802 @@
+{
+ "components": {
+  "schemas": {
+   "BetaBody": {
+    "properties": {
+     "enabled": {
+      "title": "Enabled",
+      "type": "boolean"
+     },
+     "owner": {
+      "title": "Owner",
+      "type": "string"
+     }
+    },
+    "required": [
+     "owner",
+     "enabled"
+    ],
+    "title": "BetaBody",
+    "type": "object"
+   },
+   "Body_catch_review_shadow_catch_review_post": {
+    "properties": {
+     "caught": {
+      "default": 0,
+      "title": "Caught",
+      "type": "integer"
+     },
+     "island_id": {
+      "title": "Island Id",
+      "type": "string"
+     },
+     "knew": {
+      "default": 0,
+      "title": "Knew",
+      "type": "integer"
+     },
+     "word": {
+      "default": "",
+      "title": "Word",
+      "type": "string"
+     }
+    },
+    "required": [
+     "island_id"
+    ],
+    "title": "Body_catch_review_shadow_catch_review_post",
+    "type": "object"
+   },
+   "Body_cosmetics_buy_shadow_cosmetics_buy_post": {
+    "properties": {
+     "item_id": {
+      "title": "Item Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "item_id"
+    ],
+    "title": "Body_cosmetics_buy_shadow_cosmetics_buy_post",
+    "type": "object"
+   },
+   "Body_cosmetics_equip_shadow_cosmetics_equip_post": {
+    "properties": {
+     "item_id": {
+      "default": "",
+      "title": "Item Id",
+      "type": "string"
+     },
+     "slot": {
+      "title": "Slot",
+      "type": "string"
+     }
+    },
+    "required": [
+     "slot"
+    ],
+    "title": "Body_cosmetics_equip_shadow_cosmetics_equip_post",
+    "type": "object"
+   },
+   "Body_create_import_island_shadow_islands_import_post": {
+    "properties": {
+     "audio": {
+      "format": "binary",
+      "title": "Audio",
+      "type": "string"
+     },
+     "language": {
+      "default": "ja",
+      "title": "Language",
+      "type": "string"
+     },
+     "native": {
+      "default": "en",
+      "title": "Native",
+      "type": "string"
+     },
+     "speaker": {
+      "default": 3,
+      "title": "Speaker",
+      "type": "integer"
+     },
+     "start_min": {
+      "default": 0,
+      "title": "Start Min",
+      "type": "number"
+     },
+     "subtitles": {
+      "anyOf": [
+       {
+        "format": "binary",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Subtitles"
+     },
+     "title": {
+      "default": "",
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "required": [
+     "audio"
+    ],
+    "title": "Body_create_import_island_shadow_islands_import_post",
+    "type": "object"
+   },
+   "Body_create_island_shadow_islands_post": {
+    "properties": {
+     "audio": {
+      "format": "binary",
+      "title": "Audio",
+      "type": "string"
+     },
+     "complexity": {
+      "default": "simple",
+      "title": "Complexity",
+      "type": "string"
+     },
+     "count": {
+      "default": 8,
+      "title": "Count",
+      "type": "integer"
+     },
+     "language": {
+      "default": "ja",
+      "title": "Language",
+      "type": "string"
+     },
+     "native": {
+      "default": "en",
+      "title": "Native",
+      "type": "string"
+     },
+     "register": {
+      "default": "polite",
+      "title": "Register",
+      "type": "string"
+     },
+     "speaker": {
+      "default": 3,
+      "title": "Speaker",
+      "type": "integer"
+     },
+     "topic": {
+      "default": 0,
+      "title": "Topic",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "audio"
+    ],
+    "title": "Body_create_island_shadow_islands_post",
+    "type": "object"
+   },
+   "Body_create_say_shadow_say_post": {
+    "properties": {
+     "audio": {
+      "format": "binary",
+      "title": "Audio",
+      "type": "string"
+     },
+     "dev_transcript": {
+      "default": "",
+      "title": "Dev Transcript",
+      "type": "string"
+     },
+     "language": {
+      "default": "ja",
+      "title": "Language",
+      "type": "string"
+     },
+     "native": {
+      "default": "he",
+      "title": "Native",
+      "type": "string"
+     },
+     "register": {
+      "default": "polite",
+      "title": "Register",
+      "type": "string"
+     },
+     "speaker": {
+      "default": 3,
+      "title": "Speaker",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "audio"
+    ],
+    "title": "Body_create_say_shadow_say_post",
+    "type": "object"
+   },
+   "Body_energy_grant_shadow_energy_grant_post": {
+    "properties": {
+     "amount": {
+      "title": "Amount",
+      "type": "integer"
+     },
+     "note": {
+      "default": "",
+      "title": "Note",
+      "type": "string"
+     },
+     "username": {
+      "title": "Username",
+      "type": "string"
+     }
+    },
+    "required": [
+     "username",
+     "amount"
+    ],
+    "title": "Body_energy_grant_shadow_energy_grant_post",
+    "type": "object"
+   },
+   "Body_import_grammar_shadow_grammar_import_post": {
+    "properties": {
+     "native": {
+      "default": "en",
+      "title": "Native",
+      "type": "string"
+     },
+     "point": {
+      "title": "Point",
+      "type": "string"
+     },
+     "register": {
+      "default": "polite",
+      "title": "Register",
+      "type": "string"
+     },
+     "speaker": {
+      "default": 3,
+      "title": "Speaker",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "point"
+    ],
+    "title": "Body_import_grammar_shadow_grammar_import_post",
+    "type": "object"
+   },
+   "Body_import_phrases_shadow_phrases_import_post": {
+    "properties": {
+     "language": {
+      "default": "ja",
+      "title": "Language",
+      "type": "string"
+     },
+     "native": {
+      "default": "en",
+      "title": "Native",
+      "type": "string"
+     },
+     "speaker": {
+      "default": 3,
+      "title": "Speaker",
+      "type": "integer"
+     },
+     "topic": {
+      "title": "Topic",
+      "type": "string"
+     }
+    },
+    "required": [
+     "topic"
+    ],
+    "title": "Body_import_phrases_shadow_phrases_import_post",
+    "type": "object"
+   },
+   "Body_import_podcast_episode_shadow_podcasts_import_post": {
+    "properties": {
+     "audio_url": {
+      "title": "Audio Url",
+      "type": "string"
+     },
+     "language": {
+      "default": "ja",
+      "title": "Language",
+      "type": "string"
+     },
+     "native": {
+      "default": "en",
+      "title": "Native",
+      "type": "string"
+     },
+     "speaker": {
+      "default": 3,
+      "title": "Speaker",
+      "type": "integer"
+     },
+     "start_min": {
+      "default": 0,
+      "title": "Start Min",
+      "type": "number"
+     },
+     "title": {
+      "default": "",
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "required": [
+     "audio_url"
+    ],
+    "title": "Body_import_podcast_episode_shadow_podcasts_import_post",
+    "type": "object"
+   },
+   "Body_log_practice_shadow_schedule_practice_post": {
+    "properties": {
+     "app_state": {
+      "default": "",
+      "title": "App State",
+      "type": "string"
+     },
+     "island_id": {
+      "title": "Island Id",
+      "type": "string"
+     },
+     "op": {
+      "default": "",
+      "title": "Op",
+      "type": "string"
+     },
+     "seconds": {
+      "title": "Seconds",
+      "type": "number"
+     }
+    },
+    "required": [
+     "island_id",
+     "seconds"
+    ],
+    "title": "Body_log_practice_shadow_schedule_practice_post",
+    "type": "object"
+   },
+   "Body_post_shot_shadow_dev_review_shot_post": {
+    "properties": {
+     "file": {
+      "format": "binary",
+      "title": "File",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "wave": {
+      "title": "Wave",
+      "type": "string"
+     }
+    },
+    "required": [
+     "wave",
+     "id",
+     "file"
+    ],
+    "title": "Body_post_shot_shadow_dev_review_shot_post",
+    "type": "object"
+   },
+   "Body_post_voice_shadow_dev_review_voice_post": {
+    "properties": {
+     "file": {
+      "format": "binary",
+      "title": "File",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "wave": {
+      "title": "Wave",
+      "type": "string"
+     }
+    },
+    "required": [
+     "wave",
+     "id",
+     "file"
+    ],
+    "title": "Body_post_voice_shadow_dev_review_voice_post",
+    "type": "object"
+   },
+   "Body_regenerate_shadow_islands__island_id__regenerate_post": {
+    "properties": {
+     "complexity": {
+      "default": "complex",
+      "title": "Complexity",
+      "type": "string"
+     },
+     "count": {
+      "default": 8,
+      "title": "Count",
+      "type": "integer"
+     }
+    },
+    "title": "Body_regenerate_shadow_islands__island_id__regenerate_post",
+    "type": "object"
+   },
+   "Body_rename_island_shadow_islands__island_id__title_patch": {
+    "properties": {
+     "title": {
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "required": [
+     "title"
+    ],
+    "title": "Body_rename_island_shadow_islands__island_id__title_patch",
+    "type": "object"
+   },
+   "Body_review_grade_shadow_review_cards__card_id__grade_post": {
+    "properties": {
+     "result": {
+      "title": "Result",
+      "type": "string"
+     }
+    },
+    "required": [
+     "result"
+    ],
+    "title": "Body_review_grade_shadow_review_cards__card_id__grade_post",
+    "type": "object"
+   },
+   "Body_review_save_shadow_review_cards_post": {
+    "properties": {
+     "idx": {
+      "title": "Idx",
+      "type": "integer"
+     },
+     "island_id": {
+      "title": "Island Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "island_id",
+     "idx"
+    ],
+    "title": "Body_review_save_shadow_review_cards_post",
+    "type": "object"
+   },
+   "Body_revoice_shadow_islands__island_id__revoice_post": {
+    "properties": {
+     "speaker": {
+      "title": "Speaker",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "speaker"
+    ],
+    "title": "Body_revoice_shadow_islands__island_id__revoice_post",
+    "type": "object"
+   },
+   "Body_starter_start_shadow_starter_post": {
+    "properties": {
+     "language": {
+      "title": "Language",
+      "type": "string"
+     },
+     "level": {
+      "default": "new",
+      "title": "Level",
+      "type": "string"
+     },
+     "native": {
+      "title": "Native",
+      "type": "string"
+     }
+    },
+    "required": [
+     "language",
+     "native"
+    ],
+    "title": "Body_starter_start_shadow_starter_post",
+    "type": "object"
+   },
+   "Body_streak_freeze_buy_shadow_streak_freeze_buy_post": {
+    "properties": {
+     "purchase_id": {
+      "title": "Purchase Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "purchase_id"
+    ],
+    "title": "Body_streak_freeze_buy_shadow_streak_freeze_buy_post",
+    "type": "object"
+   },
+   "Body_submit_feedback_shadow_feedback_post": {
+    "properties": {
+     "images": {
+      "items": {
+       "format": "binary",
+       "type": "string"
+      },
+      "title": "Images",
+      "type": "array"
+     },
+     "kind": {
+      "title": "Kind",
+      "type": "string"
+     },
+     "meta": {
+      "default": "{}",
+      "title": "Meta",
+      "type": "string"
+     },
+     "text": {
+      "default": "",
+      "title": "Text",
+      "type": "string"
+     },
+     "voice": {
+      "anyOf": [
+       {
+        "format": "binary",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Voice"
+     }
+    },
+    "required": [
+     "kind"
+    ],
+    "title": "Body_submit_feedback_shadow_feedback_post",
+    "type": "object"
+   },
+   "Body_upload_take_shadow_islands__island_id__lines__idx__take_post": {
+    "properties": {
+     "calibrate": {
+      "default": "0",
+      "title": "Calibrate",
+      "type": "string"
+     },
+     "end": {
+      "default": -1,
+      "title": "End",
+      "type": "integer"
+     },
+     "guide": {
+      "default": "0",
+      "title": "Guide",
+      "type": "string"
+     },
+     "lag": {
+      "default": 0,
+      "title": "Lag",
+      "type": "integer"
+     },
+     "line_start": {
+      "default": -1,
+      "title": "Line Start",
+      "type": "integer"
+     },
+     "op": {
+      "default": "",
+      "title": "Op",
+      "type": "string"
+     },
+     "silent": {
+      "default": "0",
+      "title": "Silent",
+      "type": "string"
+     },
+     "speed": {
+      "default": 1.0,
+      "title": "Speed",
+      "type": "number"
+     },
+     "start": {
+      "default": -1,
+      "title": "Start",
+      "type": "integer"
+     },
+     "take": {
+      "format": "binary",
+      "title": "Take",
+      "type": "string"
+     }
+    },
+    "required": [
+     "take"
+    ],
+    "title": "Body_upload_take_shadow_islands__island_id__lines__idx__take_post",
+    "type": "object"
+   },
+   "Body_upload_video_audio_shadow_islands__island_id__video_audio_post": {
+    "properties": {
+     "audio": {
+      "format": "binary",
+      "title": "Audio",
+      "type": "string"
+     }
+    },
+    "required": [
+     "audio"
+    ],
+    "title": "Body_upload_video_audio_shadow_islands__island_id__video_audio_post",
+    "type": "object"
+   },
+   "Body_username_set_shadow_username_post": {
+    "properties": {
+     "username": {
+      "title": "Username",
+      "type": "string"
+     }
+    },
+    "required": [
+     "username"
+    ],
+    "title": "Body_username_set_shadow_username_post",
+    "type": "object"
+   },
+   "DevCoinsBody": {
+    "properties": {
+     "amount": {
+      "maximum": 1000000.0,
+      "minimum": 1.0,
+      "title": "Amount",
+      "type": "integer"
+     },
+     "clear_freezes": {
+      "default": false,
+      "title": "Clear Freezes",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "amount"
+    ],
+    "title": "DevCoinsBody",
+    "type": "object"
+   },
+   "DoneBody": {
+    "properties": {
+     "wave": {
+      "maxLength": 200,
+      "title": "Wave",
+      "type": "string"
+     }
+    },
+    "required": [
+     "wave"
+    ],
+    "title": "DoneBody",
+    "type": "object"
+   },
+   "ExplainChatBody": {
+    "properties": {
+     "history": {
+      "default": [],
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "title": "History",
+      "type": "array"
+     },
+     "language": {
+      "default": "ja",
+      "title": "Language",
+      "type": "string"
+     },
+     "marked": {
+      "default": [],
+      "items": {
+       "type": "string"
+      },
+      "title": "Marked",
+      "type": "array"
+     },
+     "native": {
+      "default": "en",
+      "title": "Native",
+      "type": "string"
+     },
+     "question": {
+      "title": "Question",
+      "type": "string"
+     },
+     "sentence_en": {
+      "default": "",
+      "title": "Sentence En",
+      "type": "string"
+     },
+     "sentence_ja": {
+      "title": "Sentence Ja",
+      "type": "string"
+     }
+    },
+    "required": [
+     "sentence_ja",
+     "question"
+    ],
+    "title": "ExplainChatBody",
+    "type": "object"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "title": "Detail",
+      "type": "array"
+     }
+    },
+    "title": "HTTPValidationError",
+    "type": "object"
+   },
+   "InitBody": {
+    "properties": {
+     "name": {
+      "maxLength": 300,
+      "title": "Name",
+      "type": "string"
+     },
+     "size": {
+      "title": "Size",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "name",
+     "size"
+    ],
+    "title": "InitBody",
+    "type": "object"
+   },
+   "ReviewFinishedBody": {
+    "properties": {
+     "avg_score": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Avg Score"
+     },
+     "completed": {
+      "default": true,
+      "title": "Completed",
+      "type": "boolean"
+     },
+     "lines": {
+      "items": {
+       "$ref": "#/components/schemas/SessionLine"
+      },
+      "maxItems": 200,
+      "title": "Lines",
+      "type": "array"
+     },
+     "local_day": {
+      "title": "Local Day",
+      "type": "string"
+     },
+     "seconds": {
+      "maximum": 86400.0,
+      "minimum": 0.0,
+      "title": "Seconds",
+      "type": "number"
+     },
+     "sentences": {
+      "maximum": 10000.0,
+      "minimum": 0.0,
+      "title": "Sentences",
+      "type": "integer"
+     },
+     "session_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Session Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "session_id",
+     "sentences",
+     "seconds",
+     "local_day"
+    ],
+    "title": "ReviewFinishedBody",
+    "type": "object"
+   },
+   "ScoreBody": {
+    "properties": {
+     "label": {
+      "maxLength": 1,
+      "minLength": 1,
+      "title": "Label",
+      "type": "string"
+     },
+     "score": {
+      "maximum": 5.0,
+      "minimum": 1.0,
+      "title": "Score",
+      "type": "integer"
+     },
+     "session": {
+      "title": "Session",
+      "type": "string"
+     },
+     "video": {
+      "title": "Video",
+      "type": "string"
+     }
+    },
+    "required": [
+     "session",
+     "video",
+     "label",
+     "score"
+    ],
+    "title": "ScoreBody",
+    "type": "object"
+   },
+   "SessionLine": {
+    "properties": {
+     "idx": {
+      "maximum": 100000.0,
+      "minimum": 0.0,
+      "title": "Idx",
+      "type": "integer"
+     },
+     "island_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Island Id",
+      "type": "string"
+     },
+     "score": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Score"
+     },
+     "seconds": {
+      "maximum": 86400.0,
+      "minimum": 0.0,
+      "title": "Seconds",
+      "type": "number"
+     }
+    },
+    "required": [
+     "island_id",
+     "idx",
+     "seconds"
+    ],
+    "title": "SessionLine",
+    "type": "object"
+   },
+   "SessionPick": {
+    "properties": {
+     "count": {
+      "title": "Count",
+      "type": "integer"
+     },
+     "island_id": {
+      "title": "Island Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "island_id",
+     "count"
+    ],
+    "title": "SessionPick",
+    "type": "object"
+   },
+   "SessionStartBody": {
+    "properties": {
+     "language": {
+      "default": "",
+      "title": "Language",
+      "type": "string"
+     },
+     "order": {
+      "default": [],
+      "items": {
+       "type": "string"
+      },
+      "title": "Order",
+      "type": "array"
+     },
+     "projects": {
+      "default": [],
+      "items": {
+       "$ref": "#/components/schemas/SessionPick"
+      },
+      "title": "Projects",
+      "type": "array"
+     },
+     "size": {
+      "default": 20,
+      "title": "Size",
+      "type": "integer"
+     }
+    },
+    "title": "SessionStartBody",
+    "type": "object"
+   },
+   "SuggestBody": {
+    "properties": {
+     "text": {
+      "title": "Text",
+      "type": "string"
+     }
+    },
+    "required": [
+     "text"
+    ],
+    "title": "SuggestBody",
+    "type": "object"
+   },
+   "TagBody": {
+    "properties": {
+     "label": {
+      "maxLength": 1,
+      "minLength": 1,
+      "title": "Label",
+      "type": "string"
+     },
+     "lineIndex": {
+      "minimum": -1.0,
+      "title": "Lineindex",
+      "type": "integer"
+     },
+     "lineText": {
+      "default": "",
+      "maxLength": 500,
+      "title": "Linetext",
+      "type": "string"
+     },
+     "playerTime": {
+      "title": "Playertime",
+      "type": "number"
+     },
+     "session": {
+      "title": "Session",
+      "type": "string"
+     },
+     "tag": {
+      "enum": [
+       "correct",
+       "wrong_word",
+       "missing_words",
+       "extra_words",
+       "name_kanji_wrong",
+       "filler_shown",
+       "starts_early",
+       "starts_late",
+       "word_offset",
+       "too_fast",
+       "too_slow",
+       "lag_vs_audio",
+       "bad_split",
+       "lines_merged",
+       "repeat_loop",
+       "backchannel_shown",
+       "double_caption"
+      ],
+      "title": "Tag",
+      "type": "string"
+     },
+     "video": {
+      "title": "Video",
+      "type": "string"
+     }
+    },
+    "required": [
+     "session",
+     "video",
+     "label",
+     "tag",
+     "playerTime",
+     "lineIndex"
+    ],
+    "title": "TagBody",
+    "type": "object"
+   },
+   "UndoBody": {
+    "properties": {
+     "session": {
+      "title": "Session",
+      "type": "string"
+     }
+    },
+    "required": [
+     "session"
+    ],
+    "title": "UndoBody",
+    "type": "object"
+   },
+   "ValidationError": {
+    "properties": {
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "title": "Location",
+      "type": "array"
+     },
+     "msg": {
+      "title": "Message",
+      "type": "string"
+     },
+     "type": {
+      "title": "Error Type",
+      "type": "string"
+     }
+    },
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError",
+    "type": "object"
+   },
+   "VerdictBody": {
+    "properties": {
+     "chips": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 10,
+      "title": "Chips",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "note": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Note"
+     },
+     "verdict": {
+      "enum": [
+       "accept",
+       "fix",
+       "remove"
+      ],
+      "title": "Verdict",
+      "type": "string"
+     },
+     "wave": {
+      "title": "Wave",
+      "type": "string"
+     }
+    },
+    "required": [
+     "wave",
+     "id",
+     "verdict"
+    ],
+    "title": "VerdictBody",
+    "type": "object"
+   }
+  }
+ },
+ "info": {
+  "title": "Shadowing Islands",
+  "version": "0.1.0"
+ },
+ "openapi": "3.1.0",
+ "paths": {
+  "/health": {
+   "get": {
+    "operationId": "health_health_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Health Health Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Health"
+   }
+  },
+  "/shadow": {
+   "get": {
+    "operationId": "home_page_shadow_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Home Page"
+   }
+  },
+  "/shadow/": {
+   "get": {
+    "operationId": "home_page_shadow__get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Home Page"
+   }
+  },
+  "/shadow/account": {
+   "delete": {
+    "operationId": "delete_account_shadow_account_delete",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Authorization",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Account"
+   }
+  },
+  "/shadow/admin/beta": {
+   "get": {
+    "operationId": "admin_beta_list_shadow_admin_beta_get",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Admin Beta List"
+   },
+   "put": {
+    "operationId": "admin_beta_set_shadow_admin_beta_put",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/BetaBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Admin Beta Set"
+   }
+  },
+  "/shadow/app/latest": {
+   "get": {
+    "description": "Newest published build per platform, public like health. Fails open.",
+    "operationId": "app_latest_shadow_app_latest_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response App Latest Shadow App Latest Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "App Latest"
+   }
+  },
+  "/shadow/beta": {
+   "get": {
+    "operationId": "beta_get_shadow_beta_get",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Beta Get"
+   }
+  },
+  "/shadow/catch/islands/{island_id}/meaning": {
+   "get": {
+    "operationId": "catch_meaning_shadow_catch_islands__island_id__meaning_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "island_id",
+      "required": true,
+      "schema": {
+       "title": "Island Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "word",
+      "required": true,
+      "schema": {
+       "title": "Word",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Catch Meaning Shadow Catch Islands  Island Id  Meaning Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Catch Meaning"
+   }
+  },
+  "/shadow/catch/islands/{island_id}/words": {
+   "get": {
+    "operationId": "catch_words_shadow_catch_islands__island_id__words_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "island_id",
+      "required": true,
+      "schema": {
+       "title": "Island Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Catch Words Shadow Catch Islands  Island Id  Words Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Catch Words"
+   }
+  },
+  "/shadow/catch/review": {
+   "post": {
+    "operationId": "catch_review_shadow_catch_review_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/x-www-form-urlencoded": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_catch_review_shadow_catch_review_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Catch Review Shadow Catch Review Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Catch Review"
+   }
+  },
+  "/shadow/catch/words": {
+   "get": {
+    "description": "The device's caught words, with Known/Learning counts. Read only.",
+    "operationId": "catch_collection_shadow_catch_words_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "language",
+      "required": false,
+      "schema": {
+       "default": "ja",
+       "title": "Language",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Catch Collection Shadow Catch Words Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Catch Collection"
+   }
+  },
+  "/shadow/cosmetics/buy": {
+   "post": {
+    "operationId": "cosmetics_buy_shadow_cosmetics_buy_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/x-www-form-urlencoded": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_cosmetics_buy_shadow_cosmetics_buy_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Cosmetics Buy Shadow Cosmetics Buy Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Cosmetics Buy"
+   }
+  },
+  "/shadow/cosmetics/catalog": {
+   "get": {
+    "operationId": "cosmetics_catalog_shadow_cosmetics_catalog_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "ui",
+      "required": false,
+      "schema": {
+       "default": "en",
+       "title": "Ui",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Cosmetics Catalog Shadow Cosmetics Catalog Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Cosmetics Catalog"
+   }
+  },
+  "/shadow/cosmetics/equip": {
+   "post": {
+    "operationId": "cosmetics_equip_shadow_cosmetics_equip_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/x-www-form-urlencoded": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_cosmetics_equip_shadow_cosmetics_equip_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Cosmetics Equip Shadow Cosmetics Equip Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Cosmetics Equip"
+   }
+  },
+  "/shadow/dev/coins": {
+   "post": {
+    "description": "Dev only: grants coins to the calling device. 404 in prod.",
+    "operationId": "dev_coins_shadow_dev_coins_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DevCoinsBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Dev Coins Shadow Dev Coins Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Dev Coins"
+   }
+  },
+  "/shadow/dev/review": {
+   "get": {
+    "operationId": "get_review_shadow_dev_review_get",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Review"
+   }
+  },
+  "/shadow/dev/review/done": {
+   "post": {
+    "description": "Marks the tour as sent. Each press appends one line; the merge skips it.",
+    "operationId": "post_done_shadow_dev_review_done_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DoneBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Post Done"
+   }
+  },
+  "/shadow/dev/review/shot": {
+   "post": {
+    "operationId": "post_shot_shadow_dev_review_shot_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_post_shot_shadow_dev_review_shot_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Post Shot"
+   }
+  },
+  "/shadow/dev/review/verdict": {
+   "post": {
+    "operationId": "post_verdict_shadow_dev_review_verdict_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/VerdictBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Post Verdict"
+   }
+  },
+  "/shadow/dev/review/voice": {
+   "post": {
+    "operationId": "post_voice_shadow_dev_review_voice_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_post_voice_shadow_dev_review_voice_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Post Voice"
+   }
+  },
+  "/shadow/dev/transcripts": {
+   "get": {
+    "operationId": "list_transcripts_shadow_dev_transcripts_get",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Transcripts"
+   }
+  },
+  "/shadow/dev/transcripts/score": {
+   "post": {
+    "operationId": "post_score_shadow_dev_transcripts_score_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ScoreBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Post Score"
+   }
+  },
+  "/shadow/dev/transcripts/tag": {
+   "post": {
+    "operationId": "post_tag_shadow_dev_transcripts_tag_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TagBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Post Tag"
+   }
+  },
+  "/shadow/dev/transcripts/undo": {
+   "post": {
+    "description": "Remove the last tag line of this session. Scores are not undone.",
+    "operationId": "post_undo_shadow_dev_transcripts_undo_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/UndoBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Post Undo"
+   }
+  },
+  "/shadow/dev/transcripts/{video}": {
+   "get": {
+    "operationId": "get_transcript_shadow_dev_transcripts__video__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "video",
+      "required": true,
+      "schema": {
+       "title": "Video",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "session",
+      "required": true,
+      "schema": {
+       "title": "Session",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Transcript"
+   }
+  },
+  "/shadow/dev/upload": {
+   "get": {
+    "operationId": "page_shadow_dev_upload_get",
+    "responses": {
+     "200": {
+      "content": {
+       "text/html": {
+        "schema": {
+         "type": "string"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Page"
+   }
+  },
+  "/shadow/dev/upload/init": {
+   "post": {
+    "operationId": "init_shadow_dev_upload_init_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/InitBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Init"
+   }
+  },
+  "/shadow/dev/upload/{upload_id}": {
+   "get": {
+    "operationId": "status_shadow_dev_upload__upload_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "upload_id",
+      "required": true,
+      "schema": {
+       "title": "Upload Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Status"
+   }
+  },
+  "/shadow/dev/upload/{upload_id}/chunk/{index}": {
+   "put": {
+    "operationId": "put_chunk_shadow_dev_upload__upload_id__chunk__index__put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "upload_id",
+      "required": true,
+      "schema": {
+       "title": "Upload Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "index",
+      "required": true,
+      "schema": {
+       "title": "Index",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Put Chunk"
+   }
+  },
+  "/shadow/dev/upload/{upload_id}/complete": {
+   "post": {
+    "operationId": "complete_shadow_dev_upload__upload_id__complete_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "upload_id",
+      "required": true,
+      "schema": {
+       "title": "Upload Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Complete"
+   }
+  },
+  "/shadow/energy": {
+   "get": {
+    "description": "Own status, or `?username=` for another user's (owner only).",
+    "operationId": "energy_get_shadow_energy_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "username",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Username",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Energy Get Shadow Energy Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Energy Get"
+   }
+  },
+  "/shadow/energy/grant": {
+   "post": {
+    "description": "Owner only: adds `amount` to the user's grant balance and returns\ntheir status. Logged with the granter, the handle and the note.",
+    "operationId": "energy_grant_shadow_energy_grant_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/x-www-form-urlencoded": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_energy_grant_shadow_energy_grant_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Energy Grant Shadow Energy Grant Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Energy Grant"
+   }
+  },
+  "/shadow/explain-chat": {
+   "post": {
+    "description": "One turn about a sentence, structured as {\"vocab\", \"grammar\",\n\"summary\"} (any of the three may be absent). The thread itself lives in\nthe client's own state, not persisted here. The opening turn of a thread\n(no history yet) is cached in sqlite as JSON, keyed on (sentence, marked\nwords, question): that is the Explain sheet's fixed question re-run on\nthe same selection, and it always gets the same answer. A follow-up turn\ncarries history and is never cached, since it depends on the thread so\nfar.",
+    "operationId": "explain_chat_shadow_explain_chat_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ExplainChatBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Explain Chat Shadow Explain Chat Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Explain Chat"
+   }
+  },
+  "/shadow/explain-word": {
+   "get": {
+    "description": "How one word functions in one particular sentence. Cached in sqlite,\nkeyed on (word, understood language + sentence_ja), since the same word\nin the same sentence answered in the same language always gets the same\nanswer. A cache hit is free; a miss is a Claude call and takes an\n`explain_word` slot from the daily cap.",
+    "operationId": "explain_word_shadow_explain_word_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "word",
+      "required": true,
+      "schema": {
+       "title": "Word",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "sentence_ja",
+      "required": true,
+      "schema": {
+       "title": "Sentence Ja",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "sentence_en",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Sentence En",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "language",
+      "required": false,
+      "schema": {
+       "default": "ja",
+       "title": "Language",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "native",
+      "required": false,
+      "schema": {
+       "default": "en",
+       "title": "Native",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Explain Word Shadow Explain Word Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Explain Word"
+   }
+  },
+  "/shadow/feedback": {
+   "post": {
+    "operationId": "submit_feedback_shadow_feedback_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_submit_feedback_shadow_feedback_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Submit Feedback Shadow Feedback Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Submit Feedback"
+   }
+  },
+  "/shadow/gloss": {
+   "get": {
+    "description": "Base form, reading and dictionary senses for one word from a line.",
+    "operationId": "word_gloss_shadow_gloss_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "word",
+      "required": true,
+      "schema": {
+       "title": "Word",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Word Gloss Shadow Gloss Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Word Gloss"
+   }
+  },
+  "/shadow/grammar/import": {
+   "post": {
+    "description": "Add a grammar point as an island; a repeat pick returns the existing one.",
+    "operationId": "import_grammar_shadow_grammar_import_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/x-www-form-urlencoded": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_import_grammar_shadow_grammar_import_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Import Grammar Shadow Grammar Import Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Import Grammar"
+   }
+  },
+  "/shadow/grammar/levels": {
+   "get": {
+    "operationId": "grammar_levels_shadow_grammar_levels_get",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Grammar Levels Shadow Grammar Levels Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Grammar Levels"
+   }
+  },
+  "/shadow/grammar/points": {
+   "get": {
+    "description": "Points for a level or a search; `point` reads that one id directly.",
+    "operationId": "grammar_points_shadow_grammar_points_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "level",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Level",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "q",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Q",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "point",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Point",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Grammar Points Shadow Grammar Points Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Grammar Points"
+   }
+  },
+  "/shadow/health": {
+   "get": {
+    "operationId": "health_shadow_health_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Health Shadow Health Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Health"
+   }
+  },
+  "/shadow/islands": {
+   "get": {
+    "operationId": "list_islands_shadow_islands_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Device",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "additionalProperties": true,
+          "type": "object"
+         },
+         "title": "Response List Islands Shadow Islands Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Islands"
+   },
+   "post": {
+    "operationId": "create_island_shadow_islands_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_create_island_shadow_islands_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Island Shadow Islands Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Island"
+   }
+  },
+  "/shadow/islands/import": {
+   "post": {
+    "description": "Import an audio file (plus an optional .srt) as an island that plays\nthe original audio, sliced per line.",
+    "operationId": "create_import_island_shadow_islands_import_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_create_import_island_shadow_islands_import_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Import Island Shadow Islands Import Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Import Island"
+   }
+  },
+  "/shadow/islands/{island_id}": {
+   "delete": {
+    "operationId": "delete_island_shadow_islands__island_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "island_id",
+      "required": true,
+      "schema": {
+       "title": "Island Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Delete Island Shadow Islands  Island Id  Delete",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Island"
+   },
+   "get": {
+    "operationId": "get_island_shadow_islands__island_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "island_id",
+      "required": true,
+      "schema": {
+       "title": "Island Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Island Shadow Islands  Island Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Island"
+   }
+  },
+  "/shadow/islands/{island_id}/ai-picks": {
+   "post": {
+    "description": "The AI picks 5 to 10 easy lines of a podcast episode that has no saved\nsentences and saves them as review cards, each with a grammar tag.",
+    "operationId": "ai_picks_shadow_islands__island_id__ai_picks_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "island_id",
+      "required": true,
+      "schema": {
+       "title": "Island Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Ai Picks Shadow Islands  Island Id  Ai Picks Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Ai Picks"
+   }
+  },
+  "/shadow/islands/{island_id}/captions-timing": {
+   "post": {
+    "description": "The ASR track for an existing video island (yt-precise): its word\ntimes are transferred onto the island's lines in the background. Same\nclaim and attempt rules as the audio upload, so the two never run at\nonce and a video gets at most ALIGN_MAX_ATTEMPTS tries. 409 not_ready\nwhile the island is still being built.",
+    "operationId": "post_captions_timing_shadow_islands__island_id__captions_timing_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "island_id",
+      "required": true,
+      "schema": {
+       "title": "Island Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Post Captions Timing Shadow Islands  Island Id  Captions Timing Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Post Captions Timing"
+   }
+  },
+  "/shadow/islands/{island_id}/episode": {
+   "get": {
+    "description": "The whole podcast or imported episode as one m4a, for continuous\nlistening. FileResponse answers Range requests, which players need to seek.",
+    "operationId": "episode_audio_shadow_islands__island_id__episode_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "island_id",
+      "required": true,
+      "schema": {
+       "title": "Island Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "token",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Token",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Device",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Episode Audio"
+   }
+  },
+  "/shadow/islands/{island_id}/export": {
+   "get": {
+    "description": "The island as one m4a file for listening outside the app: each line\nplayed `repeats` times with `gap` ms of silence after every play, at\n`speed`, in the island's voice. Built once per distinct content and\nparameters and kept on disk under a content hash; dropped whenever the\nisland is re-voiced or regenerated.",
+    "operationId": "export_island_shadow_islands__island_id__export_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "island_id",
+      "required": true,
+      "schema": {
+       "title": "Island Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "speed",
+      "required": false,
+      "schema": {
+       "default": 1.0,
+       "title": "Speed",
+       "type": "number"
+      }
+     },
+     {
+      "in": "query",
+      "name": "repeats",
+      "required": false,
+      "schema": {
+       "default": 2,
+       "title": "Repeats",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "gap",
+      "required": false,
+      "schema": {
+       "default": 2000,
+       "title": "Gap",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "token",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Token",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Device",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Export Island"
+   }
+  },
+  "/shadow/islands/{island_id}/glosses": {
+   "get": {
+    "description": "The meanings of every word in a Japanese island, keyed by the word as\nthe word-audio route cleans it. Lets the phone store them for offline\nuse in one request instead of one per word. Other languages have no\nglosses and return {}.",
+    "operationId": "island_glosses_shadow_islands__island_id__glosses_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "island_id",
+      "required": true,
+      "schema": {
+       "title": "Island Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Island Glosses Shadow Islands  Island Id  Glosses Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Island Glosses"
+   }
+  },
+  "/shadow/islands/{island_id}/lines/{idx}/audio": {
+   "get": {
+    "description": "One line's wav. With `speed` other than 1, the line is re-synthesized\nat that speedScale (rounded to 0.05) and cached beside the original, so\nslow playback is natural speech rather than a stretched recording. With\n`pad` above 0, `pad` ms of silence is appended, cached beside the render,\nso the player can loop natively with the breath baked in rather than\ntiming it in JS. With `start` and `end` both given, in milliseconds of\nthe rendered audio, only that span (a phrase loop) is sliced out and\nserved, cached beside the render the same way.",
+    "operationId": "line_audio_shadow_islands__island_id__lines__idx__audio_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "island_id",
+      "required": true,
+      "schema": {
+       "title": "Island Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "idx",
+      "required": true,
+      "schema": {
+       "title": "Idx",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "token",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Token",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "speed",
+      "required": false,
+      "schema": {
+       "default": 1.0,
+       "title": "Speed",
+       "type": "number"
+      }
+     },
+     {
+      "in": "query",
+      "name": "pad",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "title": "Pad",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "start",
+      "required": false,
+      "schema": {
+       "default": -1,
+       "title": "Start",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "end",
+      "required": false,
+      "schema": {
+       "default": -1,
+       "title": "End",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Device",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Line Audio"
+   }
+  },
+  "/shadow/islands/{island_id}/lines/{idx}/known": {
+   "delete": {
+    "description": "Takes the mark back. Idempotent; a paid award stays paid.",
+    "operationId": "unmark_known_shadow_islands__island_id__lines__idx__known_delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "island_id",
+      "required": true,
+      "schema": {
+       "title": "Island Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "idx",
+      "required": true,
+      "schema": {
+       "title": "Idx",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Unmark Known Shadow Islands  Island Id  Lines  Idx  Known Delete",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Unmark Known"
+   },
+   "post": {
+    "description": "\"Easy for me\": the line leaves Practice now and the island's later\nlines skip the prep passes. The award pays once per line, only when the\nmark is new and the line was ever taken whole; otherwise `award` is\nNone. Returns the island's known idxs and the device's total.",
+    "operationId": "mark_known_shadow_islands__island_id__lines__idx__known_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "island_id",
+      "required": true,
+      "schema": {
+       "title": "Island Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "idx",
+      "required": true,
+      "schema": {
+       "title": "Idx",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Mark Known Shadow Islands  Island Id  Lines  Idx  Known Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Mark Known"
+   }
+  },
+  "/shadow/islands/{island_id}/lines/{idx}/take": {
+   "post": {
+    "description": "Clean a shadow take against the line that was playing while it was\nrecorded, or (calibrate=1) learn the phone's speaker-to-mic path from a\nsilent recording of that same line. A take recorded over a phrase carries\n`start`/`end` so it is cleaned against that same phrase, not the whole\nline. `lag` (the phone's Lag setting, ms) and `line_start` (ms from the\nstart of the recording to the line's first audio, for takes with no\necho to find the anchor in) feed the take's timing score; both are\nignored for a calibration upload. `guide=1` comes from the first-run\nguide's shadow moment: that island's first take is scored leniently.\n`silent=1` is a turn-taking take (speaker, no line under the voice):\nthe speaker profile and the bleed check are skipped and the score\nanchors on `line_start`, which the client sends as 0. `op` (offline-first)\nis the phone's id for this take: a replay of a claimed op (the outbox\nresending after a lost reply) scores nothing, pays nothing and gets the\nfirst reply back, minus the analysis curve. Ignored for a calibration.\n\nA take uploaded before the phone has a stored profile is kept as\nrecorded and scored on `line_start` rather than refused: with headphones\nthere is nothing to clean, and Speak-with-headset is now the common\nfirst upload on a new phone. Calibration still learns the speaker-to-mic\npath for anyone who later shadows over the speaker. See aec.py for how\nthe path is learned and applied.",
+    "operationId": "upload_take_shadow_islands__island_id__lines__idx__take_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "island_id",
+      "required": true,
+      "schema": {
+       "title": "Island Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "idx",
+      "required": true,
+      "schema": {
+       "title": "Idx",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_upload_take_shadow_islands__island_id__lines__idx__take_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Upload Take Shadow Islands  Island Id  Lines  Idx  Take Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Upload Take"
+   }
+  },
+  "/shadow/islands/{island_id}/lines/{idx}/take/clean": {
+   "get": {
+    "description": "The cleaned copy of a take. `v` is the take's recordedAt, accepted so\nthe player's cache key changes with each new take; the file is served\nwith no-store regardless, since the same URL can point at a different\ntake between calls.",
+    "operationId": "take_clean_shadow_islands__island_id__lines__idx__take_clean_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "island_id",
+      "required": true,
+      "schema": {
+       "title": "Island Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "idx",
+      "required": true,
+      "schema": {
+       "title": "Idx",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "token",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Token",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "v",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "V",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Device",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Take Clean"
+   }
+  },
+  "/shadow/islands/{island_id}/regenerate": {
+   "post": {
+    "description": "Rebuild an island's lines at the other complexity, reusing the recording\nthat is already on disk so the learner does not have to speak again.",
+    "operationId": "regenerate_shadow_islands__island_id__regenerate_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "island_id",
+      "required": true,
+      "schema": {
+       "title": "Island Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/x-www-form-urlencoded": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_regenerate_shadow_islands__island_id__regenerate_post"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Regenerate Shadow Islands  Island Id  Regenerate Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Regenerate"
+   }
+  },
+  "/shadow/islands/{island_id}/repair": {
+   "post": {
+    "description": "The phone's video context for an existing video island; queues the\ntext pass when the island has not had one at the current version.\nReplies {repair: queued | running | done}. 404 not the owner, 400\nnot_video, 409 not_ready while building, 409 repair_closed when the\nattempts are spent.",
+    "operationId": "post_video_repair_shadow_islands__island_id__repair_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "island_id",
+      "required": true,
+      "schema": {
+       "title": "Island Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Post Video Repair Shadow Islands  Island Id  Repair Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Post Video Repair"
+   }
+  },
+  "/shadow/islands/{island_id}/revoice": {
+   "post": {
+    "description": "Re-render an island's existing lines in another voice. Keeps the text,\nso there is no transcription or generation: a few seconds of synthesis.",
+    "operationId": "revoice_shadow_islands__island_id__revoice_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "island_id",
+      "required": true,
+      "schema": {
+       "title": "Island Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/x-www-form-urlencoded": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_revoice_shadow_islands__island_id__revoice_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Revoice Shadow Islands  Island Id  Revoice Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Revoice"
+   }
+  },
+  "/shadow/islands/{island_id}/title": {
+   "patch": {
+    "operationId": "rename_island_shadow_islands__island_id__title_patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "island_id",
+      "required": true,
+      "schema": {
+       "title": "Island Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/x-www-form-urlencoded": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_rename_island_shadow_islands__island_id__title_patch"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Rename Island Shadow Islands  Island Id  Title Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Rename Island"
+   }
+  },
+  "/shadow/islands/{island_id}/video": {
+   "get": {
+    "operationId": "island_video_shadow_islands__island_id__video_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "island_id",
+      "required": true,
+      "schema": {
+       "title": "Island Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Island Video Shadow Islands  Island Id  Video Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Island Video"
+   }
+  },
+  "/shadow/islands/{island_id}/video-audio": {
+   "post": {
+    "description": "The phone's audio for a video island. Queues forced alignment of the\ncaptions against it; the island is already playable and stays so.",
+    "operationId": "upload_video_audio_shadow_islands__island_id__video_audio_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "island_id",
+      "required": true,
+      "schema": {
+       "title": "Island Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_upload_video_audio_shadow_islands__island_id__video_audio_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Upload Video Audio Shadow Islands  Island Id  Video Audio Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Upload Video Audio"
+   }
+  },
+  "/shadow/leaderboard": {
+   "get": {
+    "operationId": "leaderboard_shadow_leaderboard_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 50,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Leaderboard Shadow Leaderboard Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Leaderboard"
+   }
+  },
+  "/shadow/leaderboard/weekly": {
+   "get": {
+    "operationId": "leaderboard_weekly_shadow_leaderboard_weekly_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "language",
+      "required": false,
+      "schema": {
+       "default": "ja",
+       "title": "Language",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 50,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Leaderboard Weekly Shadow Leaderboard Weekly Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Leaderboard Weekly"
+   }
+  },
+  "/shadow/llm/spend": {
+   "get": {
+    "description": "This month's LLM bill: backend, cap, calls and USD by tag. Owner only.",
+    "operationId": "llm_spend_shadow_llm_spend_get",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Llm Spend Shadow Llm Spend Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Llm Spend"
+   }
+  },
+  "/shadow/phrases/catalog": {
+   "get": {
+    "description": "The ready-made phrase topics for one learning language.",
+    "operationId": "phrases_catalog_shadow_phrases_catalog_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "language",
+      "required": true,
+      "schema": {
+       "title": "Language",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "ui",
+      "required": false,
+      "schema": {
+       "default": "en",
+       "title": "Ui",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Phrases Catalog Shadow Phrases Catalog Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Phrases Catalog"
+   }
+  },
+  "/shadow/phrases/import": {
+   "post": {
+    "description": "Add a catalogue topic as an island. A new island takes a slot from the\ndaily create limit (it writes an island and renders audio); a repeat pick\nreturns the island that already exists and is free.",
+    "operationId": "import_phrases_shadow_phrases_import_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/x-www-form-urlencoded": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_import_phrases_shadow_phrases_import_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Import Phrases Shadow Phrases Import Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Import Phrases"
+   }
+  },
+  "/shadow/phrases/search": {
+   "get": {
+    "description": "Catalog topics filtered by a search word and/or a category.",
+    "operationId": "phrases_search_shadow_phrases_search_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "language",
+      "required": true,
+      "schema": {
+       "title": "Language",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "ui",
+      "required": false,
+      "schema": {
+       "default": "en",
+       "title": "Ui",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "q",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Q",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "category",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Category",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Phrases Search Shadow Phrases Search Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Phrases Search"
+   }
+  },
+  "/shadow/podcasts/catalog": {
+   "get": {
+    "description": "The hand-picked, editorial podcast catalog for one learning language,\nwritten in the interface language `ui` (a separate setting: Hebrew\nsection copy can sit over Japanese shows).",
+    "operationId": "podcasts_catalog_shadow_podcasts_catalog_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "language",
+      "required": true,
+      "schema": {
+       "title": "Language",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "ui",
+      "required": false,
+      "schema": {
+       "default": "en",
+       "title": "Ui",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Podcasts Catalog Shadow Podcasts Catalog Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Podcasts Catalog"
+   }
+  },
+  "/shadow/podcasts/episodes": {
+   "get": {
+    "description": "List a podcast feed's episodes so one can be handed to the importer.",
+    "operationId": "podcast_episodes_shadow_podcasts_episodes_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "url",
+      "required": true,
+      "schema": {
+       "title": "Url",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Podcast Episodes Shadow Podcasts Episodes Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Podcast Episodes"
+   }
+  },
+  "/shadow/podcasts/import": {
+   "post": {
+    "description": "Download a podcast episode by URL and import it the same way an\nuploaded file is imported.",
+    "operationId": "import_podcast_episode_shadow_podcasts_import_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/x-www-form-urlencoded": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_import_podcast_episode_shadow_podcasts_import_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Import Podcast Episode Shadow Podcasts Import Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Import Podcast Episode"
+   }
+  },
+  "/shadow/podcasts/search": {
+   "get": {
+    "description": "Resolve a pasted link or a plain query to a list of shows.",
+    "operationId": "podcasts_search_shadow_podcasts_search_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "q",
+      "required": true,
+      "schema": {
+       "title": "Q",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "language",
+      "required": true,
+      "schema": {
+       "title": "Language",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Podcasts Search Shadow Podcasts Search Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Podcasts Search"
+   }
+  },
+  "/shadow/privacy": {
+   "get": {
+    "operationId": "privacy_page_shadow_privacy_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Privacy Page"
+   }
+  },
+  "/shadow/profile/{username}": {
+   "get": {
+    "operationId": "profile_get_shadow_profile__username__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "username",
+      "required": true,
+      "schema": {
+       "title": "Username",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "ui",
+      "required": false,
+      "schema": {
+       "default": "en",
+       "title": "Ui",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Profile Get Shadow Profile  Username  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Profile Get"
+   }
+  },
+  "/shadow/progress": {
+   "get": {
+    "operationId": "get_progress_shadow_progress_get",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Progress Shadow Progress Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Progress"
+   }
+  },
+  "/shadow/review/cards": {
+   "get": {
+    "operationId": "review_list_shadow_review_cards_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "island_id",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Island Id"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Review List Shadow Review Cards Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review List"
+   },
+   "post": {
+    "operationId": "review_save_shadow_review_cards_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/x-www-form-urlencoded": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_review_save_shadow_review_cards_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Review Save Shadow Review Cards Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Save"
+   }
+  },
+  "/shadow/review/cards/{card_id}": {
+   "delete": {
+    "operationId": "review_delete_shadow_review_cards__card_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "card_id",
+      "required": true,
+      "schema": {
+       "title": "Card Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Review Delete Shadow Review Cards  Card Id  Delete",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Delete"
+   }
+  },
+  "/shadow/review/cards/{card_id}/audio": {
+   "get": {
+    "operationId": "review_audio_shadow_review_cards__card_id__audio_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "card_id",
+      "required": true,
+      "schema": {
+       "title": "Card Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "token",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Token",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Device",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Audio"
+   }
+  },
+  "/shadow/review/cards/{card_id}/grade": {
+   "post": {
+    "operationId": "review_grade_shadow_review_cards__card_id__grade_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "card_id",
+      "required": true,
+      "schema": {
+       "title": "Card Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/x-www-form-urlencoded": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_review_grade_shadow_review_cards__card_id__grade_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Review Grade Shadow Review Cards  Card Id  Grade Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Grade"
+   }
+  },
+  "/shadow/review/due": {
+   "get": {
+    "operationId": "review_due_shadow_review_due_get",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Review Due Shadow Review Due Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Due"
+   }
+  },
+  "/shadow/review/session-finished": {
+   "post": {
+    "operationId": "review_session_finished_shadow_review_session_finished_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ReviewFinishedBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Review Session Finished Shadow Review Session Finished Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Session Finished"
+   }
+  },
+  "/shadow/review/session/plan": {
+   "get": {
+    "operationId": "review_session_plan_shadow_review_session_plan_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "size",
+      "required": false,
+      "schema": {
+       "default": 20,
+       "title": "Size",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "order",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Order",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "projects",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Projects",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "language",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Language",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Review Session Plan Shadow Review Session Plan Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Session Plan"
+   }
+  },
+  "/shadow/review/session/projects": {
+   "get": {
+    "operationId": "review_session_projects_shadow_review_session_projects_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "language",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Language",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Review Session Projects Shadow Review Session Projects Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Session Projects"
+   }
+  },
+  "/shadow/review/session/start": {
+   "post": {
+    "operationId": "review_session_start_shadow_review_session_start_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SessionStartBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Review Session Start Shadow Review Session Start Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Session Start"
+   }
+  },
+  "/shadow/say": {
+   "post": {
+    "description": "One sentence said in `native`, built into a 1-line (or few-line)\nvoice island in `language`. `dev_transcript` stands in for whisper\noutside prod only. The client polls GET /shadow/islands/{id}.",
+    "operationId": "create_say_shadow_say_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_create_say_shadow_say_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Say Shadow Say Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Say"
+   }
+  },
+  "/shadow/schedule/due-today": {
+   "get": {
+    "operationId": "due_today_shadow_schedule_due_today_get",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "additionalProperties": true,
+          "type": "object"
+         },
+         "title": "Response Due Today Shadow Schedule Due Today Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Due Today"
+   }
+  },
+  "/shadow/schedule/practice": {
+   "post": {
+    "operationId": "log_practice_shadow_schedule_practice_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/x-www-form-urlencoded": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_log_practice_shadow_schedule_practice_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Log Practice Shadow Schedule Practice Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Log Practice"
+   }
+  },
+  "/shadow/speakers": {
+   "get": {
+    "description": "Every speaker for one learning language: VOICEVOX's own list for ja,\none Kokoro entry with a style per voice for en or es.",
+    "operationId": "speakers_shadow_speakers_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "language",
+      "required": false,
+      "schema": {
+       "default": "ja",
+       "title": "Language",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "additionalProperties": true,
+          "type": "object"
+         },
+         "title": "Response Speakers Shadow Speakers Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Speakers"
+   }
+  },
+  "/shadow/speakers/{speaker_uuid}/icon/{style_id}": {
+   "get": {
+    "operationId": "speaker_icon_shadow_speakers__speaker_uuid__icon__style_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "speaker_uuid",
+      "required": true,
+      "schema": {
+       "title": "Speaker Uuid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "style_id",
+      "required": true,
+      "schema": {
+       "title": "Style Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "token",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Token",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Speaker Icon"
+   }
+  },
+  "/shadow/starter": {
+   "post": {
+    "description": "The first-run starter island: seeded from the baked template for the\nlevel pick, free and instant. A repeat call with the same level returns\nthe island the device already has; the other level seeds its own.",
+    "operationId": "starter_start_shadow_starter_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/x-www-form-urlencoded": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_starter_start_shadow_starter_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Starter Start Shadow Starter Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Starter Start"
+   }
+  },
+  "/shadow/starter/finish": {
+   "post": {
+    "operationId": "starter_finish_shadow_starter_finish_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Starter Finish Shadow Starter Finish Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Starter Finish"
+   }
+  },
+  "/shadow/streak/freeze/buy": {
+   "post": {
+    "operationId": "streak_freeze_buy_shadow_streak_freeze_buy_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/x-www-form-urlencoded": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_streak_freeze_buy_shadow_streak_freeze_buy_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Streak Freeze Buy Shadow Streak Freeze Buy Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Streak Freeze Buy"
+   }
+  },
+  "/shadow/suggestions": {
+   "post": {
+    "operationId": "suggest_feature_shadow_suggestions_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SuggestBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Suggest Feature Shadow Suggestions Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Suggest Feature"
+   }
+  },
+  "/shadow/username": {
+   "get": {
+    "operationId": "username_get_shadow_username_get",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Username Get Shadow Username Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Username Get"
+   },
+   "post": {
+    "operationId": "username_set_shadow_username_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/x-www-form-urlencoded": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_username_set_shadow_username_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Username Set Shadow Username Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Username Set"
+   }
+  },
+  "/shadow/username/check": {
+   "get": {
+    "operationId": "username_check_shadow_username_check_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "name",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Name",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Username Check Shadow Username Check Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Username Check"
+   }
+  },
+  "/shadow/videos": {
+   "get": {
+    "operationId": "list_videos_shadow_videos_get",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "additionalProperties": true,
+          "type": "object"
+         },
+         "title": "Response List Videos Shadow Videos Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Videos"
+   }
+  },
+  "/shadow/voices/{style_id}/preview": {
+   "get": {
+    "description": "The same sentence in any voice, rendered once and kept on disk.",
+    "operationId": "voice_preview_shadow_voices__style_id__preview_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "style_id",
+      "required": true,
+      "schema": {
+       "title": "Style Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "token",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Token",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Voice Preview"
+   }
+  },
+  "/shadow/word-audio": {
+   "get": {
+    "description": "One word rendered on its own, so hearing it again is a complete,\nnatural utterance rather than a slice cut out of the line. Cached per\nvoice and text.",
+    "operationId": "word_audio_shadow_word_audio_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "text",
+      "required": true,
+      "schema": {
+       "title": "Text",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "speaker",
+      "required": false,
+      "schema": {
+       "default": 3,
+       "title": "Speaker",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "token",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Token",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Device",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Word Audio"
+   }
+  },
+  "/shadow/youtube/captions": {
+   "post": {
+    "description": "Build a video island from caption events the phone fetched. The body is\nuntrusted: size, shape and timestamps are checked before a build slot is\ntaken, so a bad request never burns a daily create. `asr_events`, the\nauto track when the picked track is manual, gives ja lines their word\ntimes (yt-precise).",
+    "operationId": "import_youtube_captions_shadow_youtube_captions_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Import Youtube Captions Shadow Youtube Captions Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Import Youtube Captions"
+   }
+  },
+  "/shadow/youtube/info": {
+   "get": {
+    "description": "Title, author and thumbnail for a pasted YouTube link.",
+    "operationId": "youtube_info_shadow_youtube_info_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "url",
+      "required": true,
+      "schema": {
+       "title": "Url",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Youtube Info Shadow Youtube Info Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Youtube Info"
+   }
+  }
+ }
+}

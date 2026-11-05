@@ -1,0 +1,94 @@
+// Request plumbing shared by every api domain file: auth params, headers,
+// the error-aware json helper, and the config and health checks.
+// Moved out of api.ts as a pure move.
+
+import { accessTokenSync } from '@/lib/auth';
+import { BASE, TOKEN, fetch } from '@/lib/api-http';
+import { deviceIdSync } from '@/lib/device';
+import { t } from '@/lib/i18n';
+import { codeKey } from '@/lib/api-types';
+
+/** The signed-in access token for URLs that cannot carry headers (the player,
+ * Image), the same split the device id uses. Empty when signed out. */
+export function userParam(): string {
+  const user = accessTokenSync();
+  return user ? `&user=${encodeURIComponent(user)}` : '';
+}
+
+/** Adds the current access token to a URL built by lineAudioUrl, at the
+ * moment it is handed to the player or a download. The logical URL stays
+ * token-free, so a token refresh does not look like a new source. */
+export function withUser(url: string): string {
+  return `${url}${userParam()}`;
+}
+
+export function headers(): Record<string, string> {
+  const h: Record<string, string> = { Authorization: `Bearer ${TOKEN}`, 'X-Shadow-Device': deviceIdSync() };
+  const user = accessTokenSync();
+  if (user) h['X-Shadow-User'] = user;
+  return h;
+}
+
+/** Turns any failed response into a short, readable message. Gateway errors
+ * (the tunnel could not reach the server) come back as full HTML pages, which
+ * are useless on a phone screen. */
+export async function json<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    // FastAPI sends `detail` as a plain string for developer errors, and as an
+    // object carrying a code plus its values for anything a person reads. A
+    // gateway error is neither: it arrives as a full HTML page.
+    const detail = parseDetail(body);
+    if (detail && typeof detail === 'object') {
+      const key = codeKey('api', detail.code);
+      if (key) throw new Error(t(key, scalarsOf(detail)));
+    }
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      throw new Error(t('api.unreachable'));
+    }
+    if (res.status === 429) {
+      throw new Error(t('api.daily_limit_any'));
+    }
+    // A plain-string detail is English developer text: never shown, only the status.
+    throw new Error(t('api.requestFailed', { status: res.status }));
+  }
+  return (await res.json()) as T;
+}
+
+/** The values a message can interpolate: `{limit}` and its like, never a
+ * nested object. */
+export function scalarsOf(detail: Record<string, unknown>): Record<string, string | number> {
+  const out: Record<string, string | number> = {};
+  for (const [name, value] of Object.entries(detail)) {
+    if (typeof value === 'string' || typeof value === 'number') out[name] = value;
+  }
+  return out;
+}
+
+/** The `detail` of a FastAPI error, when the body is JSON at all. */
+export function parseDetail(body: string): string | ({ code: string } & Record<string, unknown>) | null {
+  try {
+    const parsed = JSON.parse(body) as { detail?: unknown };
+    const detail = parsed.detail;
+    if (typeof detail === 'string') return detail;
+    if (detail && typeof detail === 'object' && typeof (detail as { code?: unknown }).code === 'string') {
+      return detail as { code: string } & Record<string, unknown>;
+    }
+  } catch {
+    // Not JSON: an HTML gateway page, or an empty body.
+  }
+  return null;
+}
+
+export function configured(): boolean {
+  return BASE.length > 0 && TOKEN.length > 0;
+}
+
+export async function health(): Promise<boolean> {
+  try {
+    const res = await fetch(`${BASE}/health`, { headers: headers() });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}

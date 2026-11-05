@@ -10,7 +10,9 @@ import { getSettingsSync, setBlind as persistBlind, setReading as persistReading
  * podcast players: tile anchors, the dock's height and top, which popover is
  * open, and the reading and blind toggles that persist to Settings.
  */
-export function useDockPopovers() {
+export function useDockPopovers(opts?: { onAnchorExtra?: (key: DockAnchorKey, box: DockAnchor) => void }) {
+  const extraRef = useRef(opts?.onAnchorExtra);
+  extraRef.current = opts?.onAnchorExtra;
   const [explainOpen, setExplainOpen] = useState(false);
   const [explainSpan, setExplainSpan] = useState<ExplainSelection['span'] | null>(null);
   const [explainMarked, setExplainMarked] = useState<string[]>([]);
@@ -39,6 +41,7 @@ export function useDockPopovers() {
       const old = anchors.current[key];
       anchors.current[key] = box;
       anchorMoved(!old || old.x !== box.x || old.y !== box.y || old.width !== box.width);
+      extraRef.current?.(key, box);
     },
     [anchorMoved],
   );

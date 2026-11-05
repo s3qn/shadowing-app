@@ -13,12 +13,8 @@ import { CatConstellation } from '@/components/cat-constellation';
 import { CatchCard, CatchHud } from '@/components/catch-card';
 import { PrismButton } from '@/components/prism';
 import { ExplainSheet } from '@/components/explain-sheet';
-import { BlindPopover, blindValueLabel } from '@/components/tide/blind-popover';
 import { CompactDock, DOCK_GOLD_INK, type DockPill } from '@/components/tide/compact-dock';
-import { READING_LABEL_KEY, ReadingPopover } from '@/components/tide/reading-popover';
-import { RepeatPopover, repeatTileLabel } from '@/components/tide/repeat-popover';
-import { SpeedPopover } from '@/components/tide/speed-popover';
-import { BlindIcon, ReadingIcon, RepeatIcon } from '@/components/tide/toolbar-icons';
+import { DockPopovers } from '@/components/tide/dock-popovers';
 import { TappableSentence, type ExplainSelection } from '@/components/tide/tappable-sentence';
 import { TideScene } from '@/components/tide/tide-scene';
 import { useListeningCat } from '@/components/cat/listening-cat';
@@ -30,6 +26,7 @@ import { Spacing, tide } from '@/constants/theme';
 import { snapRate, takeWatchSec, type useLadder } from '@/hooks/use-ladder';
 import { useCatch, type CatchDeps } from '@/hooks/use-catch';
 import { useDockPopovers } from '@/hooks/use-dock-popovers';
+import { useTrayPills } from '@/hooks/use-tray-pills';
 import { useLadderWiring } from '@/hooks/use-ladder-wiring';
 import { autoPlaceOf, endAutoPractice } from '@/lib/auto-practice';
 import { parsePick, pickBestBits } from '@/lib/best-bits';
@@ -159,12 +156,13 @@ export default function VideoScreen() {
   const [rate, setRate] = useState(() => snapRate(getSettingsSync().defaultSpeed));
   const [times, setTimes] = useState(() => getSettingsSync().defaultTimes);
   const [pauseMs, setPauseMs] = useState(() => getSettingsSync().defaultPauseMs);
+  const dock = useDockPopovers();
   const {
     explainOpen, setExplainOpen, explainSpan, explainMarked, explainWhole, openExplain,
-    readingMode, blind, englishShown, pickReading, toggleBlind, toggleEnglish,
-    speedPopOpen, setSpeedPopOpen, repeatPopOpen, setRepeatPopOpen, readingPopOpen, setReadingPopOpen, blindPopOpen, setBlindPopOpen,
-    trayOpen, setTrayOpen, anchors, dockY, dockH, onAnchor, onDockLayout,
-  } = useDockPopovers();
+    readingMode, blind, englishShown,
+    setSpeedPopOpen, repeatPopOpen, setRepeatPopOpen, readingPopOpen, setReadingPopOpen, blindPopOpen, setBlindPopOpen,
+    trayOpen, setTrayOpen, dockH, onAnchor, onDockLayout,
+  } = dock;
   const insets = useSafeAreaInsets();
   // Server jobs the player waits on: caption timing and caption repair.
   const [alignWait, setAlignWait] = useState(false);
@@ -668,52 +666,14 @@ export default function VideoScreen() {
   }
   openLadderRef.current = openLadder;
 
-  const trayPills = useMemo((): DockPill[] => {
-    const lang = island?.language ?? 'ja';
-    const ink = (on: boolean) => (on ? DOCK_GOLD_INK : tide.textDim);
-    const repeatOn = times > 1 || pauseMs > 0;
-    const readingOn = readingMode !== 'off';
-    const blindOn = blind || !englishShown;
-    const open = (which: 'repeat' | 'reading' | 'blind') => () => {
-      setSpeedPopOpen(false);
-      setRepeatPopOpen(which === 'repeat' ? (v) => !v : false);
-      setReadingPopOpen(which === 'reading' ? (v) => !v : false);
-      setBlindPopOpen(which === 'blind' ? (v) => !v : false);
-    };
-    const pills: DockPill[] = [
+  // Catch the word: a beta pill, off in review and in a practice session.
+  const catchPills = useMemo((): DockPill[] | undefined => {
+    if (review || inSession) return undefined;
+    const catchOn = catchPhase !== 'off';
+    return [
       {
-        key: 'repeat',
-        icon: <RepeatIcon color={ink(repeatOn)} size={15} />,
-        value: repeatTileLabel(t, times, pauseMs),
-        on: repeatOn,
-        selected: repeatPopOpen,
-        onPress: open('repeat'),
-      },
-    ];
-    if (lang === 'ja') {
-      pills.push({
-        key: 'reading',
-        icon: <ReadingIcon color={ink(readingOn)} size={15} />,
-        value: t(READING_LABEL_KEY[readingMode]),
-        on: readingOn,
-        selected: readingPopOpen,
-        onPress: open('reading'),
-      });
-    }
-    pills.push({
-      key: 'blind',
-      icon: <BlindIcon color={ink(blindOn)} size={15} />,
-      value: blindValueLabel(t, blind, englishShown, lang, island?.native ?? 'en'),
-      on: blindOn,
-      selected: blindPopOpen,
-      onPress: open('blind'),
-    });
-    // Catch the word: a beta pill, off in review and in a practice session.
-    if (!review && !inSession) {
-      const catchOn = catchPhase !== 'off';
-      pills.push({
         key: 'catch',
-        icon: <SymbolView name={{ ios: 'hand.tap', android: 'touch_app' }} size={15} tintColor={ink(catchOn)} />,
+        icon: <SymbolView name={{ ios: 'hand.tap', android: 'touch_app' }} size={15} tintColor={catchOn ? DOCK_GOLD_INK : tide.textDim} />,
         value: t('video.catch.pill'),
         on: catchOn,
         onPress: () => {
@@ -721,17 +681,18 @@ export default function VideoScreen() {
           if (catchOn) catchStop();
           else catchStart();
         },
-      });
-    }
-    return pills;
-  }, [t, times, pauseMs, readingMode, blind, englishShown, island, repeatPopOpen, readingPopOpen, blindPopOpen, review, inSession, catchPhase, catchStart, catchStop, setTrayOpen]);
-
-  const onSpeedChip = () => {
-    setRepeatPopOpen(false);
-    setReadingPopOpen(false);
-    setBlindPopOpen(false);
-    setSpeedPopOpen((v) => !v);
-  };
+      },
+    ];
+  }, [t, review, inSession, catchPhase, catchStart, catchStop, setTrayOpen]);
+  const { trayPills, onSpeedChip } = useTrayPills({
+    t,
+    language: island?.language ?? 'ja',
+    native: island?.native ?? 'en',
+    readingMode, blind, englishShown, readingPopOpen, blindPopOpen, repeatPopOpen,
+    setSpeedPopOpen, setRepeatPopOpen, setReadingPopOpen, setBlindPopOpen,
+    repeat: { times, pauseMs },
+    extraPills: catchPills,
+  });
 
   function shadow() {
     setPlaying(false);
@@ -986,54 +947,16 @@ export default function VideoScreen() {
                 </View>
               </>
             ) : null}
-            {speedPopOpen && anchors.current.speed ? (
-              <SpeedPopover
-                anchorX={anchors.current.speed.x + anchors.current.speed.width / 2}
-                anchorTop={dockY.current + anchors.current.speed.y}
-                width={width}
-                speed={speedLive}
-                onSpeed={pickSpeed}
-                onSettle={commitSpeed}
-                onClose={() => setSpeedPopOpen(false)}
-              />
-            ) : null}
-            {readingPopOpen && anchors.current.reading ? (
-              <ReadingPopover
-                anchorX={anchors.current.reading.x + anchors.current.reading.width / 2}
-                anchorTop={dockY.current + anchors.current.reading.y}
-                width={width}
-                value={readingMode}
-                onChange={pickReading}
-                onClose={() => setReadingPopOpen(false)}
-              />
-            ) : null}
-            {blindPopOpen && anchors.current.blind ? (
-              <BlindPopover
-                anchorX={anchors.current.blind.x + anchors.current.blind.width / 2}
-                anchorTop={dockY.current + anchors.current.blind.y}
-                width={width}
-                jaHidden={blind}
-                enHidden={!englishShown}
-                onToggleJa={toggleBlind}
-                onToggleEn={toggleEnglish}
-                onClose={() => setBlindPopOpen(false)}
-                lang={island?.language ?? 'ja'}
-                native={island?.native ?? 'en'}
-              />
-            ) : null}
-            {repeatPopOpen && anchors.current.repeat ? (
-              <RepeatPopover
-                anchorX={anchors.current.repeat.x + anchors.current.repeat.width / 2}
-                anchorTop={dockY.current + anchors.current.repeat.y}
-                width={width}
-                times={times}
-                pauseMs={pauseMs}
-                onTimes={pickTimes}
-                onPause={setPauseMs}
-                onPauseSettle={setPauseMs}
-                onClose={() => setRepeatPopOpen(false)}
-              />
-            ) : null}
+            <DockPopovers
+              dock={dock}
+              width={width}
+              language={island?.language ?? 'ja'}
+              native={island?.native ?? 'en'}
+              speed={speedLive}
+              onSpeed={pickSpeed}
+              onSpeedSettle={commitSpeed}
+              repeat={{ times, pauseMs, onTimes: pickTimes, onPause: setPauseMs, onPauseSettle: setPauseMs }}
+            />
           </View>
         </View>
       )}

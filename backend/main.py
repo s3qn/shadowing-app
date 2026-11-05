@@ -86,6 +86,16 @@ import voices
 # --- sign-in ---
 import accounts
 
+# Router modules. voices, grammar, youtube, align and repair share a name with
+# a top-level module main.py already uses, so those five are bound with an
+# _r suffix instead of shadowing the module.
+from routers import create, islands, takes, words, podcasts, account, phrases, progress, review, admin
+from routers import voices as voices_r
+from routers import grammar as grammar_r
+from routers import youtube as youtube_r
+from routers import align as align_r
+from routers import repair as repair_r
+
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s"
 )
@@ -149,6 +159,21 @@ if dev_upload.enabled():
 # anchor: dev_transcripts router
 if dev_transcripts.enabled():
     app.include_router(dev_transcripts.router)
+app.include_router(voices_r.router)
+app.include_router(create.router)
+app.include_router(islands.router)
+app.include_router(takes.router)
+app.include_router(words.router)
+app.include_router(podcasts.router)
+app.include_router(account.router)
+app.include_router(phrases.router)
+app.include_router(grammar_r.router)
+app.include_router(youtube_r.router)
+app.include_router(align_r.router)
+app.include_router(progress.router)
+app.include_router(review.router)
+app.include_router(repair_r.router)
+app.include_router(admin.router)
 
 
 def require_token(authorization: str | None) -> None:
