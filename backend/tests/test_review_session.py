@@ -369,3 +369,82 @@ def test_beta_off_drops_video_and_podcast_cards_from_plan_available_and_routes()
     beta.set_flag(DEV, True, "test")
     got = asyncio.run(review_r.review_session_plan(size=30, authorization=AUTH, x_shadow_device=DEV))
     assert ids(got["projects"]) == {pod, vid, voice}
+
+
+def _old_lines(island_id, known):
+    """_load_lines before the light query: the whole island, lines filtered."""
+    isl = store.get_island(island_id) or {"lines": []}
+    return [{"idx": ln["idx"]} for ln in isl["lines"] if ln["idx"] not in known]
+
+
+def _old_first(island_id, idx):
+    isl = store.get_island(island_id) or {"lines": []}
+    line = next((ln for ln in isl["lines"] if ln["idx"] == idx), None) or {}
+    return {"island_id": island_id, "idx": idx, "ja": line.get("ja", ""),
+            "kana": line.get("kana", ""), "en": line.get("en", ""),
+            "words": line.get("words", [])}
+
+
+def _old_latest(device):
+    out = {}
+    for row in store.list_take_scores(device):
+        if row["whole_line"] == 1:
+            out[(row["island_id"], row["idx"])] = row["total"]
+    return out
+
+
+def test_light_line_queries_match_the_whole_island_load():
+    iid = store.create_island("simple", 3, source="voice", device=DEV)
+    for i in (0, 1, 3, 4, 7):  # a gap, and lines added out of order below
+        store.add_line(iid, i, {"ja": f"j{i}", "kana": f"k{i}", "romaji": "r", "en": f"e{i}"},
+                       2.0, [{"m": "a", "t": 0.1}], words=[{"w": f"w{i}"}])
+    store.add_line(iid, 2, {"ja": "j2", "kana": "", "romaji": "", "en": ""}, 1.0, [])
+    store.set_ready(iid, "T")
+    for known in (set(), {1, 4}, {0, 1, 2, 3, 4, 7}):
+        p = {"island_id": iid, "lines": None, "known": known}
+        assert rs._load_lines(p) == _old_lines(iid, known)
+    for idx in (0, 2, 7, 5):  # 5 does not exist
+        assert rs._first_line(DEV, {"island_id": iid}, idx) == _old_first(iid, idx)
+    assert rs._first_line(DEV, {"island_id": "nope"}, 0) == _old_first("nope", 0)
+    assert rs._load_lines({"island_id": "nope", "lines": None}) == []
+    assert store.get_line(iid, 3) == store.get_island(iid)["lines"][3]
+
+
+def test_latest_scores_sql_matches_the_python_filter():
+    a, b = _island("voice", 4), _island("voice", 4)
+    takes = [(a, 0, 50, True), (a, 0, 70, True), (a, 0, 99, False), (a, 1, None, True),
+             (b, 0, 10, False), (b, 1, 40, True), (b, 1, 30, True), (a, 1, 60, True),
+             (b, 2, 80, False)]
+    for isl, idx, total, whole in takes:
+        store.add_take_score(DEV, isl, idx, "ja", {"total": total, "parts": {}}, 1.0, whole)
+    store.add_take_score("someone-else", a, 2, "ja", {"total": 1, "parts": {}}, 1.0, True)
+    assert rs.latest_scores(DEV) == _old_latest(DEV)
+    assert rs.latest_scores(DEV) == {(a, 0): 70, (a, 1): 60, (b, 1): 30}
+    assert rs.latest_scores("nobody") == {}
+
+
+def test_plan_and_available_builds_projects_once_with_the_same_answers(monkeypatch):
+    pod, voice = _island("podcast", 6), _island("voice", 5)
+    _cards(pod, 4)
+    _island("voice", 3)
+    store.add_take_score(DEV, voice, 2, "ja", {"total": 10, "parts": {}}, 1.0, True)
+    for kw in ({}, {"edit": [(voice, 2), (pod, 3)]}):
+        want_plan, want_av = rs.plan(DEV, 5, **kw), rs.available(DEV)
+        calls = {"n": 0}
+        real = rs._projects
+
+        def counting(*a, **k):
+            calls["n"] += 1
+            return real(*a, **k)
+
+        monkeypatch.setattr(rs, "_projects", counting)
+        got = rs.plan_and_available(DEV, 5, **kw)
+        monkeypatch.setattr(rs, "_projects", real)
+        assert calls["n"] == 1
+        assert got.pop("catalogue") == want_av
+        assert got == want_plan
+    routed = asyncio.run(review_r.review_session_plan(
+        size=5, catalogue=1, authorization=AUTH, x_shadow_device=DEV))
+    assert routed.pop("catalogue") == rs.available(DEV) and routed == rs.plan(DEV, 5)
+    assert "catalogue" not in asyncio.run(review_r.review_session_plan(
+        size=5, authorization=AUTH, x_shadow_device=DEV))

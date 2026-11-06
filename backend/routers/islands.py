@@ -5,6 +5,7 @@ import logging
 from fastapi import APIRouter, Form, Header, HTTPException
 from fastapi.responses import FileResponse
 
+import config
 import dependencies
 import export
 import progression
@@ -16,9 +17,6 @@ from services import line_audio as line_audio_svc
 
 router = APIRouter()
 log = logging.getLogger("shadow")
-
-# Same characters as the word-audio route's strip set.
-WORD_STRIP = "、。！？!?…「」『』（）() ,.;:¿¡«»\"'"
 
 
 @router.get("/shadow/islands")
@@ -76,7 +74,7 @@ async def line_audio(island_id: str, idx: int, token: str = "", speed: float = 1
         raise HTTPException(404, "no audio for that line")
     pad = line_audio_svc._clamp_pad(pad)
     if pad > 0:
-        speed_r = round(min(line_audio_svc.SPEED_MAX, max(line_audio_svc.SPEED_MIN, speed)) * 20) / 20
+        speed_r = round(min(config.SPEED_MAX, max(config.SPEED_MIN, speed)) * 20) / 20
         # The "@" is what the stale sweep in _synthesize_lines (line 210) keys
         # on, so a padded file is removed along with the render it came from.
         padded = path.with_name(f"{line_audio_svc._variant(idx, speed_r, span)}+{pad}.wav")
@@ -194,7 +192,7 @@ async def island_glosses(island_id: str, authorization: str | None = Header(None
     seen: set[str] = set()
     for line in island.get("lines", []):
         for w in line.get("words") or []:
-            clean = (w.get("text") or "").strip(WORD_STRIP)
+            clean = (w.get("text") or "").strip(config.WORD_STRIP)
             if clean and clean not in seen:
                 seen.add(clean)
                 words.append(clean)

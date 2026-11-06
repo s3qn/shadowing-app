@@ -485,15 +485,35 @@ def get_island(island_id: str) -> dict | None:
         lines = conn.execute(
             "SELECT * FROM lines WHERE island_id=? ORDER BY idx", (island_id,)
         ).fetchall()
-    island["lines"] = [
-        {
-            **dict(line),
-            "timeline": json.loads(line["timeline"]),
-            "words": json.loads(line["words"] or "[]"),
-        }
-        for line in lines
-    ]
+    island["lines"] = [_line_dict(line) for line in lines]
     return island
+
+
+def _line_dict(line: sqlite3.Row) -> dict:
+    return {
+        **dict(line),
+        "timeline": json.loads(line["timeline"]),
+        "words": json.loads(line["words"] or "[]"),
+    }
+
+
+def line_idxs(island_id: str) -> list[int]:
+    """An island's line indexes in order, without loading any line JSON.
+    Empty for an unknown id."""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT idx FROM lines WHERE island_id=? ORDER BY idx", (island_id,)
+        ).fetchall()
+    return [r["idx"] for r in rows]
+
+
+def get_line(island_id: str, idx: int) -> dict | None:
+    """One line shaped as in get_island's `lines`, or None."""
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM lines WHERE island_id=? AND idx=?", (island_id, idx)
+        ).fetchone()
+    return None if row is None else _line_dict(row)
 
 
 def island_device(island_id: str) -> str | None:
@@ -687,6 +707,20 @@ def list_take_scores(device: str, since: str = "") -> list[dict]:
             (device, since),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def latest_line_totals(device: str) -> dict[tuple[str, int], int | None]:
+    """Newest whole-line take total per (island_id, idx) for this device,
+    newest meaning last in list_take_scores' (created_at, id) order."""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT island_id, idx, total FROM ("
+            " SELECT island_id, idx, total, ROW_NUMBER() OVER ("
+            "  PARTITION BY island_id, idx ORDER BY created_at DESC, id DESC) AS n"
+            " FROM take_scores WHERE device=? AND whole_line=1) WHERE n=1",
+            (device,),
+        ).fetchall()
+    return {(r["island_id"], r["idx"]): r["total"] for r in rows}
 
 
 def has_line_take(device: str, island_id: str, idx: int) -> bool:

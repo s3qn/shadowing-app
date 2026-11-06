@@ -64,6 +64,7 @@ def key(monkeypatch):
     monkeypatch.setitem(accounts._cache, "keys", {})
     monkeypatch.setitem(accounts._cache, "fetched_at", 0.0)
     monkeypatch.setitem(accounts._cache, "failed_at", 0.0)
+    monkeypatch.setattr(accounts, "_parsed", {})
     return _Key(private, calls)
 
 
@@ -132,6 +133,36 @@ def test_unknown_kid_is_rejected_and_refetch_is_throttled(key):
     with pytest.raises(accounts.BadToken):
         accounts.verify(stray)
     assert key.calls["n"] == 2
+
+
+def test_parsed_key_is_reused_and_replaced_when_the_jwks_rotates(key, monkeypatch):
+    built = {"n": 0}
+    real = jwt.PyJWK
+
+    def counting(jwk, *a, **kw):
+        built["n"] += 1
+        return real(jwk, *a, **kw)
+
+    monkeypatch.setattr(jwt, "PyJWK", counting)
+    accounts.verify(_token(key))
+    accounts.verify(_token(key))
+    assert built["n"] == 1
+    # The JWKS refetch hands out a new key under the same kid.
+    key.private = _keypair()
+    monkeypatch.setattr(accounts, "_fetch_jwks", lambda: {"keys": [_jwk(key.private)]})
+    accounts._cache["fetched_at"] -= accounts.JWKS_TTL + 1
+    sub = str(uuid.uuid4())
+    assert accounts.verify(_token(key, sub=sub)) == sub
+    assert built["n"] == 2
+
+
+def test_parsed_key_cache_stays_bounded(key, monkeypatch):
+    monkeypatch.setattr(accounts, "PARSED_MAX", 2)
+    accounts.verify(_token(key))  # the one JWKS fetch, before more kids are added
+    for i in range(5):
+        accounts._cache["keys"][f"k{i}"] = _jwk(key.private, kid=f"k{i}")
+        accounts.verify(_token(key, kid=f"k{i}"))
+        assert len(accounts._parsed) <= 2
 
 
 def test_jwks_fetched_once_across_two_verifies(key):

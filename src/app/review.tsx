@@ -25,6 +25,8 @@ import { confirmSheet } from '@/lib/confirm-sheet';
 import { getGuideStep, guidePracticeStarted, useGuideAnchor, useGuideLock, useGuideStep } from '@/lib/guide';
 import { hapticSelection } from '@/lib/haptics';
 import { useDir, useT } from '@/lib/i18n';
+import { prefetchIsland, prewarmIsland } from '@/lib/island-cache';
+import { peekSessionPlan } from '@/lib/plan-cache';
 import { getSettingsSync, SESSION_SIZES, sessionLanguage, type SessionSize, setSessionSize } from '@/lib/settings';
 
 const SIZES = SESSION_SIZES;
@@ -55,7 +57,8 @@ export default function ReviewScreen() {
   // The guide lights 5 until it is tapped, then Practice now.
   const [fiveTapped, setFiveTapped] = useState(false);
   const practiceBtn = useGuideAnchor('practiceNow', guideSize && fiveTapped);
-  const [plan, setPlan] = useState<api.SessionPlan | null>(null);
+  // Home fetched the default plan on focus: showing it at once skips the loader. The focus effect still revalidates.
+  const [plan, setPlan] = useState<api.SessionPlan | null>(() => peekSessionPlan(size));
   // The learner's own plan once they reorder, change a count, remove or add. Null plays the planner's pick for `size`.
   const [edit, setEdit] = useState<api.SessionPick[] | null>(null);
   const [edited, setEdited] = useState(true);
@@ -63,7 +66,7 @@ export default function ReviewScreen() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetCount, setSheetCount] = useState(1);
   const [adding, setAdding] = useState(false);
-  const [catalogue, setCatalogue] = useState<api.SessionCatalogueItem[] | null>(null);
+  const [catalogue, setCatalogue] = useState<api.SessionCatalogueItem[] | null>(() => peekSessionPlan(size)?.catalogue ?? null);
   const [undo, setUndo] = useState<{ index: number; project: api.SessionProject } | null>(null);
   const [loadError, setLoadError] = useState('');
   const retryAnchor = useGuideAnchor('sizeRetry', guideSize && !!plan && plan.count === 0 && !!loadError);
@@ -96,6 +99,15 @@ export default function ReviewScreen() {
   const keepOpen = () => clearTimeout(closeTimer.current);
   useEffect(() => () => clearTimeout(closeTimer.current), []);
 
+  // Reads the first island's local copy and fetches it, so Practice now opens it without the dark loader.
+  // Runs for the cached plan, the revalidated one and any reorder that changes the first island.
+  const firstId = plan?.projects[0]?.island_id;
+  useEffect(() => {
+    if (!firstId) return;
+    prewarmIsland(firstId);
+    void prefetchIsland(firstId);
+  }, [firstId]);
+
   /** `soft`: an edit's refresh. On failure it keeps the edited plan on screen instead of the error page. */
   const load = useCallback(
     (n: number, shape: api.SessionShape, soft = false) => {
@@ -106,16 +118,18 @@ export default function ReviewScreen() {
           if (seq.current !== mine) return;
           setLoadError('');
           setPlan(p);
+          if (p.catalogue) setCatalogue(p.catalogue);
         })
         .catch((e) => {
           if (seq.current !== mine || soft) return;
+          setCatalogue((c) => c ?? []);
           setLoadError(e instanceof Error ? e.message : t('review.loadFailed'));
           setPlan({ session_id: null, size: n, count: 0, minutes: 0, seconds_per_sentence: 0, projects: [], first: null });
         });
     },
     [t],
   );
-  const loadDefault = useCallback((n: number) => void getSessionPrefs().then((pr) => load(n, { order: pr.order })), [load]);
+  const loadDefault = useCallback((n: number) => void getSessionPrefs().then((pr) => load(n, { order: pr.order, catalogue: true })), [load]);
 
   useFocusEffect(
     useCallback(() => {
@@ -123,11 +137,7 @@ export default function ReviewScreen() {
       setEdit(null);
       setUndo(null);
       void getSessionPrefs().then((pr) => setEdited(pr.edited));
-      loadDefault(sizeRef.current);
-      api
-        .getSessionCatalogue(sessionLanguage())
-        .then(setCatalogue)
-        .catch(() => setCatalogue([]));
+      loadDefault(sizeRef.current); // the plan carries the Add list too
       return () => {
         seq.current++;
       };
@@ -192,6 +202,10 @@ export default function ReviewScreen() {
       if (guideSize) guidePracticeStarted();
       const first = started.projects[0];
       if (!first) return setStarting(false);
+      if (first.island_id !== firstId) {
+        prewarmIsland(first.island_id);
+        void prefetchIsland(first.island_id);
+      }
       // No count here: the player's own stage count-in is the only one.
       startSession(started);
       router.push(routeFor(first.island_id, first.kind));

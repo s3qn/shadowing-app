@@ -33,6 +33,11 @@ class BadToken(Exception):
 
 _lock = threading.Lock()
 _cache: dict = {"keys": {}, "fetched_at": 0.0, "failed_at": 0.0}
+# Parsed signing keys by kid, so a request does not rebuild PyJWK each time.
+# Each entry keeps the JWK it was parsed from: a refetched JWKS that changed
+# a kid's key misses here. Bounded, though a JWKS holds a handful of keys.
+_parsed: dict = {}
+PARSED_MAX = 16
 
 
 def _fetch_jwks() -> dict:
@@ -65,9 +70,17 @@ def _key_for(kid: str):
         elif kid not in _cache["keys"] and age >= REFETCH_MIN_INTERVAL:
             _refresh()
         jwk = _cache["keys"].get(kid)
+        hit = _parsed.get(kid)
     if jwk is None:
         raise BadToken("unknown key id")
-    return jwt.PyJWK(jwk).key
+    if hit is not None and hit[0] == jwk:
+        return hit[1]
+    key = jwt.PyJWK(jwk).key
+    with _lock:
+        if len(_parsed) >= PARSED_MAX:
+            _parsed.clear()
+        _parsed[kid] = (jwk, key)
+    return key
 
 
 def verify(token: str) -> str:

@@ -23,3 +23,11 @@ SLICE_RATE = 24000  # aec.SR: VOICEVOX's rate, which the take cleaner and slicer
 
 # --- say-it ---
 DAILY_SAYS = int(os.getenv("SHADOW_DAILY_SAYS", "40"))
+
+# Characters stripped from the ends of a word before it is looked up or matched.
+WORD_STRIP = "、。！？!?…「」『』（）() ,.;:¿¡«»\"'"
+# Playback speed bounds for a rendered line.
+SPEED_MIN, SPEED_MAX = 0.5, 1.5
+# Raw env values; middleware and access parse them (read at import, as before).
+REQUIRE_SIGNIN_RAW = os.getenv("SHADOW_REQUIRE_SIGNIN")
+ADMIN_USERS_RAW = os.getenv("SHADOW_ADMIN_USERS")

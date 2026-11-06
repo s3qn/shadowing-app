@@ -6443,6 +6443,7 @@
   },
   "/shadow/review/session/plan": {
    "get": {
+    "description": "`catalogue=1` adds the Add list (as /session/projects returns it) as\n`catalogue`, built from the same project scan, so a screen focus needs\none request instead of two.",
     "operationId": "review_session_plan_shadow_review_session_plan_get",
     "parameters": [
      {
@@ -6483,6 +6484,16 @@
        "default": "",
        "title": "Language",
        "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "catalogue",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "title": "Catalogue",
+       "type": "integer"
       }
      },
      {

@@ -153,14 +153,19 @@ async def review_session_plan(
     order: str = "",
     projects: str = "",
     language: str = "",
+    catalogue: int = 0,
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
+    """`catalogue=1` adds the Add list (as /session/projects returns it) as
+    `catalogue`, built from the same project scan, so a screen focus needs
+    one request instead of two."""
     dependencies.require_token(authorization)
     device = dependencies._require_device(x_shadow_device)
     edit = _session_edit(projects)
     on = await asyncio.to_thread(access._beta_on, device)
-    return await asyncio.to_thread(review_session.plan, device,
+    fn = review_session.plan_and_available if catalogue else review_session.plan
+    return await asyncio.to_thread(fn, device,
                                    size if edit else _session_size(size),
                                    [k for k in order.split(",") if k], edit, language or None, on)
 

@@ -27,7 +27,7 @@ def _parse_admin_users(raw: str | None) -> frozenset[str]:
     return frozenset(u.strip() for u in (raw or "").split(",") if u.strip())
 
 
-ADMIN_USERS = _parse_admin_users(os.getenv("SHADOW_ADMIN_USERS"))
+ADMIN_USERS = _parse_admin_users(config.ADMIN_USERS_RAW)
 
 
 def _is_admin(principal: str) -> bool:

@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 
 import access
 import accounts
+import config
 import dependencies
 import dev_upload
 import guardrails  # --- ai-guardrails ---
@@ -41,7 +42,7 @@ def _signin_required(raw: str | None) -> bool:
 # When on, every non-public /shadow/* request needs a verified x-shadow-user
 # JWT; the raw device id is no longer an owner. On by default. Set
 # SHADOW_REQUIRE_SIGNIN=0 to accept device-only requests again.
-REQUIRE_SIGNIN = _signin_required(os.getenv("SHADOW_REQUIRE_SIGNIN"))
+REQUIRE_SIGNIN = _signin_required(config.REQUIRE_SIGNIN_RAW)
 
 PUBLIC_PATHS = ("/health", "/shadow/health", "/shadow", "/shadow/", "/shadow/privacy", "/shadow/app/latest")
 

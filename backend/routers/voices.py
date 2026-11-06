@@ -6,6 +6,7 @@ import os
 from fastapi import APIRouter, Header, HTTPException, Query
 from fastapi.responses import FileResponse, Response
 
+import config
 import dependencies
 import kokoro_tts
 import store
@@ -71,7 +72,6 @@ async def voice_preview(style_id: int, token: str = "",
     return FileResponse(path, media_type="audio/wav")
 
 
-WORD_STRIP = "、。！？!?…「」『』（）() ,.;:¿¡«»\"'"
 
 
 @router.get("/shadow/word-audio")
@@ -84,7 +84,7 @@ async def word_audio(text: str, speaker: int = voicevox.DEFAULT_SPEAKER, token: 
     voice and text."""
     dependencies._token_or_header(token, authorization)
     device = dependencies._require_device(x_shadow_device, device_q)
-    clean = text.strip(WORD_STRIP)
+    clean = text.strip(config.WORD_STRIP)
     if not clean:
         raise HTTPException(400, "empty word")
     folder = store.DATA_DIR / "words" / str(speaker)

@@ -23,11 +23,11 @@ if not os.environ.get("SHADOW_DATA_DIR"):
     sys.exit("set SHADOW_DATA_DIR to a scratch directory")
 
 import generate  # noqa: E402
-import main  # noqa: E402
 import phrase_catalog  # noqa: E402
 import segment  # noqa: E402
 import store  # noqa: E402
 import voices  # noqa: E402
+from services import build  # noqa: E402
 
 LANGS = ("ja", "en", "es")
 
@@ -104,7 +104,7 @@ async def build(lang: str, topic: str) -> None:
         {"ja": t, "kana": segment.reading(t) if lang == "ja" else "", "romaji": "", "en": en[i]}
         for i, t in enumerate(texts)
     ]
-    made = await main._synthesize_lines(island_id, lines, speaker, lang)
+    made = await build._synthesize_lines(island_id, lines, speaker, lang)
     if made != len(lines):
         sys.exit(f"{lang}/{topic}: only {made} of {len(lines)} lines synthesised")
     island = store.get_island(island_id)
@@ -134,7 +134,7 @@ async def build_intro(lang: str, level: str = "new") -> None:
         {"ja": t, "kana": segment.reading(t) if lang == "ja" else "", "romaji": "", "en": en}
         for t, en, _ in rows_in
     ]
-    made = await main._synthesize_lines(island_id, lines, speaker, lang)
+    made = await build._synthesize_lines(island_id, lines, speaker, lang)
     if made != len(lines):
         sys.exit(f"{folder}/{lang}: only {made} of {len(lines)} lines synthesised")
     island = store.get_island(island_id)

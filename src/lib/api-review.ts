@@ -131,6 +131,8 @@ export type SessionPlan = {
   seconds_per_sentence: number;
   projects: SessionProject[];
   first: { island_id: string; idx: number; ja: string; kana: string; en: string; words: Word[] } | null;
+  /** The Add list, only when the plan was asked for with `catalogue: true`. */
+  catalogue?: SessionCatalogueItem[];
 };
 
 /** A project the learner can put in a session, with how many lines it has. */
@@ -139,14 +141,15 @@ export type SessionCatalogueItem = { island_id: string; title: string; source: s
 export type SessionPick = { island_id: string; count: number };
 /** `order` (island ids) plays those projects first; `projects` replaces the size and order with an edited plan. */
 /** `language` keeps only projects in that learning language; absent mixes every language. */
-export type SessionShape = { order?: string[]; projects?: SessionPick[]; language?: string };
+export type SessionShape = { order?: string[]; projects?: SessionPick[]; language?: string; catalogue?: boolean };
 
 /** The planned practice session for a size (5, 10, 20 or 30). Writes nothing. */
 export async function getSessionPlan(size: number, shape: SessionShape = {}): Promise<SessionPlan> {
   const order = shape.order?.length ? `&order=${encodeURIComponent(shape.order.join(','))}` : '';
   const picks = shape.projects?.length ? `&projects=${encodeURIComponent(shape.projects.map((p) => `${p.island_id}:${p.count}`).join(','))}` : '';
   const lang = shape.language ? `&language=${encodeURIComponent(shape.language)}` : '';
-  return json<SessionPlan>(await fetch(`${BASE}/review/session/plan?size=${size}${order}${picks}${lang}`, { headers: headers() }));
+  const cat = shape.catalogue ? '&catalogue=1' : '';
+  return json<SessionPlan>(await fetch(`${BASE}/review/session/plan?size=${size}${order}${picks}${lang}${cat}`, { headers: headers() }));
 }
 
 /** Every project with saved lines, for adding one to a session. */

@@ -25,9 +25,9 @@ import wave
 from dataclasses import dataclass
 from pathlib import Path
 
+import config
 import store
 
-SPEED_MIN, SPEED_MAX = 0.5, 1.5  # same as main.py
 REPEATS_MAX = 4
 GAP_MAX_MS = 5000  # the export gap has its own cap, separate from the `pad` query parameter
 LEAD_MS = 500
@@ -55,7 +55,7 @@ class Spec:
 
 def normalise(speed: float, repeats: int, gap_ms: int) -> Spec:
     """Clamp and round a request's parameters to what `build` will accept."""
-    speed = round(min(SPEED_MAX, max(SPEED_MIN, speed)) * 20) / 20
+    speed = round(min(config.SPEED_MAX, max(config.SPEED_MIN, speed)) * 20) / 20
     repeats = min(REPEATS_MAX, max(1, repeats))
     gap_ms = min(GAP_MAX_MS, max(0, gap_ms))
     return Spec(speed, repeats, gap_ms)

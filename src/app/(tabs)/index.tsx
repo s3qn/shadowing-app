@@ -40,6 +40,7 @@ import { useT, useDir } from '@/lib/i18n';
 import * as api from '@/lib/api';
 import { startOpen, type CardRect } from '@/lib/card-morph';
 import { invalidateCachedIsland } from '@/lib/island-cache';
+import { prefetchSessionPlan } from '@/lib/plan-cache';
 import { TAB_BAR_OVERLAP, useWheelScroll, visibleOf, type Shape } from '@/hooks/home/use-wheel-scroll';
 import { invalidateLineAudio } from '@/lib/line-audio-cache';
 import { forgetLastLine, peekLastLine, resumeLine } from '@/lib/last-line';
@@ -352,6 +353,7 @@ export default function IslandsScreen() {
       setFocused(true);
       bumpTakesEpoch();
       void load();
+      void prefetchSessionPlan(); // review.tsx opens on it instead of its loader
       void getPracticeLog().then((next) => {
         if (!alive) return;
         setLog(next);

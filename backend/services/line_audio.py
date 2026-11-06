@@ -10,6 +10,7 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
+import config
 import dependencies
 import export
 import kokoro_tts
@@ -19,8 +20,6 @@ import voicevox
 import voices
 
 log = logging.getLogger("shadow")
-
-SPEED_MIN, SPEED_MAX = 0.5, 1.5  # same as main.py
 
 
 def _variant(idx: int, speed: float, span: tuple[int, int] | None) -> str:
@@ -100,7 +99,7 @@ async def _resolve_line_audio(island: dict, idx: int, speed: float,
     the take cleaner, which needs the exact reference the phone played: the
     whole line, or (`span` set) the phrase that was looping when the take was
     recorded."""
-    speed = round(min(SPEED_MAX, max(SPEED_MIN, speed)) * 20) / 20
+    speed = round(min(config.SPEED_MAX, max(config.SPEED_MIN, speed)) * 20) / 20
     path = store.line_audio_path(island["id"], idx)
     if speed != 1.0:
         path = path.with_name(f"{idx}@{speed:.2f}.wav")

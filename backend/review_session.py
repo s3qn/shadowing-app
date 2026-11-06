@@ -41,11 +41,7 @@ def seconds_per_sentence(device: str) -> float:
 
 def latest_scores(device: str) -> dict[tuple[str, int], int | None]:
     """Newest whole-line take total per (island_id, idx) for this device."""
-    out: dict[tuple[str, int], int | None] = {}
-    for row in store.list_take_scores(device):
-        if row["whole_line"] == 1:
-            out[(row["island_id"], row["idx"])] = row["total"]
-    return out
+    return store.latest_line_totals(device)
 
 
 def rank_lines(lines: list[dict], scores: dict[int, int | None]) -> list[dict]:
@@ -80,32 +76,48 @@ def split_shares(counts: list[int], size: int) -> list[int]:
     return shares
 
 
+Projects = tuple[list[dict], list[dict], list[dict]]
+
+
 def candidates(device: str, today: str, language: str | None = None,
-               beta_on: bool = True) -> list[dict]:
+               beta_on: bool = True, projects: Projects | None = None) -> list[dict]:
     """Every project that can supply lines today, in play order: card
     projects by due count desc, due islands by due_on asc (never practised
     counts as today), then card projects with nothing due by latest save desc.
     `language` keeps only projects in that learning language; None keeps all.
-    `beta_on` False drops video and podcast cards (their players are beta)."""
-    with_due, islands, idle = _projects(device, today, language, beta_on)
+    `beta_on` False drops video and podcast cards (their players are beta).
+    `projects` is a `_projects` result this request already built."""
+    with_due, islands, idle = projects or _projects(device, today, language, beta_on)
     return with_due + [p for p in islands if p["due_on"] <= today] + idle
 
 
 def _all(device: str, today: str, language: str | None = None,
-         beta_on: bool = True) -> list[dict]:
+         beta_on: bool = True, projects: Projects | None = None) -> list[dict]:
     """candidates plus the islands not due yet: everything a learner can add."""
-    with_due, islands, idle = _projects(device, today, language, beta_on)
+    with_due, islands, idle = projects or _projects(device, today, language, beta_on)
     return with_due + islands + idle
 
 
-def available(device: str, language: str | None = None, beta_on: bool = True) -> list[dict]:
+def available(device: str, language: str | None = None, beta_on: bool = True,
+              projects: Projects | None = None) -> list[dict]:
     """Every project with saved lines, for the start screen's Add list."""
     out = []
-    for p in _all(device, schedule._today(), language, beta_on):
+    for p in _all(device, schedule._today(), language, beta_on, projects):
         total = len(p["lines"]) if p["lines"] is not None else p["line_count"]
         out.append({"island_id": p["island_id"], "title": p["title"], "source": p["source"],
                     "kind": p["kind"], "total": total})
     return out
+
+
+def plan_and_available(device: str, size: int, order: list[str] | None = None,
+                       edit: list[tuple[str, int]] | None = None,
+                       language: str | None = None, beta_on: bool = True) -> dict:
+    """`plan` plus the Add list as `catalogue`, from one `_projects` build.
+    The catalogue is taken first: plan fills in project lines as it goes."""
+    projects = _projects(device, schedule._today(), language, beta_on)
+    catalogue = available(device, language, beta_on, projects)
+    return {**plan(device, size, order, edit, language, beta_on, projects),
+            "catalogue": catalogue}
 
 
 def _projects(device: str, today: str, language: str | None = None,
@@ -179,8 +191,7 @@ def _first_line(device: str, proj: dict, idx: int) -> dict:
         c = proj["cards"][idx]
         return {"island_id": proj["island_id"], "idx": idx, "ja": c["ja"], "kana": c["kana"],
                 "en": c["en"], "words": c["words"]}
-    isl = store.get_island(proj["island_id"]) or {"lines": []}
-    line = next((ln for ln in isl["lines"] if ln["idx"] == idx), None) or {}
+    line = store.get_line(proj["island_id"], idx) or {}
     return {"island_id": proj["island_id"], "idx": idx, "ja": line.get("ja", ""),
             "kana": line.get("kana", ""), "en": line.get("en", ""),
             "words": line.get("words", [])}
@@ -188,18 +199,18 @@ def _first_line(device: str, proj: dict, idx: int) -> dict:
 
 def _load_lines(p: dict) -> list[dict]:
     if p["lines"] is None:
-        isl = store.get_island(p["island_id"]) or {"lines": []}
         known = p.get("known", ())
-        p["lines"] = [{"idx": ln["idx"]} for ln in isl["lines"] if ln["idx"] not in known]
+        p["lines"] = [{"idx": i} for i in store.line_idxs(p["island_id"]) if i not in known]
     return p["lines"]
 
 
 def _edited(device: str, today: str, edit: list[tuple[str, int]],
-            language: str | None = None, beta_on: bool = True) -> tuple[list[dict], list[int]]:
+            language: str | None = None, beta_on: bool = True,
+            projects: Projects | None = None) -> tuple[list[dict], list[int]]:
     """The learner's own plan: these projects in this order, each with up to
     its count of lines. Unknown ids, repeats, other languages and counts
     under 1 drop out."""
-    pool = {p["island_id"]: p for p in _all(device, today, language, beta_on)}
+    pool = {p["island_id"]: p for p in _all(device, today, language, beta_on, projects)}
     projs, shares = [], []
     for island_id, n in edit:
         p = pool.pop(island_id, None)
@@ -214,20 +225,22 @@ def _edited(device: str, today: str, edit: list[tuple[str, int]],
 
 def plan(device: str, size: int, order: list[str] | None = None,
          edit: list[tuple[str, int]] | None = None, language: str | None = None,
-         beta_on: bool = True) -> dict:
+         beta_on: bool = True, projects: Projects | None = None) -> dict:
     """The session for `size` sentences. Pure: nothing is written. `order`
     (island ids) only moves the chosen projects: listed ones play first in
     that order, the rest keep their place after them. `edit` replaces the
     choice: (island id, count) pairs in play order, each project filled with
     its weakest lines, and `size` becomes the sum. `language` keeps only
     projects in that learning language; None mixes every language. `beta_on`
-    False leaves out video and podcast cards."""
+    False leaves out video and podcast cards. `projects` is a `_projects`
+    result this request already built."""
     today = schedule._today()
     if edit is not None:
-        projs, shares = _edited(device, today, edit, language, beta_on)
+        projs, shares = _edited(device, today, edit, language, beta_on, projects)
         size = sum(shares)
     else:
-        projs = [p for p in candidates(device, today, language, beta_on)[: MAX_PROJECTS[size]]
+        projs = [p for p in candidates(device, today, language, beta_on,
+                                       projects)[: MAX_PROJECTS[size]]
                  if _load_lines(p)]
         shares = split_shares([len(p["lines"]) for p in projs], size)
     scores = latest_scores(device)

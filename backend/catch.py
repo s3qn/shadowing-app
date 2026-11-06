@@ -49,7 +49,7 @@ MIN_COUNT = 2
 # The late half of the tap window: a target must end this long before its
 # line does, so a late tap never lands in the next line.
 LATE_TOLERANCE_S = 1.0
-# Same characters as main.WORD_STRIP (importing main would be a cycle).
+# Same characters as config.WORD_STRIP (kept here so catch stays free of config).
 WORD_STRIP = "、。！？!?…「」『』（）() ,.;:¿¡«»\"'"
 # Japanese keeps content words: the word's first janome token must be one of
 # these parts of speech, and not one of the sub-kinds below (names, pronouns,

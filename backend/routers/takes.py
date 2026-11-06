@@ -1,5 +1,6 @@
 # Routes for takes, moved out of main.py.
 import asyncio
+import importlib
 import logging
 import shutil
 import tempfile
@@ -217,20 +218,22 @@ async def upload_take(
     # score's word windows use the speed the reference audio was actually
     # played at rather than the raw value the client sent.
     render_speed = round(
-        min(line_audio_svc.SPEED_MAX, max(line_audio_svc.SPEED_MIN, speed)) * 20
+        min(config.SPEED_MAX, max(config.SPEED_MIN, speed)) * 20
     ) / 20
 
+    # The aec import (numpy, scipy on a cold start), the profile load, the
+    # slot write and the upload write all block, so each runs in a thread.
     try:
         # Imported lazily so the app still starts if this module is broken
         # or, since it is being written in parallel, does not exist yet.
-        import aec
+        aec = await asyncio.to_thread(importlib.import_module, "aec")
     except Exception as exc:
         log.exception("aec module unavailable")
         raise HTTPException(503, "the take cleaner is not available") from exc
 
     profile = None
     if not is_calibration and not is_silent:
-        profile = line_audio_svc._load_take_profile(aec, device)
+        profile = await asyncio.to_thread(line_audio_svc._load_take_profile, aec, device)
 
     raw = await take.read()
     if not raw:
@@ -238,12 +241,12 @@ async def upload_take(
     if len(raw) > config.MAX_UPLOAD_BYTES:
         raise HTTPException(413, "take too large")
 
-    dependencies._take_use_slot(device, "take")
+    await asyncio.to_thread(dependencies._take_use_slot, device, "take")
     tmp_dir = Path(tempfile.mkdtemp(prefix=f"take-{island_id}-{idx}-"))
     try:
         suffix = Path(take.filename or "take.wav").suffix or ".wav"
         src = tmp_dir / f"upload{suffix}"
-        src.write_bytes(raw)
+        await asyncio.to_thread(src.write_bytes, raw)
         ref_path = await line_audio_svc._resolve_line_audio(island, idx, speed, span)
 
         # ffmpeg and the filter are seconds of blocking CPU. On the event loop
