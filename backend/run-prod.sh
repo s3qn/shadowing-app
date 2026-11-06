@@ -44,10 +44,16 @@ if [ "${SHADOW_PORT:-8030}" = "8020" ]; then
   exit 1
 fi
 
-# Strangers' requests must never run through Sean's claude CLI.
+# Strangers' requests must never run through Sean's claude CLI once the app is public.
+# Until launch Sean wants his subscription (the CLI), not paid API tokens (2026-11-06):
+# SHADOW_LLM=cli is allowed only with the explicit SHADOW_LLM_PRELAUNCH_CLI=1. Remove both at launch.
 if [ "${SHADOW_LLM:-}" != "api" ]; then
-  echo "run-prod.sh: SHADOW_LLM must be 'api' in $ENV_FILE (the CLI backend is dev only), refusing." >&2
-  exit 1
+  if [ "${SHADOW_LLM:-}" = "cli" ] && [ "${SHADOW_LLM_PRELAUNCH_CLI:-}" = "1" ]; then
+    echo "run-prod.sh: pre-launch, the LLM runs through the claude CLI (SHADOW_LLM_PRELAUNCH_CLI=1)." >&2
+  else
+    echo "run-prod.sh: SHADOW_LLM must be 'api' in $ENV_FILE (or 'cli' with SHADOW_LLM_PRELAUNCH_CLI=1 before launch), refusing." >&2
+    exit 1
+  fi
 fi
 
 SHADOW_RELEASE="$(git rev-parse --short HEAD)"
