@@ -6,7 +6,7 @@ import { AppState, BackHandler, Linking, Pressable, StyleSheet, Text, useWindowD
 import type { ScrollView } from 'react-native-gesture-handler';
 import { SymbolView } from 'expo-symbols';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Easing, cancelAnimation, useSharedValue, withTiming } from 'react-native-reanimated';
+import { useRepeatPause } from '@/hooks/video/use-repeat-pause';
 import YoutubePlayer, { type YoutubeIframeRef } from 'react-native-youtube-iframe';
 
 import { CatConstellation } from '@/components/cat-constellation';
@@ -171,29 +171,7 @@ export default function VideoScreen() {
   // onLineEnd before the next line shows: a count left seeks back to the
   // line's start, a pause holds the video with the line still on screen. A
   // manual jump and a new line refill the count.
-  const loopLeft = useRef(0);
-  const loopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const secsTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [repeatPass, setRepeatPass] = useState(1);
-  const [secsLeft, setSecsLeft] = useState<number | null>(null);
-  const ringProgress = useSharedValue(0);
-  // Ring to rest and seconds cleared: a pause ended or was aborted.
-  const endPauseUi = () => {
-    if (secsTimer.current) {
-      clearInterval(secsTimer.current);
-      secsTimer.current = null;
-    }
-    cancelAnimation(ringProgress);
-    ringProgress.value = 0;
-    setSecsLeft(null);
-  };
-  const clearLoopTimer = () => {
-    if (loopTimer.current) {
-      clearTimeout(loopTimer.current);
-      loopTimer.current = null;
-    }
-    endPauseUi();
-  };
+  const { loopLeft, repeatPass, setRepeatPass, secsLeft, ringProgress, refill, clearLoopTimer, startPause } = useRepeatPause(times);
   // Catch the word (beta): the game owns every line end while it runs, so
   // Repeat and Pause wait until it is off. Its controls land in the ref below
   // once jump and releaseLine exist.
@@ -223,21 +201,11 @@ export default function VideoScreen() {
       return;
     }
     setPlaying(false);
-    let secs = Math.ceil(pauseMs / 1000);
-    setSecsLeft(secs);
-    ringProgress.value = 1;
-    ringProgress.value = withTiming(0, { duration: pauseMs, easing: Easing.linear });
-    secsTimer.current = setInterval(() => {
-      secs = Math.max(1, secs - 1);
-      setSecsLeft(secs);
-    }, 1000);
-    loopTimer.current = setTimeout(() => {
-      loopTimer.current = null;
-      endPauseUi();
+    startPause(pauseMs, () => {
       if (replay) seekToLineRef.current(i);
       else releaseLineRef.current();
       setPlaying(true);
-    }, pauseMs);
+    });
   };
   // A running ladder needs each line's end too, so it holds the line between passes.
   const [ladderOn, setLadderOn] = useState(false);
@@ -388,18 +356,9 @@ export default function VideoScreen() {
   useWatchClock(island?.id, playing);
 
   useEffect(() => {
-    loopLeft.current = Math.max(0, times - 1);
-    setRepeatPass(1);
-    endPauseUi();
+    refill();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [times, activeLine]);
-  useEffect(
-    () => () => {
-      if (loopTimer.current) clearTimeout(loopTimer.current);
-      if (secsTimer.current) clearInterval(secsTimer.current);
-    },
-    [],
-  );
 
   const jump = useCallback(
     (i: number) => {

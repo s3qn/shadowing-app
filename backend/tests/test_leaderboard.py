@@ -9,6 +9,7 @@ import pytest
 from fastapi import HTTPException
 
 import main
+from routers import progress as progress_r
 import config
 import progression
 import store
@@ -33,8 +34,8 @@ def _seed(xp):
 
 
 def _call(monkeypatch, names, owner, limit=50):
-    monkeypatch.setattr(main, "_all_handles", lambda: dict(names))
-    return asyncio.run(main.leaderboard(limit=limit, authorization=AUTH, x_shadow_device=owner))
+    monkeypatch.setattr(progress_r, "_all_handles", lambda: dict(names))
+    return asyncio.run(progress_r.leaderboard(limit=limit, authorization=AUTH, x_shadow_device=owner))
 
 
 def _named(xps, prefix="cat"):
@@ -137,7 +138,7 @@ def test_named_without_progress(monkeypatch):
 
 def test_requires_device(monkeypatch):
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(main.leaderboard(limit=5, authorization=AUTH, x_shadow_device=""))
+        asyncio.run(progress_r.leaderboard(limit=5, authorization=AUTH, x_shadow_device=""))
     assert exc.value.status_code in (400, 401)
 
 
@@ -260,8 +261,8 @@ def test_weekly_hides_zero_scores_and_unnamed_owners(week):
 def test_weekly_route(week, monkeypatch):
     a = _owner()
     _listen(a, week, "2030-01-08", 120)
-    monkeypatch.setattr(main, "_all_handles", lambda: {a: "ann"})
-    out = asyncio.run(main.leaderboard_weekly(
+    monkeypatch.setattr(progress_r, "_all_handles", lambda: {a: "ann"})
+    out = asyncio.run(progress_r.leaderboard_weekly(
         language=week, limit=50, authorization=AUTH, x_shadow_device=a,
     ))
     assert out["me"]["rank"] == 1 and out["entries"][0]["score"] == 2

@@ -13,6 +13,9 @@ from fastapi import BackgroundTasks, HTTPException
 
 import llm
 import main
+from routers import phrases as phrases_r
+from routers import create as create_r
+from routers import words as words_r
 import config
 import phrase_catalog
 import starter
@@ -36,7 +39,7 @@ def _dev() -> str:
 
 
 def _explain_word(dev, sentence="猫が好きです。", word="猫"):
-    return asyncio.run(main.explain_word(
+    return asyncio.run(words_r.explain_word(
         word=word, sentence_ja=sentence, authorization=AUTH, x_shadow_device=dev))
 
 
@@ -111,7 +114,7 @@ def test_regenerate_passes_the_stored_transcript():
     dev = _dev()
     island_id, _ = _voice_island(dev, "stored words")
     bg = BackgroundTasks()
-    out = asyncio.run(main.regenerate(
+    out = asyncio.run(create_r.regenerate(
         island_id, bg, complexity="simple", count=8, authorization=AUTH, x_shadow_device=dev))
     assert out["status"] == "working"
     assert bg.tasks[0].func.__wrapped__ is build._build_island
@@ -132,7 +135,7 @@ def _fake_synth(island_id, lines, speaker, language="ja"):
 
 
 def _import(dev, bg=None, topic="greetings", native="en"):
-    return asyncio.run(main.import_phrases(
+    return asyncio.run(phrases_r.import_phrases(
         bg or BackgroundTasks(), topic=topic, speaker=OTHER_JA, language="ja", native=native,
         authorization=AUTH, x_shadow_device=dev))
 

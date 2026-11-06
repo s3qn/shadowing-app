@@ -8,6 +8,7 @@ import pytest
 from fastapi import HTTPException
 
 import main
+from routers import progress as progress_r
 import config
 import progression
 import schedule
@@ -143,11 +144,11 @@ def test_source_backfill_stamps_known_islands_and_is_idempotent():
 
 
 def _get(name, owner):
-    return asyncio.run(main.profile_get(username=name, authorization=AUTH, x_shadow_device=owner))
+    return asyncio.run(progress_r.profile_get(username=name, authorization=AUTH, x_shadow_device=owner))
 
 
 def test_profile_route_shape_case_insensitive_and_404(monkeypatch):
-    monkeypatch.setattr(main, "_all_handles", lambda: user_profile.all_usernames())
+    monkeypatch.setattr(progress_r, "_all_handles", lambda: user_profile.all_usernames())
     owner = f"user_{_id()}"
     user_profile.set_username(owner, "shape_cat")
     progression.award(owner, f"seed:{_id()}", 100, 0)
@@ -173,7 +174,7 @@ def test_profile_route_shape_case_insensitive_and_404(monkeypatch):
 
 
 def test_profile_without_progress_is_zeros(monkeypatch):
-    monkeypatch.setattr(main, "_all_handles", lambda: user_profile.all_usernames())
+    monkeypatch.setattr(progress_r, "_all_handles", lambda: user_profile.all_usernames())
     owner = f"user_{_id()}"
     user_profile.set_username(owner, "fresh_cat")
     res = _get("fresh_cat", owner)
@@ -196,7 +197,7 @@ def test_profile_without_progress_is_zeros(monkeypatch):
 
 
 def test_profile_by_language_and_earned_achievement(monkeypatch):
-    monkeypatch.setattr(main, "_all_handles", lambda: user_profile.all_usernames())
+    monkeypatch.setattr(progress_r, "_all_handles", lambda: user_profile.all_usernames())
     owner = f"user_{_id()}"
     user_profile.set_username(owner, "lang_cat")
     isl = _id()

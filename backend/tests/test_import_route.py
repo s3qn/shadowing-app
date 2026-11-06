@@ -18,6 +18,7 @@ import pytest
 from fastapi import HTTPException
 
 import main
+from routers import create as create_r
 from services import line_audio
 import config
 import media
@@ -232,7 +233,7 @@ def test_regenerate_refuses_an_imported_island():
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(main.regenerate(
+        asyncio.run(create_r.regenerate(
             island_id, background=None, complexity="complex", count=8,
             authorization=f"Bearer {config.SHADOW_TOKEN}", x_shadow_device="aaaaaaaa-0000-4000-8000-00000000000a",
         ))
@@ -248,7 +249,7 @@ def test_revoice_refuses_an_imported_island():
     store.set_ready(island_id, "Clip")
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(main.revoice(
+        asyncio.run(create_r.revoice(
             island_id, background=None, speaker=3, authorization=f"Bearer {config.SHADOW_TOKEN}",
             x_shadow_device="aaaaaaaa-0000-4000-8000-00000000000a",
         ))
@@ -304,7 +305,7 @@ def _call(data: bytes = b"audio", **kwargs):
         authorization=AUTH, x_shadow_device=DEVICE,
     )
     args.update(kwargs)
-    return asyncio.run(main.create_import_island(**args))
+    return asyncio.run(create_r.create_import_island(**args))
 
 
 def test_import_route_rejects_a_negative_start():

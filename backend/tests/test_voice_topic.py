@@ -9,6 +9,7 @@ import pytest
 from fastapi import BackgroundTasks, HTTPException, UploadFile
 
 import main
+from routers import create as create_r
 import config
 import media
 import store
@@ -77,7 +78,7 @@ def pipeline(monkeypatch):
 
 def _post(device, topic=1, language="ja", speaker=JA_VOICE, native="en"):
     background = BackgroundTasks()
-    out = asyncio.run(main.create_island(
+    out = asyncio.run(create_r.create_island(
         background, audio=UploadFile(file=io.BytesIO(b"x"), filename="r.m4a"),
         complexity="simple", register="polite", language=language, speaker=speaker,
         native=native, count=10, topic=topic,
@@ -108,7 +109,7 @@ def test_topic_island_is_a_phrases_island_with_tatoeba_ids(pipeline):
     assert [ln["tatoeba_id"] for ln in island["lines"]] == [111, None]
     assert store.count_builds_today(dev, "create") == 1
     with pytest.raises(HTTPException) as err:
-        asyncio.run(main.regenerate(
+        asyncio.run(create_r.regenerate(
             out["id"], BackgroundTasks(), complexity="complex", count=8,
             authorization=AUTH, x_shadow_device=dev,
         ))

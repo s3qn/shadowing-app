@@ -7,6 +7,7 @@ HTTP request, so these need no TestClient and no network."""
 import inspect
 
 import main
+from routers import create as create_r
 
 
 def _form_default(func, name):
@@ -14,9 +15,9 @@ def _form_default(func, name):
 
 
 def test_create_island_register_defaults_to_polite():
-    assert _form_default(main.create_island, "register") == "polite"
+    assert _form_default(create_r.create_island, "register") == "polite"
 
 
 def test_create_island_register_is_a_valid_register_rule():
     # The default must itself pass the route's own validation.
-    assert _form_default(main.create_island, "register") in main.generate.REGISTER_RULES
+    assert _form_default(create_r.create_island, "register") in main.generate.REGISTER_RULES

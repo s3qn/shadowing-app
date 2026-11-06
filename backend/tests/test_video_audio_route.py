@@ -13,6 +13,7 @@ import beta
 import main
 import config
 import media
+from routers import align as align_r
 import store
 
 DEV = "dddddddd-0000-4000-8000-0000000000a1"
@@ -123,8 +124,8 @@ def test_video_reports_closed_after_last_attempt():
 def test_startup_stops_leftover_scopes_before_requeue(monkeypatch):
     order = []
     monkeypatch.setattr(align, "stop_leftover_scopes", lambda: order.append("stop"))
-    monkeypatch.setattr(main, "_align_recover", lambda: order.append("recover"))
-    monkeypatch.setattr(main, "_align_consumer", lambda: asyncio.sleep(0))
+    monkeypatch.setattr(align_r, "_align_recover", lambda: order.append("recover"))
+    monkeypatch.setattr(align_r, "_align_consumer", lambda: asyncio.sleep(0))
     asyncio.run(main._align_startup())
     assert order == ["stop", "recover"]
 
@@ -139,7 +140,7 @@ def fake_wav(src, dst, max_seconds=None):
 
 
 def run_align(island_id):
-    asyncio.run(main._align_one(island_id))
+    asyncio.run(align_r._align_one(island_id))
 
 
 def stage_upload(island_id):
@@ -223,7 +224,7 @@ def test_recovery_requeues_or_fails():
         store.set_align_status(island_id, "running")
     store.video_audio_path(kept, "src").write_bytes(b"x")
     store.video_audio_path(lost, "src").unlink(missing_ok=True)
-    main._align_recover()
+    align_r._align_recover()
     assert store.get_video(kept)["align_status"] == "queued"
     video = store.get_video(lost)
     assert (video["align_status"], video["align_error"]) == ("failed", "align_interrupted")

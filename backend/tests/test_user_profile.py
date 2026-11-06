@@ -7,6 +7,7 @@ import pytest
 from fastapi import HTTPException
 
 import main
+from routers import progress as progress_r
 import dependencies
 import user_profile as up
 
@@ -90,21 +91,21 @@ def test_check_own_handle_available():
 def test_routes_reject_bare_device(monkeypatch):
     monkeypatch.setattr(dependencies, "require_token", lambda a: None)
     with pytest.raises(HTTPException) as e:
-        asyncio.run(main.username_get(authorization=None, x_shadow_device="abcdef123456"))
+        asyncio.run(progress_r.username_get(authorization=None, x_shadow_device="abcdef123456"))
     assert e.value.status_code == 401
 
 
 def test_route_codes(monkeypatch):
     monkeypatch.setattr(dependencies, "require_token", lambda a: None)
     run = lambda coro: asyncio.run(coro)
-    assert run(main.username_set(username="Cat_One", authorization=None, x_shadow_device=A)) == {"username": "cat_one"}
+    assert run(progress_r.username_set(username="Cat_One", authorization=None, x_shadow_device=A)) == {"username": "cat_one"}
     with pytest.raises(HTTPException) as e:
-        run(main.username_set(username="cat_one", authorization=None, x_shadow_device=B))
+        run(progress_r.username_set(username="cat_one", authorization=None, x_shadow_device=B))
     assert e.value.status_code == 409 and e.value.detail == {"code": "username_taken"}
     with pytest.raises(HTTPException) as e:
-        run(main.username_set(username="no", authorization=None, x_shadow_device=B))
+        run(progress_r.username_set(username="no", authorization=None, x_shadow_device=B))
     assert e.value.status_code == 400
-    assert run(main.username_get(authorization=None, x_shadow_device=A)) == {"username": "cat_one"}
+    assert run(progress_r.username_get(authorization=None, x_shadow_device=A)) == {"username": "cat_one"}
 
 
 def test_serial_is_not_reused_after_the_newest_account_is_deleted():

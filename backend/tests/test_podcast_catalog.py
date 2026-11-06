@@ -14,6 +14,7 @@ import pytest
 from fastapi import HTTPException
 
 import main
+from routers import podcasts as podcasts_r
 import config
 import podcast
 import podcast_catalog
@@ -172,13 +173,13 @@ def test_search_a_plain_query_calls_itunes_search_with_the_right_country(monkeyp
 
 
 def test_podcasts_catalog_route_returns_ja_sections():
-    result = main.podcasts_catalog(language="ja", authorization=AUTH)
+    result = podcasts_r.podcasts_catalog(language="ja", authorization=AUTH)
 
     assert len(result["sections"]) == 3
 
 
 def test_podcasts_catalog_route_passes_the_interface_language_through():
-    result = main.podcasts_catalog(language="ja", ui="he", authorization=AUTH)
+    result = podcasts_r.podcasts_catalog(language="ja", ui="he", authorization=AUTH)
 
     assert result == podcast_catalog.catalog("ja", "he")
     assert result != podcast_catalog.catalog("ja")
@@ -186,7 +187,7 @@ def test_podcasts_catalog_route_passes_the_interface_language_through():
 
 def test_podcasts_catalog_route_404s_on_an_unknown_language():
     with pytest.raises(HTTPException) as exc_info:
-        main.podcasts_catalog(language="fr", authorization=AUTH)
+        podcasts_r.podcasts_catalog(language="fr", authorization=AUTH)
 
     assert exc_info.value.status_code == 404
 
@@ -198,7 +199,7 @@ def test_podcasts_search_route_wraps_results(monkeypatch):
 
     monkeypatch.setattr(main.podcast_catalog, "search", fake_search)
 
-    result = asyncio.run(main.podcasts_search(q="test", language="ja", authorization=AUTH, x_shadow_device="0123456789abcdef"))
+    result = asyncio.run(podcasts_r.podcasts_search(q="test", language="ja", authorization=AUTH, x_shadow_device="0123456789abcdef"))
 
     assert result == {"results": [
         {"collectionId": 1, "title": "T", "feedUrl": "u",
@@ -213,6 +214,6 @@ def test_podcasts_search_route_maps_podcast_error_to_400(monkeypatch):
     monkeypatch.setattr(main.podcast_catalog, "search", fake_search)
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(main.podcasts_search(q="test", language="ja", authorization=AUTH, x_shadow_device="0123456789abcdef"))
+        asyncio.run(podcasts_r.podcasts_search(q="test", language="ja", authorization=AUTH, x_shadow_device="0123456789abcdef"))
 
     assert exc_info.value.status_code == 400

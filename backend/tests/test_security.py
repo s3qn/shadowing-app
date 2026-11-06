@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 import beta
 import main
+from routers import voices as voices_r
 import middleware
 import config
 import dependencies
@@ -58,7 +59,7 @@ def test_voice_preview_hides_the_voice_error(monkeypatch, tmp_path):
         raise voicevox.VoicevoxError("http://127.0.0.1:50021 down")
 
     monkeypatch.setattr(main.voices, "speak", boom)
-    monkeypatch.setattr(main, "PREVIEW_DIR", tmp_path)
+    monkeypatch.setattr(voices_r, "PREVIEW_DIR", tmp_path)
     r = client.get("/shadow/voices/3/preview", headers={**AUTH, "X-Shadow-Device": DEV})
     assert r.status_code == 502
     assert r.json() == {"detail": {"code": "voice_unreachable"}}

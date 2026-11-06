@@ -9,6 +9,9 @@ import pytest
 from fastapi import BackgroundTasks, HTTPException, UploadFile
 
 import main
+from routers import phrases as phrases_r
+from routers import review as review_r
+from routers import takes as takes_r
 from services import line_audio
 import config
 import dependencies
@@ -56,7 +59,7 @@ def test_hebrew_gloss_and_title_land():
 
 
 def _import(dev, speaker=3, topic="greetings"):
-    return asyncio.run(main.import_phrases(
+    return asyncio.run(phrases_r.import_phrases(
         BackgroundTasks(), topic=topic, speaker=speaker, language="ja", native="en",
         authorization=AUTH, x_shadow_device=dev))
 
@@ -113,11 +116,11 @@ def test_upload_is_lenient_only_on_the_guides_first_greetings_take(monkeypatch, 
     monkeypatch.setattr(line_audio, "_load_take_profile", lambda aec, device: None)
     monkeypatch.setattr(dependencies, "_take_use_slot", lambda device, kind: None)
     monkeypatch.setattr(line_audio, "_resolve_line_audio", fake_audio)
-    monkeypatch.setattr(main, "_run_clean", fake_clean)
+    monkeypatch.setattr(takes_r, "_run_clean", fake_clean)
     monkeypatch.setattr(progression, "award_take", lambda *a, **k: None)
 
     def lenient(guide="1"):
-        asyncio.run(main.upload_take(
+        asyncio.run(takes_r.upload_take(
             island_id=island["id"], idx=0, speed=1.0, calibrate="0", start=-1, end=-1, lag=0,
             line_start=-1, guide=guide, take=UploadFile(file=io.BytesIO(b"RIFF"), filename="t.wav"),
             authorization=AUTH, x_shadow_device=owner))
@@ -152,7 +155,7 @@ def test_intro_seeds_a_ready_three_line_starter_island(lang):
 
 
 def _start(dev, language="ja", native="en", level="new"):
-    return asyncio.run(main.starter_start(
+    return asyncio.run(review_r.starter_start(
         language=language, native=native, level=level, authorization=AUTH,
         x_shadow_device=dev))
 

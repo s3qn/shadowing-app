@@ -11,6 +11,8 @@ from fastapi import HTTPException
 import energy
 import guardrails
 import main
+from routers import phrases as phrases_r
+from routers import progress as progress_r
 import dependencies
 import starter
 import store
@@ -94,7 +96,7 @@ def test_phrases_cache_hit_burns_nothing(monkeypatch):
     d = _dev()
     for _ in range(8):
         try:
-            asyncio.run(main.import_phrases(
+            asyncio.run(phrases_r.import_phrases(
                 background=main.BackgroundTasks(), topic="greetings", speaker=3,
                 language="ja", native="en", authorization="Bearer test-token",
                 x_shadow_device=d))
@@ -181,7 +183,7 @@ def test_catch_slot_charges_and_blocks(tmp_path):
 def test_energy_route_has_builds():
     d = _dev()
     dependencies._take_build_slot(d, "create", "create")
-    snap = asyncio.run(main.energy_get(
+    snap = asyncio.run(progress_r.energy_get(
         username="", authorization="Bearer test-token", x_shadow_device=d))
     assert snap["on"] is True and snap["builds_left"] == 4 and snap["builds_max"] == 5
     assert snap["daily_max"] == 1000 and "refill_at" in snap

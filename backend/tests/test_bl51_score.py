@@ -8,6 +8,7 @@ import pytest
 from fastapi import UploadFile
 
 import main
+from routers import takes as takes_r
 from services import line_audio
 import config
 import dependencies
@@ -74,7 +75,7 @@ ANALYSIS = {"note": "", "moras": [{"nucleus": "hit"}]}
 
 def test_total_fills_fields(monkeypatch, tmp_path):
     monkeypatch.setattr(transcribe, "transcribe", lambda *a, **k: {"ok": True, "text": LINE})
-    out = main._bl51_total(_score(), ANALYSIS, tmp_path / "t.wav", LINE, "ja")
+    out = takes_r._bl51_total(_score(), ANALYSIS, tmp_path / "t.wav", LINE, "ja")
     assert out["total"] == 100 and out["heard"] == LINE and out["totalNote"] == ""
     assert out["parts"] == {"content": 100, "timing": 100, "pitch": 100}
 
@@ -84,7 +85,7 @@ def test_total_skips_whisper_on_silence(monkeypatch, tmp_path):
         raise AssertionError("whisper ran")
 
     monkeypatch.setattr(transcribe, "transcribe", boom)
-    out = main._bl51_total(_score(SILENT), ANALYSIS, tmp_path / "t.wav", LINE, "ja")
+    out = takes_r._bl51_total(_score(SILENT), ANALYSIS, tmp_path / "t.wav", LINE, "ja")
     assert out["total"] is None and out["totalNote"] == SILENT and out["heard"] == ""
 
 
@@ -93,7 +94,7 @@ def test_total_never_raises(monkeypatch, tmp_path):
         raise RuntimeError("model")
 
     monkeypatch.setattr(transcribe, "transcribe", boom)
-    out = main._bl51_total(_score(), ANALYSIS, tmp_path / "t.wav", LINE, "ja")
+    out = takes_r._bl51_total(_score(), ANALYSIS, tmp_path / "t.wav", LINE, "ja")
     assert out["total"] is None and out["totalNote"] == "Could not score the take"
 
 
@@ -109,9 +110,9 @@ def test_upload_stores_a_row(monkeypatch, tmp_path):
     monkeypatch.setattr(line_audio, "_load_take_profile", lambda aec, device: None)
     monkeypatch.setattr(dependencies, "_take_use_slot", lambda device, kind: None)
     monkeypatch.setattr(line_audio, "_resolve_line_audio", fake_audio)
-    monkeypatch.setattr(main, "_run_clean", lambda *a, **k: {
+    monkeypatch.setattr(takes_r, "_run_clean", lambda *a, **k: {
         "score": {"words": ["ok"], "total": 88, "parts": {"content": 90, "timing": 80, "pitch": None}}})
-    asyncio.run(main.upload_take(
+    asyncio.run(takes_r.upload_take(
         island_id="isl", idx=0, speed=1.0, calibrate="0", start=-1, end=-1, lag=0, line_start=-1,
         take=UploadFile(file=io.BytesIO(b"RIFF"), filename="t.wav"),
         authorization=AUTH, x_shadow_device=owner,
@@ -143,8 +144,8 @@ def test_upload_silent_take_skips_the_profile(monkeypatch, tmp_path):
     monkeypatch.setattr(line_audio, "_load_take_profile", no_profile)
     monkeypatch.setattr(dependencies, "_take_use_slot", lambda device, kind: None)
     monkeypatch.setattr(line_audio, "_resolve_line_audio", fake_audio)
-    monkeypatch.setattr(main, "_run_clean", spy)
-    asyncio.run(main.upload_take(
+    monkeypatch.setattr(takes_r, "_run_clean", spy)
+    asyncio.run(takes_r.upload_take(
         island_id="isl", idx=0, speed=1.0, calibrate="0", start=-1, end=-1, lag=0, line_start=0,
         silent="1",
         take=UploadFile(file=io.BytesIO(b"RIFF"), filename="t.wav"),
@@ -181,7 +182,7 @@ def test_run_clean_silent_anchors_on_clock(monkeypatch, tmp_path):
     monkeypatch.setattr(take_analysis, "analyse", lambda *a, **k: ANALYSIS)
     monkeypatch.setattr(transcribe, "transcribe", lambda *a, **k: {"ok": True, "text": LINE})
     line = {"ja": LINE, "words": WORDS, "timeline": []}
-    out = main._run_clean(tmp_path / "u.wav", tmp_path / "ref.wav", None, "isl", 0, line, 1.0,
+    out = takes_r._run_clean(tmp_path / "u.wav", tmp_path / "ref.wav", None, "isl", 0, line, 1.0,
                           None, 0, 0, "ja", silent=True)
     assert out["cleaned"] is False
     assert out["score"]["anchor"] == "clock" and out["score"]["anchorMs"] == 0.0
@@ -225,14 +226,14 @@ def test_phrase_take_scores_against_its_span(monkeypatch, tmp_path):
         seen.update(text=line_text, echo=echo_left)
         return score
 
-    monkeypatch.setattr(main, "_bl51_total", spy)
+    monkeypatch.setattr(takes_r, "_bl51_total", spy)
     line = {"ja": LINE, "words": WORDS, "timeline": []}
-    main._run_clean(tmp_path / "u.wav", tmp_path / "ref.wav", None, "isl", 0, line, 1.0,
+    takes_r._run_clean(tmp_path / "u.wav", tmp_path / "ref.wav", None, "isl", 0, line, 1.0,
                     (650, 1200), 0, 0, "ja")
     assert seen == {"text": "ございます", "echo": False}
 
     monkeypatch.setattr(aec, "heard_speaker", lambda r, m: True)
-    main._run_clean(tmp_path / "u.wav", tmp_path / "ref.wav", None, "isl", 0, line, 1.0,
+    takes_r._run_clean(tmp_path / "u.wav", tmp_path / "ref.wav", None, "isl", 0, line, 1.0,
                     None, 0, 0, "ja")
     assert seen == {"text": LINE, "echo": True}
 
@@ -242,7 +243,7 @@ def test_total_drops_content_when_the_echo_is_left(monkeypatch, tmp_path):
         raise AssertionError("whisper ran on an echo")
 
     monkeypatch.setattr(transcribe, "transcribe", boom)
-    out = main._bl51_total(_score(), ANALYSIS, tmp_path / "t.wav", LINE, "ja", echo_left=True)
+    out = takes_r._bl51_total(_score(), ANALYSIS, tmp_path / "t.wav", LINE, "ja", echo_left=True)
     assert out["parts"] == {"content": None, "timing": 100, "pitch": 100}
     assert out["total"] == 100 and out["heard"] == ""
 
@@ -255,7 +256,7 @@ def test_total_asks_whisper_for_the_fast_path(monkeypatch, tmp_path):
         return {"ok": True, "text": LINE}
 
     monkeypatch.setattr(transcribe, "transcribe", fake)
-    main._bl51_total(_score(), ANALYSIS, tmp_path / "t.wav", LINE, "ja")
+    takes_r._bl51_total(_score(), ANALYSIS, tmp_path / "t.wav", LINE, "ja")
     assert seen == {"language": "ja", "fast": True}
 
 

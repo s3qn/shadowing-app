@@ -9,6 +9,7 @@ import asyncio
 import pytest
 
 import main
+from routers import words as words_r
 import config
 import store
 
@@ -31,12 +32,12 @@ def test_explain_chat_corrupt_cache_row_is_treated_as_a_miss(monkeypatch):
         main.explain, "chat_answer", lambda *a, **k: '{"summary": "fresh answer"}'
     )
 
-    body = main.ExplainChatBody(
+    body = words_r.ExplainChatBody(
         sentence_ja="公園を歩きます。", sentence_en="I walk in the park.",
         marked=["歩きます"], question="explain this test route", history=[],
     )
 
-    result = asyncio.run(main.explain_chat(body, authorization=AUTH, x_shadow_device="0123456789abcdef"))
+    result = asyncio.run(words_r.explain_chat(body, authorization=AUTH, x_shadow_device="0123456789abcdef"))
 
     assert result == {"summary": "fresh answer"}
 
@@ -48,11 +49,11 @@ def test_explain_chat_corrupt_cache_row_is_overwritten_with_the_fresh_answer(mon
         main.explain, "chat_answer", lambda *a, **k: '{"summary": "fresh answer"}'
     )
 
-    body = main.ExplainChatBody(
+    body = words_r.ExplainChatBody(
         sentence_ja="公園を歩きます。", sentence_en="I walk in the park.",
         marked=["歩きます"], question="explain this test route", history=[],
     )
-    asyncio.run(main.explain_chat(body, authorization=AUTH, x_shadow_device="0123456789abcdef"))
+    asyncio.run(words_r.explain_chat(body, authorization=AUTH, x_shadow_device="0123456789abcdef"))
 
     assert store.get_explain_answer("公園を歩きます。", ["歩きます"], "explain this test route") == (
         '{"summary": "fresh answer"}'

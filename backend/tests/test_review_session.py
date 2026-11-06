@@ -9,6 +9,8 @@ from fastapi import HTTPException
 
 import beta
 import main
+from routers import review as review_r
+from routers import takes as takes_r
 import config
 import progression
 import review_deck
@@ -149,9 +151,9 @@ def test_seconds_per_sentence_default_and_clamp():
 
 
 def _finish_route(session_id, sentences=3, seconds=120.0, lines=()):
-    body = main.ReviewFinishedBody(session_id=session_id, sentences=sentences, seconds=seconds,
+    body = takes_r.ReviewFinishedBody(session_id=session_id, sentences=sentences, seconds=seconds,
                                    local_day=progression._today(), lines=list(lines))
-    return asyncio.run(main.review_session_finished(
+    return asyncio.run(takes_r.review_session_finished(
         body=body, authorization=AUTH, x_shadow_device=DEV))
 
 
@@ -164,14 +166,14 @@ def test_finish_unknown_id_writes_nothing_and_route_still_pays():
 
 def test_routes_plan_start_finish_and_bad_size():
     _island("voice", 6)
-    got = asyncio.run(main.review_session_plan(size=10, authorization=AUTH, x_shadow_device=DEV))
+    got = asyncio.run(review_r.review_session_plan(size=10, authorization=AUTH, x_shadow_device=DEV))
     assert got["count"] == 6 and got["session_id"] is None
     with pytest.raises(HTTPException) as e:
-        asyncio.run(main.review_session_plan(size=15, authorization=AUTH, x_shadow_device=DEV))
+        asyncio.run(review_r.review_session_plan(size=15, authorization=AUTH, x_shadow_device=DEV))
     assert e.value.status_code == 422
-    started = asyncio.run(main.review_session_start(
-        body=main.SessionStartBody(size=10), authorization=AUTH, x_shadow_device=DEV))
-    lines = [main.SessionLine(island_id="a", idx=i, seconds=9, score=None) for i in range(3)]
+    started = asyncio.run(review_r.review_session_start(
+        body=review_r.SessionStartBody(size=10), authorization=AUTH, x_shadow_device=DEV))
+    lines = [takes_r.SessionLine(island_id="a", idx=i, seconds=9, score=None) for i in range(3)]
     out = _finish_route(started["session_id"], lines=lines)
     assert "xp" in out
     with store.connect() as conn:
@@ -202,7 +204,7 @@ def test_plan_size_5_caps_at_two_projects():
         _island("voice", 4)
     out = rs.plan(DEV, 5)
     assert out["count"] == 5 and len(out["projects"]) == 2
-    got = asyncio.run(main.review_session_plan(size=5, authorization=AUTH, x_shadow_device=DEV))
+    got = asyncio.run(review_r.review_session_plan(size=5, authorization=AUTH, x_shadow_device=DEV))
     assert got["count"] == 5
 
 
@@ -220,11 +222,11 @@ def test_plan_order_puts_projects_first_and_keeps_shares_and_weakest():
     assert 0 not in shares[voice]
     # an unknown key changes nothing
     assert [x["island_id"] for x in rs.plan(DEV, 10, ["nope"])["projects"]] == [pod, voice]
-    started = asyncio.run(main.review_session_start(
-        body=main.SessionStartBody(size=10, order=[voice, pod]), authorization=AUTH,
+    started = asyncio.run(review_r.review_session_start(
+        body=review_r.SessionStartBody(size=10, order=[voice, pod]), authorization=AUTH,
         x_shadow_device=DEV))
     assert [x["island_id"] for x in started["projects"]] == [voice, pod]
-    got = asyncio.run(main.review_session_plan(size=10, order=f"{voice},{pod}",
+    got = asyncio.run(review_r.review_session_plan(size=10, order=f"{voice},{pod}",
                                                authorization=AUTH, x_shadow_device=DEV))
     assert got["first"]["island_id"] == voice
 
@@ -244,21 +246,21 @@ def test_edited_plan_counts_order_added_project_and_weakest():
     assert [(x["island_id"], len(x["picked"])) for x in out["projects"]] == [(later, 3), (pod, 6)]
     assert out["projects"][0]["picked"] == [1, 2, 3]  # weakest: the scored line 0 drops out
     assert out["size"] == 9 and out["count"] == 9 and out["first"]["island_id"] == later
-    started = asyncio.run(main.review_session_start(
-        body=main.SessionStartBody(projects=[main.SessionPick(island_id=pod, count=2)]),
+    started = asyncio.run(review_r.review_session_start(
+        body=review_r.SessionStartBody(projects=[review_r.SessionPick(island_id=pod, count=2)]),
         authorization=AUTH, x_shadow_device=DEV))
     assert started["count"] == 2 and started["size"] == 2
     with store.connect() as conn:
         row = conn.execute("SELECT * FROM review_sessions WHERE id=?",
                            (started["session_id"],)).fetchone()
     assert row["planned_sentences"] == 2
-    got = asyncio.run(main.review_session_plan(size=20, projects=f"{pod}:1,{later}:2",
+    got = asyncio.run(review_r.review_session_plan(size=20, projects=f"{pod}:1,{later}:2",
                                                authorization=AUTH, x_shadow_device=DEV))
     assert [len(x["picked"]) for x in got["projects"]] == [1, 2]
     with pytest.raises(HTTPException):
-        asyncio.run(main.review_session_plan(size=20, projects="x:a", authorization=AUTH,
+        asyncio.run(review_r.review_session_plan(size=20, projects="x:a", authorization=AUTH,
                                              x_shadow_device=DEV))
-    listed = asyncio.run(main.review_session_projects(authorization=AUTH, x_shadow_device=DEV))
+    listed = asyncio.run(review_r.review_session_projects(authorization=AUTH, x_shadow_device=DEV))
     assert len(listed["projects"]) == 2
 
 
@@ -270,10 +272,10 @@ def test_available_and_projects_route_list_every_saved_project():
     by_id = {p["island_id"]: p for p in got}
     assert len(got) == 2 and by_id[voice]["total"] >= 2
     assert set(by_id[voice]) == {"island_id", "title", "source", "kind", "total"}
-    out = asyncio.run(main.review_session_projects(authorization=AUTH, x_shadow_device=DEV))
+    out = asyncio.run(review_r.review_session_projects(authorization=AUTH, x_shadow_device=DEV))
     assert {p["island_id"] for p in out["projects"]} == set(by_id)
     with pytest.raises(HTTPException) as e:
-        asyncio.run(main.review_session_projects(authorization="Bearer nope", x_shadow_device=DEV))
+        asyncio.run(review_r.review_session_projects(authorization="Bearer nope", x_shadow_device=DEV))
     assert e.value.status_code in (401, 403)
 
 
@@ -330,14 +332,14 @@ def test_language_filter_keeps_only_the_learning_language():
     edited = rs.plan(DEV, 5, edit=[(es_isl, 2), (ja_pod, 2)], language="ja")
     assert [p["island_id"] for p in edited["projects"]] == [ja_pod]
 
-    got = asyncio.run(main.review_session_plan(size=30, language="es", authorization=AUTH,
+    got = asyncio.run(review_r.review_session_plan(size=30, language="es", authorization=AUTH,
                                                x_shadow_device=DEV))
     assert {p["island_id"] for p in got["projects"]} == {es_isl, es_voice}
-    listed = asyncio.run(main.review_session_projects(language="ja", authorization=AUTH,
+    listed = asyncio.run(review_r.review_session_projects(language="ja", authorization=AUTH,
                                                       x_shadow_device=DEV))
     assert [p["island_id"] for p in listed["projects"]] == [ja_pod]
-    started = asyncio.run(main.review_session_start(
-        body=main.SessionStartBody(size=30, language="ja"), authorization=AUTH,
+    started = asyncio.run(review_r.review_session_start(
+        body=review_r.SessionStartBody(size=30, language="ja"), authorization=AUTH,
         x_shadow_device=DEV))
     assert [p["island_id"] for p in started["projects"]] == [ja_pod]
 
@@ -357,13 +359,13 @@ def test_beta_off_drops_video_and_podcast_cards_from_plan_available_and_routes()
     assert ids(edited["projects"]) == {voice}
     assert ids(rs.plan(DEV, 30)["projects"]) == {pod, vid, voice}
     # The routes ask _beta_on: a plain device with no flag is off.
-    got = asyncio.run(main.review_session_plan(size=30, authorization=AUTH, x_shadow_device=DEV))
+    got = asyncio.run(review_r.review_session_plan(size=30, authorization=AUTH, x_shadow_device=DEV))
     assert ids(got["projects"]) == {voice}
-    listed = asyncio.run(main.review_session_projects(authorization=AUTH, x_shadow_device=DEV))
+    listed = asyncio.run(review_r.review_session_projects(authorization=AUTH, x_shadow_device=DEV))
     assert ids(listed["projects"]) == {voice}
-    started = asyncio.run(main.review_session_start(
-        body=main.SessionStartBody(size=30), authorization=AUTH, x_shadow_device=DEV))
+    started = asyncio.run(review_r.review_session_start(
+        body=review_r.SessionStartBody(size=30), authorization=AUTH, x_shadow_device=DEV))
     assert ids(started["projects"]) == {voice}
     beta.set_flag(DEV, True, "test")
-    got = asyncio.run(main.review_session_plan(size=30, authorization=AUTH, x_shadow_device=DEV))
+    got = asyncio.run(review_r.review_session_plan(size=30, authorization=AUTH, x_shadow_device=DEV))
     assert ids(got["projects"]) == {pod, vid, voice}

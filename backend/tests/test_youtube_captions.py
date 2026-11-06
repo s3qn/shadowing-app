@@ -9,6 +9,7 @@ import pytest
 from fastapi import BackgroundTasks, HTTPException
 
 import main
+from routers import youtube as youtube_r
 import config
 from services import captions
 import dependencies
@@ -134,7 +135,7 @@ def _post(body, device=None, raw=None):
             yield data
 
     bg = BackgroundTasks()
-    out = asyncio.run(main.import_youtube_captions(
+    out = asyncio.run(youtube_r.import_youtube_captions(
         Req(), bg, authorization=AUTH, x_shadow_device=device))
     return out, bg
 

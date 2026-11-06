@@ -17,6 +17,7 @@ import pytest
 from fastapi import HTTPException, UploadFile
 
 import main
+from routers import takes as takes_r
 from services import line_audio
 import config
 import dependencies
@@ -162,11 +163,11 @@ def _fake_take(monkeypatch, tmp_path, owner: str, calls: list) -> None:
     monkeypatch.setattr(line_audio, "_load_take_profile", lambda aec, device: None)
     monkeypatch.setattr(dependencies, "_take_use_slot", lambda device, kind: None)
     monkeypatch.setattr(line_audio, "_resolve_line_audio", fake_audio)
-    monkeypatch.setattr(main, "_run_clean", clean)
+    monkeypatch.setattr(takes_r, "_run_clean", clean)
 
 
 def _upload(owner: str, op: str = "") -> dict:
-    return asyncio.run(main.upload_take(
+    return asyncio.run(takes_r.upload_take(
         island_id="isl", idx=0, speed=1.0, calibrate="0", start=-1, end=-1, lag=0,
         line_start=-1, guide="0", silent="0", op=op,
         take=UploadFile(file=io.BytesIO(b"RIFF"), filename="t.wav"),

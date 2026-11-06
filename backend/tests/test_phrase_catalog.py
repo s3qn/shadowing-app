@@ -11,6 +11,8 @@ import pytest
 from fastapi import BackgroundTasks, HTTPException
 
 import main
+from routers import phrases as phrases_r
+from routers import create as create_r
 import config
 import phrase_catalog
 import store
@@ -60,7 +62,7 @@ def fakes(monkeypatch):
 
 def _post(topic="greetings", speaker=JA_VOICE, language="ja", native="en"):
     background = BackgroundTasks()
-    out = asyncio.run(main.import_phrases(
+    out = asyncio.run(phrases_r.import_phrases(
         background, topic=topic, speaker=speaker, language=language, native=native,
         authorization=AUTH, x_shadow_device=DEV,
     ))
@@ -156,13 +158,13 @@ def test_search_ui_language_titles():
 
 
 def test_search_route():
-    out = main.phrases_search(language="es", ui="en", q="shopping", category="", authorization=AUTH)
+    out = phrases_r.phrases_search(language="es", ui="en", q="shopping", category="", authorization=AUTH)
     assert ids(out)[0] == "shopping"
     with pytest.raises(HTTPException) as err:
-        main.phrases_search(language="xx", authorization=AUTH)
+        phrases_r.phrases_search(language="xx", authorization=AUTH)
     assert err.value.status_code == 404
     with pytest.raises(HTTPException) as err:
-        main.phrases_search(language="ja", authorization="Bearer wrong")
+        phrases_r.phrases_search(language="ja", authorization="Bearer wrong")
     assert err.value.status_code in (401, 403)
 
 
@@ -241,13 +243,13 @@ def test_native_he_translates_missing_gloss_and_failure_stays_ready(fakes, monke
 
 def test_repeat_pick_returns_same_island_and_regenerate_refused(fakes):
     first = _post(topic="greetings")
-    again = asyncio.run(main.import_phrases(
+    again = asyncio.run(phrases_r.import_phrases(
         BackgroundTasks(), topic="greetings", speaker=JA_VOICE, language="ja", native="en",
         authorization=AUTH, x_shadow_device=DEV,
     ))
     assert again["id"] == first["id"]
     with pytest.raises(HTTPException) as err:
-        asyncio.run(main.regenerate(
+        asyncio.run(create_r.regenerate(
             first["id"], BackgroundTasks(), complexity="complex", count=8,
             authorization=AUTH, x_shadow_device=DEV,
         ))
@@ -266,12 +268,12 @@ def test_rows_have_he_title_samples_and_added_default():
 
 
 def test_search_marks_added_per_device_and_language(fakes):
-    no_header = main.phrases_search(language="ja", authorization=AUTH)
+    no_header = phrases_r.phrases_search(language="ja", authorization=AUTH)
     assert not any(t["added"] for t in no_header["topics"])
     _post(topic="greetings")
-    out = main.phrases_search(language="ja", authorization=AUTH, x_shadow_device=DEV)
+    out = phrases_r.phrases_search(language="ja", authorization=AUTH, x_shadow_device=DEV)
     assert {t["id"] for t in out["topics"] if t["added"]} == {"greetings"}
-    cat = main.phrases_catalog(language="ja", authorization=AUTH, x_shadow_device=DEV)
+    cat = phrases_r.phrases_catalog(language="ja", authorization=AUTH, x_shadow_device=DEV)
     assert {t["id"] for t in cat["topics"] if t["added"]} == {"greetings"}
-    es = main.phrases_search(language="es", authorization=AUTH, x_shadow_device=DEV)
+    es = phrases_r.phrases_search(language="es", authorization=AUTH, x_shadow_device=DEV)
     assert not any(t["added"] for t in es["topics"])

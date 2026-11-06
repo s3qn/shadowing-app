@@ -27,7 +27,7 @@ async def _build_from_captions(island_id: str, lines: list[dict], title: str,
     island is ready (repair.job, below).
     `asr_tokens` (youtube.asr_tokens of the auto track, when the picked track
     is manual) move ja lines onto the voice first: see asr_transfer."""
-    import main  # lazy: _align_resume still lives in main.py
+    from routers import align as align_r  # lazy: routers.align imports this module
     asr_report: dict | None = None
     try:
         store.set_media(island_id, max((ln["end"] for ln in lines), default=0.0))
@@ -78,13 +78,13 @@ async def _build_from_captions(island_id: str, lines: list[dict], title: str,
         # not start a second pass that races the translation loop below.
         repair_claimed = store.claim_repair(island_id, repair.REPAIR_MAX_ATTEMPTS, repair.VERSION)
         store.set_ready(island_id, title)
-        main._align_resume(island_id)  # bl36-align: an upload that came in mid-build
+        align_r._align_resume(island_id)  # bl36-align: an upload that came in mid-build
         log.info("island %s ready from captions: %d lines, mora rate %.1f/s, trimmed %.1f s of silence",
                  island_id, len(ja_texts), rate, trimmed_s)
     except Exception as exc:
         log.exception("captions build %s failed", island_id)
         store.set_failed(island_id, str(exc))
-        main._align_resume(island_id)
+        align_r._align_resume(island_id)
         return
 
     # Ready already: a translation error only costs the English.

@@ -9,6 +9,8 @@ import pytest
 from fastapi import HTTPException
 
 import main
+from routers import islands as islands_r
+from routers import progress as progress_r
 import config
 import progression
 import store
@@ -36,12 +38,12 @@ def _island(dev: str, n: int = 3) -> str:
 
 
 def _mark(dev: str, iid: str, idx: int) -> dict:
-    return asyncio.run(main.mark_known(
+    return asyncio.run(islands_r.mark_known(
         island_id=iid, idx=idx, authorization=AUTH, x_shadow_device=dev))
 
 
 def _unmark(dev: str, iid: str, idx: int) -> dict:
-    return asyncio.run(main.unmark_known(
+    return asyncio.run(islands_r.unmark_known(
         island_id=iid, idx=idx, authorization=AUTH, x_shadow_device=dev))
 
 
@@ -103,9 +105,9 @@ def test_unmark_is_idempotent_and_island_and_progress_carry_known():
     assert _unmark(dev, iid, 2) == {"known": [], "total": 0}
     assert _unmark(dev, iid, 2) == {"known": [], "total": 0}
     _mark(dev, iid, 0)
-    island = asyncio.run(main.get_island(iid, authorization=AUTH, x_shadow_device=dev))
+    island = asyncio.run(islands_r.get_island(iid, authorization=AUTH, x_shadow_device=dev))
     assert island["known"] == [0]
-    progress = asyncio.run(main.get_progress(authorization=AUTH, x_shadow_device=dev))
+    progress = asyncio.run(progress_r.get_progress(authorization=AUTH, x_shadow_device=dev))
     assert progress["known_lines"] == 1
     assert "xp" in progress
 

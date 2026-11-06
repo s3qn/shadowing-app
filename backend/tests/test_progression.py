@@ -11,6 +11,8 @@ import pytest
 from fastapi import HTTPException, UploadFile
 
 import main
+from routers import account as account_r
+from routers import takes as takes_r
 from services import line_audio
 import config
 import dependencies
@@ -246,7 +248,7 @@ def test_erase_owner_clears_one_owner_and_keeps_another(owner):
         progression.award_take(who, "isl", 0, score={"words": ["ok"] * 4}, line_idxs=[0])
         progression.buy(who, "head.cap_paper")
     assert all(n > 0 for n in _rows(owner).values())
-    main._erase_owner(owner)
+    account_r._erase_owner(owner)
     assert _rows(owner) == {t: 0 for t in TABLES}
     assert all(n > 0 for n in _rows(other).values())
 
@@ -325,11 +327,11 @@ def _wire_take(monkeypatch, tmp_path):
     monkeypatch.setattr(line_audio, "_load_take_profile", lambda aec, device: None)
     monkeypatch.setattr(dependencies, "_take_use_slot", lambda device, kind: None)
     monkeypatch.setattr(line_audio, "_resolve_line_audio", fake_audio)
-    monkeypatch.setattr(main, "_run_clean", lambda *a, **k: {"score": 1})
+    monkeypatch.setattr(takes_r, "_run_clean", lambda *a, **k: {"score": 1})
 
 
 def _upload(owner, calibrate="0"):
-    return asyncio.run(main.upload_take(
+    return asyncio.run(takes_r.upload_take(
         island_id="isl", idx=0, speed=1.0, calibrate=calibrate, start=-1, end=-1,
         lag=0, line_start=-1,
         take=UploadFile(file=io.BytesIO(b"RIFF"), filename="t.wav"),
@@ -345,7 +347,7 @@ def test_upload_take_response_carries_an_award(owner, monkeypatch, tmp_path):
 
 def test_upload_take_scored_pays_quality(owner, monkeypatch, tmp_path):
     _wire_take(monkeypatch, tmp_path)
-    monkeypatch.setattr(main, "_run_clean", lambda *a, **k: {"score": {"words": ["ok"] * 4}})
+    monkeypatch.setattr(takes_r, "_run_clean", lambda *a, **k: {"score": {"words": ["ok"] * 4}})
     out = _upload(owner)
     # take 15 + quality 5 + 5 + day 20 + mastery 60 = 105, all counting toward the cap
     assert out["award"]["milestones"] == ["first_take", "perfect_take", "full_speed", "first_mastery"]
@@ -365,7 +367,7 @@ def test_a_failing_award_does_not_fail_the_take(owner, monkeypatch, tmp_path):
 
 def test_calibration_takes_pay_nothing(owner, monkeypatch, tmp_path):
     _wire_take(monkeypatch, tmp_path)
-    monkeypatch.setattr(main, "_run_calibration", lambda *a, **k: {"ok": True})
+    monkeypatch.setattr(takes_r, "_run_calibration", lambda *a, **k: {"ok": True})
     out = _upload(owner, calibrate="1")
     assert "award" not in out
     assert progression.snapshot(owner)["xp"] == 0

@@ -10,6 +10,7 @@ import pytest
 from fastapi import HTTPException
 
 import main
+from routers import progress as progress_r
 import config
 import progression
 import schedule
@@ -114,8 +115,8 @@ def test_forged_hour_posts_pay_one_day_of_hours_at_most(owner):
     assert last["total_seconds"] == 100 * 3600
     assert last["counted_total_seconds"] == schedule.DAILY_MAX_SECONDS == 3 * 3600
     # Healing on read pays on the counted seconds too, not the shown ones.
-    prog = asyncio.run(main.get_progress(authorization=AUTH, x_shadow_device=owner))
-    cat = asyncio.run(main.cosmetics_catalog(ui="en", authorization=AUTH, x_shadow_device=owner))
+    prog = asyncio.run(progress_r.get_progress(authorization=AUTH, x_shadow_device=owner))
+    cat = asyncio.run(progress_r.cosmetics_catalog(ui="en", authorization=AUTH, x_shadow_device=owner))
     assert prog["listened_seconds"] == 100 * 3600 and prog["counted_seconds"] == 3 * 3600
     assert cat["listened_hours"] == 100 and cat["counted_hours"] == 3
     rungs = {m for m in progression.earned_milestones(owner) if m.startswith("hours_")}
@@ -236,9 +237,9 @@ def test_catalog_route_carries_listened_hours(owner):
     isl = _island(owner)
     _post(isl, owner, 3600)
     _post(isl, owner, 360)
-    out = asyncio.run(main.cosmetics_catalog(ui="en", authorization=AUTH, x_shadow_device=owner))
+    out = asyncio.run(progress_r.cosmetics_catalog(ui="en", authorization=AUTH, x_shadow_device=owner))
     assert out["listened_hours"] == 1.1
-    prog = asyncio.run(main.get_progress(authorization=AUTH, x_shadow_device=owner))
+    prog = asyncio.run(progress_r.get_progress(authorization=AUTH, x_shadow_device=owner))
     assert prog["listened_seconds"] == 3960
     assert "accessory.bell_sprout" in prog["owned"]
 

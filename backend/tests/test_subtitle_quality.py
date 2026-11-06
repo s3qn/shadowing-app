@@ -166,6 +166,7 @@ import align
 import generate
 import main
 import media
+from routers import align as align_r
 from services import captions
 import store
 
@@ -216,8 +217,8 @@ def _fake_wav(src, dst, max_seconds=None):
 
 def _upload_while_building(monkeypatch):
     """An island mid-build with the phone's audio already queued."""
-    monkeypatch.setattr(main, "_align_queue", None)
-    monkeypatch.setattr(main, "_align_deferred", set())
+    monkeypatch.setattr(align_r, "_align_queue", None)
+    monkeypatch.setattr(align_r, "_align_deferred", set())
     monkeypatch.setattr(media, "_to_wav", _fake_wav)
     monkeypatch.setattr(main.repair, "job", lambda *a, **k: None)
     monkeypatch.setattr(generate, "translate_lines", lambda b, *a, **k: ["en"] * len(b))
@@ -237,21 +238,21 @@ def test_upload_during_build_aligns_the_lines_once(monkeypatch):
 
     monkeypatch.setattr(align, "run_job", fake_run)
     iid = _upload_while_building(monkeypatch)
-    asyncio.run(main._align_one(iid))
+    asyncio.run(align_r._align_one(iid))
     video = store.get_video(iid)
     assert (video["align_status"], video["align_attempts"]) == ("queued", 1)
     assert store.video_audio_path(iid, "src").exists() and jobs == []
 
     lines = [{"start": 0.0, "end": 2.0, "text": "上緒がある"}, {"start": 2.0, "end": 14.0, "text": TEXT}]
     asyncio.run(captions._build_from_captions(iid, lines, "Clip", asr=True))
-    queue = main._get_align_queue()
+    queue = align_r._get_align_queue()
     assert queue.qsize() == 1 and queue.get_nowait() == iid
-    asyncio.run(main._align_one(iid))
+    asyncio.run(align_r._align_one(iid))
     assert len(jobs) == 1
     text = " ".join(w["text"] for w in jobs[0]["windows"])
     assert "上緒がある" in text
     assert store.get_video(iid)["align_status"] == "done"
-    assert main._align_deferred == set()
+    assert align_r._align_deferred == set()
 
 
 def test_build_done_before_the_consumer_looks_does_not_requeue(monkeypatch):
@@ -259,18 +260,18 @@ def test_build_done_before_the_consumer_looks_does_not_requeue(monkeypatch):
     monkeypatch.setattr(align, "run_job", lambda job, out, **kw: runs.append(1) or {"windows": []})
     iid = _upload_while_building(monkeypatch)
     asyncio.run(captions._build_from_captions(iid, [{"start": 0.0, "end": 2.0, "text": "上緒がある"}], "Clip", asr=True))
-    assert main._get_align_queue().qsize() == 0
-    asyncio.run(main._align_one(iid))
+    assert align_r._get_align_queue().qsize() == 0
+    asyncio.run(align_r._align_one(iid))
     assert runs == [1] and store.get_video(iid)["align_status"] == "done"
 
 
 def test_failed_build_fails_a_deferred_alignment(monkeypatch):
     iid = _upload_while_building(monkeypatch)
-    asyncio.run(main._align_one(iid))
+    asyncio.run(align_r._align_one(iid))
     monkeypatch.setattr(youtube, "cues_from_lines", lambda lines: 1 / 0)
     asyncio.run(captions._build_from_captions(iid, [{"start": 0.0, "end": 2.0, "text": "x"}], "Clip"))
-    assert main._get_align_queue().get_nowait() == iid
-    asyncio.run(main._align_one(iid))
+    assert align_r._get_align_queue().get_nowait() == iid
+    asyncio.run(align_r._align_one(iid))
     video = store.get_video(iid)
     assert (video["align_status"], video["align_error"]) == ("failed", "align_not_ready")
     assert not store.video_audio_path(iid, "src").exists()

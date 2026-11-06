@@ -6,6 +6,7 @@ import pytest
 from fastapi import HTTPException
 
 import main
+from routers import review as review_r
 import config
 import review_deck
 import schedule
@@ -41,17 +42,17 @@ def _island(source="podcast", wav=True, video=False, device=DEV):
 
 
 def _save(island_id, idx=0, device=DEV):
-    return asyncio.run(main.review_save(
+    return asyncio.run(review_r.review_save(
         island_id=island_id, idx=idx, authorization=AUTH, x_shadow_device=device))
 
 
 def _grade(card_id, result, device=DEV):
-    return asyncio.run(main.review_grade(
+    return asyncio.run(review_r.review_grade(
         card_id=card_id, result=result, authorization=AUTH, x_shadow_device=device))
 
 
 def _due(device=DEV):
-    return asyncio.run(main.review_due(authorization=AUTH, x_shadow_device=device))
+    return asyncio.run(review_r.review_due(authorization=AUTH, x_shadow_device=device))
 
 
 def _status(fn, *a, **kw):
@@ -97,9 +98,9 @@ def test_other_device_gets_404_everywhere():
     card = _save(island)
     assert _status(lambda: _save(island, device=OTHER)).status_code == 404
     assert _status(lambda: _grade(card["id"], "got", OTHER)).status_code == 404
-    assert _status(lambda: asyncio.run(main.review_delete(
+    assert _status(lambda: asyncio.run(review_r.review_delete(
         card_id=card["id"], authorization=AUTH, x_shadow_device=OTHER))).status_code == 404
-    assert _status(lambda: asyncio.run(main.review_audio(
+    assert _status(lambda: asyncio.run(review_r.review_audio(
         card_id=card["id"], token="", device="", authorization=AUTH,
         x_shadow_device=OTHER))).status_code == 404
     assert _due(OTHER)["total"] == 0
@@ -107,11 +108,11 @@ def test_other_device_gets_404_everywhere():
 
 def test_audio_serves_clip_and_404s_embed():
     clip = _save(_island())
-    res = asyncio.run(main.review_audio(
+    res = asyncio.run(review_r.review_audio(
         card_id=clip["id"], token="", device="", authorization=AUTH, x_shadow_device=DEV))
     assert str(res.path) == str(review_deck.clip_path(clip["id"]))
     embed = _save(_island("youtube", wav=False, video=True))
-    assert _status(lambda: asyncio.run(main.review_audio(
+    assert _status(lambda: asyncio.run(review_r.review_audio(
         card_id=embed["id"], token="", device="", authorization=AUTH,
         x_shadow_device=DEV))).status_code == 404
 
@@ -163,7 +164,7 @@ def test_card_500_is_409_full(monkeypatch):
 
 def test_delete_removes_card_and_clip():
     card = _save(_island())
-    asyncio.run(main.review_delete(card_id=card["id"], authorization=AUTH, x_shadow_device=DEV))
+    asyncio.run(review_r.review_delete(card_id=card["id"], authorization=AUTH, x_shadow_device=DEV))
     assert not review_deck.clip_path(card["id"]).exists()
     assert review_deck.get_card(DEV, card["id"]) is None
 
@@ -172,7 +173,7 @@ def test_list_filters_by_island():
     a, b = _island(), _island()
     _save(a)
     _save(b)
-    res = asyncio.run(main.review_list(
+    res = asyncio.run(review_r.review_list(
         island_id=a, authorization=AUTH, x_shadow_device=DEV))
     assert len(res["cards"]) == 1
     assert len(review_deck.list_cards(DEV)) == 2

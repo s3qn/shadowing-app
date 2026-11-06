@@ -7,6 +7,7 @@ from fastapi import HTTPException
 
 import export
 import main
+from routers import islands as islands_r
 import config
 import store
 
@@ -44,7 +45,7 @@ def _island(source, with_wav=True):
 
 
 def _get(island_id, device=DEV):
-    return asyncio.run(main.episode_audio(
+    return asyncio.run(islands_r.episode_audio(
         island_id, token="", device="", authorization=AUTH, x_shadow_device=device,
     ))
 

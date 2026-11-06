@@ -21,6 +21,8 @@ import pytest
 from fastapi import BackgroundTasks, HTTPException
 
 import main
+from routers import podcasts as podcasts_r
+from routers import review as review_r
 import config
 import dependencies
 import podcast
@@ -243,7 +245,7 @@ def test_podcast_episodes_route_lists_the_fixture(monkeypatch):
     monkeypatch.setattr(main.podcast, "fetch", fake_fetch)
 
     result = asyncio.run(
-        main.podcast_episodes(url="https://example.com/feed.xml", authorization=AUTH)
+        podcasts_r.podcast_episodes(url="https://example.com/feed.xml", authorization=AUTH)
     )
 
     assert result["title"] == "Test Japanese Podcast"
@@ -253,7 +255,7 @@ def test_podcast_episodes_route_lists_the_fixture(monkeypatch):
 def test_podcast_episodes_route_refuses_a_private_url():
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(
-            main.podcast_episodes(url="http://127.0.0.1:50021/feed.xml", authorization=AUTH)
+            podcasts_r.podcast_episodes(url="http://127.0.0.1:50021/feed.xml", authorization=AUTH)
         )
 
     assert exc_info.value.status_code == 400
@@ -269,7 +271,7 @@ def test_podcast_episodes_route_gives_a_502_when_the_fetch_fails(monkeypatch):
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(
-            main.podcast_episodes(url="https://example.com/feed.xml", authorization=AUTH)
+            podcasts_r.podcast_episodes(url="https://example.com/feed.xml", authorization=AUTH)
         )
 
     assert exc_info.value.status_code == 502
@@ -299,7 +301,7 @@ def test_import_podcast_episode_creates_a_podcast_island_and_hands_off(monkeypat
 
     background = BackgroundTasks()
     result = asyncio.run(
-        main.import_podcast_episode(
+        podcasts_r.import_podcast_episode(
             background=background,
             audio_url="https://example.com/audio/episode-one.mp3",
             title="Episode One",
@@ -332,7 +334,7 @@ def test_import_podcast_episode_creates_a_podcast_island_and_hands_off(monkeypat
 def test_import_podcast_episode_refuses_a_non_japanese_language():
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(
-            main.import_podcast_episode(
+            podcasts_r.import_podcast_episode(
                 background=BackgroundTasks(),
                 audio_url="https://example.com/audio/episode-one.mp3",
                 language="en",
@@ -347,7 +349,7 @@ def test_import_podcast_episode_refuses_a_non_japanese_language():
 def test_import_podcast_episode_refuses_a_negative_start_min():
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(
-            main.import_podcast_episode(
+            podcasts_r.import_podcast_episode(
                 background=BackgroundTasks(),
                 audio_url="https://example.com/audio/episode-one.mp3",
                 start_min=-1,
@@ -364,7 +366,7 @@ def test_import_podcast_episode_refuses_a_negative_start_min():
 def test_import_podcast_episode_refuses_a_non_finite_start_min(start_min):
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(
-            main.import_podcast_episode(
+            podcasts_r.import_podcast_episode(
                 background=BackgroundTasks(),
                 audio_url="https://example.com/audio/episode-one.mp3",
                 start_min=start_min,
@@ -380,7 +382,7 @@ def test_import_podcast_episode_refuses_a_non_finite_start_min(start_min):
 def test_import_podcast_episode_refuses_a_private_audio_url():
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(
-            main.import_podcast_episode(
+            podcasts_r.import_podcast_episode(
                 background=BackgroundTasks(),
                 audio_url="http://127.0.0.1:50021/audio.mp3",
                 start_min=0,
@@ -439,7 +441,7 @@ def _pick_island(source="podcast", device=PICK_DEV, count=12):
 
 
 def _picks(island_id, device=PICK_DEV):
-    return asyncio.run(main.ai_picks(
+    return asyncio.run(review_r.ai_picks(
         island_id=island_id, authorization=PICK_AUTH, x_shadow_device=device))
 
 

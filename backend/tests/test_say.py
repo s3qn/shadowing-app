@@ -15,6 +15,8 @@ import energy
 import generate
 import llm
 import main
+from routers import create as create_r
+from routers import islands as islands_r
 import config
 import media
 import store
@@ -247,7 +249,7 @@ def pipeline(monkeypatch):
 def _post(device, language="ja", speaker=JA_VOICE, native="he", register="polite",
           dev_transcript=""):
     background = BackgroundTasks()
-    out = asyncio.run(main.create_say(
+    out = asyncio.run(create_r.create_say(
         background, audio=UploadFile(file=io.BytesIO(b"x"), filename="r.m4a"),
         language=language, native=native, speaker=speaker, register=register,
         dev_transcript=dev_transcript, authorization=AUTH, x_shadow_device=device,
@@ -347,5 +349,5 @@ def test_a_failed_say_is_not_listed_on_home_but_stays_readable_by_id(pipeline, m
                         lambda *a, **k: {"intent": "unclear", "title": "", "lines": []})
     bad = _post(dev)
     assert store.get_island(bad["id"])["status"] == "failed"
-    listed = main.list_islands(authorization=AUTH, device="", x_shadow_device=dev)
+    listed = islands_r.list_islands(authorization=AUTH, device="", x_shadow_device=dev)
     assert [r["id"] for r in listed] == [ok["id"]]

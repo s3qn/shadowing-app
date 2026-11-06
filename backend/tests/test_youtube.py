@@ -9,6 +9,7 @@ import pytest
 from fastapi import HTTPException
 
 import main
+from routers import youtube as youtube_r
 import config
 import dependencies
 import store
@@ -58,7 +59,7 @@ def test_parse_video_id_rejects(text):
 
 def test_info_bad_link_is_400():
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(main.youtube_info("nope", authorization=AUTH, x_shadow_device=DEV))
+        asyncio.run(youtube_r.youtube_info("nope", authorization=AUTH, x_shadow_device=DEV))
     assert exc.value.status_code == 400
     assert exc.value.detail == {"code": "youtube_bad_link"}
 
@@ -66,7 +67,7 @@ def test_info_bad_link_is_400():
 def test_info_falls_back_to_the_default_thumbnail(monkeypatch):
     monkeypatch.setattr(youtube, "oembed_info",
                         lambda vid: {"title": "", "author": "", "thumbnail": ""})
-    out = asyncio.run(main.youtube_info(
+    out = asyncio.run(youtube_r.youtube_info(
         f"https://youtu.be/{VID}", authorization=AUTH, x_shadow_device=DEV))
     assert out["video_id"] == VID
     assert out["thumbnail"] == f"https://i.ytimg.com/vi/{VID}/hqdefault.jpg"

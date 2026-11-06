@@ -15,7 +15,6 @@ import Animated, {
   interpolate,
   runOnJS,
   useAnimatedReaction,
-  useAnimatedScrollHandler,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -45,7 +44,7 @@ import { useT, useDir } from '@/lib/i18n';
 import * as api from '@/lib/api';
 import { startOpen, type CardRect } from '@/lib/card-morph';
 import { invalidateCachedIsland } from '@/lib/island-cache';
-import { PILL_TAB_BAR_REACH } from '@/components/pill-tab-bar';
+import { TAB_BAR_OVERLAP, useWheelScroll, visibleOf, type Shape } from '@/hooks/home/use-wheel-scroll';
 import { invalidateLineAudio } from '@/lib/line-audio-cache';
 import { forgetLastLine, peekLastLine, resumeLine } from '@/lib/last-line';
 import { forgetRung, loadLadder, peekRung } from '@/lib/speed-ladder';
@@ -73,18 +72,6 @@ const LIST_TOP = Spacing.sm;
 // Tall enough that the last card scrolls clear above the floating add button
 // (fab: bottom 96 plus its height).
 const LIST_BOTTOM = 168;
-// How much of the list's bottom the floating tab bar covers. The screen pads
-// its bottom by the safe-area inset and the bar sits that inset plus its gap
-// above the screen edge, so the inset cancels and only the bar's reach is left.
-const TAB_BAR_OVERLAP = PILL_TAB_BAR_REACH;
-/** The part of a list this tall that the tab bar leaves visible. */
-function visibleOf(listH: number): number {
-  return Math.max(1, listH - TAB_BAR_OVERLAP);
-}
-
-/** What the list shows: the wheel or the plain search list, and the wheel's
- * height with search closed (0 until measured). */
-type Shape = { wheel: boolean; wheelH: number };
 
 /** Today's date where the phone is, `YYYY-MM-DD`. Local, not UTC, so the wave
  * resets at midnight for the person holding the phone. */
@@ -164,18 +151,12 @@ export default function IslandsScreen() {
   // A new shape lands in two commits: the first turns the cells' layout
   // animation off, the second changes the pad. Otherwise every cell would
   // slide to its new place while the scroll offset jumps at once.
-  const scrollY = useSharedValue(0);
-  const wheelOn = useSharedValue(true);
-  const viewportH = useSharedValue(0);
   const [shape, setShape] = useState<Shape>({ wheel: true, wheelH: 0 });
   const wanted = useRef<Shape>({ wheel: true, wheelH: 0 });
   const [shapeReq, setShapeReq] = useState(0);
   const [animLayout, setAnimLayout] = useState(false);
   const listRef = useRef<FlatList<api.IslandSummary>>(null);
   const searchOpenRef = useRef(false);
-  // False while the search row has any height, so onLayout ignores the
-  // heights the row animation passes through.
-  const rowIdle = useRef(true);
   // The card to centre once the wheel is back on screen, or null.
   const pendingPlace = useRef<number | null>(null);
   // The island centred when search opened, centred again when it closes.
@@ -217,9 +198,6 @@ export default function IslandsScreen() {
   const onDragEnd = scheduleSettle;
   const onMomentumEnd = scheduleSettle;
   useEffect(() => cancelSettle, [cancelSettle]);
-  const scrollHandler = useAnimatedScrollHandler((e) => {
-    scrollY.value = e.contentOffset.y;
-  });
   // Tier per line and kept-up total for the centred card only, keyed by
   // island id. Both hold for one focus: takes change in the player, never on
   // Home. `takesEpoch` moves on every focus and is what drops the stale
@@ -535,6 +513,23 @@ export default function IslandsScreen() {
     return () => clearInterval(timer);
   }, [focused, anyBuilding, load]);
 
+  const { scrollY, wheelOn, viewportH, scrollHandler, rowIdle, applyWheelH } = useWheelScroll({
+    shape,
+    shownLength: shown.length,
+    query,
+    searchRowH,
+    wanted,
+    pendingPlace,
+    centreRef,
+    moving,
+    searchOpenRef,
+    listRef,
+    requestShape,
+    cancelSettle,
+    updateCentre,
+    scheduleSettle,
+  });
+
   // The card count on the UI thread, so the centre reaction can clamp to it
   // straight after a delete or a search that shrinks the list, without
   // waiting on a JS round trip.
@@ -573,59 +568,11 @@ export default function IslandsScreen() {
     setShape(wanted.current);
   }, [shapeReq]);
 
-  // The new pad is committed: place the offset before the frame shows, then
-  // turn the layout animation back on in the next commit.
-  useLayoutEffect(() => {
-    wheelOn.set(shape.wheel);
-    viewportH.set(shape.wheelH > 0 ? visibleOf(shape.wheelH) : 0);
-    const idx = pendingPlace.current;
-    if (shape.wheel && shape.wheelH > 0 && idx !== null) {
-      pendingPlace.current = null;
-      const n = shown.length;
-      const at = n > 0 ? Math.min(n - 1, Math.max(0, idx)) : 0;
-      const offset = at * STEP;
-      scrollY.set(offset);
-      listRef.current?.scrollToOffset({ offset, animated: false });
-      cancelSettle();
-      moving.current = false;
-      updateCentre(at);
-      scheduleSettle();
-    }
-  }, [shape, shown.length, wheelOn, viewportH, scrollY, cancelSettle, updateCentre, scheduleSettle]);
   useEffect(() => {
     // The wanted shape is on screen and measured: cells may animate their
     // layout again.
     setAnimLayout(wanted.current.wheelH > 0);
   }, [shape]);
-
-  // Typing in the plain list shows the results from the top.
-  useEffect(() => {
-    if (!searchOpenRef.current) return;
-    scrollY.set(0);
-    listRef.current?.scrollToOffset({ offset: 0, animated: false });
-  }, [query, scrollY]);
-
-  // Takes the closed-search height from onLayout. Heights within 1px of the
-  // current one are layout noise and change nothing.
-  function applyWheelH(h: number) {
-    if (!Number.isFinite(h) || h <= 0 || Math.abs(h - wanted.current.wheelH) <= 1) return;
-    if (wanted.current.wheel) pendingPlace.current = centreRef.current;
-    requestShape({ ...wanted.current, wheelH: h });
-  }
-
-  function onRowIdle(idle: boolean) {
-    rowIdle.current = idle;
-  }
-
-  useAnimatedReaction(
-    () => {
-      const h = searchRowH.value;
-      return Number.isFinite(h) ? h <= 0 : false;
-    },
-    (idle, prev) => {
-      if (idle !== prev) runOnJS(onRowIdle)(idle);
-    },
-  );
 
   /** Both caches, emptied the first time either is read in a new epoch.
    * Clearing here rather than in the focus effect keeps the epoch the one

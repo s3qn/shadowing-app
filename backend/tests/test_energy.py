@@ -12,6 +12,8 @@ from fastapi import HTTPException
 
 import energy
 import main
+from routers import progress as progress_r
+from routers import words as words_r
 import config
 import dependencies
 import store
@@ -64,17 +66,17 @@ def _counts() -> dict[str, int]:
 
 
 def _get(dev, username=""):
-    return asyncio.run(main.energy_get(
+    return asyncio.run(progress_r.energy_get(
         username=username, authorization=AUTH, x_shadow_device=dev))
 
 
 def _grant(dev, username, amount, note=""):
-    return asyncio.run(main.energy_grant(
+    return asyncio.run(progress_r.energy_grant(
         username=username, amount=amount, note=note, authorization=AUTH, x_shadow_device=dev))
 
 
 def _progress(dev):
-    return asyncio.run(main.get_progress(authorization=AUTH, x_shadow_device=dev))
+    return asyncio.run(progress_r.get_progress(authorization=AUTH, x_shadow_device=dev))
 
 
 # --- charging ---
@@ -353,13 +355,13 @@ def test_two_threads_cannot_both_spend_the_last_unit(on, monkeypatch):
 
 
 def _explain_word(dev, word="猫"):
-    return asyncio.run(main.explain_word(
+    return asyncio.run(words_r.explain_word(
         word=word, sentence_ja=f"{word}がいる。", authorization=AUTH, x_shadow_device=dev))
 
 
 def _explain_chat(dev, question="why?"):
-    body = main.ExplainChatBody(sentence_ja="猫がいる。", question=question)
-    return asyncio.run(main.explain_chat(body, authorization=AUTH, x_shadow_device=dev))
+    body = words_r.ExplainChatBody(sentence_ja="猫がいる。", question=question)
+    return asyncio.run(words_r.explain_chat(body, authorization=AUTH, x_shadow_device=dev))
 
 
 def test_a_failed_explain_word_leaves_the_balance_unchanged(on, monkeypatch):

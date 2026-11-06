@@ -11,6 +11,9 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 import main
+from routers import create as create_r
+from routers import islands as islands_r
+from routers import takes as takes_r
 from services import line_audio
 import config
 import dependencies
@@ -64,21 +67,21 @@ def _ready_island(device: str = DEV_A) -> str:
 def test_get_island_on_another_devices_id_is_404():
     iid = _ready_island()
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(main.get_island(iid, authorization=AUTH, x_shadow_device=DEV_B))
+        asyncio.run(islands_r.get_island(iid, authorization=AUTH, x_shadow_device=DEV_B))
     assert exc_info.value.status_code == 404
 
 
 def test_get_island_with_empty_device_is_401():
     iid = _ready_island()
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(main.get_island(iid, authorization=AUTH, x_shadow_device=""))
+        asyncio.run(islands_r.get_island(iid, authorization=AUTH, x_shadow_device=""))
     assert exc_info.value.status_code == 401
 
 
 def test_delete_island_on_another_devices_id_is_404_and_island_survives():
     iid = _ready_island()
     with pytest.raises(HTTPException) as exc_info:
-        main.delete_island(iid, authorization=AUTH, x_shadow_device=DEV_B)
+        islands_r.delete_island(iid, authorization=AUTH, x_shadow_device=DEV_B)
     assert exc_info.value.status_code == 404
     assert store.get_island(iid) is not None
 
@@ -86,14 +89,14 @@ def test_delete_island_on_another_devices_id_is_404_and_island_survives():
 def test_rename_island_on_another_devices_id_is_404():
     iid = _ready_island()
     with pytest.raises(HTTPException) as exc_info:
-        main.rename_island(iid, title="New", authorization=AUTH, x_shadow_device=DEV_B)
+        islands_r.rename_island(iid, title="New", authorization=AUTH, x_shadow_device=DEV_B)
     assert exc_info.value.status_code == 404
 
 
 def test_regenerate_on_another_devices_id_is_404():
     iid = _ready_island()
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(main.regenerate(
+        asyncio.run(create_r.regenerate(
             iid, background=None, complexity="complex", count=8,
             authorization=AUTH, x_shadow_device=DEV_B,
         ))
@@ -103,7 +106,7 @@ def test_regenerate_on_another_devices_id_is_404():
 def test_revoice_on_another_devices_id_is_404():
     iid = _ready_island()
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(main.revoice(
+        asyncio.run(create_r.revoice(
             iid, background=None, speaker=3, authorization=AUTH, x_shadow_device=DEV_B,
         ))
     assert exc_info.value.status_code == 404
@@ -112,14 +115,14 @@ def test_revoice_on_another_devices_id_is_404():
 def test_take_clean_on_another_devices_id_is_404():
     iid = _ready_island()
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(main.take_clean(iid, 0, authorization=AUTH, x_shadow_device=DEV_B))
+        asyncio.run(takes_r.take_clean(iid, 0, authorization=AUTH, x_shadow_device=DEV_B))
     assert exc_info.value.status_code == 404
 
 
 def test_line_audio_on_another_devices_id_is_404():
     iid = _ready_island()
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(main.line_audio(iid, 0, authorization=AUTH, x_shadow_device=DEV_B))
+        asyncio.run(islands_r.line_audio(iid, 0, authorization=AUTH, x_shadow_device=DEV_B))
     assert exc_info.value.status_code == 404
 
 
@@ -133,12 +136,12 @@ def test_line_audio_checks_ownership_without_loading_the_lines(monkeypatch):
 
     monkeypatch.setattr(main.store, "get_island", no_full_load)
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(main.line_audio(iid, 0, authorization=AUTH, x_shadow_device=DEV_B))
+        asyncio.run(islands_r.line_audio(iid, 0, authorization=AUTH, x_shadow_device=DEV_B))
     assert exc_info.value.status_code == 404
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(main.line_audio("nosuchisland", 0, authorization=AUTH, x_shadow_device=DEV_A))
+        asyncio.run(islands_r.line_audio("nosuchisland", 0, authorization=AUTH, x_shadow_device=DEV_A))
     assert exc_info.value.status_code == 404
-    served = asyncio.run(main.line_audio(iid, 0, authorization=AUTH, x_shadow_device=DEV_A))
+    served = asyncio.run(islands_r.line_audio(iid, 0, authorization=AUTH, x_shadow_device=DEV_A))
     assert str(served.path) == str(store.line_audio_path(iid, 0))
 
 

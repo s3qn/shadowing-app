@@ -12,6 +12,7 @@ from fastapi import HTTPException
 import catch
 import llm
 import main
+from routers import progress as progress_r
 import config
 import store
 
@@ -473,7 +474,7 @@ def test_word_meaning_fills_one_word_and_checks_owner(monkeypatch):
 
 
 def _collection(language="ja", device=DEV, auth=AUTH):
-    return asyncio.run(main.catch_collection(
+    return asyncio.run(progress_r.catch_collection(
         language=language, authorization=auth, x_shadow_device=device))
 
 

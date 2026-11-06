@@ -11,6 +11,7 @@ import pytest
 from fastapi import HTTPException
 
 import main
+from routers import progress as progress_r
 import config
 import progression
 import schedule
@@ -223,7 +224,7 @@ def test_delete_owner_clears_the_freezes(owner):
 
 def test_the_route_rejects_a_short_purchase_id(owner):
     with pytest.raises(HTTPException) as e:
-        asyncio.run(main.streak_freeze_buy(
+        asyncio.run(progress_r.streak_freeze_buy(
             purchase_id="abc", authorization=AUTH, x_shadow_device=owner,
         ))
     assert e.value.status_code == 422
@@ -234,7 +235,7 @@ def test_the_route_buys_once_per_purchase_id(owner):
     _coins(owner, 400)
     pid = str(uuid.uuid4())
     for _ in range(2):
-        snap = asyncio.run(main.streak_freeze_buy(
+        snap = asyncio.run(progress_r.streak_freeze_buy(
             purchase_id=pid, authorization=AUTH, x_shadow_device=owner,
         ))
     assert snap["freezes_held"] == 1 and snap["coins"] == 250

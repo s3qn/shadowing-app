@@ -7,6 +7,7 @@ from fastapi import HTTPException
 
 import dev_review
 import main
+from routers import progress as progress_r
 import config
 
 AUTH = "Bearer t0k"
@@ -122,14 +123,14 @@ def test_dev_coins_grants_in_dev_and_404_in_prod(monkeypatch):
     import asyncio
 
     monkeypatch.setattr(config, "SHADOW_TOKEN", "t0k")
-    body = main.DevCoinsBody(amount=500)
+    body = progress_r.DevCoinsBody(amount=500)
     dev = "dec0ffee-1234"
     before = main.progression.snapshot(dev)["coins"]
-    out = asyncio.run(main.dev_coins(body, AUTH, dev))
+    out = asyncio.run(progress_r.dev_coins(body, AUTH, dev))
     assert out["coins"] == before + 500
     monkeypatch.setenv("SHADOW_ENV", "prod")
     with pytest.raises(HTTPException) as e:
-        asyncio.run(main.dev_coins(body, AUTH, dev))
+        asyncio.run(progress_r.dev_coins(body, AUTH, dev))
     assert e.value.status_code == 404
 
 
@@ -143,5 +144,5 @@ def test_dev_coins_clear_freezes_lets_a_test_buy_again(monkeypatch):
     for i in range(cap):
         main.progression.buy_freeze(dev, f"p{i}")
     assert main.progression.snapshot(dev)["freezes_held"] == cap
-    out = asyncio.run(main.dev_coins(main.DevCoinsBody(amount=1, clear_freezes=True), AUTH, dev))
+    out = asyncio.run(progress_r.dev_coins(progress_r.DevCoinsBody(amount=1, clear_freezes=True), AUTH, dev))
     assert out["freezes_held"] == 0

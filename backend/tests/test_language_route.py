@@ -15,6 +15,9 @@ import pytest
 from fastapi import BackgroundTasks, HTTPException
 
 import main
+from routers import create as create_r
+from routers import podcasts as podcasts_r
+from routers import words as words_r
 import config
 import store
 from services import build
@@ -44,7 +47,7 @@ class _FakeUpload:
 
 def test_create_island_rejects_a_kokoro_voice_for_japanese():
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(main.create_island(
+        asyncio.run(create_r.create_island(
             background=BackgroundTasks(), audio=_FakeUpload(), complexity="simple",
             register="polite", language="ja", native="en", speaker=10001, count=8,
             authorization=AUTH, x_shadow_device=DEV,
@@ -54,7 +57,7 @@ def test_create_island_rejects_a_kokoro_voice_for_japanese():
 
 def test_create_island_rejects_a_voicevox_voice_for_spanish():
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(main.create_island(
+        asyncio.run(create_r.create_island(
             background=BackgroundTasks(), audio=_FakeUpload(), complexity="simple",
             register="polite", language="es", native="en", speaker=3, count=8,
             authorization=AUTH, x_shadow_device=DEV,
@@ -151,7 +154,7 @@ def test_regenerate_passes_learning_and_native(monkeypatch, tmp_path):
     monkeypatch.setattr(build, "_build_island", fake_build_island)
 
     background = BackgroundTasks()
-    asyncio.run(main.regenerate(
+    asyncio.run(create_r.regenerate(
         island_id, background, complexity="complex", count=8, authorization=AUTH, x_shadow_device=DEV,
     ))
     assert len(background.tasks) == 1
@@ -228,7 +231,7 @@ def _ready_island(language: str, speaker: int) -> str:
 def test_revoice_rejects_a_voicevox_voice_for_a_spanish_island():
     island_id = _ready_island("es", 10011)
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(main.revoice(island_id, BackgroundTasks(), speaker=3, authorization=AUTH, x_shadow_device=DEV))
+        asyncio.run(create_r.revoice(island_id, BackgroundTasks(), speaker=3, authorization=AUTH, x_shadow_device=DEV))
     assert exc.value.status_code == 400
     assert store.get_island(island_id)["speaker"] == 10011
 
@@ -236,7 +239,7 @@ def test_revoice_rejects_a_voicevox_voice_for_a_spanish_island():
 def test_revoice_rejects_a_kokoro_voice_for_a_japanese_island():
     island_id = _ready_island("ja", 3)
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(main.revoice(island_id, BackgroundTasks(), speaker=10001, authorization=AUTH, x_shadow_device=DEV))
+        asyncio.run(create_r.revoice(island_id, BackgroundTasks(), speaker=10001, authorization=AUTH, x_shadow_device=DEV))
     assert exc.value.status_code == 400
     assert store.get_island(island_id)["speaker"] == 3
 
@@ -244,7 +247,7 @@ def test_revoice_rejects_a_kokoro_voice_for_a_japanese_island():
 def test_revoice_accepts_another_voice_in_the_same_language():
     island_id = _ready_island("es", 10011)
     background = BackgroundTasks()
-    result = asyncio.run(main.revoice(island_id, background, speaker=10012, authorization=AUTH, x_shadow_device=DEV))
+    result = asyncio.run(create_r.revoice(island_id, background, speaker=10012, authorization=AUTH, x_shadow_device=DEV))
     assert result["speaker"] == 10012
     assert len(background.tasks) == 1
 
@@ -255,7 +258,7 @@ def test_revoice_accepts_another_voice_in_the_same_language():
 
 def test_create_island_rejects_learning_english_with_native_english():
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(main.create_island(
+        asyncio.run(create_r.create_island(
             background=BackgroundTasks(), audio=_FakeUpload(), complexity="simple",
             register="polite", language="en", native="en", speaker=10001, count=8,
             authorization=AUTH, x_shadow_device=DEV,
@@ -265,7 +268,7 @@ def test_create_island_rejects_learning_english_with_native_english():
 
 def test_import_rejects_learning_english_with_native_english():
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(main.create_import_island(
+        asyncio.run(create_r.create_import_island(
             background=BackgroundTasks(), audio=_FakeUpload(), subtitles=None, title="",
             speaker=10001, language="en", native="en", start_min=0, authorization=AUTH, x_shadow_device=DEV,
         ))
@@ -274,7 +277,7 @@ def test_import_rejects_learning_english_with_native_english():
 
 def test_podcast_import_rejects_learning_english_with_native_english():
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(main.import_podcast_episode(
+        asyncio.run(podcasts_r.import_podcast_episode(
             background=BackgroundTasks(), audio_url="https://example.com/a.mp3", title="",
             start_min=0, speaker=10001, language="en", native="en", authorization=AUTH, x_shadow_device=DEV,
         ))
@@ -283,7 +286,7 @@ def test_podcast_import_rejects_learning_english_with_native_english():
 
 def test_import_rejects_a_voicevox_voice_for_spanish():
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(main.create_import_island(
+        asyncio.run(create_r.create_import_island(
             background=BackgroundTasks(), audio=_FakeUpload(), subtitles=None, title="",
             speaker=3, language="es", native="en", start_min=0, authorization=AUTH, x_shadow_device=DEV,
         ))
@@ -293,7 +296,7 @@ def test_import_rejects_a_voicevox_voice_for_spanish():
 
 def test_podcast_import_rejects_a_kokoro_voice_for_japanese():
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(main.import_podcast_episode(
+        asyncio.run(podcasts_r.import_podcast_episode(
             background=BackgroundTasks(), audio_url="https://example.com/a.mp3", title="",
             start_min=0, speaker=10001, language="ja", native="en", authorization=AUTH, x_shadow_device=DEV,
         ))
@@ -328,11 +331,11 @@ def test_explain_word_english_answer_hits_the_key_from_before_languages(monkeypa
     store.set_word_context("languages-word", "languages-route-sentence。", "cached gloss")
     monkeypatch.setattr(main.explain, "word_context", lambda *a, **k: "fresh gloss")
 
-    en = asyncio.run(main.explain_word(
+    en = asyncio.run(words_r.explain_word(
         word="languages-word", sentence_ja="languages-route-sentence。", authorization=AUTH,
         x_shadow_device=DEV,
     ))
-    he = asyncio.run(main.explain_word(
+    he = asyncio.run(words_r.explain_word(
         word="languages-word", sentence_ja="languages-route-sentence。", native="he", authorization=AUTH,
         x_shadow_device=DEV,
     ))

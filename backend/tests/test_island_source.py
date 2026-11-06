@@ -6,6 +6,7 @@ import asyncio
 import pytest
 
 import main
+from routers import islands as islands_r
 import config
 import schedule
 import store
@@ -25,7 +26,7 @@ DEV = "cccccccc-0000-4000-8000-000000000003"
 def test_get_island_and_list_return_source(source):
     iid = store.create_island("simple", 3, source=source, device=DEV)
 
-    island = asyncio.run(main.get_island(iid, authorization=AUTH, x_shadow_device=DEV))
+    island = asyncio.run(islands_r.get_island(iid, authorization=AUTH, x_shadow_device=DEV))
     assert island["source"] == source
 
     listed = next(i for i in store.list_islands(DEV) if i["id"] == iid)

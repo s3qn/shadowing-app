@@ -9,6 +9,8 @@ from fastapi import BackgroundTasks, HTTPException, UploadFile
 
 import grammar
 import main
+from routers import grammar as grammar_r
+from routers import create as create_r
 import config
 import media
 import store
@@ -78,7 +80,7 @@ def _run(background):
 
 def _import(dev, point="ながら", speaker=JA_VOICE):
     background = BackgroundTasks()
-    out = asyncio.run(main.import_grammar(
+    out = asyncio.run(grammar_r.import_grammar(
         background, point=point, speaker=speaker, register="polite", native="en",
         authorization=AUTH, x_shadow_device=dev))
     _run(background)
@@ -87,19 +89,19 @@ def _import(dev, point="ながら", speaker=JA_VOICE):
 
 def test_levels_and_points_mark_added(fakes):
     dev = _device()
-    assert main.grammar_levels(AUTH, dev) == {"levels": [{"level": "N4", "count": 1}]}
-    assert main.grammar_points("N4", "", AUTH, dev)["points"][0]["added"] is False
+    assert grammar_r.grammar_levels(AUTH, dev) == {"levels": [{"level": "N4", "count": 1}]}
+    assert grammar_r.grammar_points("N4", "", AUTH, dev)["points"][0]["added"] is False
     _import(dev)
-    assert main.grammar_points("N4", "", AUTH, dev)["points"][0]["added"] is True
-    assert main.grammar_points("N4", "", AUTH, _device())["points"][0]["added"] is False
+    assert grammar_r.grammar_points("N4", "", AUTH, dev)["points"][0]["added"] is True
+    assert grammar_r.grammar_points("N4", "", AUTH, _device())["points"][0]["added"] is False
 
 
 def test_points_by_id_reads_one_point(fakes):
     dev = _device()
-    out = main.grammar_points("", "", AUTH, dev, point="ながら")["points"]
+    out = grammar_r.grammar_points("", "", AUTH, dev, point="ながら")["points"]
     assert [p["id"] for p in out] == ["ながら"]
     assert out[0]["level"] == "N4"
-    assert main.grammar_points("", "", AUTH, dev, point="nope")["points"] == []
+    assert grammar_r.grammar_points("", "", AUTH, dev, point="nope")["points"] == []
 
 
 def test_import_builds_grammar_island_and_repeat_returns_same(fakes):
@@ -127,7 +129,7 @@ def _mic(monkeypatch, text, dev):
     monkeypatch.setattr(main.transcribe, "transcribe",
                         lambda *a, **k: {"text": text, "language": "ja"})
     background = BackgroundTasks()
-    out = asyncio.run(main.create_island(
+    out = asyncio.run(create_r.create_island(
         background, audio=UploadFile(file=io.BytesIO(b"x"), filename="r.m4a"),
         complexity="simple", register="polite", language="ja", speaker=JA_VOICE,
         native="en", count=8, topic=1, authorization=AUTH, x_shadow_device=dev))

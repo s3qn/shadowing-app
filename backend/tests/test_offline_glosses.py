@@ -7,6 +7,7 @@ import pytest
 from fastapi import HTTPException
 
 import main
+from routers import islands as islands_r
 import config
 import store
 
@@ -38,7 +39,7 @@ def test_unique_stripped_words_are_glossed_once(monkeypatch):
 
     monkeypatch.setattr(main.glossary, "gloss", fake)
     iid = _island("ja", [["猫", "は、"], ["猫", "です。"]])
-    out = asyncio.run(main.island_glosses(iid, authorization=AUTH, x_shadow_device=DEV))
+    out = asyncio.run(islands_r.island_glosses(iid, authorization=AUTH, x_shadow_device=DEV))
     assert out == {"猫": {"base": "猫"}, "は": {"base": "は"}, "です": {"base": "です"}}
     assert sorted(calls) == sorted(set(calls))
 
@@ -46,12 +47,12 @@ def test_unique_stripped_words_are_glossed_once(monkeypatch):
 def test_non_japanese_island_returns_empty(monkeypatch):
     monkeypatch.setattr(main.glossary, "gloss", lambda w: pytest.fail("called"))
     iid = _island("es", [["hola"]])
-    out = asyncio.run(main.island_glosses(iid, authorization=AUTH, x_shadow_device=DEV))
+    out = asyncio.run(islands_r.island_glosses(iid, authorization=AUTH, x_shadow_device=DEV))
     assert out == {}
 
 
 def test_another_device_gets_404():
     iid = _island("ja", [["猫"]])
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(main.island_glosses(iid, authorization=AUTH, x_shadow_device=OTHER))
+        asyncio.run(islands_r.island_glosses(iid, authorization=AUTH, x_shadow_device=OTHER))
     assert exc.value.status_code == 404

@@ -11,6 +11,7 @@ import accounts
 import beta
 import catch
 import main
+from routers import admin as admin_r
 import middleware
 import access
 import config
@@ -55,7 +56,7 @@ def _run(coro):
 
 
 def _get(device):
-    return _run(main.beta_get(AUTH, device))
+    return _run(admin_r.beta_get(AUTH, device))
 
 
 def test_store_default_off_set_unset_delete():
@@ -111,11 +112,11 @@ def test_admin_who_flips_himself_off_is_off():
 
 
 def test_people_row_for_fresh_admin_is_enabled():
-    people = _run(main.admin_beta_list(AUTH, ADMIN))["people"]
+    people = _run(admin_r.admin_beta_list(AUTH, ADMIN))["people"]
     me = people[0]
     assert me["me"] is True and me["owner"] == ADMIN and me["enabled"] is True
     beta.set_flag(ADMIN, False, ADMIN)
-    people = _run(main.admin_beta_list(AUTH, ADMIN))["people"]
+    people = _run(admin_r.admin_beta_list(AUTH, ADMIN))["people"]
     assert people[0]["enabled"] is False
 
 
@@ -130,28 +131,28 @@ def test_admin_routes_403_for_non_admin_and_flagged():
     beta.set_flag(d, True, ADMIN)
     for dev in (d, _dev()):
         with pytest.raises(HTTPException) as e:
-            _run(main.admin_beta_list(AUTH, dev))
+            _run(admin_r.admin_beta_list(AUTH, dev))
         assert e.value.status_code == 403 and e.value.detail == {"code": "not_admin"}
         with pytest.raises(HTTPException) as e:
-            _run(main.admin_beta_set(access.BetaBody(owner=d, enabled=True), AUTH, dev))
+            _run(admin_r.admin_beta_set(access.BetaBody(owner=d, enabled=True), AUTH, dev))
         assert e.value.status_code == 403
 
 
 def test_admin_set_then_target_sees_it_and_list():
     d = _dev()
-    _run(main.admin_beta_set(access.BetaBody(owner=d, enabled=True), AUTH, ADMIN))
+    _run(admin_r.admin_beta_set(access.BetaBody(owner=d, enabled=True), AUTH, ADMIN))
     assert _get(d)["podcast"] is True
-    people = _run(main.admin_beta_list(AUTH, ADMIN))["people"]
+    people = _run(admin_r.admin_beta_list(AUTH, ADMIN))["people"]
     assert people[0]["me"] is True and people[0]["owner"] == ADMIN
     row = next(p for p in people if p["owner"] == d)
     assert row["enabled"] is True and row["kind"] == "device" and row["handle"] is None
-    _run(main.admin_beta_set(access.BetaBody(owner=d, enabled=False), AUTH, ADMIN))
+    _run(admin_r.admin_beta_set(access.BetaBody(owner=d, enabled=False), AUTH, ADMIN))
     assert _get(d)["podcast"] is False
 
 
 def test_bad_owner_400():
     with pytest.raises(HTTPException) as e:
-        _run(main.admin_beta_set(access.BetaBody(owner="nope!", enabled=True), AUTH, ADMIN))
+        _run(admin_r.admin_beta_set(access.BetaBody(owner="nope!", enabled=True), AUTH, ADMIN))
     assert e.value.status_code == 400
 
 

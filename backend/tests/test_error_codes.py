@@ -12,6 +12,8 @@ import pytest
 from fastapi import BackgroundTasks, HTTPException
 
 import main
+from routers import create as create_r
+from routers import voices as voices_r
 import config
 import store
 
@@ -100,7 +102,7 @@ def test_a_failed_island_from_before_the_migration_reads_empty_error_code(
 def test_recording_too_large_is_a_413_with_a_code():
     big = b"x" * (config.MAX_UPLOAD_BYTES + 1)
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(main.create_island(
+        asyncio.run(create_r.create_island(
             background=BackgroundTasks(), audio=_FakeUpload(big), complexity="simple",
             register="polite", language="ja", native="en", speaker=3, count=8,
             authorization=AUTH, x_shadow_device=DEV,
@@ -111,7 +113,7 @@ def test_recording_too_large_is_a_413_with_a_code():
 
 def test_empty_upload_is_a_400_with_a_code():
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(main.create_island(
+        asyncio.run(create_r.create_island(
             background=BackgroundTasks(), audio=_FakeUpload(b""), complexity="simple",
             register="polite", language="ja", native="en", speaker=3, count=8,
             authorization=AUTH, x_shadow_device=DEV,
@@ -127,6 +129,6 @@ def test_voicevox_unreachable_is_a_502_with_a_code(monkeypatch):
     monkeypatch.setattr(main.voices, "list_speakers", _boom)
 
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(main.speakers(language="ja", authorization=AUTH))
+        asyncio.run(voices_r.speakers(language="ja", authorization=AUTH))
     assert exc.value.status_code == 502
     assert exc.value.detail == {"code": "voice_unreachable"}

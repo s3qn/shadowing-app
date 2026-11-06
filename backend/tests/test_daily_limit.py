@@ -11,6 +11,7 @@ import pytest
 from fastapi import HTTPException
 
 import main
+from routers import create as create_r
 import config
 import dependencies
 import store
@@ -90,7 +91,7 @@ def test_regenerate_with_zero_reworks_is_429_before_any_line_is_cleared(monkeypa
     wav.write_bytes(b"not-really-a-wav")
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(main.regenerate(
+        asyncio.run(create_r.regenerate(
             island_id, background=None, complexity="complex", count=8,
             authorization=f"Bearer {config.SHADOW_TOKEN}", x_shadow_device=device,
         ))
