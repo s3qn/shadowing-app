@@ -9,6 +9,7 @@ import dev_review
 import main
 from routers import progress as progress_r
 import config
+import progression_shop
 
 AUTH = "Bearer t0k"
 
@@ -139,10 +140,10 @@ def test_dev_coins_clear_freezes_lets_a_test_buy_again(monkeypatch):
 
     monkeypatch.setattr(config, "SHADOW_TOKEN", "t0k")
     dev = "dec0ffee-5678"
-    main.progression.grant_coins(dev, 10_000)
+    progression_shop.grant_coins(dev, 10_000)
     cap = main.progression.snapshot(dev)["freeze_cap"]
     for i in range(cap):
-        main.progression.buy_freeze(dev, f"p{i}")
+        progression_shop.buy_freeze(dev, f"p{i}")
     assert main.progression.snapshot(dev)["freezes_held"] == cap
     out = asyncio.run(progress_r.dev_coins(progress_r.DevCoinsBody(amount=1, clear_freezes=True), AUTH, dev))
     assert out["freezes_held"] == 0

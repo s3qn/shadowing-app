@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 import store
+import store_llm
 import suggest
 
 log = logging.getLogger(__name__)
@@ -428,12 +429,12 @@ def _paused() -> bool:
 def _cap_reached(tag: str) -> float | None:
     """This month's spend, or None (logged) when the monthly or the daily
     cap refuses the call."""
-    spent = store.llm_spent_month()
+    spent = store_llm.llm_spent_month()
     if spent >= MONTHLY_USD:
         log.warning("llm %s: monthly cap reached ($%.2f of $%.2f), call refused",
                     tag, spent, MONTHLY_USD)
         return None
-    today = store.llm_spent_today()
+    today = store_llm.llm_spent_today()
     if today >= DAILY_USD:
         log.warning("llm %s: daily cap reached ($%.2f of $%.2f), call refused",
                     tag, today, DAILY_USD)
@@ -501,7 +502,7 @@ def complete(prompt: str, schema: dict, *, tag: str, timeout: float = DEFAULT_TI
                 value, status = None, "unreadable"
             call_usd = cost_usd(model, tokens_in, tokens_out)
             usd += call_usd
-            store.log_llm_call(tag, model, tokens_in, tokens_out, call_usd, value is not None, ref)
+            store_llm.log_llm_call(tag, model, tokens_in, tokens_out, call_usd, value is not None, ref)
             _warn_thresholds(spent + call_usd)
             if status != "unreadable" or _is_text(schema):
                 break

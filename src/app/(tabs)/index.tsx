@@ -10,12 +10,9 @@ import {
   View,
 } from 'react-native';
 import Animated, {
-  Extrapolation,
   LinearTransition,
-  interpolate,
   runOnJS,
   useAnimatedReaction,
-  useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
 } from 'react-native-reanimated';
@@ -23,19 +20,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols'; // icon-buttons: record FAB and rename sheet
 
 import { AddIslandSheet } from '@/components/add-island-sheet';
-import { BottomSheet } from '@/components/sheet/bottom-sheet';
+import { IslandMenuSheet, type IslandMenuHandle } from '@/components/home/island-menu-sheet';
+import { useHomeSearch } from '@/hooks/home/use-home-search';
 import { CatConstellation } from '@/components/cat-constellation';
 import { PracticeCard } from '@/components/practice-card';
-import { IslandSearch, startSearchOpen } from '@/components/island-search';
+import { IslandSearch } from '@/components/island-search';
 // prism-home: prism kit imports for the search button, record FAB and rename sheet
-import { GlassPanel } from '@/components/prism/glass-panel';
 import { PrismButton } from '@/components/prism/prism-button';
 import { SearchIcon } from '@/components/tide/toolbar-icons';
-import { GlassInput } from '@/components/tide/glass-input';
 import { IslandRow, CARD_H, STEP, WAVE_MAX_CARDS } from '@/components/home/island-row';
 import { SortRow, type Sort } from '@/components/home/sort-row';
 import { fonts } from '@/constants/fonts';
-import { prism,Radius, Spacing, tide, verb, withAlpha } from '@/constants/theme';
+import { prism, Spacing, tide, verb } from '@/constants/theme';
 import { alertSheet, confirmSheet } from '@/lib/confirm-sheet';
 import { useSkyStyle, isNight } from '@/lib/sky';
 import { getGuideStep, setGuideStep, useGuideAnchor, useGuideStep } from '@/lib/guide';
@@ -49,7 +45,7 @@ import { invalidateLineAudio } from '@/lib/line-audio-cache';
 import { forgetLastLine, peekLastLine, resumeLine } from '@/lib/last-line';
 import { forgetRung, loadLadder, peekRung } from '@/lib/speed-ladder';
 import { speedLabel } from '@/components/tide/speed-popover';
-import { cancelDownload, humanBytes, isDownloaded, offlineSummaries, removeDownload, startDownload, useDownloadStatus } from '@/lib/offline-islands'; // offline-islands
+import { isDownloaded } from '@/lib/offline-islands'; // offline-islands
 import { CatBadge } from '@/components/cat/cat-badge';
 import { forgetIsland, getPracticeLog, minutesOn, streakDays, type PracticeLog } from '@/lib/practice';
 import { getBetaSync, useBetaFeatures } from '@/lib/beta';
@@ -59,7 +55,8 @@ import { progressNow, useProgressCache } from '@/lib/progression';
 import { StreakSheet } from '@/components/streak-sheet';
 import { getSettingsSync, subscribeSettings, toIslandLanguage } from '@/lib/settings';
 import { getSettings, setHomeWaveDate } from '@/lib/settings';
-import { deleteTakes, keptUpTotal, lineTiers, type LineTier } from '@/lib/takes';
+import { deleteTakes } from '@/lib/takes';
+import { useHomeIslands } from '@/hooks/home/use-home-islands';
 
 /** Small code shown on a card whose language differs from the learning
  * language, once Show all languages is on. */
@@ -97,8 +94,6 @@ export default function IslandsScreen() {
   const SORT_LABEL: Record<Sort, string> = { newest: t('home.sortNewest'), least: t('home.sortLeastPracticed') };
   const sky = useSkyStyle();
   const night = isNight(new Date());
-  const [islands, setIslands] = useState<api.IslandSummary[]>([]);
-  const [loading, setLoading] = useState(true);
   // languages: which islands Home shows. Read synchronously so the first
   // render already filters, then kept fresh from Settings.
   const [learningLanguage, setLearningLanguageState] = useState(() => getSettingsSync().learningLanguage);
@@ -112,17 +107,18 @@ export default function IslandsScreen() {
       }),
     [],
   );
-  const [error, setError] = useState('');
-  const [query, setQuery] = useState('');
-  const [searchOpen, setSearchOpen] = useState(false);
-  // 0 closed, 1 open, driven by IslandSearch. The header magnifier fades out
-  // as the pill's own magnifier fades in just below it.
-  const searchGrow = useSharedValue(0);
-  // The search row's height, which moves the header and list below it.
-  const searchRowH = useSharedValue(0);
-  const searchButtonStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(searchGrow.value, [0.1, 0.4], [1, 0], Extrapolation.CLAMP),
-  }));
+  const {
+    query,
+    setQuery,
+    searchOpen,
+    searchGrow,
+    searchRowH,
+    searchButtonStyle,
+    searchOpenRef,
+    openSearch,
+    closeSearch,
+    ctl: searchCtl,
+  } = useHomeSearch();
   const [sort, setSort] = useState<Sort>('newest');
   const [log, setLog] = useState<PracticeLog>(EMPTY_LOG);
   const [streakOpen, setStreakOpen] = useState(false);
@@ -131,12 +127,6 @@ export default function IslandsScreen() {
   useEffect(() => {
     if (progressLoaded && beta) checkStreakMoments(true);
   }, [progressLoaded, beta]);
-  // Raw due set from the backend schedule: islands practiced before and now
-  // due again. `dueIds` below adds islands never practiced at all, which the
-  // backend never lists (schedule.py only tracks islands it has seen).
-  const [fetchedDueIds, setFetchedDueIds] = useState<Set<string>>(new Set());
-  // False until the schedule answers (or fails), so the card shows a dash instead of a 0 that pops to 2.
-  const [dueReady, setDueReady] = useState(false);
   const reducedMotion = useReducedMotion();
   // The list has two shapes. The wheel (search closed): a pad above the first
   // card and below the last one centres any card, snapping, scale and dim,
@@ -156,11 +146,8 @@ export default function IslandsScreen() {
   const [shapeReq, setShapeReq] = useState(0);
   const [animLayout, setAnimLayout] = useState(false);
   const listRef = useRef<FlatList<api.IslandSummary>>(null);
-  const searchOpenRef = useRef(false);
   // The card to centre once the wheel is back on screen, or null.
   const pendingPlace = useRef<number | null>(null);
-  // The island centred when search opened, centred again when it closes.
-  const preSearchId = useRef<string | null>(null);
   const [centreIndex, setCentreIndex] = useState(0);
   const [litIndex, setLitIndex] = useState(0);
   const centreRef = useRef(0);
@@ -198,18 +185,6 @@ export default function IslandsScreen() {
   const onDragEnd = scheduleSettle;
   const onMomentumEnd = scheduleSettle;
   useEffect(() => cancelSettle, [cancelSettle]);
-  // Tier per line and kept-up total for the centred card only, keyed by
-  // island id. Both hold for one focus: takes change in the player, never on
-  // Home. `takesEpoch` moves on every focus and is what drops the stale
-  // entries. It is also the identity that `tiersFor`, `keptUpFor` and
-  // `renderIsland` carry, so a card repaints with what this focus read
-  // instead of freezing on the last one.
-  const takesCache = useRef({
-    epoch: -1,
-    tiers: new Map<string, LineTier[]>(),
-    keptUp: new Map<string, { kept: number; total: number }>(),
-  });
-  const [takesEpoch, setTakesEpoch] = useState(0);
   // True only for the first Home mount of the local day: the list waves in
   // once, then settles for every later visit until the date rolls over.
   // `getSettingsSync` falls back to defaults (homeWaveDate: '') before
@@ -237,29 +212,8 @@ export default function IslandsScreen() {
       cancelled = true;
     };
   }, []);
-  // A list request that started before a delete can still answer with the
-  // deleted row, which would put it back on screen. Ids deleted here stay out.
-  const removed = useRef<Set<string>>(new Set());
-  // The last list the poll put on screen, serialised, to skip an unchanged one.
-  const lastListKey = useRef('');
-
-  // The Rename/Delete sheet a long press opens: which island it is for, and
-  // whether it is showing the menu or the rename field.
-  const [menuItem, setMenuItem] = useState<api.IslandSummary | null>(null);
-  const [renaming, setRenaming] = useState(false);
-  const [draftTitle, setDraftTitle] = useState('');
-  // An action a sheet row picked, run once the sheet has fully closed (an
-  // Alert shown while the Modal is dismissing can vanish on iOS otherwise).
-  const afterSheet = useRef<(() => void) | null>(null);
-  function closeSheetThen(fn: () => void) {
-    afterSheet.current = fn;
-    setMenuItem(null);
-  }
-  function runAfterSheet() {
-    const fn = afterSheet.current;
-    afterSheet.current = null;
-    if (fn) fn();
-  }
+  // The Rename/Delete sheet a long press opens; it holds its own state.
+  const menuRef = useRef<IslandMenuHandle>(null);
   // Stable, like openRowMenu below, so a render of Home leaves IslandRow's memo
   // alone. Each row passes its own item back.
   const openIsland = useCallback((item: api.IslandSummary, rect: CardRect) => {
@@ -286,37 +240,13 @@ export default function IslandsScreen() {
       { lineIndex, lineCount },
     );
   }, [router, t]);
-  function saveRename() {
-    const item = menuItem;
-    if (!item) return;
-    const title = draftTitle;
-    closeSheetThen(() => void rename(item.id, title));
-  }
 
-  // offline-islands: the last list load failed, so only downloaded islands can open.
-  const [listOffline, setListOffline] = useState(false);
-  const load = useCallback(async () => {
-    try {
-      const rows = await api.listIslands();
-      const next = rows.filter((i) => !removed.current.has(i.id));
-      // A poll that brings nothing new keeps the same array and row objects,
-      // so no row re-renders (a poll can land mid-morph).
-      const key = JSON.stringify(next);
-      if (key !== lastListKey.current) {
-        lastListKey.current = key;
-        setIslands(next);
-      }
-      setError('');
-      setListOffline(false);
-      setLoading(false);
-    } catch (e) {
-      // offline-islands: with no connection, show what is downloaded.
-      setListOffline(true);
-      setIslands((prev) => (prev.length ? prev : offlineSummaries()));
-      setError(e instanceof Error ? e.message : t('home.serverUnreachable'));
-      setLoading(false);
-    }
-  }, [t]);
+  // Reload once whenever the screen comes back into focus (effect below).
+  const [focused, setFocused] = useState(false);
+  const {
+    islands, setIslands, loading, setLoading, error, listOffline, removed, load, loadDue, dueReady, dueIds,
+    visibleIslands, takesEpoch, bumpTakesEpoch, tiersFor, keptUpFor,
+  } = useHomeIslands({ t, log, focused, showAllLanguages, learningLanguage, beta });
 
   async function remove(id: string) {
     const restore = islands.find((i) => i.id === id) ?? null;
@@ -353,18 +283,6 @@ export default function IslandsScreen() {
     }
   }
 
-  // Home's visible pool: every island once Show all languages is on,
-  // otherwise only the ones matching the learning language. Sorting, search,
-  // due counts and the practice card all read from this, not from `islands`.
-  // beta-gate: video and podcast islands are beta content; a regular user never sees their rows.
-  const visibleIslands = useMemo(
-    () =>
-      islands.filter(
-        (i) => (showAllLanguages || i.language === toIslandLanguage(learningLanguage)) && (beta || (i.source !== 'youtube' && i.source !== 'podcast')),
-      ),
-    [islands, showAllLanguages, learningLanguage, beta],
-  );
-
   // Sorted before filtering, so closing search can find where the centred
   // island sits in the full list.
   const sortedAll = useMemo(
@@ -383,24 +301,6 @@ export default function IslandsScreen() {
     const q = query.trim().toLowerCase();
     return q ? sortedAll.filter((i) => i.title.toLowerCase().includes(q)) : sortedAll;
   }, [sortedAll, query]);
-
-  // An island is due if the backend schedule says so, or if it has never
-  // been practiced at all: schedule.py only tracks islands it has seen, so a
-  // brand new island is never in that list even though it is the most due
-  // thing on the island. The practice log Home already loads is the source
-  // of truth for "never practiced" (no entry under its id). Limited to the
-  // visible pool, so the due count on the practice card matches the list.
-  const dueIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const island of visibleIslands) {
-      // Long media (podcast, YouTube) is not drilled wholesale: it has the review deck.
-      if (island.source === 'podcast' || island.source === 'youtube') continue;
-      if (fetchedDueIds.has(island.id) || (island.status === 'ready' && !(island.id in log.islands))) {
-        ids.add(island.id);
-      }
-    }
-    return ids;
-  }, [visibleIslands, log, fetchedDueIds]);
 
   // auto-practice: only ready islands can be practised (offline, only
   // downloaded ones), so the card counts those and its pill never opens an
@@ -427,33 +327,8 @@ export default function IslandsScreen() {
     setShapeReq((n) => n + 1);
   }, []);
 
-  // Search opens from the closed state, where `shown` is `sortedAll`. Keyed
-  // on `sortedAll` (a poll, a sort or a fresh practice log) rather than on
-  // `shown`, so the header options it sits in hold across keystrokes.
-  const openSearch = useCallback(() => {
-    const n = sortedAll.length;
-    const at = n > 0 ? Math.min(n - 1, Math.max(0, centreRef.current)) : 0;
-    preSearchId.current = sortedAll[at]?.id ?? null;
-    startSearchOpen(searchGrow, searchRowH, reducedMotion);
-    searchOpenRef.current = true;
-    cancelSettle();
-    setSearchOpen(true);
-    requestShape({ ...wanted.current, wheel: false });
-  }, [sortedAll, reducedMotion, searchGrow, searchRowH, cancelSettle, requestShape]);
-
-  // IslandSearch has already started the close motion; the keyboard hides
-  // after this returns.
-  function closeSearch() {
-    // Clearing the query brings the full list back: centre the island that
-    // was centred before search opened, or the first one if it is gone.
-    const id = preSearchId.current;
-    const full = id ? sortedAll.findIndex((i) => i.id === id) : -1;
-    pendingPlace.current = full >= 0 ? full : 0;
-    searchOpenRef.current = false;
-    setSearchOpen(false);
-    setQuery('');
-    requestShape({ ...wanted.current, wheel: true });
-  }
+  // What open and close search read, set each render so both stay stable.
+  searchCtl.current = { sortedAll, centreRef, wanted, pendingPlace, cancelSettle, requestShape };
 
   async function confirmDelete(item: api.IslandSummary) {
     const pick = await confirmSheet({
@@ -469,14 +344,13 @@ export default function IslandsScreen() {
 
   // Reload once whenever the screen comes back into focus. The practice log
   // reloads only then too: it changes on a shadowing screen, never while
-  // sitting on this one. Polling is a separate effect below, and runs only
+  // sitting on this one. Polling lives in `useHomeIslands`, and runs only
   // while something is still building.
-  const [focused, setFocused] = useState(false);
   useFocusEffect(
     useCallback(() => {
       let alive = true;
       setFocused(true);
-      setTakesEpoch((n) => n + 1);
+      bumpTakesEpoch();
       void load();
       void getPracticeLog().then((next) => {
         if (!alive) return;
@@ -487,31 +361,18 @@ export default function IslandsScreen() {
           checkStreakMoments(progressNow() !== null);
         }
       });
-      void api.getDueToday().then((rows) => {
-        if (alive) setFetchedDueIds(new Set(rows.map((r) => r.island_id)));
-      }).catch(() => {}).finally(() => {
-        if (alive) setDueReady(true);
-      });
+      loadDue(() => alive);
       return () => {
         alive = false;
         setFocused(false);
       };
-    }, [load]),
+    }, [load, loadDue, bumpTakesEpoch]),
   );
   // Only while Home is on top: Record, Import or YouTube from the add sheet sends the guide back to 'home' under them.
   const fab = useGuideAnchor('addFab', focused && (guideStep === 'home' || guideStep === 'tour'));
   // bl58-easy-for-me: where "No islands yet" sits, so the guide's bubble keeps clear of it.
   const headAnchor = useGuideAnchor('homeHead', focused && guideStep === 'home');
   const emptyAnchor = useGuideAnchor('homeEmpty', focused && guideStep === 'home');
-
-  // Keep polling only while some island is neither ready nor failed, so the
-  // row flips to ready on its own and an idle Home makes no requests.
-  const anyBuilding = islands.some((i) => i.status !== 'ready' && i.status !== 'failed');
-  useEffect(() => {
-    if (!focused || !anyBuilding) return;
-    const timer = setInterval(() => void load(), 3000);
-    return () => clearInterval(timer);
-  }, [focused, anyBuilding, load]);
 
   const { scrollY, wheelOn, viewportH, scrollHandler, rowIdle, applyWheelH } = useWheelScroll({
     shape,
@@ -574,54 +435,11 @@ export default function IslandsScreen() {
     setAnimLayout(wanted.current.wheelH > 0);
   }, [shape]);
 
-  /** Both caches, emptied the first time either is read in a new epoch.
-   * Clearing here rather than in the focus effect keeps the epoch the one
-   * thing the two readers below depend on. */
-  const freshCache = useCallback(() => {
-    const cache = takesCache.current;
-    if (cache.epoch !== takesEpoch) {
-      cache.epoch = takesEpoch;
-      cache.tiers.clear();
-      cache.keptUp.clear();
-    }
-    return cache;
-  }, [takesEpoch]);
-
-  /** Tier per line for one island, computed once per focus and cached: only
-   * the centred card needs it, and a folder listing is cheap but not free. */
-  const tiersFor = useCallback(
-    (islandId: string, lineCount: number): LineTier[] => {
-      const cache = freshCache();
-      const cached = cache.tiers.get(islandId);
-      if (cached) return cached;
-      const computed = lineTiers(islandId, lineCount);
-      cache.tiers.set(islandId, computed);
-      return computed;
-    },
-    [freshCache],
-  );
-
-  /** Island kept-up total, same cache and same one-read-per-focus shape as
-   * `tiersFor` above. */
-  const keptUpFor = useCallback(
-    (islandId: string, lineCount: number): { kept: number; total: number } => {
-      const cache = freshCache();
-      const cached = cache.keptUp.get(islandId);
-      if (cached) return cached;
-      const computed = keptUpTotal(islandId, lineCount);
-      cache.keptUp.set(islandId, computed);
-      return computed;
-    },
-    [freshCache],
-  );
-
   // Stable across renders, like openIsland, so memo(IslandRow) can skip every
   // row whose own props did not change: a centre change re-renders only the
   // row leaving and the row arriving.
   const openRowMenu = useCallback((item: api.IslandSummary) => {
-    setRenaming(false);
-    setDraftTitle(item.title);
-    setMenuItem(item);
+    menuRef.current?.open(item);
   }, []);
 
   // Built once per change of what it shows, not per Home render: the header
@@ -887,138 +705,8 @@ export default function IslandsScreen() {
       {/* prism-home: end */}
       <AddIslandSheet open={addOpen} onClose={() => setAddOpen(false)} />
       <StreakSheet open={streakOpen} onClose={() => setStreakOpen(false)} streak={streakDays(log, new Date())} longest={cachedProgress?.longest_streak ?? 0} />
-      <BottomSheet
-        open={menuItem !== null}
-        onClose={() => setMenuItem(null)}
-        onDismissed={runAfterSheet}
-        title={menuItem?.title || t('home.untitledIsland')}
-        contentTitle
-        avoidKeyboard>
-        {/* prism-home: edited region */}
-        {renaming ? (
-          <>
-            <GlassInput
-              autoFocus
-              value={draftTitle}
-              onChangeText={setDraftTitle}
-              onSubmitEditing={saveRename}
-              returnKeyType="done"
-              style={[styles.sheetInput, dir.content]}
-            />
-            <GlassPanel style={[styles.sheetActionsRow, dir.rtl && styles.sheetActionsRowRtl]}>
-              <PrismButton shape="pill" verb="tools" flat label={t('home.save')} onPress={saveRename}>
-                <SymbolView name={{ ios: 'checkmark', android: 'check' }} size={16} weight="regular" tintColor={verb.tools.c1} />
-              </PrismButton>
-            </GlassPanel>
-          </>
-        ) : (
-          <>
-          <GlassPanel style={[styles.sheetMenuRow, dir.row]}>
-            <PrismButton
-              shape="pill"
-              verb="tools"
-              flat
-              containerStyle={styles.sheetActionPill}
-              label={t('home.rename')}
-              onPress={() => setRenaming(true)}>
-              <SymbolView name={{ ios: 'pencil', android: 'edit' }} size={16} weight="regular" tintColor={verb.tools.c1} />
-            </PrismButton>
-            {/* Delete reads as destructive: red label, red icon, red-tinted glass
-                fill. The label is a plain Text rather than the `label` prop so it
-                can take the verb colour outright, with no "on" state involved. */}
-            <View style={styles.sheetDeleteFill}>
-              <PrismButton
-                shape="pill"
-                verb="speak"
-                flat
-                containerStyle={styles.sheetActionPill}
-                accessibilityLabel={t('home.deleteIsland')}
-                onPress={() => {
-                  const item = menuItem;
-                  if (!item) return;
-                  closeSheetThen(() => confirmDelete(item));
-                }}>
-                <SymbolView name={{ ios: 'trash', android: 'delete' }} size={16} weight="regular" tintColor={verb.speak.c1} />
-                <Text style={styles.sheetDeleteLabel}>{t('home.deleteIsland')}</Text>
-              </PrismButton>
-            </View>
-          </GlassPanel>
-          {/* offline-islands: one control, three states */}
-          {menuItem?.status === 'ready' ? (
-            <GlassPanel style={styles.sheetMenuRow}>
-              <DownloadPill id={menuItem.id} closeThen={closeSheetThen} />
-            </GlassPanel>
-          ) : null}
-          </>
-        )}
-        {/* prism-home: end */}
-      </BottomSheet>
+      <IslandMenuSheet ref={menuRef} onRename={rename} onDelete={confirmDelete} />
     </SafeAreaView>
-  );
-}
-
-/** offline-islands: the sheet's download control. Its own component, so the
- * per-file progress re-renders this pill and not all of Home. */
-function DownloadPill({ id, closeThen }: { id: string; closeThen: (fn: () => void) => void }) {
-  const { t } = useT();
-  const download = useDownloadStatus(id);
-  const onPress = () => {
-    if (download.state === 'none' || download.state === 'failed') {
-      void startDownload(id);
-    } else if (download.state === 'downloading') {
-      closeThen(() => {
-        void confirmSheet({
-          title: t('home.downloadStopTitle'),
-          actions: [
-            { label: t('home.downloadKeepGoing'), verb: 'tools' },
-            { label: t('home.downloadStop'), verb: 'speak', destructive: true },
-          ],
-        }).then((pick) => {
-          if (pick === 1) cancelDownload(id);
-        });
-      });
-    } else {
-      closeThen(() => {
-        void confirmSheet({
-          title: t('home.downloadRemoveTitle'),
-          message: t('home.downloadRemoveBody'),
-          actions: [
-            { label: t('common.cancel'), verb: 'tools' },
-            { label: t('home.downloadRemove'), verb: 'speak', destructive: true },
-          ],
-        }).then((pick) => {
-          if (pick === 1) removeDownload(id);
-        });
-      });
-    }
-  };
-  const label =
-    download.state === 'done'
-      ? t('home.downloaded', { size: humanBytes(download.bytes) })
-      : download.state === 'downloading'
-        ? t('home.downloading', { done: download.done, total: download.total })
-        : download.state === 'failed'
-          ? t('home.downloadFailed')
-          : t('home.download');
-  return (
-    <PrismButton
-      shape="pill"
-      verb="tools"
-      flat
-      containerStyle={styles.sheetActionPill}
-      label={label}
-      onPress={onPress}>
-      <SymbolView
-        name={
-          download.state === 'done'
-            ? { ios: 'arrow.down.circle.fill', android: 'download' }
-            : { ios: 'arrow.down.circle', android: 'download' }
-        }
-        size={16}
-        weight="regular"
-        tintColor={verb.tools.c1}
-      />
-    </PrismButton>
   );
 }
 
@@ -1030,26 +718,6 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: Spacing.lg },
   hidden: { opacity: 0 },
   empty: { fontSize: 15, lineHeight: 22, textAlign: 'center', paddingHorizontal: Spacing.xl, fontFamily: fonts.ui },
-  sheetInput: { marginBottom: Spacing.sm },
-  // prism-home: one row of pill actions sharing a single GlassPanel blur.
-  sheetActionsRow: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.sm, alignSelf: 'flex-start' },
-  sheetActionsRowRtl: { alignSelf: 'flex-end' },
-  // The Rename/Delete row: both pills share the sheet's full width (no
-  // alignSelf hug), evenly split with a 12pt gap between them.
-  sheetMenuRow: { flexDirection: 'row', gap: Spacing.md, padding: Spacing.sm },
-  sheetActionPill: { flex: 1 },
-  // Clips the red tint to the pill's own rounded shape, matching PrismFace's
-  // pill radius (999) rather than the panel's squarer one.
-  sheetDeleteFill: { flex: 1, borderRadius: Radius.pill, overflow: 'hidden', backgroundColor: withAlpha(verb.speak.c1, 0.18) },
-  sheetDeleteLabel: {
-    fontFamily: fonts.ui,
-    fontWeight: '600',
-    fontSize: 13,
-    color: verb.speak.c1,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 6,
-    textShadowColor: withAlpha(verb.speak.c1, 0.55),
-  },
   // Above the wheel, not inside it: the FlatList needs its own full
   // viewport to centre the first card, same horizontal padding as the list.
   headerFixed: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, gap: Spacing.md, marginBottom: Spacing.md },

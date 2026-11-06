@@ -13,6 +13,7 @@ import latin
 import repair
 import segment
 import store
+import store_video
 import youtube
 
 log = logging.getLogger("shadow")
@@ -69,14 +70,14 @@ async def _build_from_captions(island_id: str, lines: list[dict], title: str,
             store.add_line(island_id, i, line, round(duration, 3), [], words, offset=cue["start"])
             ja_texts.append(cue["text"])
             last_end = max(last_end, cue["end"])
-        store.set_video_duration(island_id, last_end)
+        store_video.set_video_duration(island_id, last_end)
         # yt-precise: the timing is settled at build; the video screen only
         # syncs islands whose align status is still empty.
-        store.set_align_status(island_id, "done", _asr_code(asr_report))
+        store_video.set_align_status(island_id, "done", _asr_code(asr_report))
         # youtube-asr-context-repair: claim the text pass before the island
         # reads as ready, so the player's first open finds it queued and does
         # not start a second pass that races the translation loop below.
-        repair_claimed = store.claim_repair(island_id, repair.REPAIR_MAX_ATTEMPTS, repair.VERSION)
+        repair_claimed = store_video.claim_repair(island_id, repair.REPAIR_MAX_ATTEMPTS, repair.VERSION)
         store.set_ready(island_id, title)
         align_r._align_resume(island_id)  # bl36-align: an upload that came in mid-build
         log.info("island %s ready from captions: %d lines, mora rate %.1f/s, trimmed %.1f s of silence",
@@ -181,15 +182,15 @@ async def _repair_job(island_id: str, asr: bool | None = None) -> None:
     the final status itself (done or failed)."""
     try:
         async with _repair_gate:
-            await asyncio.to_thread(store.set_repair_status, island_id, "running")
+            await asyncio.to_thread(store_video.set_repair_status, island_id, "running")
             await asyncio.to_thread(repair.job, island_id, asr)
     except Exception:
         log.exception("repair job %s crashed", island_id)
-        store.set_repair_status(island_id, "failed", "repair_error")
+        store_video.set_repair_status(island_id, "failed", "repair_error")
 
 
 def _repair_recover() -> None:
     """Rows still queued or running died with the old process: run them again."""
-    for island_id in store.list_repair_pending():
-        store.set_repair_status(island_id, "queued")
+    for island_id in store_video.list_repair_pending():
+        store_video.set_repair_status(island_id, "queued")
         asyncio.get_event_loop().create_task(_repair_job(island_id))

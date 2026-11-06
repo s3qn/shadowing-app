@@ -21,6 +21,7 @@ from services import captions
 import repair
 import segment
 import store
+import store_video
 
 DEV = "dddddddd-0000-4000-8000-0000000000b1"
 OTHER = "dddddddd-0000-4000-8000-0000000000b2"
@@ -42,7 +43,7 @@ def _init_db():
 def make_island(texts, language="ja", ready=True, video_id=VID, device=DEV):
     iid = store.create_island("simple", 3, language=language, source="youtube",
                               source_name=video_id, device=device)
-    store.add_video(iid, video_id, 0.0, "Clip", "")
+    store_video.add_video(iid, video_id, 0.0, "Clip", "")
     for i, text in enumerate(texts):
         duration = 2.0
         words = segment.align_pieces(text, [], duration, None)
@@ -352,12 +353,12 @@ def test_job_manual_island_is_all_sure_without_the_model(monkeypatch):
     iid = make_island(["hola", "adiós"], language="es")
     repair.job(iid)
     assert [l["sure"] for l in store.get_island(iid)["lines"]] == [1, 1] and not called
-    video = store.get_video(iid)
+    video = store_video.get_video(iid)
     assert (video["repair_status"], video["repair_error"], video["repair_version"]) == ("done", "manual", repair.VERSION)
     ja = make_island(["こんにちは"])
     write_captions(ja, auto=False, asr_events=True)  # creator track, retimed on first open
     repair.job(ja)
-    assert store.get_video(ja)["repair_error"] == "manual" and not called
+    assert store_video.get_video(ja)["repair_error"] == "manual" and not called
 
 
 @pytest.mark.parametrize("captions, expected", [
@@ -393,7 +394,7 @@ def test_job_auto_track_island_is_repaired_and_marked(monkeypatch):
     lines = store.get_island(iid)["lines"]
     assert len(model.calls) == 1 and lines[0]["ja"] == "痴女がいるんだよ"
     assert [l["sure"] for l in lines] == [1, 1]
-    assert (store.get_video(iid)["repair_status"], store.get_video(iid)["repair_error"]) == ("done", "")
+    assert (store_video.get_video(iid)["repair_status"], store_video.get_video(iid)["repair_error"]) == ("done", "")
 
 
 def test_job_without_captions_json_repairs_but_marks_nothing(monkeypatch):
@@ -409,7 +410,7 @@ def test_job_without_captions_json_repairs_but_marks_nothing(monkeypatch):
     lines = store.get_island(iid)["lines"]
     assert [l["ja"] for l in lines] == ["痴女がいるんだよ", "猫がいる", "スムジ"]
     assert [l["sure"] for l in lines] == [None, None, None]
-    video = store.get_video(iid)
+    video = store_video.get_video(iid)
     assert (video["repair_status"], video["repair_error"]) == ("done", "unknown_track")
 
 
@@ -421,30 +422,30 @@ def test_job_partial_failure_applies_without_caching_then_retries(monkeypatch):
     texts = ["チュージョンがいるんだよ", "記憶ない"]
     iid = make_island(texts, video_id=vid)
     write_captions(iid, auto=True)
-    store.claim_repair(iid, repair.REPAIR_MAX_ATTEMPTS, repair.VERSION)
+    store_video.claim_repair(iid, repair.REPAIR_MAX_ATTEMPTS, repair.VERSION)
     monkeypatch.setattr(llm, "complete", fake_llm([[{"n": 1, "text": "痴女がいるんだよ", "why": "w"}], None]))
     repair.job(iid)
-    video = store.get_video(iid)
+    video = store_video.get_video(iid)
     assert (video["repair_status"], video["repair_error"]) == ("failed", "llm_partial")
     assert [l["sure"] for l in store.get_island(iid)["lines"]] == [1, None]
     assert store.get_island(iid)["lines"][0]["ja"] == "痴女がいるんだよ"
-    assert (store.get_repair(vid) or {}).get("result") is None
+    assert (store_video.get_repair(vid) or {}).get("result") is None
     # A second island of the same video does not reuse the partial pass, and
     # the next open of the first one claims a retry.
-    assert store.claim_repair(iid, repair.REPAIR_MAX_ATTEMPTS, repair.VERSION)
+    assert store_video.claim_repair(iid, repair.REPAIR_MAX_ATTEMPTS, repair.VERSION)
     model = fake_llm([[], []])
     monkeypatch.setattr(llm, "complete", model)
     repair.job(iid)
     assert len(model.calls) == 2
     assert [l["sure"] for l in store.get_island(iid)["lines"]] == [1, 1]
-    assert store.get_video(iid)["repair_status"] == "done"
+    assert store_video.get_video(iid)["repair_status"] == "done"
 
 
 def test_job_ignores_a_cached_partial_result(monkeypatch):
     vid = str(uuid.uuid4())[:11]
     texts = ["チュージョンがいる"]
     partial = repair.repair_lines(texts, {}, llm_call=fake_llm([None]))
-    store.set_repair_result(vid, repair.VERSION, repair.lines_hash(texts), partial)
+    store_video.set_repair_result(vid, repair.VERSION, repair.lines_hash(texts), partial)
     model = fake_llm([[]])
     monkeypatch.setattr(llm, "complete", model)
     iid = make_island(texts, video_id=vid)
@@ -456,7 +457,7 @@ def test_job_off_switch(monkeypatch):
     monkeypatch.setattr(repair, "ON", False)
     iid = make_island(["チュージョンがいる"])
     repair.job(iid, asr=True)
-    video = store.get_video(iid)
+    video = store_video.get_video(iid)
     assert (video["repair_status"], video["repair_error"]) == ("done", "off")
     assert store.get_island(iid)["lines"][0]["sure"] is None
 
@@ -467,20 +468,20 @@ def test_job_runs_caches_and_a_second_island_applies_with_no_model_call(monkeypa
     texts = ["チュージョンがいるんだよ", "記憶ない"]
     model = fake_llm([[{"n": 1, "text": "痴女がいるんだよ", "why": "w"}]])
     monkeypatch.setattr(llm, "complete", model)
-    store.set_repair_context(vid, {"title": "Hikaru"})
+    store_video.set_repair_context(vid, {"title": "Hikaru"})
     first = make_island(texts, video_id=vid)
     repair.job(first, asr=True)
     assert len(model.calls) == 1 and "Video title: Hikaru" in model.calls[0]
     assert model.refs == [vid]  # the cost row names the video
     assert store.get_island(first)["lines"][0]["ja"] == "痴女がいるんだよ"
-    assert store.get_video(first)["repair_status"] == "done"
-    cached = store.get_repair(vid)
+    assert store_video.get_video(first)["repair_status"] == "done"
+    cached = store_video.get_repair(vid)
     assert cached["version"] == repair.VERSION and cached["lines_hash"] == repair.lines_hash(texts)
     second = make_island(texts, video_id=vid)
     repair.job(second, asr=True)
     assert len(model.calls) == 1
     assert store.get_island(second)["lines"][0]["ja"] == "痴女がいるんだよ"
-    assert store.get_video(second)["repair_status"] == "done"
+    assert store_video.get_video(second)["repair_status"] == "done"
     third = make_island(["別の動画の行"], video_id=vid)
     repair.job(third, asr=True)
     assert len(model.calls) == 2
@@ -491,18 +492,18 @@ def test_job_all_batches_failed_is_failed_and_caches_nothing(monkeypatch):
     iid = make_island(["チュージョンがいる"], video_id=vid)
     monkeypatch.setattr(llm, "complete", lambda *a, **k: None)  # every batch answers None
     repair.job(iid, asr=True)
-    video = store.get_video(iid)
+    video = store_video.get_video(iid)
     assert (video["repair_status"], video["repair_error"]) == ("failed", "llm_failed")
     assert store.get_island(iid)["lines"][0]["sure"] is None
-    assert (store.get_repair(vid) or {}).get("result") is None
+    assert (store_video.get_repair(vid) or {}).get("result") is None
 
 
 def test_job_exception_marks_failed(monkeypatch):
     monkeypatch.setattr(repair, "repair_lines", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("x")))
     iid = make_island(["チュージョンがいる"])
     repair.job(iid, asr=True)
-    assert store.get_video(iid)["repair_status"] == "failed"
-    assert store.get_video(iid)["repair_error"] == "repair_error"
+    assert store_video.get_video(iid)["repair_status"] == "failed"
+    assert store_video.get_video(iid)["repair_error"] == "repair_error"
 
 
 # ---- store ----
@@ -533,9 +534,9 @@ def test_init_migrates_a_database_without_the_repair_columns(tmp_path, monkeypat
         store.init()
         store.init()
         assert store.get_island("old")["lines"][0]["sure"] is None
-        video = store.get_video("old")
+        video = store_video.get_video("old")
         assert (video["repair_status"], video["repair_error"], video["repair_attempts"], video["repair_version"]) == ("", "", 0, 0)
-        assert store.get_repair("v") is None
+        assert store_video.get_repair("v") is None
     finally:
         if hasattr(store._local, "conn"):
             del store._local.conn
@@ -543,40 +544,40 @@ def test_init_migrates_a_database_without_the_repair_columns(tmp_path, monkeypat
 
 def test_claim_repair_wins_once_and_counts():
     iid = make_island(["a"])
-    assert store.claim_repair(iid, 3, repair.VERSION)
-    assert not store.claim_repair(iid, 3, repair.VERSION)
-    video = store.get_video(iid)
+    assert store_video.claim_repair(iid, 3, repair.VERSION)
+    assert not store_video.claim_repair(iid, 3, repair.VERSION)
+    video = store_video.get_video(iid)
     assert video["repair_status"] == "queued" and video["repair_attempts"] == 1
-    store.set_repair_status(iid, "failed", "x")
-    assert store.claim_repair(iid, 3, repair.VERSION)
-    store.set_repair_status(iid, "failed", "x")
-    assert store.claim_repair(iid, 3, repair.VERSION)
-    store.set_repair_status(iid, "failed", "x")
-    assert not store.claim_repair(iid, 3, repair.VERSION)  # attempts spent
+    store_video.set_repair_status(iid, "failed", "x")
+    assert store_video.claim_repair(iid, 3, repair.VERSION)
+    store_video.set_repair_status(iid, "failed", "x")
+    assert store_video.claim_repair(iid, 3, repair.VERSION)
+    store_video.set_repair_status(iid, "failed", "x")
+    assert not store_video.claim_repair(iid, 3, repair.VERSION)  # attempts spent
     done = make_island(["b"])
-    store.set_repair_status(done, "done", "", repair.VERSION - 1)
-    assert store.claim_repair(done, 3, repair.VERSION)  # older version re-queues
-    store.set_repair_status(done, "done", "", repair.VERSION)
-    assert not store.claim_repair(done, 3, repair.VERSION)
+    store_video.set_repair_status(done, "done", "", repair.VERSION - 1)
+    assert store_video.claim_repair(done, 3, repair.VERSION)  # older version re-queues
+    store_video.set_repair_status(done, "done", "", repair.VERSION)
+    assert not store_video.claim_repair(done, 3, repair.VERSION)
 
 
 def test_set_repair_context_keeps_the_old_one_when_the_new_is_empty():
-    store.set_repair_context("ctx-video", {"title": "T", "description": "D"})
-    store.set_repair_context("ctx-video", repair.clean_context({}))
-    assert store.get_repair("ctx-video")["context"]["title"] == "T"
-    store.set_repair_context("ctx-video", {"title": "U"})
-    assert store.get_repair("ctx-video")["context"]["title"] == "U"
-    store.set_repair_context("ctx-empty", repair.clean_context(None))
-    assert store.get_repair("ctx-empty")["context"] == {}
+    store_video.set_repair_context("ctx-video", {"title": "T", "description": "D"})
+    store_video.set_repair_context("ctx-video", repair.clean_context({}))
+    assert store_video.get_repair("ctx-video")["context"]["title"] == "T"
+    store_video.set_repair_context("ctx-video", {"title": "U"})
+    assert store_video.get_repair("ctx-video")["context"]["title"] == "U"
+    store_video.set_repair_context("ctx-empty", repair.clean_context(None))
+    assert store_video.get_repair("ctx-empty")["context"] == {}
 
 
 def test_set_line_text_checks_the_expected_text():
     iid = make_island(["a", "b"])
-    assert not store.set_line_text(iid, 0, "x", "x", [], 1, expected_ja="moved")
-    assert store.set_line_text(iid, 0, "x", "エックス", [{"text": "x", "start": 0, "end": 2}], 0, expected_ja="a")
+    assert not store_video.set_line_text(iid, 0, "x", "x", [], 1, expected_ja="moved")
+    assert store_video.set_line_text(iid, 0, "x", "エックス", [{"text": "x", "start": 0, "end": 2}], 0, expected_ja="a")
     line = store.get_island(iid)["lines"][0]
     assert (line["ja"], line["kana"], line["sure"], line["words"][0]["text"]) == ("x", "エックス", 0, "x")
-    store.set_line_sure(iid, 1, 1)
+    store_video.set_line_sure(iid, 1, 1)
     assert store.get_island(iid)["lines"][1]["sure"] == 1
 
 
@@ -620,25 +621,25 @@ def test_route_queues_then_done_and_island_video_reports_it():
     video = _video(iid)
     assert video["repair"] == "done" and video["repair_error"] == "manual"
     assert "repair_status" not in video and "repair_attempts" not in video
-    assert store.get_repair(VID)["context"]["title"] == "Hikaru"
+    assert store_video.get_repair(VID)["context"]["title"] == "Hikaru"
     assert _post(iid).json() == {"repair": "done"}
-    assert store.get_video(iid)["repair_attempts"] == 1
+    assert store_video.get_video(iid)["repair_attempts"] == 1
 
 
 def test_route_old_version_reads_as_empty_and_requeues_once():
     iid = make_island(["こんにちは"])
     write_captions(iid, auto=False)
-    store.set_repair_status(iid, "done", "", repair.VERSION - 1)
+    store_video.set_repair_status(iid, "done", "", repair.VERSION - 1)
     assert _video(iid)["repair"] == ""
     assert _post(iid).json() == {"repair": "queued"}
     assert _video(iid)["repair"] == "done"
-    assert store.get_video(iid)["repair_version"] == repair.VERSION
+    assert store_video.get_video(iid)["repair_version"] == repair.VERSION
 
 
 def test_route_closed_after_max_attempts():
     iid = make_island(["こんにちは"])
     for _ in range(repair.REPAIR_MAX_ATTEMPTS):
-        store.set_repair_status(iid, "failed", "llm_failed", count_attempt=True)
+        store_video.set_repair_status(iid, "failed", "llm_failed", count_attempt=True)
     assert _video(iid)["repair"] == "closed"
     r = _post(iid)
     assert r.status_code == 409 and r.json()["detail"]["code"] == "repair_closed"
@@ -646,9 +647,9 @@ def test_route_closed_after_max_attempts():
 
 def test_route_reports_queued_or_running_without_a_second_claim(monkeypatch):
     iid = make_island(["こんにちは"])
-    store.set_repair_status(iid, "running")
+    store_video.set_repair_status(iid, "running")
     assert _post(iid).json() == {"repair": "running"}
-    assert store.get_video(iid)["repair_attempts"] == 0
+    assert store_video.get_video(iid)["repair_attempts"] == 0
 
 
 # ---- wiring ----
@@ -664,7 +665,7 @@ def test_build_from_captions_hands_the_island_to_the_repair_job(monkeypatch):
     island = store.get_island(iid)
     assert island["status"] == "ready" and island["stage"] != "correcting"
     assert calls == [(iid, True)]
-    assert store.get_video(iid)["repair_status"] == "running"
+    assert store_video.get_video(iid)["repair_status"] == "running"
 
 
 def test_build_claims_the_repair_before_ready_so_an_open_mid_translation_is_a_no_op(monkeypatch):
@@ -677,7 +678,7 @@ def test_build_claims_the_repair_before_ready_so_an_open_mid_translation_is_a_no
     iid = make_island([], ready=False)
 
     def translate(batch, *a, **k):
-        seen.append((store.get_island(iid)["status"], store.get_video(iid)["repair_status"],
+        seen.append((store.get_island(iid)["status"], store_video.get_video(iid)["repair_status"],
                      _post(iid).json(), calls[:]))
         return ["en"] * len(batch)
 
@@ -686,7 +687,7 @@ def test_build_claims_the_repair_before_ready_so_an_open_mid_translation_is_a_no
     asyncio.run(captions._build_from_captions(iid, lines, "Clip", asr=True))
     assert seen == [("ready", "queued", {"repair": "queued"}, [])]
     assert calls == [(iid, True)]
-    assert store.get_video(iid)["repair_attempts"] == 1
+    assert store_video.get_video(iid)["repair_attempts"] == 1
 
 
 def test_import_route_stores_the_context(monkeypatch):
@@ -698,10 +699,10 @@ def test_import_route_stores_the_context(monkeypatch):
             "context": {"title": "Hikaru live", "description": "x" * 10, "keywords": ["k"]}}
     r = client.post("/shadow/youtube/captions", headers=HEAD, json=body)
     assert r.status_code == 200, r.text
-    assert store.get_repair(VID)["context"]["title"] == "Hikaru live"
+    assert store_video.get_repair(VID)["context"]["title"] == "Hikaru live"
     body.pop("context")
     assert client.post("/shadow/youtube/captions", headers=HEAD, json=body).status_code == 200
-    assert store.get_repair(VID)["context"]["title"] == "Hikaru live"
+    assert store_video.get_repair(VID)["context"]["title"] == "Hikaru live"
 
 
 def test_pick_targets_skips_unsure_lines_and_keeps_unchecked():
@@ -780,7 +781,7 @@ def test_capped_job_ends_done_with_the_capped_reason(monkeypatch):
     monkeypatch.setattr(repair.llm, "complete", lambda *a, **kw: [])
     iid = make_island(["こんにちは", "さようなら"], video_id="cap-video")
     repair.job(iid, asr=True)
-    video = store.get_video(iid)
+    video = store_video.get_video(iid)
     assert video["repair_status"] == "done" and video["repair_error"] == "capped"
 
 
@@ -790,10 +791,10 @@ def test_repair_slot_is_taken_only_after_a_won_claim(monkeypatch):
     monkeypatch.setattr(dependencies, "OWNER_DEVICE", "not-this-device")
     monkeypatch.setattr(dependencies, "OWNER_ALIASES", frozenset())
     iid = make_island(["a"], device=stranger, video_id="slot-video")
-    monkeypatch.setattr(store, "claim_repair", lambda *a: False)
+    monkeypatch.setattr(store_video, "claim_repair", lambda *a: False)
     assert _post(iid, headers=head).json() == {"repair": "queued"}
     assert store.count_builds_today(stranger, "repair") == 0
-    monkeypatch.setattr(store, "claim_repair", lambda *a: True)
+    monkeypatch.setattr(store_video, "claim_repair", lambda *a: True)
     async def no_job(*a, **k):
         return None
 

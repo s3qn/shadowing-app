@@ -17,6 +17,7 @@ import config
 import dependencies
 import phrase_catalog
 import progression
+import progression_shop
 import starter
 import store
 import voices
@@ -95,7 +96,7 @@ def test_finish_grants_level_two_and_equips_once():
                  if i["slot"] == "face" and i["id"] != "face.blush_pink")
     with progression.connect() as conn:
         conn.execute("INSERT INTO owned (owner, item_id, bought_at) VALUES (?, ?, 'x')", (owner, other))
-    progression.equip(owner, "face", other)
+    progression_shop.equip(owner, "face", other)
     assert progression.grant_starter(owner)["equipped"]["face"] == other
 
 

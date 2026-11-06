@@ -30,6 +30,7 @@ import gloss
 import llm
 import segment
 import store
+import store_video
 
 log = logging.getLogger(__name__)
 
@@ -559,11 +560,11 @@ def apply(island_id: str, result: dict, mark_sure: bool = True) -> int:
             pieces = [{"text": w["text"], "start": w["start"], "end": w["end"]} for w in line["words"]]
             words = segment.align_pieces(ja, pieces, line["duration"], None)
             sure = entry.get("sure") if mark_sure else line.get("sure")
-            if store.set_line_text(island_id, line["idx"], ja, segment.reading(ja), words,
+            if store_video.set_line_text(island_id, line["idx"], ja, segment.reading(ja), words,
                                    sure, expected_ja=entry["before"]):
                 changed.append(line["idx"])
         elif mark_sure and entry.get("sure") is not None:
-            store.set_line_sure(island_id, line["idx"], entry.get("sure"))
+            store_video.set_line_sure(island_id, line["idx"], entry.get("sure"))
 
     texts_after = {e["idx"]: e["text"] for e in result.get("lines") or []}
     ordered = sorted(texts_after)
@@ -583,7 +584,7 @@ def apply(island_id: str, result: dict, mark_sure: bool = True) -> int:
             if en:
                 store.set_en(island_id, idx, en)
 
-    video = store.get_video(island_id) or {}
+    video = store_video.get_video(island_id) or {}
     stats = result.get("stats") or {}
     entries = [
         {"idx": e["idx"], "before": e["before"], "after": e["candidate"], "accepted": bool(e["changed"]),
@@ -639,25 +640,25 @@ def job(island_id: str, asr: bool | None = None) -> None:
     retries within REPAIR_MAX_ATTEMPTS. Any error marks it failed."""
     try:
         island = store.get_island(island_id)
-        video = store.get_video(island_id)
+        video = store_video.get_video(island_id)
         if island is None or video is None or island.get("status") != "ready":
-            store.set_repair_status(island_id, "failed", "repair_error")
+            store_video.set_repair_status(island_id, "failed", "repair_error")
             return
         if asr is None:
             asr = asr_track(island_id)
         if (island.get("language") or "ja") != "ja" or asr is False:
             for line in island["lines"]:
-                store.set_line_sure(island_id, line["idx"], 1)
-            store.set_repair_status(island_id, "done", "manual", VERSION)
+                store_video.set_line_sure(island_id, line["idx"], 1)
+            store_video.set_repair_status(island_id, "done", "manual", VERSION)
             return
         if not ON:
-            store.set_repair_status(island_id, "done", "off", VERSION)
+            store_video.set_repair_status(island_id, "done", "off", VERSION)
             return
         mark_sure = asr is True
         texts = [line["ja"] for line in island["lines"]]
         digest = lines_hash(texts)
         video_id = video["video_id"]
-        cached = store.get_repair(video_id) or {}
+        cached = store_video.get_repair(video_id) or {}
         result = cached.get("result")
         hit = (bool(result) and cached.get("version") == VERSION and cached.get("lines_hash") == digest
                and not (result.get("stats") or {}).get("failed_batches"))
@@ -669,20 +670,20 @@ def job(island_id: str, asr: bool | None = None) -> None:
             stats = result["stats"]
             if stats["batches"] and stats["failed_batches"] == stats["batches"]:
                 log.warning("repair %s: every batch failed, nothing cached", island_id)
-                store.set_repair_status(island_id, "failed", "llm_failed")
+                store_video.set_repair_status(island_id, "failed", "llm_failed")
                 return
             if stats["failed_batches"]:
                 apply(island_id, result, mark_sure=mark_sure)
                 log.warning("repair %s: %d of %d batches failed, applied the rest, not cached",
                             island_id, stats["failed_batches"], stats["batches"])
-                store.set_repair_status(island_id, "failed", "llm_partial")
+                store_video.set_repair_status(island_id, "failed", "llm_partial")
                 return
-            store.set_repair_result(video_id, VERSION, digest, result)
+            store_video.set_repair_result(video_id, VERSION, digest, result)
         apply(island_id, result, mark_sure=mark_sure)
         reason = "" if mark_sure else "unknown_track"
         if (result.get("stats") or {}).get("capped"):
             reason = "capped"
-        store.set_repair_status(island_id, "done", reason, VERSION)
+        store_video.set_repair_status(island_id, "done", reason, VERSION)
     except Exception:
         log.exception("repair %s crashed", island_id)
-        store.set_repair_status(island_id, "failed", "repair_error")
+        store_video.set_repair_status(island_id, "failed", "repair_error")

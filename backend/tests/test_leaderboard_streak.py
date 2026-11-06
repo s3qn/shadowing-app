@@ -6,6 +6,7 @@ from datetime import date, timedelta
 import pytest
 
 import progression
+import progression_board
 import store
 
 
@@ -32,7 +33,7 @@ def _pay_days(owner, offsets):
 
 def _board(owners):
     names = {o: f"cat{i}" for i, o in enumerate(owners)}
-    res = progression.leaderboard(owners[0], 50, lambda: dict(names))
+    res = progression_board.leaderboard(owners[0], 50, lambda: dict(names))
     return {e["username"]: e["streak_days"] for e in res["entries"]}, names
 
 
@@ -63,12 +64,12 @@ def test_weekly_entries_carry_streak():
     a = _owner()
     _pay_days(a, range(0, 4))
     names = {a: "weekly_cat"}
-    out = progression.weekly_leaderboard(a, 50, lambda: dict(names), "2030-01-07T00:00:00+00:00", {a: 5}, {}, "xx")
+    out = progression_board.weekly_leaderboard(a, 50, lambda: dict(names), "2030-01-07T00:00:00+00:00", {a: 5}, {}, "xx")
     assert out["entries"][0]["streak_days"] == 4
 
 
 def test_owner_without_handle_stays_hidden():
     a, hidden = _owner(), _owner()
     _pay_days(hidden, range(0, 5))
-    res = progression.leaderboard(a, 50, lambda: {a: "named"})
+    res = progression_board.leaderboard(a, 50, lambda: {a: "named"})
     assert [e["username"] for e in res["entries"]] == ["named"]

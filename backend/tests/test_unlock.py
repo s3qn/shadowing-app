@@ -9,6 +9,7 @@ import pytest
 from fastapi import HTTPException
 
 import progression
+import progression_shop
 import schedule
 import store
 
@@ -173,7 +174,7 @@ def test_unlock_met(item, level, hours, earned, met):
 def test_buy_achievement_item_is_locked_until_earned(owner, badge):
     assert progression.snapshot(owner)["earned"] == []
     with pytest.raises(HTTPException) as e:
-        progression.buy(owner, badge["id"])
+        progression_shop.buy(owner, badge["id"])
     assert e.value.status_code == 400
     assert e.value.detail == {"code": "achievement_locked", "achievement_req": "perfect_take"}
     assert progression.snapshot(owner)["owned"] == []
@@ -181,18 +182,18 @@ def test_buy_achievement_item_is_locked_until_earned(owner, badge):
     progression.award(owner, "ms:perfect_take", *progression.MILESTONES["perfect_take"])
     snap = progression.snapshot(owner)
     assert snap["earned"] == ["perfect_take"]
-    snap = progression.buy(owner, badge["id"])
+    snap = progression_shop.buy(owner, badge["id"])
     assert badge["id"] in snap["owned"]
     assert snap["equipped"]["face"] == badge["id"]
 
 
 def test_locked_payloads_are_unchanged(owner):
     with pytest.raises(HTTPException) as e:
-        progression.buy(owner, "head.crown_purple")
+        progression_shop.buy(owner, "head.crown_purple")
     assert e.value.detail == {"code": "level_locked", "level_req": 50}
     progression.award(owner, "seed", 10000, 5000)
     with pytest.raises(HTTPException) as e:
-        progression.buy(owner, "accessory.bowtie_tide")
+        progression_shop.buy(owner, "accessory.bowtie_tide")
     assert e.value.detail == {"code": "hours_locked", "hours_req": 10}
     assert progression.snapshot(owner)["owned"] == []
 

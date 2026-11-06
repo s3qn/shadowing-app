@@ -5,33 +5,26 @@ import {
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { memo, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   type LayoutChangeEvent,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
 } from 'react-native';
-import { Gesture, ScrollView } from 'react-native-gesture-handler';
 import Animated, {
   cancelAnimation,
-  Extrapolation,
-  interpolate,
-  runOnJS,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PassHelpSheet } from '@/components/tide/pass-help-sheet';
 import { IslandMenuSheet } from '@/components/tide/island-menu-sheet';
-import { PlayerTitle } from '@/components/tide/player-title';
 import { LadderStageView } from '@/components/tide/ladder-stage';
 import { StagePreview } from '@/components/tide/ladder/stage-preview';
 import { useIslandHop,type HopActions } from '@/hooks/island/use-island-hop'; // focus-stories
@@ -56,7 +49,7 @@ import { SymbolView } from 'expo-symbols'; // icon-buttons: retry/regenerate/ref
 import { PrismButton } from '@/components/prism'; // icon-buttons: retry/regenerate/refresh
 import { fonts } from '@/constants/fonts';
 // prism-player-buttons and icon-buttons: verb tokens
-import { Radius, Spacing, prism, tide, tideSkies, verb } from '@/constants/theme';
+import { Spacing, prism, tide, tideSkies, verb } from '@/constants/theme';
 import {
   afterCoverGone,
   canStartBack,
@@ -64,16 +57,10 @@ import {
   openCoverUp,
   openedLine,
   openedTitle,
-  PLAYER_HEADER_ROW_H,
-  playerGone,
-  playerReady,
-  setHeaderBoxRect,
-  setHeaderTitleRect,
   startBack,
-  useMorphHidesTitle,
 } from '@/lib/card-morph';
-import { alertSheet, confirmSheet } from '@/lib/confirm-sheet';
-import { invalidateCachedIsland, peekCachedIsland, readCachedIsland, writeCachedIsland } from '@/lib/island-cache';
+import { alertSheet } from '@/lib/confirm-sheet';
+import { invalidateCachedIsland } from '@/lib/island-cache';
 import { requestLoader } from '@/lib/loading-overlay';
 import { IslandGuide } from '@/components/onboarding/island-guide';
 import { useBetaFeatures } from '@/lib/beta'; // beta-gate
@@ -89,12 +76,11 @@ import { useLineStatus } from '@/hooks/use-line-status';
 import { usePracticeClock } from '@/hooks/use-practice-clock';
 import { useTake } from '@/hooks/use-take';
 import * as api from '@/lib/api';
-import { isDownloaded, preloadOfflineGlosses, snapOffline } from '@/lib/offline-islands'; // offline-islands
+import { preloadOfflineGlosses, snapOffline } from '@/lib/offline-islands'; // offline-islands
 import {
   applyPlaybackMode,
   releaseAudioSession,
   scheduleAudioSessionRelease,
-  startPlayback,
   stopPlayback,
   useSessionPlayer,
 } from '@/lib/audio-mode';
@@ -116,7 +102,7 @@ import {
   finishAutoIsland,
 } from '@/lib/auto-practice'; // auto-practice
 import { lineRomaji } from '@/lib/romaji';
-import { forgetRung, getRung, peekRung, recordTake, setRungSpeed } from '@/lib/speed-ladder';
+import { forgetRung, getRung, peekRung, recordTake } from '@/lib/speed-ladder';
 import {
   DEFAULT_VOICE_BY_LANGUAGE,
   getSettings,
@@ -125,13 +111,12 @@ import {
 } from '@/lib/settings';
 import { deleteTakes, wordsKeptUp } from '@/lib/takes';
 import { invalidateLineAudio } from '@/lib/line-audio-cache';
-import { useSlideReveal } from '@/lib/slide-reveal';
-import { breathOf, DRAG_LIMIT, lineEndOf, rubberBandDragY } from '@/lib/island/player-timing';
+import { breathOf, lineEndOf } from '@/lib/island/player-timing';
 import { useStableHandler } from '@/hooks/use-stable-handler';
 import { IslandSentenceCard } from '@/components/island/island-sentence-card';
 import { HEADER_ROW_H, Leaf, PlayerHeader } from '@/components/island/player-header';
 import { useDir, useT } from '@/lib/i18n'; // offline-islands: useDir
-import { CONTEXT_LINES, EASY_OFFER_HOLD_MS,EXPORT_GAP_MS, FINISH_GUARD_MS, GUIDE_AUDIO_MS, OFFLINE_RETRY_MS, OPEN_HOLD_MAX_MS, PENDING_PLAY_MS, RATE_MAX, RATE_MIN, REFRESH_AFTER_COVER_MS, TAKE_LAG_MAX_MS, TAKE_READ_AFTER_COVER_MS, TRANSCRIPT_WIDEN_MS } from '@/lib/island/island-consts';
+import { CONTEXT_LINES, EASY_OFFER_HOLD_MS, EXPORT_GAP_MS, GUIDE_AUDIO_MS, OPEN_HOLD_MAX_MS, TAKE_LAG_MAX_MS, TAKE_READ_AFTER_COVER_MS, TRANSCRIPT_WIDEN_MS } from '@/lib/island/island-consts';
 import { useIslandWordPanel } from '@/hooks/island/use-island-word-panel';
 import type { IslandCore } from '@/hooks/island/island-core';
 import { readWarmStart, useIslandLoad } from '@/hooks/island/use-island-load';
@@ -139,6 +124,8 @@ import { useIslandRebuild } from '@/hooks/island/use-island-rebuild';
 import { useLineSource } from '@/hooks/island/use-line-source';
 import { useTakeRecording } from '@/hooks/island/use-take-recording';
 import { useAutoChain } from '@/hooks/island/use-auto-chain';
+import { useLinePlayback, type TakeRecordingLinks } from '@/hooks/island/use-line-playback';
+import { useSentenceGestures } from '@/hooks/island/use-sentence-gestures';
 
 // languages: short code shown on the Blind dock tile and Home's language pill.
 
@@ -146,7 +133,7 @@ export default function IslandScreen() {
   const { id, morph, auto, line: ytLine, hop: hopParam } = useLocalSearchParams<{ id: string; morph?: string; auto?: string; line?: string; hop?: string }>(); // auto-practice, youtube-shadowing, focus-stories
   const navigation = useNavigation();
   const sky = useSkyStyle();
-  const { t, lang: uiLang } = useT();
+  const { t } = useT();
   const dir = useDir(); // offline-islands
   // Whether the card morph that opened this island covered the screen at
   // mount. Never state: the morph's landing and cover-gone must not render
@@ -282,7 +269,6 @@ export default function IslandScreen() {
   useEffect(() => {
     if (!guideOn) return;
     remeasureGuide();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     return () => guideMeasureTimers.current.forEach(clearTimeout);
   }, [guideOn, idx, remeasureGuide]);
   // bl58-easy-for-me: the lines marked Easy for me (backend idx, from GET /islands and the mark replies), the 90+
@@ -340,7 +326,7 @@ export default function IslandScreen() {
   } = dock;
   // The scene's height before its first layout (the window under the header,
   // above the bottom inset), so the water is drawn from the first frame.
-  const { height: windowH, width: windowW } = useWindowDimensions();
+  const { height: windowH } = useWindowDimensions();
   const screenInsets = useSafeAreaInsets();
   const sceneEstimateH = Math.max(
     0,
@@ -369,10 +355,6 @@ export default function IslandScreen() {
     afterSheet.current = null;
     if (fn) fn();
   }
-  // The active card's vertical offset while a swipe drags it: 0 at rest,
-  // rubber-banded toward the finger while dragging, snapped or sprung back
-  // to 0 on release (see the `swipe` gesture below).
-  const dragY = useSharedValue(0);
   const reducedMotion = useReducedMotion();
   // The pause after each play is silence the backend appends to the line's
   // own audio (the `pad` query param), so a repeat and the move to the next
@@ -598,10 +580,12 @@ export default function IslandScreen() {
   // changes: playing, loaded, the duration, a finish, the breath and its
   // countdown second. Each 50ms position update runs onLineStatus (below)
   // instead, which moves the stage fill on the UI thread and watches for
-  // the line's end without a render.
+  // the line's end without a render. The tick handler lives in useLinePlayback
+  // (called below, it needs `status`), which fills this ref at commit.
+  const onLineStatusRef = useRef<(s: AudioStatus) => void>(() => {});
   const { status, latest: latestStatus } = useLineStatus(
     player,
-    onLineStatus,
+    (s) => onLineStatusRef.current(s),
     (s) => {
       const b = breathOf(s, breathMs, stopsAtLineEnd);
       return `${s.playing}|${s.isLoaded}|${s.duration}|${s.didJustFinish}|${b.inBreath}|${b.countdown}`;
@@ -655,8 +639,9 @@ export default function IslandScreen() {
       return ok;
     },
     stop: silenceLine,
-    // The pace sheet's speed ruler: the same settle as the dock's Speed popover.
-    setSpeed: commitSpeed,
+    // The pace sheet's speed ruler: the same settle as the dock's Speed popover
+    // (an arrow: commitSpeed comes from useLinePlayback, called below).
+    setSpeed: (next) => commitSpeed(next),
     onLineDone: (score) => {
       if (!island) return;
       // A Compare played back is one sentence ladder finished, which is what
@@ -803,7 +788,7 @@ export default function IslandScreen() {
   // The word panel: the tapped word, its gloss and its own player, the drag selection and its handles.
   const {
     selected, glossData, explainContext, wordBoxes, blockWidth, scrollRef, dragSpan, handleDragging, blockTouched,
-    chatGeneration, wordPlayer, wordStatus,
+    chatGeneration, wordStatus,
     closePanel, resetPanel, clearDragSpan, tapWord, hearWord, hitTest, startDrag, dragTo,
     grabHandle, dragHandle, releaseHandle, clearSelection, onSceneTouch, copySelection, onBlockLayout,
   } = useIslandWordPanel({ core, player, status, hidden, line, island, isJa, stageWord });
@@ -1088,147 +1073,20 @@ export default function IslandScreen() {
     setError,
   });
 
-  // The line under a take has ended. A ladder take stays open for its room
-  // (the hook's lineFinished: the line × 1.6 + 1.5s from the mic opening),
-  // then ends after the tail scheduleStop adds; any other take ends after the tail.
-  function endTakeAfterLine() {
-    if (isSpeakStep(echoRef.current)) ladderRef.current?.lineFinished();
-    else take.scheduleStop();
-  }
-  function watchLineEnd(s: AudioStatus) {
-    const end = lineEndOf(s.duration, breathSec);
-    if (!s.playing || end <= 0) return;
-    if (s.currentTime < end) {
-      crossed.current = false;
-      return;
-    }
-    if (crossed.current) return;
-    crossed.current = true;
-    if (take.phase === 'recording') {
-      stopPlayback(player);
-      void player.seekTo(0);
-      endTakeAfterLine();
-      return;
-    }
-    // Played from the Explain sheet or under the starter guide: once, then
-    // parked at the top of the same line, whatever Repeat says. Advancing
-    // would change the line, and a line change closes the sheet.
-    if (playsOnce) {
-      stopPlayback(player);
-      void player.seekTo(0);
-      scheduleAudioSessionRelease();
-      return;
-    }
-  }
-
-  // Every native status of the line player lands here, 20 times a second
-  // while it plays, without rendering the screen (see useLineStatus). The
-  // work is what used to run in effects keyed on the position, in the same
-  // order, and only when the position, playing, duration or line end
-  // actually changed, as those effects would.
-  const tr = t; // onLineStatus below shadows t with the last tick
-  function onLineStatus(s: AudioStatus) {
-    // The player reports a failed load (offline, a server error) at once: say
-    // so now, once per outage, instead of waiting out PENDING_PLAY_MS.
-    if (s.error && !s.isLoaded && !audioFailShown.current) {
-      audioFailShown.current = true;
-      setPendingPlay(false);
-      setError(tr('player.couldNotLoadIsland'));
-    }
-    const end = lineEndOf(s.duration, breathSec);
-    const t = lastTick.current;
-    if (t && t.time === s.currentTime && t.playing === s.playing && t.duration === s.duration && t.end === end) {
-      return;
-    }
-    lastTick.current = { time: s.currentTime, playing: s.playing, duration: s.duration, end };
-    if (s.didJustFinish) finishUri.current = loadedUri.current;
-    if (s.playing && pendingPlayRef.current) setPendingPlay(false);
-    if (s.playing) kickUri.current = null;
-    else if (s.isLoaded && s.duration > 0 && kickUri.current === loadedUri.current && kickUri.current) {
-      kickUri.current = null;
-      if (pendingPlayRef.current) startPlayback(player);
-    }
-    aimEchoLine(s);
-    watchLineEnd(s);
-    markTakeLineStart(s);
-  }
-
-  // Every play of a whole line ends here: another play of the same line
-  // while fewer than `times` are done, otherwise the next line (wrapping to
-  // the first). The pad's silence has already played by now, so that is the
-  // pause. A phrase's native loop repeats it until cleared, and the
-  // playWhenLoaded bail-out keeps a finish from the old source from counting
-  // once a line change is under way. `finishUri` is the source loaded when the
-  // finish arrived: a finish that landed in the same render as a line change
-  // belongs to the old line and is dropped here (a later one is dropped
-  // before it renders, by isStaleStatus).
-  const lastFinish = useRef(0);
-  const finishUri = useRef<string | null>(null);
-  // An effect event: only the finish flag re-runs it; everything else is
-  // read as of that render.
-  const onLineFinish = useEffectEvent(() => {
-    if (!status.didJustFinish || !island || playWhenLoaded.current) return;
-    if (finishUri.current !== sourceUri) return;
-    const now = Date.now();
-    if (now - lastFinish.current < FINISH_GUARD_MS) return;
-    lastFinish.current = now;
-    // With a 0s pause there is no pad after the line, so the last status can
-    // arrive before lineEnd and the crossing effect above never fires. The
-    // finish stands in for it: a take ends its tail from here.
-    if (take.phase === 'recording') {
-      if (!crossed.current) {
-        crossed.current = true;
-        void player.seekTo(0);
-        endTakeAfterLine();
-      }
-      return;
-    }
-    // A speed picked during this play loads now, for the next play.
-    const swapped = landSpeedAhead() !== null;
-    // A finish that slips past the crossing stop above (or a 0s pause, which
-    // has no crossing) still must not advance the line.
-    if (playsOnce) {
-      void player.seekTo(0);
-      scheduleAudioSessionRelease();
-      return;
-    }
-    // A ladder run: the hook takes the finish (a repeat, the next stage, or Compare's take).
-    if (ladderRef.current?.active) {
-      ladderRef.current.lineFinished();
-      return;
-    }
-    if (phrase.span) return;
-    playsDone.current += 1;
-    if (playsDone.current < times || island.lines.length === 1) {
-      if (playsDone.current >= times) playsDone.current = 0;
-      // Same line again: the source stays the same, so the playWhenLoaded
-      // effect never fires. Seek and play by hand instead.
-      resetHighlight();
-      if (swapped) {
-        // The file at the picked speed starts as soon as it is swapped in.
-        setPlayWhenLoaded(true);
-        return;
-      }
-      setPendingPlay(true);
-      void (async () => {
-        await seekTop();
-        // Stopped during the seek: the repeat is cancelled.
-        if (!pendingPlayRef.current) return;
-        crossed.current = false;
-        startPlayback(player);
-      })();
-      return;
-    }
-    playsDone.current = 0;
-    setPlayWhenLoaded(true);
-    resetHighlight();
-    resetForNewAudio();
-    applyLadderNext();
-    setIdx((i) => (i + 1) % island.lines.length);
+  // night-split I3: what the playback hook reads from useTakeRecording, which is called below
+  // (it takes landSpeedAhead from the hook). Filled once that hook has returned.
+  const takeRec = useRef<TakeRecordingLinks | null>(null);
+  // night-split I3: the status tick, the finish handler (repeat or advance), play from the top,
+  // pause, toggle and the speed picks (use-line-playback). The tick reaches useLineStatus
+  // above through onLineStatusRef.
+  const { playFromTop, pausePlayback, toggle, pickSpeed, commitSpeed, landSpeedAhead } = useLinePlayback({
+    core, player, take, island, status, latestStatus, sourceUri, speed, setSpeed, setSpeedLive, times, phrase, breathSec,
+    playsOnce, echoRef, ladderRef, crossedRef: crossed, lastTickRef: lastTick, playsDoneRef: playsDone,
+    audioFailShownRef: audioFailShown, kickUriRef: kickUri, speedTouchedRef: speedTouched, ladderEpochRef: ladderEpoch,
+    ladderNextRef: ladderNext, onLineStatusRef, loadedUri, playWhenLoaded, pendingPlayRef, speedAhead, rateRef, takeRec,
+    setPendingPlay, loadSource, seekTop, resetHighlight, holdHighlight, setError, setIdx, setLadderMove, setAhead, setLiveRate,
+    aimEchoLine, applyLadderNext, clearDragSpan, t,
   });
-  useEffect(() => {
-    onLineFinish();
-  }, [status.didJustFinish]);
 
   // A new line or speed means new audio, so the panel, any drag selection and
   // the Explain thread (which is about the old line's sentence) no longer apply.
@@ -1258,120 +1116,15 @@ export default function IslandScreen() {
     setPlayWhenLoaded(false);
     void playFromTop();
   }
-  // What the gestures below read when they fire. They are built once, so a
-  // re-render never hands GestureDetector new gesture objects (which makes it
-  // reattach every handler), and read this render's state and handlers here.
-  const liveNow = {
-    hitTest,
-    closePanel,
-    tapWord,
-    tapEmptySentence,
-    startDrag,
-    dragTo,
-    clearSelection,
-    go,
-    runLine,
-    echoActive,
-    playFromTop,
-    setPlayWhenLoaded,
-    reducedMotion,
-    idx,
-    dragSpan,
-    lineKey,
-    line,
-  };
-  const live = useRef(liveNow);
-  useLayoutEffect(() => {
-    live.current = liveNow;
+  // night-split I3: the sentence card's gestures (built once, reading this render's state through
+  // `live`), the card's drag and glide style and the two slide reveals (use-sentence-gestures).
+  const { sentenceGesture, cardDragStyle, glideY, glideOp, jaReveal, enReveal } = useSentenceGestures({
+    live: {
+      hitTest, tapWord, tapEmptySentence, startDrag, dragTo, clearSelection, go, runLine, echoActive, playFromTop,
+      setPlayWhenLoaded, reducedMotion, idx, dragSpan,
+    },
+    scrollRef, blind, englishShown,
   });
-  // A drag picks the phrase, snapped to whole words: hold still for the pan
-  // to activate (the ScrollView is free to claim a vertical drag until then),
-  // then the highlight follows the touch as `dragSpan`. A plain tap falls
-  // through to the word popover instead, and also dismisses a drag selection
-  // sitting from before. Both run on the JS thread: nothing here is a
-  // worklet, so state and the existing async handlers can be called directly.
-  //
-  // A quick vertical drag reads as a swipe instead of the phrase-selection
-  // pan: the pan only activates after a 450ms hold, so a fast flick falls
-  // through to this before that timer fires. blocksExternalGesture holds the
-  // outer scroll view off until the swipe fails, so a horizontal or slow drag
-  // still reaches it. While it drags, the card follows the finger with
-  // resistance (dragY, read by cardDragStyle below); on release it either
-  // snaps straight back to 0 (the swipe fired, and the rise-from-water line
-  // change takes over from there) or springs back with high damping (the
-  // swipe fell short).
-  //
-  // Blind mode's only gesture on the sentence is the reveal drag: no word
-  // taps, no selection and no swipes while it is frosted.
-  const { sentenceGesture } = useMemo(() => {
-    const pan = Gesture.Pan()
-      .activateAfterLongPress(450)
-      .runOnJS(true)
-      .onStart((e) => {
-        const l = live.current;
-        const i = l.hitTest(e.x, e.y);
-        if (i === null) return;
-        l.startDrag(i);
-      })
-      .onUpdate((e) => {
-        const l = live.current;
-        const i = l.hitTest(e.x, e.y);
-        if (i === null) return;
-        l.dragTo(i);
-      });
-    const tap = Gesture.Tap()
-      .runOnJS(true)
-      .onEnd((e) => {
-        const l = live.current;
-        if (l.dragSpan) {
-          l.clearSelection();
-          return;
-        }
-        const i = l.hitTest(e.x, e.y);
-        if (i !== null) void l.tapWord(i);
-        else l.tapEmptySentence();
-      });
-    const swipe = Gesture.Pan()
-      .runOnJS(true)
-      .activeOffsetY([-16, 16])
-      .failOffsetX([-24, 24])
-      .blocksExternalGesture(scrollRef)
-      .onUpdate((e) => {
-        if (live.current.reducedMotion) return;
-        dragY.value = rubberBandDragY(e.translationY);
-      })
-      .onEnd((e) => {
-        const l = live.current;
-        const fires = e.translationY < -40 || e.velocityY < -500 || e.translationY > 40 || e.velocityY > 500;
-        if (!l.reducedMotion) {
-          dragY.value = fires ? 0 : withSpring(0, { damping: 26, stiffness: 300 });
-        }
-        if (e.translationY < -40 || e.velocityY < -500) {
-          // Mid-run the next line starts at its first pass.
-          if (l.echoActive) l.runLine(l.idx + 1);
-          else l.go(l.idx + 1);
-        } else if (e.translationY > 40 || e.velocityY > 500) {
-          l.setPlayWhenLoaded(false);
-          l.clearSelection();
-          void l.playFromTop();
-        }
-      });
-    return { sentenceGesture: Gesture.Exclusive(pan, swipe, tap) };
-  }, [dragY]);
-  const jaReveal = useSlideReveal(blind, scrollRef);
-  const enReveal = useSlideReveal(!englishShown, scrollRef);
-  // Follows dragY while a swipe drags the card, with a slight scale down so
-  // it reads as lifting off the waterline rather than just sliding.
-  // bl58-easy-for-me: E4's glide after an Easy tap: the card sinks into the water, the next line rises from the waterline.
-  const glideY = useSharedValue(0);
-  const glideOp = useSharedValue(1);
-  const cardDragStyle = useAnimatedStyle(() => ({
-    opacity: glideOp.value,
-    transform: [
-      { translateY: dragY.value + glideY.value },
-      { scale: interpolate(Math.abs(dragY.value), [0, DRAG_LIMIT], [1, 0.99], Extrapolation.CLAMP) * (0.97 + 0.03 * glideOp.value) },
-    ],
-  }));
   // The scene fades and rises 10pt into place as the screen opens, before the
   // island has loaded (TideScene fades the lines in when they land). A
   // style driven from here, not a layout `entering` animation: the wrapper
@@ -1529,7 +1282,7 @@ export default function IslandScreen() {
     setIdx(clamped);
   }
 
-  const { glideTo, markEasy, unmarkEasy, easyChipAction } = useEasyMark({
+  const { markEasy, unmarkEasy, easyChipAction } = useEasyMark({
     island, setIsland, idx, line, lineKnown, known, setKnown, setEasyOffer, setEasyDone, easyTimer, glideTimer, glideY, glideOp,
     reducedMotion, go, ladderActive: ladder.active, auto, guideOn, endRun, runLine, autoRunRef, autoIslandDone, t,
   });
@@ -1560,60 +1313,6 @@ export default function IslandScreen() {
   const next = () => (ladder.active ? runLine(idx + 1) : go(idx + 1));
   const prev = () => (ladder.active ? runLine(idx - 1) : go(idx - 1));
 
-  // Starts the line fresh from the top, whether or not it was already
-  // playing: shared by the ring's Play tap and a swipe down on the sentence.
-  async function playFromTop() {
-    // The source may still be waiting for the open morph's cover to go.
-    loadSource();
-    dropTake();
-    // A restart mid-word fades the highlight in again from the top instead
-    // of snapping the lit word off.
-    resetHighlight();
-    if (landSpeedAhead() !== null) {
-      // A speed picked during the last play: its file starts once swapped in.
-      stopPlayback(player);
-      crossed.current = false;
-      playsDone.current = 0;
-      setPlayWhenLoaded(true);
-      return;
-    }
-    await seekTop();
-    // A short phrase can reach lineEnd before a status below it resets this.
-    crossed.current = false;
-    // A restart counts its plays from the top again.
-    playsDone.current = 0;
-    startPlayback(player);
-  }
-
-  // Stops the line exactly like the ring button's own Pause tap: drops any
-  // take in progress and hands the audio session back. Safe to call whether
-  // or not the line is actually playing. Shared by toggle and the Explain
-  // sheet, which must stop the line the moment it opens.
-  function pausePlayback() {
-    // Pause the player first: it is the one call whose effect the user can
-    // actually see and hear, so nothing here should sit in front of it.
-    stopPlayback(player);
-    setPlayWhenLoaded(false);
-    dropTake();
-    // Freeze the highlight where it is now: the paused status lands a moment
-    // later, and running on until then could start lighting the next word.
-    holdHighlight();
-    scheduleAudioSessionRelease();
-  }
-
-  // Lines are short, so Play always starts the sentence from the top. There is
-  // no resuming from the middle: that is never what you want when shadowing.
-  async function toggle() {
-    // Between two plays of a run the button shows Stop, so a tap there stops.
-    const active = status.playing || pendingPlayRef.current;
-    clearDragSpan();
-    if (active) {
-      pausePlayback();
-      return;
-    }
-    await playFromTop();
-  }
-
   // Times is not part of the audio: the line playing carries on, and the
   // next finish counts against the new value.
   function pickTimes(next: number) {
@@ -1641,78 +1340,13 @@ export default function IslandScreen() {
     setPadMs(ms);
   }
 
-  // The Speed popover's ruler follows every step live; only used to update
-  // the readout and the tile, never the audio.
-  function pickSpeed(next: number) {
-    speedTouched.current = true;
-    setSpeedLive(next);
-  }
-
-  // The Speed ruler's settle and the focus stage's speed chip. A line playing
-  // carries on from where it is: the player's rate takes it to the new speed
-  // over the file it has, the highlight keeps its word, and the file rendered
-  // at the new speed takes over at the next play (landSpeedAhead). A take
-  // (or the mic opening for one) hears nothing change until its next play.
-  // Otherwise the line is re-rendered now, and a play still waiting starts
-  // once it is swapped in.
-  function commitSpeed(next: number) {
-    speedTouched.current = true;
-    ladderEpoch.current += 1;
-    ladderNext.current = null;
-    setLadderMove(null);
-    if (island) void setRungSpeed(island.id, next);
-    setSpeedLive(next);
-    if (take.phase === 'recording' || startingTake.current) {
-      setAhead(next);
-      return;
-    }
-    const s = latestStatus.current;
-    const rate = next / speed;
-    if (s.playing && s.isLoaded && Number.isFinite(rate) && rate >= RATE_MIN && rate <= RATE_MAX) {
-      setAhead(next);
-      player.setPlaybackRate(rate, 'high');
-      setLiveRate(rate);
-      aimEchoLine(s, true);
-      return;
-    }
-    if (rateRef.current !== 1) {
-      player.setPlaybackRate(1, 'high');
-      setLiveRate(1);
-    }
-    setAhead(null);
-    if (next === speed) return;
-    const wasActive = s.playing || pendingPlayRef.current;
-    // Only a rate the player cannot take reaches here playing: re-rendered from the top, as before.
-    if (s.playing) stopPlayback(player);
-    dropTake();
-    setPlayWhenLoaded(wasActive);
-    resetForNewAudio();
-    setSpeed(next);
-  }
-
-  // A speed picked mid-play lands: the rate goes back to 1 and the file
-  // rendered at that speed is loaded. Called where the next play starts or
-  // the line stops (never under a playing line or a take). Returns the new
-  // speed when the source changes, else null.
-  function landSpeedAhead(): number | null {
-    const next = speedAhead.current;
-    if (next === null) return null;
-    setAhead(null);
-    if (rateRef.current !== 1) {
-      player.setPlaybackRate(1, 'high');
-      setLiveRate(1);
-    }
-    if (next === speed) return null;
-    setSpeed(next);
-    return next;
-  }
-
   // night-split I2c: the take and calibration start, the take error alert and the take's
-  // line-start stamp. `startingTake` is read by commitSpeed above.
+  // line-start stamp. `startingTake` and `markTakeLineStart` are read by useLinePlayback above.
   const { startingTake, beginRecording, calibrateSpeaker, markTakeLineStart } = useTakeRecording({
     core, take, player, line, phrase, speed, lineEnd, breathSec, takeLagMs, sourceUri, latestStatus, rateRef, crossedRef: crossed,
     clearDragSpan, clearPhrase, landSpeedAhead, waitForSwap, seekTop,
   });
+  takeRec.current = { startingTake, markTakeLineStart };
 
   // focus-stories D3: what a committed cube turn calls, refreshed after every render (a turn is an event, never a render).
   useEffect(() => {
@@ -2559,7 +2193,6 @@ const styles = StyleSheet.create({
   // Above the stage's own layer (zIndex 20): the stage fits under it.
   hopCover: { zIndex: 40, elevation: 40, backgroundColor: tideSkies.night[0] },
   center: { alignItems: 'center', justifyContent: 'center' },
-  scroll: { padding: Spacing.xl, gap: Spacing.lg, flexGrow: 1, justifyContent: 'center' },
   gTag: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
@@ -2613,7 +2246,4 @@ const styles = StyleSheet.create({
   trayBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 15 },
   body: { fontSize: 15, lineHeight: 22, textAlign: 'center', padding: Spacing.xl },
   inlineError: { fontSize: 13, lineHeight: 18, textAlign: 'center' },
-  retry: { paddingVertical: Spacing.md, paddingHorizontal: Spacing.xxl, borderRadius: Radius.pill, marginTop: Spacing.md },
-  secondaryBtn: { paddingVertical: Spacing.md, marginTop: Spacing.sm },
-  retryText: { fontSize: 15, fontWeight: '700' },
 });

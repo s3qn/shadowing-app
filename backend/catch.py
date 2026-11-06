@@ -33,6 +33,7 @@ import guardrails  # --- ai-guardrails ---
 import llm
 import segment
 import store
+import store_video
 from suggest import _require_token
 
 log = logging.getLogger("shadow.catch")
@@ -566,7 +567,7 @@ def _captions_may_arrive(island_id: str) -> bool:
     """A YouTube island whose align is queued or running, or not yet tried
     with attempts left, can still get captions.json."""
     import config
-    video = store.get_video(island_id)
+    video = store_video.get_video(island_id)
     if not video:
         return False
     status = video.get("align_status") or ""

@@ -12,6 +12,8 @@ import dev_review
 import energy
 import guardrails
 import progression
+import progression_board
+import progression_shop
 import schedule
 import stats
 import store
@@ -56,13 +58,13 @@ def _all_handles() -> dict[str, str]:
 
 @router.get("/shadow/leaderboard")
 async def leaderboard(
-    limit: int = Query(progression.LEADERBOARD_MAX),
+    limit: int = Query(progression_board.LEADERBOARD_MAX),
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
     dependencies.require_token(authorization)
     device = dependencies._require_device(x_shadow_device)
-    return await asyncio.to_thread(progression.leaderboard, device, limit, _all_handles)
+    return await asyncio.to_thread(progression_board.leaderboard,device, limit, _all_handles)
 
 
 @router.get("/shadow/cosmetics/catalog")
@@ -90,7 +92,7 @@ async def cosmetics_buy(
 ) -> dict:
     dependencies.require_token(authorization)
     device = dependencies._require_device(x_shadow_device)
-    return await asyncio.to_thread(progression.buy, device, item_id)
+    return await asyncio.to_thread(progression_shop.buy, device, item_id)
 
 
 @router.post("/shadow/cosmetics/equip")
@@ -102,7 +104,7 @@ async def cosmetics_equip(
 ) -> dict:
     dependencies.require_token(authorization)
     device = dependencies._require_device(x_shadow_device)
-    return await asyncio.to_thread(progression.equip, device, slot, item_id)
+    return await asyncio.to_thread(progression_shop.equip, device, slot, item_id)
 
 
 # cat-username routes
@@ -241,7 +243,7 @@ async def energy_grant(
 @router.get("/shadow/leaderboard/weekly")
 async def leaderboard_weekly(
     language: str = Query("ja"),
-    limit: int = Query(progression.LEADERBOARD_MAX),
+    limit: int = Query(progression_board.LEADERBOARD_MAX),
     authorization: str | None = Header(None),
     x_shadow_device: str = Header(""),
 ) -> dict:
@@ -269,7 +271,7 @@ async def dev_coins(
         raise HTTPException(404, "not found")
     dependencies.require_token(authorization)
     device = dependencies._require_device(x_shadow_device)
-    return await asyncio.to_thread(progression.grant_coins, device, body.amount, body.clear_freezes)
+    return await asyncio.to_thread(progression_shop.grant_coins, device, body.amount, body.clear_freezes)
 
 _PURCHASE_ID = re.compile(r"[A-Za-z0-9-]{8,64}")
 
@@ -284,7 +286,7 @@ async def streak_freeze_buy(
     device = dependencies._require_device(x_shadow_device)
     if not _PURCHASE_ID.fullmatch(purchase_id):
         raise HTTPException(422, {"code": "bad_purchase_id"})
-    return await asyncio.to_thread(progression.buy_freeze, device, purchase_id)
+    return await asyncio.to_thread(progression_shop.buy_freeze, device, purchase_id)
 
 
 # --- bl72-known-words ---

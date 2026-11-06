@@ -13,6 +13,7 @@ from routers import youtube as youtube_r
 import config
 import dependencies
 import store
+import store_video
 import youtube
 
 AUTH = f"Bearer {config.SHADOW_TOKEN}"
@@ -75,23 +76,23 @@ def test_info_falls_back_to_the_default_thumbnail(monkeypatch):
 
 def _make(device=DEV):
     iid = store.create_island("simple", 3, source="youtube", source_name=VID, device=device)
-    store.add_video(iid, VID, 0.0, "Clip", "")
+    store_video.add_video(iid, VID, 0.0, "Clip", "")
     return {"id": iid}
 
 
 def test_delete_island_removes_the_video_row():
     out = _make()
     store.delete_island(out["id"])
-    assert store.get_video(out["id"]) is None
+    assert store_video.get_video(out["id"]) is None
 
 
 def test_list_videos_filters_by_device():
     mine = _make()
     store.create_island("simple", 3, source="youtube", device=OTHER)
-    ids = [v["island_id"] for v in store.list_videos(DEV)]
+    ids = [v["island_id"] for v in store_video.list_videos(DEV)]
     assert mine["id"] in ids
     assert all(store.get_island(i)["device"] == DEV for i in ids)
-    assert store.list_videos("eeeeeeee-0000-4000-8000-000000000000") == []
+    assert store_video.list_videos("eeeeeeee-0000-4000-8000-000000000000") == []
 
 
 def test_startup_marks_interrupted_youtube_island_failed():

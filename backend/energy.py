@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
 
-import store
+import store_energy
 import suggest
 
 log = logging.getLogger("shadow.energy")
@@ -57,8 +57,8 @@ def refill_at(now: datetime | None = None) -> str:
 
 
 def _balances(device: str) -> tuple[int, int]:
-    """(daily_left, granted_left); see store.energy_balances."""
-    return store.energy_balances(device, DAILY_UNITS)
+    """(daily_left, granted_left); see store_energy.energy_balances."""
+    return store_energy.energy_balances(device, DAILY_UNITS)
 
 
 def status(device: str, owner: bool) -> dict:
@@ -68,7 +68,7 @@ def status(device: str, owner: bool) -> dict:
         daily_left, granted_left = DAILY_UNITS, 0
     else:
         daily_left, granted_left = _balances(device)
-    last = store.energy_last_grant(device)
+    last = store_energy.energy_last_grant(device)
     return {
         "on": True,
         "daily_max": DAILY_UNITS,
@@ -98,7 +98,7 @@ def charge(device: str, kind: str, owner: bool) -> None:
     if not ON or owner:
         return
     units = PRICES[kind]
-    code, after, warn = store.energy_spend(
+    code, after, warn = store_energy.energy_spend(
         device, kind, units, DAILY_UNITS, GLOBAL_DAILY_UNITS,
         GLOBAL_DAILY_UNITS * WARN_FRACTION,
     )
@@ -126,7 +126,7 @@ def refund(device: str, kind: str, owner: bool) -> bool:
     a charge was given back."""
     if not ON or owner:
         return False
-    if not store.energy_refund(device, kind):
+    if not store_energy.energy_refund(device, kind):
         return False
     log.info("energy: refunded %s to %s", kind, device)
     return True
@@ -139,6 +139,6 @@ def grant(granted_by: str, target_device: str, username: str, amount: int,
     budget."""
     if not (1 <= amount <= GRANT_MAX):
         raise HTTPException(400, {"code": "bad_amount"})
-    store.energy_add_grant(target_device, username, amount, note, granted_by)
+    store_energy.energy_add_grant(target_device, username, amount, note, granted_by)
     log.info("energy: %s granted %d to @%s (%s)", granted_by, amount, username, note)
     return status(target_device, target_owner)

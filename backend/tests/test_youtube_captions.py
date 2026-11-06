@@ -14,6 +14,7 @@ import config
 from services import captions
 import dependencies
 import store
+import store_video
 import youtube
 
 AUTH = f"Bearer {config.SHADOW_TOKEN}"
@@ -101,7 +102,7 @@ def test_cues_from_lines():
 def test_build_from_captions_makes_a_ready_island_without_audio(monkeypatch):
     monkeypatch.setattr(main.generate, "translate_lines", lambda b, *a, **k: ["en " + t for t in b])
     iid = store.create_island("simple", 3, source="youtube", source_name=VID, device=DEV)
-    store.add_video(iid, VID, 0.0, "Clip", "")
+    store_video.add_video(iid, VID, 0.0, "Clip", "")
     cues = [
         {"start": 1.5, "end": 3.0, "text": "こんにちは"},
         {"start": 4.0, "end": 6.5, "text": "さようなら"},
@@ -113,7 +114,7 @@ def test_build_from_captions_makes_a_ready_island_without_audio(monkeypatch):
     assert island["lines"][0]["offset"] == 1.5 and island["lines"][1]["offset"] == 4.0
     assert island["lines"][0]["en"] == "en こんにちは"
     assert not store.line_audio_path(iid, 0).exists()
-    assert store.get_video(iid)["duration"] == 6.5
+    assert store_video.get_video(iid)["duration"] == 6.5
 
 
 def test_route_asr_only_when_an_event_has_tOffsetMs():
@@ -157,7 +158,7 @@ def test_route_good_body_is_pending_and_takes_one_slot():
     out, bg = _post(_good())
     assert out["status"] == "pending" and len(bg.tasks) == 1
     assert store.count_builds_today(DEV, "create") == 1
-    assert store.get_video(out["id"])["video_id"] == VID
+    assert store_video.get_video(out["id"])["video_id"] == VID
 
 
 def test_route_413_on_big_body():
@@ -239,7 +240,7 @@ def test_body_limit_fits_both_tracks_at_their_caps():
 def _build(monkeypatch, tokens):
     monkeypatch.setattr(main.generate, "translate_lines", lambda b, *a, **k: ["" for _ in b])
     iid = store.create_island("simple", 3, source="youtube", source_name=VID, device=DEV)
-    store.add_video(iid, VID, 0.0, "Clip", "")
+    store_video.add_video(iid, VID, 0.0, "Clip", "")
     lines = youtube.json3_to_lines(FIXTURE["events"])
     asyncio.run(captions._build_from_captions(iid, lines, "Clip", asr_tokens=tokens))
     island = store.get_island(iid)
@@ -260,7 +261,7 @@ def test_build_with_asr_tokens_follows_the_voice(monkeypatch):
         first = truth["text"].split(" ")[0]
         ln = next(l for l in lines if l["ja"].startswith(first))
         assert abs(ln["offset"] - truth["start"]) <= 0.3, (ln["ja"], ln["offset"], truth["start"])
-    video = store.get_video(iid)
+    video = store_video.get_video(iid)
     assert (video["align_status"], video["align_error"]) == ("done", "asr")
 
 
@@ -268,7 +269,7 @@ def test_build_without_tokens_is_the_mora_clock_and_asr_none(monkeypatch):
     iid, lines = _build(monkeypatch, [])
     block = [ln for ln in lines if ln["ja"] in BLOCK_TEXT]
     assert len(block) == 2 and block[-1]["offset"] - block[0]["offset"] < 4.0
-    video = store.get_video(iid)
+    video = store_video.get_video(iid)
     assert (video["align_status"], video["align_error"]) == ("done", "asr_none")
 
 
@@ -314,7 +315,7 @@ def test_stretch_lumps_moves_a_lump_end_to_the_next_line():
 def test_build_spreads_an_asr_lump_over_its_voice(monkeypatch):
     monkeypatch.setattr(main.generate, "translate_lines", lambda b, *a, **k: [""] * len(b))
     iid = store.create_island("simple", 3, source="youtube", source_name=VID, device=DEV)
-    store.add_video(iid, VID, 0.0, "Clip", "")
+    store_video.add_video(iid, VID, 0.0, "Clip", "")
     asyncio.run(captions._build_from_captions(iid, youtube.json3_to_lines(_lump_events()), "Clip"))
     lines = store.get_island(iid)["lines"]
     lump = [ln for ln in lines if ln["ja"] in LUMP_TEXT and ln["offset"] >= 25.0 and not ln["ja"].startswith("6")]

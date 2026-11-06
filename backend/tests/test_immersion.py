@@ -13,6 +13,7 @@ import main
 from routers import progress as progress_r
 import config
 import progression
+import progression_shop
 import schedule
 import store
 
@@ -204,7 +205,7 @@ def test_grant_hours_heals_and_then_writes_nothing(owner):
 def test_buy_an_hours_item_is_hours_locked(owner):
     progression.award(owner, "seed", 10000, 5000)
     with pytest.raises(HTTPException) as e:
-        progression.buy(owner, "accessory.bowtie_tide")
+        progression_shop.buy(owner, "accessory.bowtie_tide")
     assert e.value.status_code == 400
     assert e.value.detail == {"code": "hours_locked", "hours_req": 10}
     assert "accessory.bowtie_tide" not in progression.snapshot(owner)["owned"]

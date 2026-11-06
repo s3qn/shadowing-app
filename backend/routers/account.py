@@ -6,10 +6,11 @@ from fastapi import APIRouter, Header, HTTPException
 import accounts
 import beta
 import dependencies
-import progression
+import progression_shop
 import review_deck
 import schedule
 import store
+import store_energy
 import user_profile
 from services import line_audio as line_audio_svc
 
@@ -19,9 +20,9 @@ router = APIRouter()
 def _erase_owner(owner: str) -> None:
     for island in store.list_islands(owner):
         store.delete_island(island["id"])
-    store.delete_owner_rows(owner)
+    store_energy.delete_owner_rows(owner)
     schedule.delete_owner(owner)
-    progression.delete_owner(owner)
+    progression_shop.delete_owner(owner)
     user_profile.delete_owner(owner)
     beta.delete_owner(owner)
     review_deck.delete_owner(owner)

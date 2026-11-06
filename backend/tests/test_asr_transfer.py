@@ -14,6 +14,7 @@ import main
 import config
 import segment
 import store
+import store_video
 import youtube
 
 FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "yt_pair_synthetic.json").read_text())
@@ -257,7 +258,7 @@ def make_video(texts=None):
     lines = _fixture_lines()
     island_id = store.create_island("simple", 3, language="ja", source="youtube",
                                     source_name="abc", device=DEV)
-    store.add_video(island_id, "abc", 0.0, "t", "")
+    store_video.add_video(island_id, "abc", 0.0, "t", "")
     for i, ln in enumerate(lines):
         duration = round(ln["end"] - ln["start"], 3)
         store.add_line(island_id, i, {"ja": ln["text"]}, duration, [],
@@ -300,7 +301,7 @@ def test_route_retimes_lines_and_closes():
     un = next(ln for ln in after if ln["ja"].startswith("うん"))
     assert un["offset"] == 8.5
     assert post(island_id, {"asr_events": FIXTURE["asr_events"]}).json()["detail"] == {"code": "align_closed"}
-    assert store.get_video(island_id)["align_attempts"] == 1
+    assert store_video.get_video(island_id)["align_attempts"] == 1
 
 
 def test_route_rejections():
@@ -311,18 +312,18 @@ def test_route_rejections():
     voice = store.create_island("simple", 3, device=DEV)
     assert post(voice, body).json()["detail"] == {"code": "not_video"}
     building = store.create_island("simple", 3, language="ja", source="youtube", source_name="abc", device=DEV)
-    store.add_video(building, "abc", 0.0, "t", "")
+    store_video.add_video(building, "abc", 0.0, "t", "")
     resp = post(building, body)
     assert resp.status_code == 409 and resp.json()["detail"] == {"code": "not_ready"}
-    assert store.get_video(building)["align_attempts"] == 0
+    assert store_video.get_video(building)["align_attempts"] == 0
     bad = post(island_id, {"asr_events": [{"segs": [{"utf8": "x", "tOffsetMs": "no"}]}]})
     assert bad.status_code == 400 and bad.json()["detail"] == {"code": "captions_invalid"}
     assert post(island_id, {"asr_events": "x"}).status_code == 400
-    store.set_align_status(island_id, "running")
+    store_video.set_align_status(island_id, "running")
     assert post(island_id, body).json()["detail"] == {"code": "align_busy"}
-    store.set_align_status(island_id, "failed", "x", count_attempt=True)
+    store_video.set_align_status(island_id, "failed", "x", count_attempt=True)
     for _ in range(config.ALIGN_MAX_ATTEMPTS - 1):
-        store.set_align_status(island_id, "failed", "x", count_attempt=True)
+        store_video.set_align_status(island_id, "failed", "x", count_attempt=True)
     assert post(island_id, body).json()["detail"] == {"code": "align_closed"}
 
 

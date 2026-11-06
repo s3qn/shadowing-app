@@ -4,6 +4,7 @@ per-database helpers and never joins across db files."""
 from datetime import datetime, timedelta, timezone
 
 import progression
+import progression_board
 import schedule
 import store
 import user_profile
@@ -23,7 +24,7 @@ def weekly_league(owner: str, language: str, limit: int, handles) -> dict:
     """The weekly board: minutes from schedule.db, lines from progression.db,
     island languages from store, joined here in Python."""
     since = week_start()
-    return progression.weekly_leaderboard(
+    return progression_board.weekly_leaderboard(
         owner, limit, handles, since, schedule.weekly_minutes(language, since),
         store.island_languages(), language,
     )
@@ -46,7 +47,7 @@ def profile(username: str, handles, ui: str = "en") -> dict | None:
         "member_since": (found["created_at"] or "")[:7],
         "level": snap["level"],
         "xp": snap["xp"],
-        "rank": progression.leaderboard(owner, 1, handles)["me"]["rank"],
+        "rank": progression_board.leaderboard(owner, 1, handles)["me"]["rank"],
         "equipped": snap["equipped"],
         "streak_days": snap["streak_days"],
         "longest_streak": st["longest_streak"],

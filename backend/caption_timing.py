@@ -26,6 +26,7 @@ import random
 import asr_transfer
 import segment
 import store
+import store_video
 import youtube
 
 log = logging.getLogger("shadow")
@@ -268,7 +269,7 @@ def transfer(island_id: str, tokens: list[dict], apply: bool = False) -> dict:
             words = segment.align_pieces(old["ja"], [], duration,
                                          speech_end=segment.speech_end(old["ja"], duration, rate))
         if store.set_words(island_id, old["idx"], words, expected=old["words"]):
-            store.set_line_span(island_id, old["idx"], nl["start"], duration)
+            store_video.set_line_span(island_id, old["idx"], nl["start"], duration)
             row["written"] = True
             report["written"] += 1
         else:
@@ -323,7 +324,7 @@ def restore(island_id: str) -> int:
     lines = _read_backup(island_id)
     for ln in lines:
         store.set_words(island_id, ln["idx"], ln["words"])
-        store.set_line_span(island_id, ln["idx"], ln["offset"], ln["duration"])
+        store_video.set_line_span(island_id, ln["idx"], ln["offset"], ln["duration"])
     return len(lines)
 
 

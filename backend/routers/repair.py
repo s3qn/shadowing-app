@@ -7,6 +7,7 @@ import dependencies
 import guardrails  # --- ai-guardrails ---
 import repair
 import store
+import store_video
 from services import captions
 
 router = APIRouter()
@@ -31,14 +32,14 @@ async def post_video_repair(
     island = await asyncio.to_thread(dependencies._own_island, island_id, device)
     if island["source"] != "youtube":
         raise HTTPException(400, {"code": "not_video"})
-    video = await asyncio.to_thread(store.get_video, island_id)
+    video = await asyncio.to_thread(store_video.get_video, island_id)
     if video is None:
         raise HTTPException(400, {"code": "not_video"})
     if island["status"] != "ready":
         raise HTTPException(409, {"code": "not_ready"})
     body = await captions._captions_body(request)
     context = repair.clean_context(body.get("context"))
-    await asyncio.to_thread(store.set_repair_context, video["video_id"], context)
+    await asyncio.to_thread(store_video.set_repair_context, video["video_id"], context)
     status = video.get("repair_status", "")
     if status in ("queued", "running"):
         return {"repair": status}
@@ -51,7 +52,7 @@ async def post_video_repair(
     owner = dependencies._is_owner(device)
     if not owner:  # --- ai-guardrails ---
         await asyncio.to_thread(guardrails.check_ai_call, device, "repair")
-    if not await asyncio.to_thread(store.claim_repair, island_id, repair.REPAIR_MAX_ATTEMPTS, repair.VERSION):
+    if not await asyncio.to_thread(store_video.claim_repair, island_id, repair.REPAIR_MAX_ATTEMPTS, repair.VERSION):
         # Lost the race to another open of the same island.
         return {"repair": "queued"}
     if not owner:

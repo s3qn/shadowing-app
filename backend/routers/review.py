@@ -13,6 +13,7 @@ import review_deck
 import review_session
 import starter
 import store
+import store_video
 
 router = APIRouter()
 
@@ -30,7 +31,7 @@ async def review_save(
     line = next((l for l in island["lines"] if l["idx"] == idx), None)
     if line is None:
         raise HTTPException(404, "no such line")
-    video = await asyncio.to_thread(store.get_video, island_id)
+    video = await asyncio.to_thread(store_video.get_video, island_id)
     try:
         return await asyncio.to_thread(review_deck.create_card, device, island, line, video)
     except ValueError as exc:
@@ -271,7 +272,7 @@ async def ai_picks(
         await asyncio.to_thread(dependencies._refund_use_slot, device, "pick_sentences", "pick")
         raise HTTPException(502, {"code": "pick_failed"})
     by_idx = {l["idx"]: l for l in island["lines"]}
-    video = await asyncio.to_thread(store.get_video, island_id)
+    video = await asyncio.to_thread(store_video.get_video, island_id)
     cards: list[dict] = []
     for pick in sorted(picks, key=lambda p: p["n"]):
         try:

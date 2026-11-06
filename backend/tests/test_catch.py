@@ -15,6 +15,7 @@ import main
 from routers import progress as progress_r
 import config
 import store
+import store_video
 
 AUTH = f"Bearer {config.SHADOW_TOKEN}"
 DEV = "eeeeeeee-0000-4000-8000-0000000000c1"
@@ -310,7 +311,7 @@ def _store_island(lines, language="ja", device=DEV, heard=True):
             for line in lines for w in line["words"] if "start" in w
         ])
     if heard is not None:
-        store.add_video(island_id, "v", 0.0, "Title", "Author")
+        store_video.add_video(island_id, "v", 0.0, "Title", "Author")
     return island_id
 
 
@@ -530,5 +531,5 @@ def test_words_pending_while_align_queued(monkeypatch):
     _never_cli(monkeypatch)
     lines = [_line([{"text": "猫", "pos": "noun"}], 0.0)] * 2
     island_id = _store_island(lines, heard=False)
-    store.set_align_status(island_id, "queued", count_attempt=True)
+    store_video.set_align_status(island_id, "queued", count_attempt=True)
     assert _status(_words, island_id).detail == {"code": "words_pending"}

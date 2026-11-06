@@ -1,8 +1,8 @@
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AppState, BackHandler, Linking, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { AppState, BackHandler, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import type { ScrollView } from 'react-native-gesture-handler';
 import { SymbolView } from 'expo-symbols';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,6 +12,7 @@ import YoutubePlayer, { type YoutubeIframeRef } from 'react-native-youtube-ifram
 import { CatConstellation } from '@/components/cat-constellation';
 import { CatchCard, CatchHud } from '@/components/catch-card';
 import { PrismButton } from '@/components/prism';
+import { VideoFrame } from '@/components/video/video-frame';
 import { ExplainSheet } from '@/components/explain-sheet';
 import { CompactDock, DOCK_GOLD_INK, type DockPill } from '@/components/tide/compact-dock';
 import { DockPopovers } from '@/components/tide/dock-popovers';
@@ -37,13 +38,13 @@ import { useWatchClock } from '@/hooks/use-watch-clock';
 import { playIntent, useVideoHighlight } from '@/hooks/use-video-highlight';
 import * as api from '@/lib/api';
 import { useVideoLoad } from '@/hooks/video/use-video-load';
-import { clearEndPending, mapCandidateLines, startTranscripts, stopTranscripts, useTranscriptStore } from '@/lib/dev-transcripts'; // transcript-review
-import { TranscriptTagBar } from '@/components/transcript-tag-bar'; // transcript-review
-import { BottomSheet } from '@/components/sheet/bottom-sheet'; // transcript-review
+import { clearEndPending } from '@/lib/dev-transcripts'; // transcript-review
+import { useTranscriptReview } from '@/hooks/video/use-transcript-review';
+import { TranscriptReviewBar } from '@/components/video/transcript-review-bar';
 import { useT } from '@/lib/i18n';
 import { getLastLine, resumeLine, setLastLine } from '@/lib/last-line';
 import { getSettingsSync, TIMES_MAX } from '@/lib/settings';
-import { CC_OFF_SCRIPT, PLAYER_BRIDGE_SCRIPT, fullscreenPlayerSize, isBackChannel, watchUrl } from '@/lib/youtube';
+import { CC_OFF_SCRIPT, PLAYER_BRIDGE_SCRIPT, fullscreenPlayerSize, isBackChannel } from '@/lib/youtube';
 
 /** The video on top, the Tide scene under it: water, the current line on the waterline with tappable words, the other lines faded around it. */
 export default function VideoScreen() {
@@ -92,25 +93,6 @@ export default function VideoScreen() {
     return () => sub.remove();
   }, [full]);
 
-  const fullButton = (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={t(full ? 'video.exitFullscreen' : 'video.enterFullscreen')}
-      onPress={() => setFull((f) => !f)}
-      hitSlop={3}
-      style={({ pressed }) => [styles.fullBtn, pressed && { opacity: 0.7 }]}>
-      <SymbolView
-        name={
-          full
-            ? { ios: 'arrow.down.right.and.arrow.up.left', android: 'fullscreen_exit' }
-            : { ios: 'arrow.up.left.and.arrow.down.right', android: 'fullscreen' }
-        }
-        size={16}
-        tintColor={tide.textDim}
-      />
-    </Pressable>
-  );
-
   // The load hook runs before useSavedCards (which needs the island), so the
   // review cards reach loadReviewCards through a ref set once it exists.
   const reviewCardsRef = useRef<(cards: api.ReviewCard[]) => void>(() => {});
@@ -131,15 +113,8 @@ export default function VideoScreen() {
   // Back-channels (うん。 そう。) are hidden so the speaker's card holds and
   // prev/next never land on them; a review deck keeps whatever was saved.
   // transcript-review: dev only, `tr=1` swaps in the selected ASR candidate's lines; timing code reads them unchanged.
-  const trMode = __DEV__ && tr === '1';
-  const trStore = useTranscriptStore();
-  useEffect(() => {
-    if (!trMode || !video?.video_id) return;
-    void startTranscripts(video.video_id);
-  }, [trMode, video?.video_id]);
-  useEffect(() => () => stopTranscripts(), []);
-  const trCandidate = trStore.candidates.find((c) => c.label === trStore.label);
-  const trLines = useMemo(() => (trMode ? mapCandidateLines(trCandidate) : null), [trMode, trCandidate]);
+  const { trMode, trStore, trLines, trBarH, setTrBarH, scoreOpen, setScoreOpen, scores, setScores, finishScores } =
+    useTranscriptReview(tr, video?.video_id);
   const lines = useMemo(() => {
     if (trLines) return trLines;
     const all = island?.lines ?? [];
@@ -221,9 +196,6 @@ export default function VideoScreen() {
   releaseLineRef.current = releaseLine;
 
   // --- transcript-review --- tag bar height, tag position, end-of-video scores.
-  const [trBarH, setTrBarH] = useState(0);
-  const [scoreOpen, setScoreOpen] = useState(false);
-  const [scores, setScores] = useState<Record<string, number>>({});
   const trPoint = () => ({
     playerTime: timeNow() ?? 0,
     lineIndex: lines[activeLine]?.idx ?? -1,
@@ -240,13 +212,6 @@ export default function VideoScreen() {
     }, 1500);
     return () => clearTimeout(timer);
   }, [trMode, trStore.endPending, lines.length]);
-  const finishScores = () => {
-    for (const [label, score] of Object.entries(scores)) {
-      void api.postTranscriptScore({ session: trStore.session, video: trStore.video, label, score });
-    }
-    setScoreOpen(false);
-    router.back();
-  };
 
   // Captions-only videos have no reference audio on the server, so takes are
   // only saved and played back (the embed is the reference).
@@ -590,34 +555,12 @@ export default function VideoScreen() {
   const language = island?.language ?? 'ja';
   const ja = language === 'ja';
 
-  /** The embed's slot: the player and the fullscreen button, or the open-in-YouTube fallback. */
-  const embedFrame = (videoId: string, player: ReactNode) =>
-    cannotPlay ? (
-      <View style={[styles.center, { width: playerSize.width, height: playerSize.height, flex: 0 }]}>
-        <Text style={styles.hint}>{t('video.cannotPlay')}</Text>
-        <PrismButton
-          shape="pill"
-          verb="tools"
-          flat
-          press="light"
-          label={t('video.openInYoutube')}
-          onPress={() => void Linking.openURL(watchUrl(videoId))}
-        />
-      </View>
-    ) : (
-      <View style={{ width: playerSize.width, height: playerSize.height }}>
-        {player}
-        {fullButton}
-      </View>
-    );
-
   if (preview) {
     return (
       <SafeAreaView edges={fs ? [] : ['bottom']} style={[styles.fill, fs && styles.row, { backgroundColor: tide.sky[0] }]}>
         <StatusBar style="light" hidden={fs} />
         <Stack.Screen options={{ title: '', headerShown: !fs }} />
-        {embedFrame(
-          preview,
+        <VideoFrame videoId={preview} size={playerSize} cannotPlay={cannotPlay} full={full} onToggleFull={() => setFull((f) => !f)}>
           <YoutubePlayer
             height={playerSize.height}
             width={playerSize.width}
@@ -634,8 +577,8 @@ export default function VideoScreen() {
               setPlaying((p) => playIntent(p, s));
             }}
             onError={() => setCannotPlay(true)}
-          />,
-        )}
+          />
+        </VideoFrame>
         {cannotPlay ? null : (
           <View style={styles.center}>
             <Text style={styles.hint}>{t('video.noTranscript')}</Text>
@@ -672,7 +615,7 @@ export default function VideoScreen() {
         </View>
       ) : (
         <View style={[styles.fill, fs && styles.row]}>
-          {embedFrame(video.video_id, (
+          <VideoFrame videoId={video.video_id} size={playerSize} cannotPlay={cannotPlay} full={full} onToggleFull={() => setFull((f) => !f)}>
             <>
           <View pointerEvents={lines.length === 0 ? 'auto' : 'none'}>
             <YoutubePlayer
@@ -717,7 +660,7 @@ export default function VideoScreen() {
             />
           ) : null}
             </>
-          ))}
+          </VideoFrame>
           <View style={styles.fill}>
             <View style={styles.fill}>
               <TideScene
@@ -874,32 +817,19 @@ export default function VideoScreen() {
           onPlaySentence={onExplainPlay}
         />
       ) : null}
-      {trMode && !fs && lines.length > 0 ? (
-        <View style={[styles.trBar, { bottom: insets.bottom }]}>
-          <TranscriptTagBar getPoint={trPoint} onHeight={setTrBarH} />
-        </View>
-      ) : null}
       {trMode ? (
-        <BottomSheet open={scoreOpen} onClose={() => setScoreOpen(false)} title="Score each candidate" contentTitle>
-          <View style={styles.trScores}>
-            {trStore.candidates.map((c) => (
-              <View key={c.label} style={styles.trScoreRow}>
-                <Text style={styles.trScoreLabel}>{c.label}</Text>
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <PrismButton
-                    key={n}
-                    shape="pill"
-                    verb="tools"
-                    on={scores[c.label] === n}
-                    label={String(n)}
-                    onPress={() => setScores((m) => ({ ...m, [c.label]: n }))}
-                  />
-                ))}
-              </View>
-            ))}
-            <PrismButton shape="pill" verb="listen" label="Done" onPress={finishScores} />
-          </View>
-        </BottomSheet>
+        <TranscriptReviewBar
+          showBar={!fs && lines.length > 0}
+          bottom={insets.bottom}
+          getPoint={trPoint}
+          onHeight={setTrBarH}
+          candidates={trStore.candidates}
+          scoreOpen={scoreOpen}
+          onCloseScores={() => setScoreOpen(false)}
+          scores={scores}
+          onScore={(label, n) => setScores((m) => ({ ...m, [label]: n }))}
+          onDone={finishScores}
+        />
       ) : null}
       {island ? (
         <CatchCard
@@ -919,24 +849,7 @@ export default function VideoScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  trBar: { position: 'absolute', left: 0, right: 0, zIndex: 17 },
-  trScores: { gap: 12, paddingTop: 8 },
-  trScoreRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  trScoreLabel: { color: tide.text, fontSize: 17, fontWeight: '700', width: 24 },
   row: { flexDirection: 'row' },
-  fullBtn: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(20,28,44,0.72)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
   center: {
     flex: 1,
     alignItems: 'center',

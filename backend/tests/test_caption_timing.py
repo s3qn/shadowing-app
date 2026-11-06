@@ -4,6 +4,7 @@ default) and the scorer that measures the trim against exact word times."""
 import caption_timing
 import segment
 import store
+import store_video
 
 DEV = "dev-caption-timing"
 
@@ -13,7 +14,7 @@ store.init()
 def _youtube_island(texts, durations, words=None):
     island_id = store.create_island("simple", 3, language="ja", source="youtube",
                                     source_name="abc", device=DEV)
-    store.add_video(island_id, "abc", 0.0, "t", "")
+    store_video.add_video(island_id, "abc", 0.0, "t", "")
     for i, (text, duration) in enumerate(zip(texts, durations)):
         w = words[i] if words and words[i] is not None else segment.align_pieces(text, [], duration)
         store.add_line(island_id, i, {"ja": text}, duration, [], w, offset=1.0 + i * 2.2)

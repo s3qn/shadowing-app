@@ -12,6 +12,7 @@ import review_deck
 import schedule
 import spacing
 import store
+import store_video
 
 AUTH = f"Bearer {config.SHADOW_TOKEN}"
 DEV = "eeeeeeee-0000-4000-8000-0000000000b1"
@@ -37,7 +38,7 @@ def _island(source="podcast", wav=True, video=False, device=DEV):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"RIFFfake")
     if video:
-        store.add_video(island_id, "vid123", 100.0, "T", "A")
+        store_video.add_video(island_id, "vid123", 100.0, "T", "A")
     return island_id
 
 

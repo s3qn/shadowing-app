@@ -11,7 +11,6 @@ ledger row keyed by (owner, key), so a replayed request pays nothing.
 
 import json
 import logging
-import math
 import os
 import sqlite3
 import threading
@@ -21,160 +20,59 @@ from pathlib import Path
 from fastapi import HTTPException
 
 import dbconn
+import progression_data
 import spacing
 
 log = logging.getLogger("shadow.progression")
 
 DATA_DIR = Path(os.getenv("SHADOW_DATA_DIR", Path(__file__).parent / "data"))
 DB_PATH = DATA_DIR / "progression.db"
-CATALOG_PATH = Path(__file__).parent / "cosmetics_catalog.json"
-
-MAX_LEVEL = 50
-CATALOG_VERSION = 2
-LEVEL_UP_COINS = 25
-
-DAY_XP, DAY_COINS = 20, 5
-PRACTICED_XP, PRACTICED_COINS = 20, 10
-# One key per counted listening minute, owner-wide (all islands together),
-# at most DAILY_MINUTES_MAX a UTC day. In the slow tail a minute pays
-# MINUTE_XP_SLOW instead of MINUTE_XP // SLOW_DIVISOR (which would be 0).
-MINUTE_XP, MINUTE_XP_SLOW, MINUTE_COINS = 2, 1, 1
-DAILY_MINUTES_MAX = 180
-TAKE_XP, TAKE_COINS = 15, 2
-TAKES_PER_DAY = 60
-# A take on a line already paid today (take:...) still pays a little, so every
-# sentence said shows XP: REP_XP_BASE plus 1 per REP_XP_STEP score points, at
-# most REP_XP_MAX, inside the daily cap like every other repeatable source.
-REP_XP_BASE, REP_XP_STEP, REP_XP_MAX = 2, 25, 6
-
-# Every repeatable source (take, minute, practiced, day, streak, quality,
-# mastery) pays in two bands per UTC day: the FAST band, DAILY_XP_CAP XP at
-# the full rate, then the SLOW tail at xp // SLOW_DIVISOR with no coins.
-# Mastery waits for a day with fast room instead. Milestones are exempt.
-DAILY_XP_CAP = 120
-SLOW_DIVISOR = 10
-QUALITY_GOOD = 0.5
-QUALITY_GREAT = 0.8
-QUALITY_MIN_WORDS = 3
-QUALITY_XP, QUALITY_COINS = 5, 1
-MASTERY_XP, MASTERY_COINS = 60, 20
-# "Easy for me": once per line, only for a line that was ever taken whole.
-# Outside the daily cap like the one-time milestones; TAKES_PER_DAY bounds
-# it at 180 XP a day.
-KNOWN_XP, KNOWN_COINS = 3, 1
-# (minimum streak days, xp, coins), longest first.
-STREAK_TIERS = ((365, 50, 12), (100, 40, 10), (30, 30, 8), (7, 20, 5), (3, 10, 3))
-# Streak freeze: bought with coins, used on its own for a missed day. A frozen
-# day bridges the run without adding to it. Sent in every snapshot.
-FREEZE_PRICE = 150
-FREEZE_CAP = 2
-MILESTONES = {
-    "first_take": (40, 10),
-    "first_island": (40, 10),
-    "perfect_take": (60, 15),
-    "full_speed": (60, 15),
-    "first_mastery": (80, 20),
-    # Streak rungs (tier floors T2 to T10): each also grants its item.
-    "streak_7": (60, 15),
-    "streak_14": (100, 25),
-    "streak_30": (150, 40),
-    "streak_60": (200, 50),
-    "streak_100": (250, 60),
-    "streak_180": (350, 80),
-    "streak_365": (500, 120),
-    "streak_500": (600, 150),
-    "streak_1000": (1000, 250),
-    # Level milestones pay coins only: XP for a level would feed itself.
-    "level_5": (0, 30),
-    "level_10": (0, 60),
-    "level_20": (0, 100),
-    # Listening hours (lifetime, uncapped): each rung also grants its item.
-    "hours_1": (40, 10),
-    "hours_10": (60, 15),
-    "hours_25": (80, 20),
-    "hours_50": (100, 25),
-    "hours_100": (200, 50),
-    "hours_250": (250, 60),
-    "hours_500": (300, 80),
-    "hours_1000": (500, 120),
-    # Secret awards, evaluated on long media only (see schedule.py).
-    "replay_10": (60, 15),
-    "marathon_60": (100, 25),
-    "three_channels": (60, 15),
-}
-HOURS_RUNGS = (1, 10, 25, 50, 100, 250, 500, 1000)
-HOURS_ITEMS = {
-    1: "accessory.bell_sprout",
-    10: "accessory.bowtie_tide",
-    25: "head.beanie_night",
-    50: "body.scarf_lantern",
-    100: "face.whiskers_shiny",
-    250: "accessory.collar_moon",
-    500: "face.mask_kitsune",
-    1000: "head.crown_hours",
-}
-# Each streak milestone also grants its item (free, never equipped).
-STREAK_ITEMS = {
-    7: "accessory.badge_ember",
-    14: "face.streak_14",
-    30: "body.scarf_ember",
-    60: "head.streak_60",
-    100: "head.crown_ember",
-    180: "accessory.streak_180",
-    365: "face.mask_phoenix",
-    500: "body.streak_500",
-    1000: "head.streak_1000",
-}
-# Streak tier floors, ascending: rung N is the floor of tier T2..T10. Each
-# pays ms:streak_N once and grants STREAK_ITEMS[N]. Distinct from
-# STREAK_TIERS, the daily bonus table.
-STREAK_RUNGS = (7, 14, 30, 60, 100, 180, 365, 500, 1000)
-SECRET_AWARDS = ("replay_10", "marathon_60", "three_channels")
-# The owned share of an hours item is shown only once this many users exist.
-RARITY_MIN_USERS = 200
-# Display names for every MILESTONES id. A secret one shows no name until earned.
-ACHIEVEMENTS = {
-    "first_take": {"secret": False, "en": "First take", "he": "הקלטה ראשונה"},
-    "first_island": {"secret": False, "en": "First island", "he": "אי ראשון"},
-    "perfect_take": {"secret": False, "en": "Perfect take", "he": "הקלטה מושלמת"},
-    "full_speed": {"secret": False, "en": "Full speed", "he": "מהירות מלאה"},
-    "first_mastery": {"secret": False, "en": "First mastery", "he": "שליטה ראשונה"},
-    "streak_7": {"secret": False, "en": "7 day streak", "he": "רצף של 7 ימים"},
-    "streak_14": {"secret": False, "en": "14 day streak", "he": "רצף של 14 ימים"},
-    "streak_30": {"secret": False, "en": "30 day streak", "he": "רצף של 30 ימים"},
-    "streak_60": {"secret": False, "en": "60 day streak", "he": "רצף של 60 ימים"},
-    "streak_100": {"secret": False, "en": "100 day streak", "he": "רצף של 100 ימים"},
-    "streak_180": {"secret": False, "en": "180 day streak", "he": "רצף של 180 ימים"},
-    "streak_365": {"secret": False, "en": "365 day streak", "he": "רצף של 365 ימים"},
-    "streak_500": {"secret": False, "en": "500 day streak", "he": "רצף של 500 ימים"},
-    "streak_1000": {"secret": False, "en": "1000 day streak", "he": "רצף של 1000 ימים"},
-    "level_5": {"secret": False, "en": "Level 5", "he": "שלב 5"},
-    "level_10": {"secret": False, "en": "Level 10", "he": "שלב 10"},
-    "level_20": {"secret": False, "en": "Level 20", "he": "שלב 20"},
-    "hours_1": {"secret": False, "en": "1 hour listened", "he": "שעה של האזנה"},
-    "hours_10": {"secret": False, "en": "10 hours listened", "he": "10 שעות של האזנה"},
-    "hours_25": {"secret": False, "en": "25 hours listened", "he": "25 שעות של האזנה"},
-    "hours_50": {"secret": False, "en": "50 hours listened", "he": "50 שעות של האזנה"},
-    "hours_100": {"secret": False, "en": "100 hours listened", "he": "100 שעות של האזנה"},
-    "hours_250": {"secret": False, "en": "250 hours listened", "he": "250 שעות של האזנה"},
-    "hours_500": {"secret": False, "en": "500 hours listened", "he": "500 שעות של האזנה"},
-    "hours_1000": {"secret": False, "en": "1000 hours listened", "he": "1000 שעות של האזנה"},
-    "replay_10": {"secret": True, "en": "Heard it ten times", "he": "שמעתי עשר פעמים"},
-    "marathon_60": {"secret": True, "en": "Marathon listener", "he": "מאזין מרתון"},
-    "three_channels": {"secret": True, "en": "Three channels in a day", "he": "שלושה ערוצים ביום"},
-}
-
-# Daily review (BL-51). Outside DAILY_XP_CAP, like milestones.
-REVIEW_MIN_SENTENCES = 3
-REVIEW_SECONDS_PER_SENTENCE = 3
-REVIEW_MAX_COUNTED = 30
-REVIEW_XP_PER_SENTENCE = 4
-REVIEW_NEUTRAL_SCORE = 50.0
-REVIEW_REPEAT_FACTORS = (1.0, 0.4, 0.2, 0.1)
-REVIEW_MAX_PAID_PER_DAY = 10
-REVIEW_FIRST_BONUS = 40
-REVIEW_STREAK_BONUS_PER_DAY = 5
-REVIEW_STREAK_BONUS_DAYS = 7
+# The constants live in progression_data.py. They are bound here by name so a
+# patch of progression.<NAME> still changes what this module reads.
+CATALOG_PATH = progression_data.CATALOG_PATH
+MAX_LEVEL = progression_data.MAX_LEVEL
+CATALOG_VERSION = progression_data.CATALOG_VERSION
+LEVEL_UP_COINS = progression_data.LEVEL_UP_COINS
+DAY_XP, DAY_COINS = progression_data.DAY_XP, progression_data.DAY_COINS
+PRACTICED_XP, PRACTICED_COINS = progression_data.PRACTICED_XP, progression_data.PRACTICED_COINS
+MINUTE_XP = progression_data.MINUTE_XP
+MINUTE_XP_SLOW = progression_data.MINUTE_XP_SLOW
+MINUTE_COINS = progression_data.MINUTE_COINS
+DAILY_MINUTES_MAX = progression_data.DAILY_MINUTES_MAX
+TAKE_XP, TAKE_COINS = progression_data.TAKE_XP, progression_data.TAKE_COINS
+TAKES_PER_DAY = progression_data.TAKES_PER_DAY
+REP_XP_BASE = progression_data.REP_XP_BASE
+REP_XP_STEP = progression_data.REP_XP_STEP
+REP_XP_MAX = progression_data.REP_XP_MAX
+DAILY_XP_CAP = progression_data.DAILY_XP_CAP
+SLOW_DIVISOR = progression_data.SLOW_DIVISOR
+QUALITY_GOOD = progression_data.QUALITY_GOOD
+QUALITY_GREAT = progression_data.QUALITY_GREAT
+QUALITY_MIN_WORDS = progression_data.QUALITY_MIN_WORDS
+QUALITY_XP, QUALITY_COINS = progression_data.QUALITY_XP, progression_data.QUALITY_COINS
+MASTERY_XP, MASTERY_COINS = progression_data.MASTERY_XP, progression_data.MASTERY_COINS
+KNOWN_XP, KNOWN_COINS = progression_data.KNOWN_XP, progression_data.KNOWN_COINS
+STREAK_TIERS = progression_data.STREAK_TIERS
+FREEZE_PRICE = progression_data.FREEZE_PRICE
+FREEZE_CAP = progression_data.FREEZE_CAP
+MILESTONES = progression_data.MILESTONES
+HOURS_RUNGS = progression_data.HOURS_RUNGS
+HOURS_ITEMS = progression_data.HOURS_ITEMS
+STREAK_ITEMS = progression_data.STREAK_ITEMS
+STREAK_RUNGS = progression_data.STREAK_RUNGS
+SECRET_AWARDS = progression_data.SECRET_AWARDS
+RARITY_MIN_USERS = progression_data.RARITY_MIN_USERS
+ACHIEVEMENTS = progression_data.ACHIEVEMENTS
+REVIEW_MIN_SENTENCES = progression_data.REVIEW_MIN_SENTENCES
+REVIEW_SECONDS_PER_SENTENCE = progression_data.REVIEW_SECONDS_PER_SENTENCE
+REVIEW_MAX_COUNTED = progression_data.REVIEW_MAX_COUNTED
+REVIEW_XP_PER_SENTENCE = progression_data.REVIEW_XP_PER_SENTENCE
+REVIEW_NEUTRAL_SCORE = progression_data.REVIEW_NEUTRAL_SCORE
+REVIEW_REPEAT_FACTORS = progression_data.REVIEW_REPEAT_FACTORS
+REVIEW_MAX_PAID_PER_DAY = progression_data.REVIEW_MAX_PAID_PER_DAY
+REVIEW_FIRST_BONUS = progression_data.REVIEW_FIRST_BONUS
+REVIEW_STREAK_BONUS_PER_DAY = progression_data.REVIEW_STREAK_BONUS_PER_DAY
+REVIEW_STREAK_BONUS_DAYS = progression_data.REVIEW_STREAK_BONUS_DAYS
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS progress (
@@ -1233,156 +1131,12 @@ def award_review(
     }
 
 
-# --- shop ---
+# Shop functions (buy, buy_freeze, grant_coins, equip, delete_owner) live in
+# progression_shop.py.
 
 
 def _err(status: int, **body) -> HTTPException:
     return HTTPException(status, body)
-
-
-def _locked(item: dict) -> HTTPException:
-    """level_locked {level_req}, hours_locked {hours_req} or
-    achievement_locked {achievement_req}, by the item's one source."""
-    source, need = unlock_source(item)
-    return _err(400, code=f"{source}_locked", **{f"{source}_req": need})
-
-
-def buy(owner: str, item_id: str) -> dict:
-    item = _ITEMS.get(item_id)
-    if item is None:
-        raise _err(404, code="unknown_item")
-    if item.get("grant_only"):
-        raise _err(400, code="not_for_sale")
-    conn = connect()
-    conn.execute("BEGIN IMMEDIATE")
-    try:
-        if conn.execute(
-            "SELECT 1 FROM owned WHERE owner=? AND item_id=?", (owner, item_id)
-        ).fetchone():
-            conn.rollback()
-            return snapshot(owner)
-        row = conn.execute("SELECT xp, coins FROM progress WHERE owner=?", (owner,)).fetchone()
-        xp, coins = (row["xp"], row["coins"]) if row else (0, 0)
-        # Hours pass as 0: hours items are earned by listening, never bought.
-        if not unlock_met(item, level_for(xp), 0.0, set(_earned(conn, owner))):
-            conn.rollback()
-            raise _locked(item)
-        conn.execute(
-            "INSERT OR IGNORE INTO progress (owner, xp, coins, updated_at) VALUES (?, 0, 0, ?)",
-            (owner, _now()),
-        )
-        price = item["price"]
-        cur = conn.execute(
-            "UPDATE progress SET coins = coins - ?, updated_at = ? WHERE owner=? AND coins >= ?",
-            (price, _now(), owner, price),
-        )
-        if cur.rowcount != 1:
-            conn.rollback()
-            raise _err(400, code="not_enough_coins", price=price, coins=coins)
-        conn.execute(
-            "INSERT OR IGNORE INTO owned (owner, item_id, bought_at) VALUES (?, ?, ?)",
-            (owner, item_id, _now()),
-        )
-        conn.execute(
-            "INSERT INTO equipped (owner, slot, item_id) VALUES (?, ?, ?)"
-            " ON CONFLICT(owner, slot) DO UPDATE SET item_id = excluded.item_id",
-            (owner, item["slot"], item_id),
-        )
-        conn.commit()
-    except HTTPException:
-        raise
-    except BaseException:
-        conn.rollback()
-        raise
-    return snapshot(owner)
-
-
-def buy_freeze(owner: str, purchase_id: str) -> dict:
-    """Buys one streak freeze for FREEZE_PRICE coins, debit and row in one
-    transaction. A replayed purchase_id returns the snapshot, no second debit."""
-    conn = connect()
-    conn.execute("BEGIN IMMEDIATE")
-    try:
-        if conn.execute(
-            "SELECT 1 FROM streak_freezes WHERE owner=? AND purchase_id=?", (owner, purchase_id)
-        ).fetchone():
-            conn.rollback()
-            return snapshot(owner)
-        if _held(conn, owner) >= FREEZE_CAP:
-            conn.rollback()
-            raise _err(400, code="freeze_cap", cap=FREEZE_CAP)
-        row = conn.execute("SELECT coins FROM progress WHERE owner=?", (owner,)).fetchone()
-        coins = row["coins"] if row else 0
-        cur = conn.execute(
-            "UPDATE progress SET coins = coins - ?, updated_at = ? WHERE owner=? AND coins >= ?",
-            (FREEZE_PRICE, _now(), owner, FREEZE_PRICE),
-        )
-        if cur.rowcount != 1:
-            conn.rollback()
-            raise _err(400, code="not_enough_coins", price=FREEZE_PRICE, coins=coins)
-        conn.execute(
-            "INSERT INTO streak_freezes (owner, purchase_id, bought_on, created_at)"
-            " VALUES (?, ?, ?, ?)",
-            (owner, purchase_id, _today(), _now()),
-        )
-        conn.commit()
-    except HTTPException:
-        raise
-    except BaseException:
-        conn.rollback()
-        raise
-    return snapshot(owner)
-
-
-def grant_coins(owner: str, amount: int, clear_freezes: bool = False) -> dict:
-    """Dev only (see the /shadow/dev/coins route): adds coins, optionally drops the
-    unused freezes so a test can buy again, returns the snapshot."""
-    conn = connect()
-    with conn:
-        conn.execute(
-            "INSERT OR IGNORE INTO progress (owner, xp, coins, updated_at) VALUES (?, 0, 0, ?)",
-            (owner, _now()),
-        )
-        conn.execute(
-            "UPDATE progress SET coins = coins + ?, updated_at = ? WHERE owner=?",
-            (amount, _now(), owner),
-        )
-        if clear_freezes:
-            conn.execute("DELETE FROM streak_freezes WHERE owner=? AND used_on IS NULL", (owner,))
-    return snapshot(owner)
-
-
-def equip(owner: str, slot: str, item_id: str) -> dict:
-    if slot not in SLOTS:
-        raise _err(400, code="bad_slot")
-    conn = connect()
-    with conn:
-        if not item_id:
-            conn.execute("DELETE FROM equipped WHERE owner=? AND slot=?", (owner, slot))
-        else:
-            item = _ITEMS.get(item_id)
-            if item is None:
-                raise _err(400, code="not_owned")
-            if item["slot"] != slot:
-                raise _err(400, code="wrong_slot")
-            if not conn.execute(
-                "SELECT 1 FROM owned WHERE owner=? AND item_id=?", (owner, item_id)
-            ).fetchone():
-                raise _err(400, code="not_owned")
-            conn.execute(
-                "INSERT INTO equipped (owner, slot, item_id) VALUES (?, ?, ?)"
-                " ON CONFLICT(owner, slot) DO UPDATE SET item_id = excluded.item_id",
-                (owner, slot, item_id),
-            )
-    return snapshot(owner)
-
-
-def delete_owner(owner: str) -> None:
-    with connect() as conn:
-        for table in (
-            "progress", "awards", "owned", "equipped", "day_xp", "line_best", "streak_freezes",
-        ):
-            conn.execute(f"DELETE FROM {table} WHERE owner=?", (owner,))
 
 
 def _streaks_for(conn: sqlite3.Connection, owners: list[str]) -> dict[str, int]:
@@ -1408,115 +1162,3 @@ def _streaks_for(conn: sqlite3.Connection, owners: list[str]) -> dict[str, int]:
             end -= timedelta(days=1)
         out[o] = n
     return out
-
-
-# --- leaderboard ---
-
-LEADERBOARD_MAX = 50
-
-
-def leaderboard(owner: str, limit: int, handles) -> dict:
-    """Top cats by xp then level. `handles` returns {owner: handle} for every
-    named owner, so a user with a handle but no XP yet still appears (level 1,
-    nothing equipped).
-
-    Owners without a handle are hidden and take no rank. An entry carries only
-    username, level and equipped; nothing that identifies the owner."""
-    limit = max(1, min(int(limit), LEADERBOARD_MAX))
-    conn = connect()
-    names = handles()
-    rows = conn.execute("SELECT owner, xp, updated_at FROM progress").fetchall()
-    xp_by = {r["owner"]: r["xp"] for r in rows}
-    upd_by = {r["owner"]: r["updated_at"] for r in rows}
-    # Every named owner, left-joined to progress: no progress row means 0 XP
-    # (level 1). xp desc, then the progress tiebreak (updated_at asc, owner asc).
-    # A 0-XP user has no updated_at, so these level-1 users sort to the bottom.
-    ranked = sorted(
-        ((o, xp_by.get(o, 0)) for o in names),
-        key=lambda t: (-t[1], upd_by.get(t[0], ""), t[0]),
-    )
-    top = ranked[:limit]
-    slots: dict[str, dict] = {o: {slot: None for slot in SLOTS} for o, _ in top}
-    if top:
-        marks = ",".join("?" * len(top))
-        for r in conn.execute(
-            f"SELECT owner, slot, item_id FROM equipped WHERE owner IN ({marks})",
-            [o for o, _ in top],
-        ):
-            if r["slot"] in slots[r["owner"]]:
-                slots[r["owner"]][r["slot"]] = r["item_id"]
-    streaks = _streaks_for(conn, [o for o, _ in top])
-    entries = [
-        {"username": names[o], "level": level_for(xp), "equipped": slots[o],
-         "streak_days": streaks[o]}
-        for o, xp in top
-    ]
-    own = conn.execute("SELECT xp FROM progress WHERE owner=?", (owner,)).fetchone()
-    rank = next((i + 1 for i, (o, _) in enumerate(ranked) if o == owner), None)
-    return {
-        "entries": entries,
-        "me": {
-            "rank": rank,
-            "level": level_for(own["xp"] if own else 0),
-            "username": names.get(owner),
-        },
-    }
-
-
-def weekly_leaderboard(
-    owner: str, limit: int, handles, week_start: str, minutes: dict, island_lang: dict,
-    language: str,
-) -> dict:
-    """This week's board for one language: score = counted minutes (the
-    caller's `minutes` {owner: n}) plus the lines first taken since
-    `week_start` on islands in `language` (`island_lang` {island id: language}).
-    Only named owners with a score above 0 are ranked."""
-    limit = max(1, min(int(limit), LEADERBOARD_MAX))
-    conn = connect()
-    names = handles()
-    lines: dict[str, int] = {}
-    for r in conn.execute(
-        "SELECT owner, key FROM awards WHERE key LIKE 'take:%' AND created_at >= ?", (week_start,)
-    ):
-        parts = r["key"].split(":")
-        if len(parts) >= 4 and island_lang.get(":".join(parts[1:-2])) == language:
-            lines[r["owner"]] = lines.get(r["owner"], 0) + 1
-    xp_by = {r["owner"]: r["xp"] for r in conn.execute("SELECT owner, xp FROM progress")}
-
-    def row(o: str) -> dict:
-        m, n = int(minutes.get(o, 0)), lines.get(o, 0)
-        return {"minutes": m, "lines": n, "score": m + n}
-
-    ranked = sorted(
-        ((o, row(o)) for o in names if row(o)["score"] > 0),
-        key=lambda t: (-t[1]["score"], -t[1]["minutes"], names[t[0]]),
-    )
-    top = ranked[:limit]
-    slots: dict[str, dict] = {o: {slot: None for slot in SLOTS} for o, _ in top}
-    if top:
-        marks = ",".join("?" * len(top))
-        for r in conn.execute(
-            f"SELECT owner, slot, item_id FROM equipped WHERE owner IN ({marks})",
-            [o for o, _ in top],
-        ):
-            if r["slot"] in slots[r["owner"]]:
-                slots[r["owner"]][r["slot"]] = r["item_id"]
-    streaks = _streaks_for(conn, [o for o, _ in top])
-    entries = [
-        {"username": names[o], "level": level_for(xp_by.get(o, 0)), "equipped": slots[o],
-         "streak_days": streaks[o], **v}
-        for o, v in top
-    ]
-    rank = next((i + 1 for i, (o, _) in enumerate(ranked) if o == owner), None)
-    return {
-        "week_start": week_start[:10],
-        "language": language,
-        "entries": entries,
-        "me": {
-            "rank": rank,
-            "username": names.get(owner),
-            "level": level_for(xp_by.get(owner, 0)),
-            **row(owner),
-            "top_pct": math.ceil(rank / len(ranked) * 100) if rank else None,
-        },
-    }

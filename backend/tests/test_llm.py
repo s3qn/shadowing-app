@@ -15,6 +15,7 @@ import llm
 import main
 import dependencies
 import store
+import store_llm
 import suggest
 
 client = TestClient(main.app)
@@ -179,7 +180,7 @@ def test_cost_row_has_tag_model_ref_and_usd(monkeypatch):
     assert row["tag"] == "word_context" and row["model"] == llm.TIERS["haiku"]
     assert row["ref"] == "vid1" and row["ok"] == 1
     assert row["usd"] == pytest.approx(0.00035)
-    summary = store.llm_spend_summary()
+    summary = store_llm.llm_spend_summary()
     assert summary["calls"] == 1 and summary["month_usd"] == pytest.approx(0.00035)
     assert summary["by_tag"]["word_context"]["calls"] == 1
     assert llm.cost_usd("some-unknown-model", 1000, 500) == pytest.approx(0.007)
@@ -251,8 +252,8 @@ def test_daily_cap_refuses_and_yesterday_does_not_count(monkeypatch, caplog):
         )
     fake = use(monkeypatch, FakeClient(text_reply("g")))
     assert llm.complete("p", {"type": "string"}, tag="word_context") == "g"
-    store.log_llm_call("generate", "m", 0, 0, 0.6, True, "")
-    assert store.llm_spent_today() == pytest.approx(0.6 + llm.cost_usd(llm.TIERS["haiku"], 1000, 500))
+    store_llm.log_llm_call("generate", "m", 0, 0, 0.6, True, "")
+    assert store_llm.llm_spent_today() == pytest.approx(0.6 + llm.cost_usd(llm.TIERS["haiku"], 1000, 500))
     with caplog.at_level(logging.WARNING, logger="llm"):
         assert llm.complete("p", {"type": "string"}, tag="word_context") is None
     assert "daily cap reached" in caplog.text and len(fake.calls) == 1
@@ -262,7 +263,7 @@ def test_daily_cap_refuses_and_yesterday_does_not_count(monkeypatch, caplog):
 
 def test_cap_refuses_before_the_call_and_cached_path_still_answers(monkeypatch, caplog):
     monkeypatch.setattr(llm, "MONTHLY_USD", 0.01)
-    store.log_llm_call("generate", "m", 0, 0, 0.02, True, "")
+    store_llm.log_llm_call("generate", "m", 0, 0, 0.02, True, "")
     fake = use(monkeypatch, FakeClient(text_reply("fresh")))
     with caplog.at_level(logging.WARNING, logger="llm"):
         assert llm.complete("p", {"type": "string"}, tag="word_context") is None
@@ -310,9 +311,9 @@ def test_last_month_rows_do_not_count():
             " VALUES ('generate', 'm', 1, 1, 5.0, 1, '', ?)",
             (last.isoformat(timespec="seconds"),),
         )
-    store.log_llm_call("pick", "m", 1, 1, 0.25, True, "")
-    assert store.llm_spent_month() == pytest.approx(0.25)
-    assert store.llm_spend_summary()["calls"] == 1
+    store_llm.log_llm_call("pick", "m", 1, 1, 0.25, True, "")
+    assert store_llm.llm_spent_month() == pytest.approx(0.25)
+    assert store_llm.llm_spend_summary()["calls"] == 1
 
 
 # ---- routing ----
@@ -407,7 +408,7 @@ def test_run_cli_strips_keys_and_routes_the_model(monkeypatch):
 def test_spend_route_is_owner_only(monkeypatch):
     monkeypatch.setattr(dependencies, "OWNER_DEVICE", OWNER)
     assert client.get("/shadow/llm/spend", headers=_head(STRANGER)).status_code == 403
-    store.log_llm_call("repair", llm.TIERS["sonnet"], 100, 50, 0.001, True, "vid9")
+    store_llm.log_llm_call("repair", llm.TIERS["sonnet"], 100, 50, 0.001, True, "vid9")
     r = client.get("/shadow/llm/spend", headers=_head(OWNER))
     assert r.status_code == 200
     body = r.json()

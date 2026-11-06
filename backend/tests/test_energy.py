@@ -17,6 +17,7 @@ from routers import words as words_r
 import config
 import dependencies
 import store
+import store_energy
 import suggest
 import user_profile
 
@@ -162,7 +163,7 @@ def test_the_global_stop_lets_a_charge_that_exactly_fills_the_budget(on, monkeyp
     dev = _dev()
     energy.charge(dev, "create", False)
     energy.charge(dev, "phrases", False)  # 6 of 6
-    assert store.energy_global_today() == 6
+    assert store_energy.energy_global_today() == 6
 
 
 def test_the_warning_relays_once_when_the_budget_crosses_the_line(on, monkeypatch):
@@ -238,7 +239,7 @@ def test_a_row_dated_yesterday_does_not_count_and_refill_is_next_midnight(on):
 def test_status_carries_the_last_grant(on):
     dev = _dev()
     energy.grant(OWNER, dev, "cat", 30, "first")
-    gid = store.energy_add_grant(dev, "cat", 60, "second", OWNER)
+    gid = store_energy.energy_add_grant(dev, "cat", 60, "second", OWNER)
     last = energy.status(dev, False)["last_grant"]
     assert last["id"] == gid and last["amount"] == 60
     assert last["at"][:10] == datetime.now(timezone.utc).isoformat()[:10]
@@ -294,11 +295,11 @@ def test_delete_owner_rows_drops_grants_and_anonymises_the_ledger(on):
     energy.grant(OWNER, dev, "cat", 10)
     energy.charge(dev, "create", False)
     energy.grant(OWNER, other, "dog", 10)
-    store.delete_owner_rows(dev)
+    store_energy.delete_owner_rows(dev)
     assert _rows("energy_ledger", dev) == [] and _rows("energy_grants", dev) == []
     assert len(_rows("energy_grants", other)) == 1
-    assert [r["units"] for r in _rows("energy_ledger", store.ENERGY_DELETED_DEVICE)] == [5]
-    assert store.energy_global_today() == 5
+    assert [r["units"] for r in _rows("energy_ledger", store_energy.ENERGY_DELETED_DEVICE)] == [5]
+    assert store_energy.energy_global_today() == 5
 
 
 def test_grant_note_is_stripped_and_capped(on):
@@ -320,7 +321,7 @@ def test_a_refund_nets_out_the_daily_grant_and_global_totals(on):
     assert [(r["kind"], r["units"], r["from_grant"]) for r in rows][-1] == ("create", -5, -3)
     st = energy.status(dev, False)
     assert (st["daily_left"], st["granted_left"]) == (2, 10)
-    assert store.energy_global_today() == 5
+    assert store_energy.energy_global_today() == 5
 
 
 def test_refund_is_a_no_op_for_the_owner_flag_off_or_with_no_charge(on, monkeypatch):
@@ -371,7 +372,7 @@ def test_a_failed_explain_word_leaves_the_balance_unchanged(on, monkeypatch):
         assert _explain_word(dev) == {"context": ""}
     assert energy.status(dev, False)["daily_left"] == 7
     assert store.count_builds_today(dev, "explain_word") == 0
-    assert store.energy_global_today() == 0
+    assert store_energy.energy_global_today() == 0
 
 
 def test_a_good_explain_word_charges_once(on, monkeypatch):
@@ -390,7 +391,7 @@ def test_a_failed_explain_chat_leaves_the_balance_unchanged(on, monkeypatch):
         assert _explain_chat(dev) == {}
     assert energy.status(dev, False)["daily_left"] == 7
     assert store.count_builds_today(dev, "explain") == 0
-    assert store.energy_global_today() == 0
+    assert store_energy.energy_global_today() == 0
 
 
 def test_a_good_explain_chat_charges_once(on, monkeypatch):

@@ -9,6 +9,7 @@ import dependencies
 import media as media_io
 import repair
 import store
+import store_video
 import voicevox
 import voices
 import youtube
@@ -94,13 +95,13 @@ async def import_youtube_captions(
         "simple", speaker, language=language, native=native, source="youtube",
         source_name=video_id, device=device,
     )
-    store.add_video(island_id, video_id, 0.0, island_title, "")
+    store_video.add_video(island_id, video_id, 0.0, island_title, "")
     if dropped:
-        await asyncio.to_thread(store.set_lines_dropped, island_id, dropped[0])
+        await asyncio.to_thread(store_video.set_lines_dropped, island_id, dropped[0])
     # youtube-asr-context-repair: the watch page's context rides along with
     # the captions; an empty one never blocks the import.
     context = repair.clean_context(body.get("context"))
-    await asyncio.to_thread(store.set_repair_context, video_id, context)
+    await asyncio.to_thread(store_video.set_repair_context, video_id, context)
     log.info("youtube import %s: context title=%r description=%d chars keywords=%d chapters=%d",
              video_id, context["title"], len(context["description"]), len(context["keywords"]),
              len(context["chapters"]))
@@ -119,7 +120,7 @@ async def island_video(island_id: str, authorization: str | None = Header(None),
     dependencies.require_token(authorization)
     device = dependencies._require_device(x_shadow_device)
     await asyncio.to_thread(dependencies._require_owner, island_id, device)
-    video = await asyncio.to_thread(store.get_video, island_id)
+    video = await asyncio.to_thread(store_video.get_video, island_id)
     if video is None:
         raise HTTPException(404, "no video for this island")
     video["captions_only"] = not store.line_audio_path(island_id, 0).exists()
@@ -149,7 +150,7 @@ async def list_videos(authorization: str | None = Header(None),
                       x_shadow_device: str = Header("")) -> list[dict]:
     dependencies.require_token(authorization)
     device = dependencies._require_device(x_shadow_device)
-    return await asyncio.to_thread(store.list_videos, device)
+    return await asyncio.to_thread(store_video.list_videos, device)
 
 
 @router.post("/shadow/islands/{island_id}/video-audio")
@@ -166,7 +167,7 @@ async def upload_video_audio(
     island = await asyncio.to_thread(dependencies._own_island, island_id, device)
     if island["source"] != "youtube":
         raise HTTPException(400, {"code": "not_video"})
-    video = await asyncio.to_thread(store.get_video, island_id)
+    video = await asyncio.to_thread(store_video.get_video, island_id)
     if video is None:
         raise HTTPException(400, {"code": "not_video"})
     if video["align_status"] in ("queued", "running"):
@@ -175,18 +176,18 @@ async def upload_video_audio(
         raise HTTPException(409, {"code": "align_closed"})
     # Claim the row before streaming, so a second upload racing this one gets
     # align_busy instead of overwriting the file.
-    if not await asyncio.to_thread(store.claim_align, island_id, config.ALIGN_MAX_ATTEMPTS):
+    if not await asyncio.to_thread(store_video.claim_align, island_id, config.ALIGN_MAX_ATTEMPTS):
         raise HTTPException(409, {"code": "align_busy"})
-    src = store.video_audio_path(island_id, "src")
+    src = store_video.video_audio_path(island_id, "src")
     try:
         size = await asyncio.to_thread(media_io._stream_upload, audio, src, config.VIDEO_AUDIO_MAX_BYTES)
         if size == 0:
             raise HTTPException(400, "empty upload")
     except BaseException:
         src.unlink(missing_ok=True)
-        store.set_align_status(island_id, video["align_status"], video["align_error"])
+        store_video.set_align_status(island_id, video["align_status"], video["align_error"])
         raise
-    store.set_align_status(island_id, "queued", count_attempt=True)
+    store_video.set_align_status(island_id, "queued", count_attempt=True)
     align_r._get_align_queue().put_nowait(island_id)
     return {"align": "queued"}
 
@@ -209,7 +210,7 @@ async def post_captions_timing(
     island = await asyncio.to_thread(dependencies._own_island, island_id, device)
     if island["source"] != "youtube":
         raise HTTPException(400, {"code": "not_video"})
-    video = await asyncio.to_thread(store.get_video, island_id)
+    video = await asyncio.to_thread(store_video.get_video, island_id)
     if video is None:
         raise HTTPException(400, {"code": "not_video"})
     if island["status"] != "ready":
@@ -224,13 +225,13 @@ async def post_captions_timing(
         raise HTTPException(409, {"code": "align_busy"})
     if video["align_status"] == "done" or video["align_attempts"] >= config.ALIGN_MAX_ATTEMPTS:
         raise HTTPException(409, {"code": "align_closed"})
-    if not await asyncio.to_thread(store.claim_align, island_id, config.ALIGN_MAX_ATTEMPTS):
+    if not await asyncio.to_thread(store_video.claim_align, island_id, config.ALIGN_MAX_ATTEMPTS):
         raise HTTPException(409, {"code": "align_busy"})
     try:
         await asyncio.to_thread(captions._write_captions_json, island_id, video["video_id"], None, asr_events)
     except BaseException:
-        store.set_align_status(island_id, video["align_status"], video["align_error"])
+        store_video.set_align_status(island_id, video["align_status"], video["align_error"])
         raise
-    store.set_align_status(island_id, "queued", count_attempt=True)
+    store_video.set_align_status(island_id, "queued", count_attempt=True)
     background.add_task(align_r._asr_retime, island_id)
     return {"align": "queued"}

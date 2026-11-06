@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 import store
+import store_energy
 
 
 @pytest.fixture(autouse=True)
@@ -518,5 +519,5 @@ def test_take_scores_own_rows_in_order_and_deleted():
     rows = store.list_take_scores(a)
     assert [r["total"] for r in rows] == [70, 90] and rows[1]["whole_line"] == 0
     assert store.list_take_scores(a, since="9999") == []
-    store.delete_owner_rows(a)
+    store_energy.delete_owner_rows(a)
     assert store.list_take_scores(a) == [] and len(store.list_take_scores(b)) == 1

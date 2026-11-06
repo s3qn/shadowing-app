@@ -14,6 +14,7 @@ import main
 from routers import progress as progress_r
 import config
 import progression
+import progression_shop
 import schedule
 import store
 
@@ -53,7 +54,7 @@ def _freeze(owner, bought_back):
     progression._today = lambda: _d(bought_back)
     try:
         _coins(owner, progression.FREEZE_PRICE)
-        progression.buy_freeze(owner, uuid.uuid4().hex)
+        progression_shop.buy_freeze(owner, uuid.uuid4().hex)
     finally:
         progression._today = lambda: D.isoformat()
 
@@ -67,7 +68,7 @@ def _rows(owner):
 
 def test_buy_debits_the_price_and_holds_one(owner):
     _coins(owner, 200)
-    snap = progression.buy_freeze(owner, "purchase-1")
+    snap = progression_shop.buy_freeze(owner, "purchase-1")
     assert snap["coins"] == 50
     assert snap["freezes_held"] == 1
     assert snap["freeze_price"] == 150 and snap["freeze_cap"] == 2
@@ -76,18 +77,18 @@ def test_buy_debits_the_price_and_holds_one(owner):
 
 def test_a_replayed_purchase_id_changes_nothing(owner):
     _coins(owner, 400)
-    progression.buy_freeze(owner, "purchase-1")
-    snap = progression.buy_freeze(owner, "purchase-1")
+    progression_shop.buy_freeze(owner, "purchase-1")
+    snap = progression_shop.buy_freeze(owner, "purchase-1")
     assert snap["coins"] == 250 and snap["freezes_held"] == 1
     assert len(_rows(owner)) == 1
 
 
 def test_a_third_freeze_is_refused_at_the_cap(owner):
     _coins(owner, 500)
-    progression.buy_freeze(owner, "purchase-1")
-    progression.buy_freeze(owner, "purchase-2")
+    progression_shop.buy_freeze(owner, "purchase-1")
+    progression_shop.buy_freeze(owner, "purchase-2")
     with pytest.raises(HTTPException) as e:
-        progression.buy_freeze(owner, "purchase-3")
+        progression_shop.buy_freeze(owner, "purchase-3")
     assert e.value.status_code == 400
     assert e.value.detail == {"code": "freeze_cap", "cap": 2}
     assert progression.snapshot(owner)["coins"] == 200
@@ -96,7 +97,7 @@ def test_a_third_freeze_is_refused_at_the_cap(owner):
 def test_short_coins_is_refused_with_no_row(owner):
     _coins(owner, 149)
     with pytest.raises(HTTPException) as e:
-        progression.buy_freeze(owner, "purchase-1")
+        progression_shop.buy_freeze(owner, "purchase-1")
     assert e.value.status_code == 400
     assert e.value.detail == {"code": "not_enough_coins", "price": 150, "coins": 149}
     assert _rows(owner) == []
@@ -217,8 +218,8 @@ def test_longest_streak_bridges_frozen_days(owner):
 
 def test_delete_owner_clears_the_freezes(owner):
     _coins(owner, 150)
-    progression.buy_freeze(owner, "purchase-1")
-    progression.delete_owner(owner)
+    progression_shop.buy_freeze(owner, "purchase-1")
+    progression_shop.delete_owner(owner)
     assert _rows(owner) == []
 
 

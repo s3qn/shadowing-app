@@ -32,6 +32,7 @@ load_dotenv(ROOT / ".env")
 
 import repair  # noqa: E402
 import store  # noqa: E402
+import store_video  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures"
 
@@ -44,7 +45,7 @@ def _lines(island_id: str) -> list[dict]:
 
 
 def _video_id(island_id: str) -> str:
-    video = store.get_video(island_id) or {}
+    video = store_video.get_video(island_id) or {}
     return video.get("video_id", "")
 
 
@@ -109,7 +110,7 @@ def score(args) -> None:
     if args.context:
         context = repair.clean_context(json.loads(Path(args.context).read_text()))
     else:
-        context = (store.get_repair(_video_id(args.island)) or {}).get("context") or {}
+        context = (store_video.get_repair(_video_id(args.island)) or {}).get("context") or {}
     t0 = time.monotonic()
     if args.old:
         result = _old_result(args.island, texts)
@@ -126,7 +127,7 @@ def score(args) -> None:
         result = repair.repair_lines(texts, context, llm_call=counted)
     wall = time.monotonic() - t0
     by_idx = {e["idx"]: e for e in result["lines"]}
-    minutes = max(float((store.get_video(args.island) or {}).get("duration") or 0.0), 1.0) / 60.0
+    minutes = max(float((store_video.get_video(args.island) or {}).get("duration") or 0.0), 1.0) / 60.0
 
     before = after = 0.0
     right = harmful = missed = sure_wrong = 0

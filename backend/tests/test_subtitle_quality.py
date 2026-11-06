@@ -169,6 +169,7 @@ import media
 from routers import align as align_r
 from services import captions
 import store
+import store_video
 
 
 class FakeCompleted:
@@ -200,7 +201,7 @@ def test_translate_with_context_still_returns_len(monkeypatch):
 def _island():
     store.init()
     iid = store.create_island("simple", 3, source="youtube", source_name="dQw4w9WgXcQ", device=str(uuid.uuid4()))
-    store.add_video(iid, "dQw4w9WgXcQ", 0.0, "Clip", "")
+    store_video.add_video(iid, "dQw4w9WgXcQ", 0.0, "Clip", "")
     return iid
 
 
@@ -224,8 +225,8 @@ def _upload_while_building(monkeypatch):
     monkeypatch.setattr(generate, "translate_lines", lambda b, *a, **k: ["en"] * len(b))
     iid = _island()
     store.set_stage(iid, "aligning")
-    store.video_audio_path(iid, "src").write_bytes(b"x")
-    store.set_align_status(iid, "queued", count_attempt=True)
+    store_video.video_audio_path(iid, "src").write_bytes(b"x")
+    store_video.set_align_status(iid, "queued", count_attempt=True)
     return iid
 
 
@@ -239,9 +240,9 @@ def test_upload_during_build_aligns_the_lines_once(monkeypatch):
     monkeypatch.setattr(align, "run_job", fake_run)
     iid = _upload_while_building(monkeypatch)
     asyncio.run(align_r._align_one(iid))
-    video = store.get_video(iid)
+    video = store_video.get_video(iid)
     assert (video["align_status"], video["align_attempts"]) == ("queued", 1)
-    assert store.video_audio_path(iid, "src").exists() and jobs == []
+    assert store_video.video_audio_path(iid, "src").exists() and jobs == []
 
     lines = [{"start": 0.0, "end": 2.0, "text": "上緒がある"}, {"start": 2.0, "end": 14.0, "text": TEXT}]
     asyncio.run(captions._build_from_captions(iid, lines, "Clip", asr=True))
@@ -251,7 +252,7 @@ def test_upload_during_build_aligns_the_lines_once(monkeypatch):
     assert len(jobs) == 1
     text = " ".join(w["text"] for w in jobs[0]["windows"])
     assert "上緒がある" in text
-    assert store.get_video(iid)["align_status"] == "done"
+    assert store_video.get_video(iid)["align_status"] == "done"
     assert align_r._align_deferred == set()
 
 
@@ -262,7 +263,7 @@ def test_build_done_before_the_consumer_looks_does_not_requeue(monkeypatch):
     asyncio.run(captions._build_from_captions(iid, [{"start": 0.0, "end": 2.0, "text": "上緒がある"}], "Clip", asr=True))
     assert align_r._get_align_queue().qsize() == 0
     asyncio.run(align_r._align_one(iid))
-    assert runs == [1] and store.get_video(iid)["align_status"] == "done"
+    assert runs == [1] and store_video.get_video(iid)["align_status"] == "done"
 
 
 def test_failed_build_fails_a_deferred_alignment(monkeypatch):
@@ -272,9 +273,9 @@ def test_failed_build_fails_a_deferred_alignment(monkeypatch):
     asyncio.run(captions._build_from_captions(iid, [{"start": 0.0, "end": 2.0, "text": "x"}], "Clip"))
     assert align_r._get_align_queue().get_nowait() == iid
     asyncio.run(align_r._align_one(iid))
-    video = store.get_video(iid)
+    video = store_video.get_video(iid)
     assert (video["align_status"], video["align_error"]) == ("failed", "align_not_ready")
-    assert not store.video_audio_path(iid, "src").exists()
+    assert not store_video.video_audio_path(iid, "src").exists()
 
 
 def _chunks(*parts):

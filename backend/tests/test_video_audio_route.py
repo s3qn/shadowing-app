@@ -15,6 +15,7 @@ import config
 import media
 from routers import align as align_r
 import store
+import store_video
 
 DEV = "dddddddd-0000-4000-8000-0000000000a1"
 OTHER = "dddddddd-0000-4000-8000-0000000000a2"
@@ -35,7 +36,7 @@ def _init_db():
 def make_video(language="ja", ready=True, texts=("こんにちは", "元気ですか")):
     island_id = store.create_island("simple", 3, language=language, source="youtube",
                                     source_name="abc", device=DEV)
-    store.add_video(island_id, "abc", 0.0, "t", "")
+    store_video.add_video(island_id, "abc", 0.0, "t", "")
     for i, text in enumerate(texts):
         store.add_line(island_id, i, {"ja": text}, 2.0, [], [{"text": text, "start": 0, "end": 2}],
                        offset=1.0 + i * 2.2)
@@ -61,10 +62,10 @@ def test_route_queues_and_stores_file():
     island_id = make_video()
     resp = post(island_id)
     assert resp.status_code == 200 and resp.json() == {"align": "queued"}
-    assert store.video_audio_path(island_id, "src").read_bytes() == b"audio-bytes"
+    assert store_video.video_audio_path(island_id, "src").read_bytes() == b"audio-bytes"
     video = client.get(f"/shadow/islands/{island_id}/video", headers=HEAD).json()
     assert video["align"] == "queued" and video["align_error"] == ""
-    store.video_audio_path(island_id, "src").unlink()
+    store_video.video_audio_path(island_id, "src").unlink()
 
 
 def test_route_rejections():
@@ -77,46 +78,46 @@ def test_route_rejections():
     assert post(voice).json()["detail"] == {"code": "not_video"}
     assert post(island_id).status_code == 200
     assert post(island_id).json()["detail"] == {"code": "align_busy"}
-    store.set_align_status(island_id, "done")
+    store_video.set_align_status(island_id, "done")
     assert post(island_id).json()["detail"] == {"code": "align_closed"}
-    store.video_audio_path(island_id, "src").unlink(missing_ok=True)
+    store_video.video_audio_path(island_id, "src").unlink(missing_ok=True)
 
 
 def test_route_attempt_limit_and_size(monkeypatch):
     island_id = make_video()
     for _ in range(config.ALIGN_MAX_ATTEMPTS):
-        store.set_align_status(island_id, "failed", "x", count_attempt=True)
+        store_video.set_align_status(island_id, "failed", "x", count_attempt=True)
     assert post(island_id).status_code == 409
     other = make_video()
     monkeypatch.setattr(config, "VIDEO_AUDIO_MAX_BYTES", 4)
     resp = post(other, data=b"too big for the cap")
     assert resp.status_code == 413
-    assert not store.video_audio_path(other, "src").exists()
-    video = store.get_video(other)
+    assert not store_video.video_audio_path(other, "src").exists()
+    video = store_video.get_video(other)
     assert (video["align_status"], video["align_attempts"]) == ("", 0)
 
 
 def test_failed_upload_reverts_claim():
     island_id = make_video()
-    store.set_align_status(island_id, "failed", "align_oom", count_attempt=True)
+    store_video.set_align_status(island_id, "failed", "align_oom", count_attempt=True)
     assert post(island_id, data=b"").status_code == 400
-    video = store.get_video(island_id)
+    video = store_video.get_video(island_id)
     assert (video["align_status"], video["align_error"], video["align_attempts"]) == ("failed", "align_oom", 1)
 
 
 def test_claim_is_single_winner():
     island_id = make_video()
-    assert store.claim_align(island_id, config.ALIGN_MAX_ATTEMPTS)
-    assert not store.claim_align(island_id, config.ALIGN_MAX_ATTEMPTS)
-    assert store.get_video(island_id)["align_status"] == "queued"
-    store.set_align_status(island_id, "failed")
+    assert store_video.claim_align(island_id, config.ALIGN_MAX_ATTEMPTS)
+    assert not store_video.claim_align(island_id, config.ALIGN_MAX_ATTEMPTS)
+    assert store_video.get_video(island_id)["align_status"] == "queued"
+    store_video.set_align_status(island_id, "failed")
 
 
 def test_video_reports_closed_after_last_attempt():
     island_id = make_video()
     get = lambda: client.get(f"/shadow/islands/{island_id}/video", headers=HEAD).json()
     for n in range(config.ALIGN_MAX_ATTEMPTS):
-        store.set_align_status(island_id, "failed", "x", count_attempt=True)
+        store_video.set_align_status(island_id, "failed", "x", count_attempt=True)
         assert get()["align"] == ("closed" if n + 1 == config.ALIGN_MAX_ATTEMPTS else "failed")
     assert "align_attempts" not in get()
 
@@ -144,8 +145,8 @@ def run_align(island_id):
 
 
 def stage_upload(island_id):
-    store.video_audio_path(island_id, "src").write_bytes(b"x")
-    store.set_align_status(island_id, "queued", count_attempt=True)
+    store_video.video_audio_path(island_id, "src").write_bytes(b"x")
+    store_video.set_align_status(island_id, "queued", count_attempt=True)
 
 
 def test_align_one_updates_guarded_lines(monkeypatch):
@@ -170,10 +171,10 @@ def test_align_one_updates_guarded_lines(monkeypatch):
     assert after[0]["words"] != before[0]["words"]
     assert after[1]["offset"] == before[1]["offset"]
     assert after[1]["words"] == before[1]["words"]
-    video = store.get_video(island_id)
+    video = store_video.get_video(island_id)
     assert video["align_status"] == "done"
-    assert not store.video_audio_path(island_id, "src").exists()
-    assert not store.video_audio_path(island_id, "wav").exists()
+    assert not store_video.video_audio_path(island_id, "src").exists()
+    assert not store_video.video_audio_path(island_id, "wav").exists()
 
 
 def test_align_one_respects_expected_guard(monkeypatch):
@@ -204,9 +205,9 @@ def test_align_one_failure_keeps_words(monkeypatch):
     before = store.get_island(island_id)["lines"]
     run_align(island_id)
     assert store.get_island(island_id)["lines"] == before
-    video = store.get_video(island_id)
+    video = store_video.get_video(island_id)
     assert (video["align_status"], video["align_error"]) == ("failed", "align_oom")
-    assert not store.video_audio_path(island_id, "src").exists()
+    assert not store_video.video_audio_path(island_id, "src").exists()
 
 
 def test_align_one_decode_failure(monkeypatch):
@@ -214,19 +215,19 @@ def test_align_one_decode_failure(monkeypatch):
     stage_upload(island_id)
     monkeypatch.setattr(media, "_to_wav", lambda *a, **k: False)
     run_align(island_id)
-    assert store.get_video(island_id)["align_error"] == "align_decode"
+    assert store_video.get_video(island_id)["align_error"] == "align_decode"
 
 
 def test_recovery_requeues_or_fails():
     kept = make_video()
     lost = make_video()
     for island_id in (kept, lost):
-        store.set_align_status(island_id, "running")
-    store.video_audio_path(kept, "src").write_bytes(b"x")
-    store.video_audio_path(lost, "src").unlink(missing_ok=True)
+        store_video.set_align_status(island_id, "running")
+    store_video.video_audio_path(kept, "src").write_bytes(b"x")
+    store_video.video_audio_path(lost, "src").unlink(missing_ok=True)
     align_r._align_recover()
-    assert store.get_video(kept)["align_status"] == "queued"
-    video = store.get_video(lost)
+    assert store_video.get_video(kept)["align_status"] == "queued"
+    video = store_video.get_video(lost)
     assert (video["align_status"], video["align_error"]) == ("failed", "align_interrupted")
-    store.video_audio_path(kept, "src").unlink()
-    store.set_align_status(kept, "failed")
+    store_video.video_audio_path(kept, "src").unlink()
+    store_video.set_align_status(kept, "failed")

@@ -10,29 +10,12 @@
  * throws "Unsupported FormDataPart implementation" if you try it.
  */
 
-import { Platform } from 'react-native';
-import { Directory, File, Paths } from 'expo-file-system';
-
-import { BASE, ORIGIN, TOKEN, expoFetch, fetch } from '@/lib/api-http';
+import { BASE, TOKEN, fetch } from '@/lib/api-http';
 import { headers, json, userParam } from '@/lib/api-core';
 import { importIslandRaw, importYouTubeCaptionsRaw } from '@/lib/api-library';
-import type {
-  AudioSpan,
-  Complexity,
-  Island,
-  IslandSource,
-  IslandSummary,
-  Language,
-  NativeLanguage,
-  Register,
-  RubySegment,
-  Speaker,
-  Word,
-} from '@/lib/api-types';
+import type { AudioSpan } from '@/lib/api-types';
 import { withEnergy } from '@/lib/energy';
 import { deviceIdSync } from '@/lib/device';
-import type { StarterLevel } from '@/lib/settings';
-import type { VideoContext } from '@/lib/youtube-captions';
 
 
 // --- bl58-easy-for-me ---

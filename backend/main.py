@@ -14,50 +14,29 @@ is the intended way in.
 """
 
 import asyncio
-import copy
-import functools
-import hashlib
-import json
 import logging
-import math
 import os
-import re
-import secrets
-import os
-import shutil
-import subprocess
 import sys
-import tempfile
 import threading
-import time
-import uuid
 from pathlib import Path
-from typing import Literal
-from urllib.parse import parse_qs
 
-from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
+from fastapi import BackgroundTasks, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import Response
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
 
 # Before the local imports: store, voicevox and transcribe read their settings
 # from the environment at import time.
 load_dotenv()
 
-import asr_transfer
-import caption_timing
 import corpus  # voice-topic
 import dev_review
 import dev_transcripts
 import dev_upload
 import energy
 import grammar
-import cues
-import eta
 import explain
-import export
 import generate
 import guardrails  # --- ai-guardrails ---
 import gloss as glossary
@@ -65,17 +44,13 @@ import app_version
 import kokoro_tts
 import latin
 import podcast
-import phrase_catalog
 import podcast_catalog
 import progression
-import review_session
 import beta
 import user_profile
 import schedule
 import segment
 import starter
-import stats
-import media as media_io
 import store
 import suggest
 import feedback
@@ -85,9 +60,6 @@ import voicevox
 import voices
 
 # --- sign-in ---
-import access
-import accounts
-import config
 import dependencies
 import middleware
 
@@ -101,8 +73,6 @@ from routers import youtube as youtube_r
 from routers import align as align_r
 from routers import repair as repair_r
 from services import captions
-from services import line_audio as line_audio_svc
-from services import build
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s"
@@ -229,9 +199,6 @@ def health() -> dict:
         "release": os.getenv("SHADOW_RELEASE", ""),
         "kokoro_timings": kokoro_tts.has_timings(),
     }
-
-
-SPEED_MIN, SPEED_MAX = 0.5, 1.5
 
 
 import llm as _llm  # noqa: E402

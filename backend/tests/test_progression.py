@@ -17,6 +17,7 @@ from services import line_audio
 import config
 import dependencies
 import progression
+import progression_shop
 import schedule
 import store
 
@@ -173,14 +174,14 @@ def test_level_up_pays_25_coins_per_level_gained(owner):
 
 def test_buy_unknown_item_is_404(owner):
     with pytest.raises(HTTPException) as e:
-        progression.buy(owner, "head.nope")
+        progression_shop.buy(owner, "head.nope")
     assert e.value.status_code == 404 and _code(e.value) == "unknown_item"
 
 
 def test_buy_level_locked_leaves_coins(owner):
     _give(owner, coins=900)
     with pytest.raises(HTTPException) as e:
-        progression.buy(owner, "head.crown_purple")
+        progression_shop.buy(owner, "head.crown_purple")
     assert e.value.status_code == 400
     assert _code(e.value) == "level_locked" and e.value.detail["level_req"] == 50
     snap = progression.snapshot(owner)
@@ -190,7 +191,7 @@ def test_buy_level_locked_leaves_coins(owner):
 def test_buy_not_enough_coins_leaves_owned_empty(owner):
     _give(owner, coins=5)
     with pytest.raises(HTTPException) as e:
-        progression.buy(owner, "body.scarf_blue")
+        progression_shop.buy(owner, "body.scarf_blue")
     assert _code(e.value) == "not_enough_coins"
     assert e.value.detail["price"] == 30 and e.value.detail["coins"] == 5
     assert progression.snapshot(owner)["owned"] == []
@@ -198,16 +199,16 @@ def test_buy_not_enough_coins_leaves_owned_empty(owner):
 
 def test_buy_debits_equips_and_a_second_buy_charges_nothing(owner):
     _give(owner, coins=100)
-    snap = progression.buy(owner, "body.scarf_blue")
+    snap = progression_shop.buy(owner, "body.scarf_blue")
     assert snap["coins"] == 70
     assert snap["owned"] == ["body.scarf_blue"]
     assert snap["equipped"]["body"] == "body.scarf_blue"
-    again = progression.buy(owner, "body.scarf_blue")
+    again = progression_shop.buy(owner, "body.scarf_blue")
     assert again["coins"] == 70
 
 
 def test_a_free_starter_can_be_claimed_with_no_progress_row(owner):
-    snap = progression.buy(owner, "accessory.collar_red")
+    snap = progression_shop.buy(owner, "accessory.collar_red")
     assert snap["owned"] == ["accessory.collar_red"]
     assert snap["equipped"]["accessory"] == "accessory.collar_red"
 
@@ -217,18 +218,18 @@ def test_a_free_starter_can_be_claimed_with_no_progress_row(owner):
 
 def test_equip_rules(owner):
     with pytest.raises(HTTPException) as e:
-        progression.equip(owner, "head", "head.cap_paper")
+        progression_shop.equip(owner, "head", "head.cap_paper")
     assert _code(e.value) == "not_owned"
     with pytest.raises(HTTPException) as e:
-        progression.equip(owner, "hat", "head.cap_paper")
+        progression_shop.equip(owner, "hat", "head.cap_paper")
     assert _code(e.value) == "bad_slot"
-    progression.buy(owner, "head.cap_paper")
+    progression_shop.buy(owner, "head.cap_paper")
     with pytest.raises(HTTPException) as e:
-        progression.equip(owner, "face", "head.cap_paper")
+        progression_shop.equip(owner, "face", "head.cap_paper")
     assert _code(e.value) == "wrong_slot"
-    snap = progression.equip(owner, "head", "")
+    snap = progression_shop.equip(owner, "head", "")
     assert snap["equipped"]["head"] is None
-    snap = progression.equip(owner, "head", "head.cap_paper")
+    snap = progression_shop.equip(owner, "head", "head.cap_paper")
     assert snap["equipped"]["head"] == "head.cap_paper"
 
 
@@ -246,7 +247,7 @@ def test_erase_owner_clears_one_owner_and_keeps_another(owner):
     other = f"user_{uuid.uuid4().hex}"
     for who in (owner, other):
         progression.award_take(who, "isl", 0, score={"words": ["ok"] * 4}, line_idxs=[0])
-        progression.buy(who, "head.cap_paper")
+        progression_shop.buy(who, "head.cap_paper")
     assert all(n > 0 for n in _rows(owner).values())
     account_r._erase_owner(owner)
     assert _rows(owner) == {t: 0 for t in TABLES}
@@ -658,7 +659,7 @@ def test_beta_grant_survives_flag_off_and_never_duplicates(owner, monkeypatch):
 def test_buy_beta_hat_is_not_for_sale(owner):
     _give(owner, coins=500)
     with pytest.raises(HTTPException) as e:
-        progression.buy(owner, HAT)
+        progression_shop.buy(owner, HAT)
     assert e.value.status_code == 400 and _code(e.value) == "not_for_sale"
     snap = progression.snapshot(owner)
     assert snap["coins"] == 500 and snap["owned"] == []
@@ -666,7 +667,7 @@ def test_buy_beta_hat_is_not_for_sale(owner):
 
 def test_equip_unowned_beta_hat_is_refused(owner):
     with pytest.raises(HTTPException) as e:
-        progression.equip(owner, "head", HAT)
+        progression_shop.equip(owner, "head", HAT)
     assert _code(e.value) == "not_owned"
 
 

@@ -8,7 +8,7 @@ import accounts
 import beta
 import dependencies
 import llm
-import store
+import store_llm
 
 router = APIRouter()
 
@@ -23,7 +23,7 @@ async def llm_spend(
     device = dependencies._require_device(x_shadow_device)
     if not dependencies._is_owner(device):
         raise HTTPException(403, {"code": "not_owner"})
-    summary = await asyncio.to_thread(store.llm_spend_summary)
+    summary = await asyncio.to_thread(store_llm.llm_spend_summary)
     return {"backend": llm.backend(), "cap_usd": llm.MONTHLY_USD, **summary}
 
 

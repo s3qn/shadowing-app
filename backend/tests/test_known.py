@@ -14,6 +14,7 @@ from routers import progress as progress_r
 import config
 import progression
 import store
+import store_energy
 
 AUTH = f"Bearer {config.SHADOW_TOKEN}"
 
@@ -132,5 +133,5 @@ def test_delete_owner_rows_and_delete_island_clear_known():
     _mark(dev, b, 0)
     store.delete_island(a)
     assert store.known_by_island(dev) == {b: {0}}
-    store.delete_owner_rows(dev)
+    store_energy.delete_owner_rows(dev)
     assert store.count_known(dev) == 0
