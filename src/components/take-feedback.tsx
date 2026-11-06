@@ -17,6 +17,8 @@ import type { AnalysedMora, Mora, TakeAnalysis } from '@/lib/api';
 export type TakeFeedbackProps = {
   moras: Mora[];
   analysis: TakeAnalysis | null;
+  /** Shown instead of analysis.note when the word score passed, so the two do not contradict. */
+  scoredNote?: string;
 };
 
 // The palette's only green, tide.pos.verb, reused here for a nucleus hit.
@@ -37,7 +39,7 @@ type Cell = {
   dim: boolean;
 };
 
-export const TakeFeedback = memo(function TakeFeedback({ moras, analysis }: TakeFeedbackProps) {
+export const TakeFeedback = memo(function TakeFeedback({ moras, analysis, scoredNote }: TakeFeedbackProps) {
   const groups = useMemo(() => {
     if (!analysis || analysis.moras.length === 0) return [];
     const values: number[] = [];
@@ -74,7 +76,7 @@ export const TakeFeedback = memo(function TakeFeedback({ moras, analysis }: Take
   }, [moras, analysis]);
 
   if (!analysis || analysis.moras.length === 0) return null;
-  if (analysis.note) return <Text style={styles.note}>{analysis.note}</Text>;
+  if (analysis.note) return <Text style={styles.note}>{scoredNote ?? analysis.note}</Text>;
 
   return (
     <Animated.View entering={FadeIn.duration(180)} style={styles.row}>

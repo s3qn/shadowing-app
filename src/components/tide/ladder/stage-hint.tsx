@@ -1,92 +1,141 @@
-// The hint line under the sentence (mock 7 `.mini`): hintOf, the step's name and what a tap
-// does now, and StageHint, the line with the recording dot; a tap on it stops a take.
-// Split out of ladder-stage.tsx as a pure move, no behaviour change.
-import { useEffect } from 'react';
+// The seal (plan stage-stamp, board V6): on the Shadow and Final take steps a red 96pt seal
+// falls into the band, then slides down and becomes the stop button with a pulse ring. Its
+// Pressable is the one stop control (`stopOnce` through `onPress`, shared with the body's
+// tap); on a hands-free-off step the same tap starts the count. `StageStamp` owns every
+// clock; this file only maps the SharedValues to transforms and opacities.
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { cancelAnimation, Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, Extrapolation, interpolate, type SharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 
-import type { Frame } from '@/components/tide/ladder/stage-model';
 import { fonts } from '@/constants/fonts';
-import { tide, verb } from '@/constants/theme';
-import type { LadderStageProps } from '@/hooks/ladder/ladder-types';
-import { useDir, useT } from '@/lib/i18n';
+import { prism } from '@/constants/theme';
+import { hapticImpact } from '@/lib/haptics';
+import { useT } from '@/lib/i18n';
 
-/** The hint line's text (mock 7 `.mini`): the step's name, then what a tap does now. */
-export function hintOf(p: LadderStageProps, frame: Frame, name: string, t: ReturnType<typeof useT>['t']): string {
-  if (p.paused) return `${name} · ${t('ladder.paused')}`;
-  if (p.phase === 'announce' || p.phase === 'count') return t('player.announce', { name });
-  if (p.phase === 'gap') return `${name} · ${t('player.again', { n: p.repeat, total: p.repeats })}`;
-  if (frame === 'recording') return `${name} · ${t(p.textHidden ? 'ladder.holdToPeek' : p.speaker ? 'ladder.speakerHint' : 'ladder.tapStop')}`;
-  if (p.phase === 'waiting') return `${name} · ${t('ladder.tapToStart')}`;
-  if (p.handsFree === false && frame === 'compare' && p.score) return `${name} · ${t('ladder.tapNext')}`;
-  return `${name} · ${t('ladder.tapToPause')} · ${t('ladder.holdHint')}`;
+/** The seal's diameter; the stop button is 0.75 of it. */
+export const SEAL = 96;
+export const SEAL_RED = '#FF5468';
+/** The plate and seal glass (#141A33 at 0.94). */
+export const GLASS = 'rgba(20,26,51,0.94)';
+const SEAL_RIM = 'rgba(255,84,104,0.55)';
+const SEAL_INK = 'rgba(255,84,104,0.95)';
+/** The fall's start, fully above the screen. */
+const FROM = -400;
+
+/** A SharedValue read that never throws on the UI thread (Expo Go exits on one): a non-number reads as `d`. */
+export function fin(v: number, d = 0): number {
+  'worklet';
+  return Number.isFinite(v) ? v : d;
 }
 
-/**
- * The hint with the recording dot in front of it. `stopOnce` and `stopped` are the
- * composer's (the body's tap shares them): the dot pulses through a take and shrinks
- * away on the stop, while "Stopped" holds for a moment.
- */
-export function StageHint({ p, frame, name, hintBottom, isRecording, stopped, stopOnce, setStopped }: { p: LadderStageProps; frame: Frame; name: string; hintBottom: number; isRecording: LadderStageProps['isRecording']; stopped: boolean; stopOnce: () => void; setStopped: (v: boolean) => void }) {
-  const reduced = useReducedMotion();
+/** What a tap on the seal does: stop the take, start the count, or nothing (the tap falls through to the body). */
+export type SealActive = 'stop' | 'start' | 'off';
+
+type Props = {
+  fall: SharedValue<number>;
+  sq: SharedValue<number>;
+  out: SharedValue<number>;
+  travel: SharedValue<number>;
+  press: SharedValue<number>;
+  pulse: SharedValue<number>;
+  pulseOn: SharedValue<number>;
+  emoji: string;
+  word: string;
+  active: SealActive;
+  onPress: () => void;
+  /** The band's rest centre and the stop slot's centre, in the layer. */
+  rest: number;
+  stopY: number;
+  /** Whether the drawn step records: the seal is drawn only then. */
+  rec: boolean;
+  reduced: boolean;
+};
+
+export function StageHint({ fall, sq, out, travel, press, pulse, pulseOn, emoji, word, active, onPress, rest, stopY, rec, reduced }: Props) {
   const { t } = useT();
-  const dir = useDir();
-  const dotPulse = useSharedValue(1);
-  const dotOut = useSharedValue(0);
-  useEffect(() => {
-    cancelAnimation(dotPulse);
-    if (isRecording) {
-      setStopped(false);
-      dotOut.value = 0;
-      dotPulse.value = 1;
-      if (!reduced) dotPulse.value = withRepeat(withTiming(0.35, { duration: 500, easing: Easing.inOut(Easing.ease) }), -1, true);
-    } else {
-      dotPulse.value = 1;
-    }
-  }, [isRecording, reduced, dotPulse, dotOut, setStopped]);
-  useEffect(() => {
-    if (!stopped) return;
-    dotOut.value = withTiming(1, { duration: reduced ? 0 : 180, easing: Easing.out(Easing.cubic) });
-    const id = setTimeout(() => setStopped(false), 900);
-    return () => clearTimeout(id);
-  }, [stopped, dotOut, reduced, setStopped]);
-  const dotStyle = useAnimatedStyle(() => {
-    const out = Number.isFinite(dotOut.value) ? dotOut.value : 0;
-    const pulse = Number.isFinite(dotPulse.value) ? dotPulse.value : 1;
-    return { opacity: pulse * (1 - out), transform: [{ scale: 1 - out }] };
-  });
-  const showDot = isRecording || stopped;
-  return (
-    <View style={[styles.hintWrap, { bottom: hintBottom - 13 }]} pointerEvents="box-none">
-      <Pressable
-        onPress={stopOnce}
-        disabled={!isRecording}
-        hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
-        accessibilityRole="button"
-        accessibilityLabel={t('ladder.tapStop')}
-        style={[styles.hintPress, dir.row]}>
-        <Animated.View style={[styles.stopDot, dir.rtl ? { marginLeft: showDot ? 8 : 0 } : { marginRight: showDot ? 8 : 0 }, !showDot && { width: 0 }, dotStyle]} pointerEvents="none" />
-        <Text numberOfLines={1} style={styles.hintText}>{stopped && !isRecording ? t('ladder.stopped') : hintOf(p, frame, name, t)}</Text>
-      </Pressable>
-    </View>
-  );
-}
+  const dy = stopY - rest;
 
-/** The hint line as a still picture, for the stage's preview: the same place and type, no dot, no press. */
-export function StillHint({ text, hintBottom }: { text: string; hintBottom: number }) {
-  const dir = useDir();
+  const sealStyle = useAnimatedStyle(() => {
+    const f = fin(fall.value);
+    const tr = fin(travel.value);
+    const q = fin(sq.value);
+    const o = fin(out.value, 1);
+    const pr = fin(press.value);
+    const soft = reduced ? 0.96 + 0.04 * o : 1;
+    const s0 = 1.25 - 0.25 * f;
+    return {
+      opacity: rec ? o : 0,
+      transform: [
+        { translateY: FROM * (1 - f) + dy * tr },
+        { rotate: `${-6 * (1 - tr)}deg` },
+        { scale: (s0 * (1 - tr) + 0.75 * tr) * (1 - 0.1 * pr) * soft },
+        { scaleX: 1 + 0.033 * q },
+        { scaleY: 1 - 0.06 * q },
+      ],
+    };
+  });
+  const fillStyle = useAnimatedStyle(() => ({ opacity: interpolate(fin(travel.value), [0.3, 0.7], [0, 1], Extrapolation.CLAMP) }));
+  const labelStyle = useAnimatedStyle(() => ({ opacity: interpolate(fin(travel.value), [0.3, 0.7], [1, 0], Extrapolation.CLAMP) }));
+  const squareStyle = useAnimatedStyle(() => ({ opacity: interpolate(fin(travel.value), [0.5, 0.9], [0, 1], Extrapolation.CLAMP) }));
+  // The pulse ring lives inside the seal and starts each loop at 0 under the rim: no snap-back.
+  const pulseStyle = useAnimatedStyle(() => {
+    const tr = fin(travel.value);
+    const p = fin(pulse.value);
+    const on = fin(pulseOn.value) > 0.5 && (tr > 0.98 || tr < 0.02);
+    return { opacity: on ? interpolate(p, [0, 0.15, 1], [0, 0.45, 0], Extrapolation.CLAMP) : 0, transform: [{ scale: 1 + 0.5 * p }] };
+  });
+
+  const pressIn = () => {
+    press.set(withTiming(1, { duration: 130, easing: Easing.out(Easing.quad) }));
+    void hapticImpact();
+  };
+  const pressOut = () => {
+    press.set(withSpring(0, prism.press.spring));
+  };
+
+  // The wrapper fills the layer and the seal sits at the band by `top`, so the stop slot it
+  // translates to is inside its parent's frame: iOS drops touches outside the parent.
   return (
-    <View style={[styles.hintWrap, { bottom: hintBottom - 13 }]} pointerEvents="none">
-      <View style={[styles.hintPress, dir.row]}>
-        <Text numberOfLines={1} style={styles.hintText}>{text}</Text>
-      </View>
+    <View style={styles.row} pointerEvents="box-none">
+      <Animated.View
+        style={[styles.seal, { top: rest - SEAL / 2 }, sealStyle]}
+        pointerEvents={active === 'off' ? 'none' : 'auto'}
+        accessibilityElementsHidden={!rec || active === 'off'}
+        importantForAccessibility={rec && active !== 'off' ? 'auto' : 'no-hide-descendants'}>
+        <Pressable
+          onPressIn={pressIn}
+          onPressOut={pressOut}
+          onPress={onPress}
+          disabled={active === 'off'}
+          accessibilityRole="button"
+          accessibilityLabel={active === 'start' ? t('ladder.tapToStart') : t('ladder.tapStop')}
+          style={styles.face}>
+          <View style={styles.rim} pointerEvents="none" />
+          <Animated.View style={[styles.fill, fillStyle]} pointerEvents="none" />
+          <View style={styles.inner} pointerEvents="none" />
+          <Animated.View style={[styles.label, labelStyle]} pointerEvents="none">
+            <Text style={styles.emoji}>{emoji}</Text>
+            <Text style={styles.word} numberOfLines={1}>
+              {word}
+            </Text>
+          </Animated.View>
+          <Animated.View style={[styles.square, squareStyle]} pointerEvents="none" />
+          <Animated.View style={[styles.pulse, pulseStyle]} pointerEvents="none" />
+        </Pressable>
+      </Animated.View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  hintWrap: { position: 'absolute', left: 16, right: 16, alignItems: 'center' },
-  hintPress: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', minHeight: 44 },
-  hintText: { fontFamily: fonts.ui, fontSize: 13, lineHeight: 18, color: tide.textDim, textAlign: 'center', flexShrink: 1 },
-  stopDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: verb.speak.c1 },
+  row: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  seal: { position: 'absolute', left: '50%', marginLeft: -SEAL / 2, width: SEAL, height: SEAL },
+  face: { width: SEAL, height: SEAL, alignItems: 'center', justifyContent: 'center' },
+  rim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: SEAL / 2, borderWidth: 3, borderColor: SEAL_RED, backgroundColor: GLASS },
+  fill: { position: 'absolute', top: -3, left: -3, right: -3, bottom: -3, borderRadius: 999, backgroundColor: SEAL_RED },
+  inner: { position: 'absolute', top: 6, left: 6, right: 6, bottom: 6, borderRadius: 999, borderWidth: 1.5, borderColor: SEAL_RIM },
+  label: { alignItems: 'center', justifyContent: 'center', gap: 2 },
+  emoji: { fontSize: 34, lineHeight: 40 },
+  word: { fontFamily: fonts.ui, fontSize: 11, lineHeight: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 2, color: SEAL_INK },
+  square: { position: 'absolute', top: (SEAL - 24) / 2, left: (SEAL - 24) / 2, width: 24, height: 24, borderRadius: 5, backgroundColor: '#FFFFFF' },
+  pulse: { position: 'absolute', top: -3, left: -3, right: -3, bottom: -3, borderRadius: 999, borderWidth: 2, borderColor: SEAL_RED },
 });

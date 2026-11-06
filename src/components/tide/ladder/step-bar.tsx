@@ -2,12 +2,12 @@
 // the current one filling with the step's tint over the pass; a tap jumps to its step.
 // Split out of ladder-stage.tsx as a pure move, no behaviour change.
 import { memo, useCallback, useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type ViewStyle } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+import Animated, { type SharedValue, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { jumpStep, STEPS } from '@/components/tide/ladder/stage-model';
+import { FINAL, jumpStep, STEPS } from '@/components/tide/ladder/stage-model';
 import { TRACK } from '@/components/tide/ladder/stage-tokens';
 import { tide, withAlpha } from '@/constants/theme';
 import type { LadderStageProps } from '@/hooks/ladder/ladder-types';
@@ -23,12 +23,8 @@ import { useDir, useT } from '@/lib/i18n';
 export const StepBar = memo(function StepBar({ p, vis, cur, tint }: { p: LadderStageProps; vis: readonly number[]; cur: number; tint: string }) {
   const { t } = useT();
   const dir = useDir();
-  // Only the shared value goes into the worklet: `p` holds JSX and refs, which cannot be copied to the UI thread.
-  const fill = p.fill;
-  const fillStyle = useAnimatedStyle(() => {
-    const f = Number.isFinite(fill.value) ? Math.min(1, Math.max(0, fill.value)) : 0;
-    return { width: `${f * 100}%` };
-  });
+  // Without the Final take segment the lit one clamps to 0 while that step runs: it takes the fill, as it did before ET-20.
+  const noFinal = !vis.includes(FINAL);
   // The fill grows from the reading start: anchored outside the worklet, from the `rtl` primitive.
   const anchor = dir.rtl ? styles.fillEnd : styles.fillStart;
 
@@ -110,7 +106,7 @@ export const StepBar = memo(function StepBar({ p, vis, cur, tint }: { p: LadderS
             accessibilityLabel={skipped ? `${t(STEPS[s]!.name)}, ${t('ladder.skipped')}` : t(STEPS[s]!.name)}
             style={[styles.segHit, skipped && styles.segSkipped]}>
             <View style={[styles.seg, i < cur && styles.segDone, i === hot && { backgroundColor: withAlpha(tint, 0.5) }]}>
-              {i === cur ? <Animated.View style={[styles.segFill, anchor, { backgroundColor: tint }, fillStyle]} /> : null}
+              {i === cur ? <SegFill fill={p.fill} fillStep={p.fillStep} seg={s} noFinal={noFinal} anchor={anchor} tint={tint} /> : null}
             </View>
           </View>
         );
@@ -119,6 +115,30 @@ export const StepBar = memo(function StepBar({ p, vis, cur, tint }: { p: LadderS
     </GestureDetector>
   );
 });
+
+/**
+ * The lit segment's fill, mounted fresh with each step change so its animated style is born
+ * with this segment's `seg`. One style shared by every segment attached the new view through
+ * the previous segment's updater (Reanimated runs the old closure on attach, before the mapper
+ * for the new deps starts), which drew the last stage's full fill on the new segment until the
+ * JS thread caught up (ET-20). Until the fill's owner hands the fill to this segment with its
+ * reset to 0, it draws empty.
+ */
+function SegFill({ fill, fillStep, seg, noFinal, anchor, tint }: {
+  fill: SharedValue<number>;
+  fillStep: SharedValue<number>;
+  seg: number;
+  noFinal: boolean;
+  anchor: ViewStyle;
+  tint: string;
+}) {
+  const style = useAnimatedStyle(() => {
+    if (fillStep.value !== seg && !(noFinal && fillStep.value === FINAL)) return { width: '0%' };
+    const f = Number.isFinite(fill.value) ? Math.min(1, Math.max(0, fill.value)) : 0;
+    return { width: `${f * 100}%` };
+  }, [fill, fillStep, seg, noFinal]);
+  return <Animated.View style={[styles.segFill, anchor, { backgroundColor: tint }, style]} />;
+}
 
 const styles = StyleSheet.create({
   // Mock A `.segs`: 4pt segments, 4pt apart, in a 24pt tap row.

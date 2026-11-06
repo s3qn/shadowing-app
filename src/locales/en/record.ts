@@ -22,7 +22,7 @@ export const en = {
   'record.mode.island': 'My day',
   'record.say.title.idle': 'Say one sentence in {language}.',
   'record.say.title.recording': 'Listening…',
-  'record.say.hint': 'Say what you want to say, in {native}. It comes back in {language}, voiced, ready to shadow.',
+  'record.say.hint': 'It comes back in {language}, voiced, ready to shadow.',
   'record.say.ready': 'Translated and voiced',
   'record.say.youSaid': 'YOU SAID · {language}',
   'record.say.more': '+ {count} more lines',

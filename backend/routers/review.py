@@ -183,6 +183,21 @@ async def review_session_projects(
                                                 language or None, on)}
 
 
+@router.get("/shadow/review/session/lines/{island_id}")
+async def review_session_lines(
+    island_id: str,
+    authorization: str | None = Header(None),
+    x_shadow_device: str = Header(""),
+) -> dict:
+    dependencies.require_token(authorization)
+    device = dependencies._require_device(x_shadow_device)
+    on = await asyncio.to_thread(access._beta_on, device)
+    lines = await asyncio.to_thread(review_session.project_lines, device, island_id, on)
+    if lines is None:
+        raise HTTPException(404, "no such project")
+    return {"lines": lines}
+
+
 @router.post("/shadow/review/session/start")
 async def review_session_start(
     body: SessionStartBody,

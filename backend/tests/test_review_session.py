@@ -279,6 +279,37 @@ def test_available_and_projects_route_list_every_saved_project():
     assert e.value.status_code in (401, 403)
 
 
+def _lines_route(iid, device=DEV):
+    return asyncio.run(review_r.review_session_lines(
+        iid, authorization=AUTH, x_shadow_device=device))
+
+
+def test_project_lines_card_project_matches_total_and_drops_easy_in_idx_order():
+    pod = _island("podcast", 4, "Pod")
+    _cards(pod, 4)
+    store.mark_known(DEV, pod, 1)
+    got = _lines_route(pod)["lines"]
+    total = {x["island_id"]: x["total"] for x in rs.available(DEV)}[pod]
+    assert [l["idx"] for l in got] == [0, 2, 3] and len(got) == total
+    assert got[0] == {"idx": 0, "ja": "j0", "en": "e0"}
+
+
+def test_project_lines_island_project_and_foreign_device_404():
+    voice = _island("voice", 5, "Voice")
+    store.mark_known(DEV, voice, 0)
+    got = _lines_route(voice)["lines"]
+    assert [l["idx"] for l in got] == [1, 2, 3, 4]
+    assert got[1] == {"idx": 2, "ja": "j2", "en": "e2"}
+    assert rs.project_lines("someone-else", voice) is None
+    other = "eeeeeeee-0000-4000-8000-0000000000c2"
+    with pytest.raises(HTTPException) as e:
+        _lines_route(voice, other)
+    assert e.value.status_code == 404
+    with pytest.raises(HTTPException) as e:
+        _lines_route("nope")
+    assert e.value.status_code == 404
+
+
 def test_known_lines_leave_plan_edited_and_available_and_an_all_known_island_drops():
     pod = _island("podcast", 4, "Pod")
     _cards(pod, 4)

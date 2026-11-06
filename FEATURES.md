@@ -290,6 +290,12 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
   users
 - night-1102: focus ladder fit, iOS blur, cube island hop, count-in hairline,
   island scroll fixes
+- BL-104 Practice island box with lazy sentence lists
+- BL-103 one ? glass button on Practice
+- BL-106 + ET-23 3-2-1 Three Drops at start and between lines, no island card
+- BL-107 + BL-108 stage stamp V6, seal becomes the stop button
+- BL-109 island peek on Home
+- ET-18/19/20/24/25/26/27 fixes, scoring shimmer
 
 ## Next (approved, in order)
 

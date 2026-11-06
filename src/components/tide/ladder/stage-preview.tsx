@@ -3,14 +3,15 @@
 //
 // Still on purpose, and laid out exactly as the live island stage opens at its first
 // step: the stage's sky, the top row (chevron, `?`), the bar at rest with the same
-// segment count, the sentence dots, "Listen · 1 of N", "Line n / M" from the cached
-// island and its saved line, the resume line as the stage's own `Sentence` (ruby,
-// colours, the same fit, so the same size and wrap), the empty score slot, the hint
-// ("Listen: get ready") and the chips (step, speed, pace, Easy). No gesture and no
-// animation: it mounts once and never renders in a drag. The island draws it as the
-// hop cover too, so a cube turn lands on this same picture until the live stage has
-// fitted under it. With no cached copy the page shows the sky, the bar and the
-// labels only: the neighbour comes as an id, and the id alone has no title.
+// segment count, the sentence dots from the cached island and its saved line, the
+// stamp's empty band, the resume line as the stage's own `Sentence` (ruby, colours,
+// the same fit, so the same size and wrap), the empty score slot and the chips
+// (step, speed, pace, Easy). No stamp: the live stage's falls when this cover lifts.
+// No gesture and no animation: it mounts once and never renders in a drag. The
+// island draws it as the hop cover too, so a cube turn lands on this same picture
+// until the live stage has fitted under it. With no cached copy the page shows the
+// sky, the bar and the chips only: the neighbour comes as an id, and the id alone
+// has no title.
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,12 +19,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StageChips } from '@/components/tide/ladder/chips';
 import { Sentence } from '@/components/tide/ladder/sentence';
 import { SentenceDots } from '@/components/tide/ladder/sentence-dots';
-import { StillHint } from '@/components/tide/ladder/stage-hint';
 import { STEPS } from '@/components/tide/ladder/stage-model';
 import { StageSky } from '@/components/tide/ladder/stage-sky';
 import { LadderHelpButton } from '@/components/tide/ladder/stage-tile';
-import { CHIPS_H, noop, SCORE_H, SLOT_GAP, TRACK } from '@/components/tide/ladder/stage-tokens';
-import { fonts } from '@/constants/fonts';
+import { CHIPS_H, CUE_ROOM, noop, SCORE_H, SLOT_GAP, TRACK } from '@/components/tide/ladder/stage-tokens';
 import { tide, tideSkies, withAlpha } from '@/constants/theme';
 import type { Line } from '@/lib/api';
 import { devBlindTake } from '@/lib/dev-simulate';
@@ -82,7 +81,7 @@ export function StagePreview({ id }: { id?: string }) {
   const segs = (devBlindTake() ?? getSettingsSync().blindTake) ? 6 : 5;
   const hintBottom = insets.bottom + 16;
   // The sentence's room, as the stage computes it (an island stage always has its chips).
-  const textMax = body > 0 ? Math.max(1, body - SCORE_H - SLOT_GAP - hintBottom - 36 - CHIPS_H) : 0;
+  const textMax = body > 0 ? Math.max(1, body - SCORE_H - SLOT_GAP - hintBottom - CUE_ROOM - CHIPS_H) : 0;
   const name = t(FIRST.name);
   const tint = FIRST.look.tint;
   const pace = getSettingsSync().ladderPace;
@@ -103,13 +102,8 @@ export function StagePreview({ id }: { id?: string }) {
         ))}
       </View>
       {isle && isle.count > 0 ? <SentenceDots index={isle.index} count={isle.count} tint={tint} /> : null}
-      <View style={[styles.lab, dir.row]}>
-        <Text style={[styles.labDim, dir.text]} numberOfLines={1}>
-          <Text style={styles.labName}>{name}</Text>
-          {` · ${t('ladder.stepCount', { n: 1, total: segs })}`}
-        </Text>
-        {isle ? <Text style={[styles.labDim, styles.tabular, dir.text]}>{t('ladder.lineSlash', { n: isle.index + 1, total: isle.count })}</Text> : null}
-      </View>
+      {/* The stamp's band (ladder-stage.tsx `band`): the same 18pt spacer, empty, so the hop cover and the live stage share one picture. */}
+      <View style={styles.band} />
       <View style={styles.body} onLayout={(e) => measured(e.nativeEvent.layout.height)}>
         <View style={styles.centre}>
           {isle && textMax > 0 ? (
@@ -126,7 +120,6 @@ export function StagePreview({ id }: { id?: string }) {
           ) : null}
           <View style={styles.slot} />
         </View>
-        <StillHint text={t('player.announce', { name })} hintBottom={hintBottom} />
       </View>
       <StageChips
         speedChip={isle ? isle.speed : getSettingsSync().defaultSpeed}
@@ -156,10 +149,7 @@ const styles = StyleSheet.create({
   segs: { marginTop: 4, marginHorizontal: 16, flexDirection: 'row', gap: 4 },
   segHit: { flex: 1, height: 24, justifyContent: 'center' },
   seg: { height: 4, borderRadius: 2, backgroundColor: TRACK },
-  lab: { marginTop: 8, marginHorizontal: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  labName: { fontFamily: fonts.uiMedium, fontWeight: '600', color: tide.text },
-  labDim: { fontFamily: fonts.ui, fontSize: 13, color: tide.textDim, flexShrink: 1 },
-  tabular: { fontVariant: ['tabular-nums'] },
+  band: { marginTop: 8, height: 18 },
   body: { flex: 1 },
   centre: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   // The score slot at rest (score-slot.tsx `.slot`).

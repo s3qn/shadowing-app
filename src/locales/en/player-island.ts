@@ -35,6 +35,7 @@ export const en = {
   'player.blindBoth': 'Both',
   'player.blindOff': 'Off',
   'player.takeScore': 'Score {score}',
+  'player.pitchUnavailable': 'Pitch line not available for this take',
   'player.keptUpWords': 'Kept up with {kept} of {total} words',
   'player.ladderUp': 'Next line at {speed}',
   'player.ladderDown': 'Back to {speed} from the next line',

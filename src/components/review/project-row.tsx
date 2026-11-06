@@ -21,7 +21,7 @@ const GOLD_RIM = 'rgba(255,200,87,0.42)';
 const LINE_SCALE = 28 / 22;
 const TRAY_TIMING = { timing: { duration: 240, easing: Easing.out(Easing.cubic) } };
 const noop = () => {};
-export const ROW_H = 56;
+export const ROW_H = 62;
 const ELLIPSIS_W = 30;
 
 const EMOJI: Record<api.SessionKind, string> = { podcast: '🎧', video: '🎬', island: '🏝️' };
@@ -68,12 +68,12 @@ export function SizeTray({ lit: chosen, onPick, guide }: { lit: number | null; o
 }
 
 /** One project: its tile, kind and title, and the lines it plays (`n` overrides the count, the Add list shows all its lines). */
-export function ProjectRow({ p, dirRow, withTotal, n }: { p: api.SessionProject; dirRow: ViewStyle | undefined; withTotal: boolean; n?: number }) {
+export function ProjectRow({ p, dirRow, withTotal, n, lead }: { p: api.SessionProject; dirRow: ViewStyle | undefined; withTotal: boolean; n?: number; lead?: boolean }) {
   const { t } = useT();
   const dir = useDir();
   return (
     <View style={[rowStyles.row, dirRow]}>
-      <Tile look={LOOK[p.kind]} size={40} radius={12} fontSize={20}>
+      <Tile look={LOOK[p.kind]} size={44} radius={12} fontSize={22}>
         {EMOJI[p.kind]}
       </Tile>
       <View style={rowStyles.rowText}>
@@ -82,10 +82,27 @@ export function ProjectRow({ p, dirRow, withTotal, n }: { p: api.SessionProject;
           {p.title}
         </Text>
       </View>
-      <Text style={[styles.rowCount, dir.writing]}>
-        {n ?? p.picked.length}
-        {withTotal ? <Text style={rowStyles.rowOf}>{` ${t('review.ofTotal', { n: p.total })}`}</Text> : null}
+      {lead ? null : (
+        <Text style={[styles.rowCount, dir.writing]}>
+          {n ?? p.picked.length}
+          {withTotal ? <Text style={rowStyles.rowOf}>{` ${t('review.ofTotal', { n: p.total })}`}</Text> : null}
+        </Text>
+      )}
+    </View>
+  );
+}
+
+/** The "7 of 7 ›" pill on a picker row: tapping it opens the change sheet. The caller wraps it in the tap. */
+export function CountPill({ p }: { p: api.SessionProject }) {
+  const { t } = useT();
+  const dir = useDir();
+  return (
+    <View style={[styles.pill, dir.row]}>
+      <Text style={[styles.pillN, dir.writing]}>
+        {p.picked.length}
+        <Text style={styles.pillOf}>{` ${t('review.ofTotal', { n: p.total })}`}</Text>
       </Text>
+      <Text style={styles.pillArrow}>{dir.rtl ? '‹' : '›'}</Text>
     </View>
   );
 }
@@ -172,6 +189,10 @@ const styles = StyleSheet.create({
   trayText: { fontSize: 22, fontWeight: '700', color: tide.textDim, fontFamily: fonts.ui },
   lit: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 25, backgroundColor: GOLD_FILL, borderWidth: 1, borderColor: GOLD_RIM },
   rowTitle: { fontSize: 12, color: tide.textDim, fontFamily: fonts.ui },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)', backgroundColor: 'rgba(255,255,255,0.05)' },
+  pillN: { fontSize: 19, fontWeight: '700', color: tide.text, fontFamily: fonts.ui },
+  pillOf: { fontSize: 15, fontWeight: '400', color: tide.textDim },
+  pillArrow: { fontSize: 15, color: tide.textDim, fontFamily: fonts.ui },
   rowCount: { fontSize: 17, fontWeight: '700', color: tide.text, fontFamily: fonts.ui },
   label: { fontSize: 11, fontWeight: '700', letterSpacing: 0.7, textTransform: 'uppercase', color: tide.textDim, fontFamily: fonts.ui, marginBottom: 8 },
   upCard: { paddingTop: 12, paddingHorizontal: 18, paddingBottom: 14 },

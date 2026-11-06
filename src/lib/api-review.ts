@@ -149,7 +149,55 @@ export async function getSessionPlan(size: number, shape: SessionShape = {}): Pr
   const picks = shape.projects?.length ? `&projects=${encodeURIComponent(shape.projects.map((p) => `${p.island_id}:${p.count}`).join(','))}` : '';
   const lang = shape.language ? `&language=${encodeURIComponent(shape.language)}` : '';
   const cat = shape.catalogue ? '&catalogue=1' : '';
-  return json<SessionPlan>(await fetch(`${BASE}/review/session/plan?size=${size}${order}${picks}${lang}${cat}`, { headers: headers() }));
+  const plan = await json<SessionPlan>(await fetch(`${BASE}/review/session/plan?size=${size}${order}${picks}${lang}${cat}`, { headers: headers() }));
+  return __DEV__ && linesSim.many ? manyIslands(plan) : plan;
+}
+
+/** One saved line of a session project, as the open island lists it. */
+export type SessionLine = { idx: number; ja: string; en: string };
+const linesCache = new Map<string, SessionLine[]>();
+const linesInflight = new Map<string, Promise<SessionLine[]>>();
+/** Dev simulations (dev-simulate.ts): a slow or failing lines fetch, and a plan padded to 8 islands. */
+export const linesSim = { slow: false, fail: false, many: false, long: false };
+
+/** A fake plan of 8 islands made by repeating the real ones, ids suffixed `~n` (the lines fetch strips it). */
+function manyIslands(plan: SessionPlan): SessionPlan {
+  const base = plan.projects;
+  if (base.length === 0 || base.length >= 8) return plan;
+  const projects = Array.from({ length: 8 }, (_, i) => {
+    const p = base[i % base.length]!;
+    return i < base.length ? p : { ...p, island_id: `${p.island_id}~${i}` };
+  });
+  return { ...plan, projects };
+}
+
+/** The lines already fetched for a project, or undefined. */
+export const peekSessionLines = (islandId: string): SessionLine[] | undefined => linesCache.get(islandId);
+export const clearSessionLines = (): void => linesCache.clear();
+
+/** Every line of a project the session may play, by idx. Cached for the screen's life, so a second open is instant. */
+export function getSessionLines(islandId: string): Promise<SessionLine[]> {
+  const hit = linesCache.get(islandId);
+  if (hit) return Promise.resolve(hit);
+  const live = linesInflight.get(islandId);
+  if (live) return live;
+  const run = (async () => {
+    if (__DEV__ && linesSim.slow) await new Promise((r) => setTimeout(r, 2000));
+    if (__DEV__ && linesSim.fail) throw new Error('simulated');
+    const id = __DEV__ ? islandId.split('~')[0]! : islandId;
+    const { lines } = await json<{ lines: SessionLine[] }>(await fetch(`${BASE}/review/session/lines/${encodeURIComponent(id)}`, { headers: headers() }));
+    // peekLongList: the lines repeated up to 20, with fresh idx, so the peek scrolls.
+    const out = __DEV__ && linesSim.long && lines.length > 0 ? Array.from({ length: 20 }, (_, i) => ({ ...lines[i % lines.length]!, idx: i })) : lines;
+    linesCache.set(islandId, out);
+    return out;
+  })().finally(() => linesInflight.delete(islandId));
+  linesInflight.set(islandId, run);
+  return run;
+}
+
+/** Starts the fetch on touch start; a failure shows later when the body opens. */
+export function prefetchSessionLines(islandId: string): void {
+  getSessionLines(islandId).catch(() => undefined);
 }
 
 /** Every project with saved lines, for adding one to a session. */

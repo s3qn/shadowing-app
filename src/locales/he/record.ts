@@ -24,7 +24,7 @@ export const he = {
   'record.mode.island': 'היום שלי',
   'record.say.title.idle': 'אמרו משפט אחד ב{language}.',
   'record.say.title.recording': 'בהאזנה…',
-  'record.say.hint': 'אמרו מה שאתם רוצים להגיד, ב{native}. זה חוזר ב{language}, מוקלט בקול, מוכן לשאדו.',
+  'record.say.hint': 'זה חוזר ב{language}, מוקלט בקול, מוכן לשאדו.',
   'record.say.ready': 'תורגם והוקלט',
   'record.say.youSaid': 'אמרתם · {language}',
   'record.say.more': '+ עוד {count} שורות',

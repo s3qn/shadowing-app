@@ -13,9 +13,9 @@ export type Look = { tint: string; from: number; to: number; rim: number; glow?:
 export const LISTEN: Look = { tint: verb.listen.c1, from: 0.38, to: 0.12, rim: 0.5 };
 export const MUMBLE: Look = { tint: verb.mumble.c1, from: 0.38, to: 0.12, rim: 0.5 };
 export const ALONG: Look = { tint: verb.along.c1, from: 0.38, to: 0.12, rim: 0.5 };
-export const READY: Look = { tint: verb.listen.c2, from: 0.38, to: 0.12, rim: 0.5 };
+export const READY: Look = { tint: verb.tools.c1, from: 0.38, to: 0.12, rim: 0.5 };
 export const REC: Look = { tint: verb.speak.c1, from: 0.55, to: 0.2, rim: 0.8, glow: true };
-export const FIN: Look = { tint: verb.tools.c1, from: 0.28, to: 0.08, rim: 0.45 };
+export const FIN: Look = { tint: verb.speak.c1, from: 0.28, to: 0.08, rim: 0.45 };
 
 /** The bar's steps in order; the Final take segment is there only while `finalOn`. */
 export const STEPS: readonly { look: Look; name: TKey }[] = [
@@ -29,7 +29,10 @@ export const STEPS: readonly { look: Look; name: TKey }[] = [
 export const FINAL = 4;
 export const COMPARE = 5;
 
-export function frameOf(p: LadderStageProps): Frame {
+/** What decides the frame and the lit segment: the stage, the mic and the round. */
+type SegSource = Pick<LadderStageProps, 'stage' | 'isRecording' | 'round'>;
+
+export function frameOf(p: SegSource): Frame {
   if (p.stage === 'listen') return 'listen';
   if (p.stage === 'memorise') return 'memorise';
   if (p.stage === 'say') return 'say';
@@ -39,7 +42,7 @@ export function frameOf(p: LadderStageProps): Frame {
 }
 
 /** The STEPS index a frame lights: the Shadow count and take share one, round 2 is the Final take. */
-export function stepOf(p: LadderStageProps, frame: Frame): number {
+export function stepOf(p: SegSource, frame: Frame): number {
   switch (frame) {
     case 'listen':
       return 0;
@@ -56,6 +59,15 @@ export function stepOf(p: LadderStageProps, frame: Frame): number {
     case 'compare':
       return COMPARE;
   }
+}
+
+/**
+ * The STEPS index the bar's fill belongs to, or -1 with no stage. A fill's owner
+ * writes it with each reset to 0, so a segment that mounts before that reset
+ * draws empty instead of the last stage's full value (ET-20).
+ */
+export function segOf(p: SegSource | null | undefined): number {
+  return p ? stepOf(p, frameOf(p)) : -1;
 }
 
 /** A tap on a segment, or a swipe landing on it: that step on this line. */
@@ -76,4 +88,20 @@ export function nextSpeed(v: number): number {
     if (Math.abs(s - v) < Math.abs(SPEED_CYCLE[at]! - v)) at = i;
   });
   return SPEED_CYCLE[(at + 1) % SPEED_CYCLE.length]!;
+}
+
+/** The stage stamp's emoji by STEPS index (pre-animator V6: Listen, Mumble, Read along, Shadow, Final take, Compare). */
+export const STAMPS: readonly string[] = ['👂', '🤫', '👀', '🗣️', '🎙️', '⚖️'];
+
+/** True for the two steps that take a recording: the Shadow count and take, and the Final take. */
+export function isRecordingStep(i: number): boolean {
+  return i === 3 || i === FINAL;
+}
+
+/**
+ * The stage-change edge the stamp falls on: one key per line and step. The Shadow
+ * count and its take share step 3, so the mic opening is not an edge.
+ */
+export function stageKeyOf(p: LadderStageProps, frame: Frame): string {
+  return `${p.lineIndex ?? 0}:${stepOf(p, frame)}`;
 }

@@ -316,7 +316,7 @@ export function SessionCelebration({ c, levelUp }: Props) {
       {stage === 'summary' && c?.recap ? (
         <ScrollView contentContainerStyle={[styles.body, { paddingBottom: ctaBottom + 80 }]}>
           <Animated.Text style={[styles.flourish, dir.content, floStyle]}>{cheer.done}</Animated.Text>
-          <View style={styles.hero}>{scoreHero ?? <HeroNumber value={0} label="–" />}</View>
+          {scoreHero ? <View style={styles.hero}>{scoreHero}</View> : null}
           <Summary lines={c.recap.lines} seconds={c.recap.seconds} />
           {c.offline ? <Text style={[styles.caption, dir.text, { marginTop: 14 }]}>{t('summary.syncLater')}</Text> : null}
         </ScrollView>

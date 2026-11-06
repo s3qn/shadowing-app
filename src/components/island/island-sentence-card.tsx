@@ -384,7 +384,11 @@ function SentenceFooter({
       ) : null}
 
       {/* languages: mora feedback only exists for Japanese timelines. */}
-      {isJa && feedback && !hidden ? <TakeFeedback moras={line.timeline} analysis={feedback} /> : null}
+      {isJa && feedback && !hidden ? <TakeFeedback
+          moras={line.timeline}
+          analysis={feedback}
+          scoredNote={total !== null && total >= 50 ? t('player.pitchUnavailable') : undefined}
+        /> : null}
 
       {total !== null || keptUp !== null || ladderNote ? (
         <Text

@@ -5,7 +5,7 @@
  * No fake practice. All of it is a no-op outside __DEV__.
  */
 
-import { devGrantCoins, type CatchCollection, type Line, type NativeLanguage } from '@/lib/api';
+import { clearSessionLines, devGrantCoins, linesSim, type CatchCollection, type Line, type NativeLanguage } from '@/lib/api';
 import { setBetaOverride } from '@/lib/beta';
 import { clearLevelUp, clearStreakMoment, MILESTONE_DAYS, milestoneOf, pushLevelUp, pushStreakMoment } from '@/lib/level-up-store';
 import { setDevApiBlock } from '@/lib/dev-api-block';
@@ -77,6 +77,15 @@ export function devFakeTake(): boolean {
   return __DEV__ && fakeTake !== null;
 }
 
+// `ladder-scoring-hold` keeps the ladder score slot on the Scoring label, so the
+// shimmer can be judged. In memory.
+let scoringHold = false;
+
+/** True while `ladder-scoring-hold` is on. */
+export function devScoringHold(): boolean {
+  return __DEV__ && scoringHold;
+}
+
 /** The fake take's score; 86 when no key is on (callers check `devFakeTake()` first). */
 export function devFakeTakeScore(): number {
   return fakeTake ?? 86;
@@ -136,6 +145,24 @@ function resetFocus(): void {
   handsFreeSim = null;
   noNeighbours = false;
   noTranslation = false;
+}
+
+// --- stage-stamp ---
+// The stamp's clocks slowed to judge the fall, the squash and the travel frame by frame.
+let stampSlow = 1;
+
+/** The factor every stamp duration is multiplied by (`ladder-stamp-slow` sets 4), 1 in a release build. */
+export function devStampSlow(): number {
+  return __DEV__ ? stampSlow : 1;
+}
+
+// --- bl106-countin ---
+// The Listen count-in's clock slowed: the lead, the beats, the impact and the drops with them.
+let countSlow = 1;
+
+/** The factor the drops count-in is multiplied by (`ladder-count-slow` sets 4), 1 in a release build. */
+export function devCountSlow(): number {
+  return __DEV__ ? countSlow : 1;
 }
 
 // --- streak-tier-achievements ---
@@ -209,6 +236,23 @@ function resetSay(): void {
 const SIMULATIONS: Record<string, () => Promise<void> | void> = {
   ...TIER_UPS,
   ...TIERS,
+  // Practice now: 8 islands (scroll and fades), a 2 s lines fetch (loading state), a failing one (retry line).
+  sessionManyIslands: () => {
+    linesSim.many = true;
+  },
+  sessionLinesSlow: () => {
+    linesSim.slow = true;
+    clearSessionLines();
+  },
+  sessionLinesFail: () => {
+    linesSim.fail = true;
+    clearSessionLines();
+  },
+  // Island peek: every island lists 20 lines, so the card scrolls and its edges fade.
+  peekLongList: () => {
+    linesSim.long = true;
+    clearSessionLines();
+  },
   // My words page: a fresh account, and a mix of known and learning words.
   'words-empty': () => simWords('empty'),
   'words-mixed': () => simWords('mixed'),
@@ -275,6 +319,9 @@ const SIMULATIONS: Record<string, () => Promise<void> | void> = {
   'ladder-fake-take': () => {
     fakeTake = 86;
   },
+  'ladder-scoring-hold': () => {
+    scoringHold = true;
+  },
   'ladder-fake-take-90': () => {
     fakeTake = 95;
   },
@@ -307,6 +354,15 @@ const SIMULATIONS: Record<string, () => Promise<void> | void> = {
   'ladder-no-translation': () => {
     noTranslation = true;
   },
+  // stage-stamp: every stamp clock 4x slower (the fall, the squash, the rings, the travel).
+  'ladder-stamp-slow': () => {
+    stampSlow = 4;
+  },
+  // bl106-countin: the drops' clock and the hook's lead, beats and impact 4x slower, and the stamp's clocks with them.
+  'ladder-count-slow': () => {
+    countSlow = 4;
+    stampSlow = 4;
+  },
   // say-it: the real translate and voice run on a canned transcript.
   'say-canned-sentence': () => {
     sayTranscript = 'היום מזג האוויר יפה, אז אלך לטייל.';
@@ -323,18 +379,16 @@ const SIMULATIONS: Record<string, () => Promise<void> | void> = {
   'say-offline': () => {
     sayOffline = true;
   },
-  // session-old-look: the say result frame on a canned line, and the island's Easy offer. The offer
-  // fires on a 90+ Compare of a line not yet known (island/[id].tsx), so this is the 95 fake take.
+  // session-old-look: the say result frame on a canned line.
   'record.sayResult': () => {
     sayResult = { id: 'dev-say', said: 'היום מזג האוויר יפה, אז אלך לטייל.', native: 'he', line: SAY_RESULT_LINE, count: 3 };
-  },
-  'ladder.easyOffer': () => {
-    fakeTake = 95;
   },
   reset: () => {
     fakeTake = null;
     resetFocus();
     resetSay();
+    stampSlow = 1;
+    countSlow = 1;
     setBetaOverride({});
     streak(null);
     repairPhases = [];
@@ -354,12 +408,17 @@ export async function runSimulation(key: string): Promise<void> {
 export function resetSimulation(): void {
   if (!__DEV__) return;
   fakeTake = null;
+  scoringHold = false;
   resetFocus();
   resetSay();
+  stampSlow = 1;
+  countSlow = 1;
   setBetaOverride({});
   streak(null);
   repairPhases = [];
   wordsSim = null;
+  linesSim.many = linesSim.slow = linesSim.fail = linesSim.long = false;
+  clearSessionLines();
   resetTranscriptSim();
   setDevApiBlock(null);
   setDevEnergy(null);

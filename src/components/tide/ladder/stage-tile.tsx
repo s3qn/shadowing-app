@@ -3,7 +3,7 @@
 // Split out of ladder-stage.tsx as a pure move, no behaviour change.
 import { Canvas, LinearGradient, RoundedRect, vec } from '@shopify/react-native-skia';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Look } from '@/components/tide/ladder/stage-model';
 import { EDGE } from '@/components/tide/ladder/stage-tokens';
@@ -30,12 +30,21 @@ export function Tile({ look, size, radius, fontSize, children }: { look: Look; s
   );
 }
 
-/** The mock's `.ic`: a 26pt dim circle with one glyph, for the stage's own row and a native header. */
-export function LadderHelpButton({ onPress, glyph = '?', label }: { onPress: () => void; glyph?: string; label?: string }) {
+/**
+ * The mock's `.ic`: a 26pt dim circle with one glyph, for the stage's own row and a native header.
+ * In a header on iOS 26 the native glass circle already frames it, so `inHeader` drops the inner circle there.
+ */
+export function LadderHelpButton({ onPress, glyph = '?', label, inHeader }: { onPress: () => void; glyph?: string; label?: string; inHeader?: boolean }) {
   const { t } = useT();
+  const bare = inHeader && Platform.select({ ios: true, default: false });
   return (
-    <Pressable onPress={onPress} hitSlop={10} accessibilityRole="button" accessibilityLabel={label ?? t('player.help')} style={({ pressed }) => [styles.ib, pressed && { opacity: 0.7 }]}>
-      <Text style={styles.ibText}>{glyph}</Text>
+    <Pressable
+      onPress={onPress}
+      hitSlop={10}
+      accessibilityRole="button"
+      accessibilityLabel={label ?? t('player.help')}
+      style={({ pressed }) => [bare ? styles.headBare : styles.ib, pressed && { opacity: 0.7 }]}>
+      <Text style={bare ? styles.headGlyph : styles.ibText}>{glyph}</Text>
     </Pressable>
   );
 }
@@ -43,6 +52,8 @@ export function LadderHelpButton({ onPress, glyph = '?', label }: { onPress: () 
 const styles = StyleSheet.create({
   ib: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: EDGE },
   ibText: { fontSize: 13, lineHeight: 16, color: tide.textDim },
+  headBare: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  headGlyph: { fontSize: 17, lineHeight: 20, textAlign: 'center', color: tide.text },
   tile: { alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
   tileText: { color: tide.text, fontWeight: '700' },
 });

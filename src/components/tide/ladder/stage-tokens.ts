@@ -62,3 +62,5 @@ export function guessPt(chars: number, w: number, h: number): number {
 /** The count-in band's run as a share of the count (V2 Hairline, Sean 2026-11-05): it passes quicker, then settles before go. */
 export const SWEEP_K = 0.65;
 export const SWEEP_EASING = Easing.inOut(Easing.sin);
+/** The room the sentence leaves under its slot for the stage stamp's stop button: the old 36pt hint reserve, the 72pt button and an 8pt gap. */
+export const CUE_ROOM = 116;

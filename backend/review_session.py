@@ -197,6 +197,26 @@ def _first_line(device: str, proj: dict, idx: int) -> dict:
             "words": line.get("words", [])}
 
 
+def project_lines(device: str, island_id: str, beta_on: bool = True) -> list[dict] | None:
+    """Every line of one session project as `[{idx, ja, en}]`, in line order.
+
+    Same project set and Easy filter as the plan, so the count matches its
+    `total`. None when the device has no such project.
+    """
+    with_due, islands, idle = _projects(device, review_deck._today(), None, beta_on)
+    proj = next((p for p in with_due + islands + idle if p["island_id"] == island_id), None)
+    if proj is None:
+        return None
+    if proj.get("cards"):
+        return [{"idx": i, "ja": c["ja"], "en": c["en"]}
+                for i, c in sorted(proj["cards"].items())]
+    out = []
+    for i in sorted(l["idx"] for l in _load_lines(proj)):
+        line = store.get_line(island_id, i) or {}
+        out.append({"idx": i, "ja": line.get("ja", ""), "en": line.get("en", "")})
+    return out
+
+
 def _load_lines(p: dict) -> list[dict]:
     if p["lines"] is None:
         known = p.get("known", ())

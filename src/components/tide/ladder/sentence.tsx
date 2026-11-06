@@ -1,15 +1,17 @@
 // The centred sentence (mock 7 `.jp`): the words in RubyWord or the plain line, fitted to
 // the body, with the count-in's grey copy and band and the Final take's blur over it.
 // Split out of ladder-stage.tsx as a pure move, no behaviour change.
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
-import Animated, { useReducedMotion } from 'react-native-reanimated';
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { ScrollView, StyleSheet, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, type SharedValue } from 'react-native-reanimated';
 
 import { BlurText, RubyWord } from '@/components/ruby-word';
 import { BandWindow } from '@/components/tide/ladder/band-window';
+import { clamp, OUT, springAt } from '@/components/tide/ladder/clock-curves';
+import { fin } from '@/components/tide/ladder/stage-hint';
 import type { Frame } from '@/components/tide/ladder/stage-model';
 import { BAND, BODY_PAD_H, COUNT_GREY, noop, PLAIN_INK, towardWhite, XP_GOLD } from '@/components/tide/ladder/stage-tokens';
-import { useCountIn } from '@/components/tide/ladder/use-count-in';
+import { REST, useCountIn } from '@/components/tide/ladder/use-count-in';
 import { useSentenceBlur } from '@/components/tide/ladder/use-sentence-blur';
 import { useSentenceFit } from '@/components/tide/ladder/use-sentence-fit';
 import { fonts } from '@/constants/fonts';
@@ -25,11 +27,14 @@ import { kinsokuUnits } from '@/lib/kinsoku';
  * (`counting`); `countRun` restarts that for a new count-in that follows straight on.
  * `onFitted` is told once the line has its size (each line, each new room). The still
  * preview draws it from the same fields, so both fit to the same size and wrap.
+ * `drops` is the Listen count-in's clock (BL-106 V2): the ink's units rise under its wavelets.
  */
-export function Sentence({ p, frame, hidden, maxH, counting, countRun, tint, sweepMs, hitRef, onFitted }: { p: Pick<LadderStageProps, 'round' | 'speaker' | 'line' | 'text' | 'lineIndex' | 'highlight'>; frame: Frame; hidden: boolean; maxH: number; counting: boolean; countRun: number; tint: string; sweepMs: number; hitRef?: RefObject<SentenceHit | null>; onFitted?: () => void }) {
+export function Sentence({ p, frame, hidden, maxH, counting, countRun, tint, sweepMs, hitRef, onFitted, drops }: { p: Pick<LadderStageProps, 'round' | 'speaker' | 'line' | 'text' | 'lineIndex' | 'highlight'>; frame: Frame; hidden: boolean; maxH: number; counting: boolean; countRun: number; tint: string; sweepMs: number; hitRef?: RefObject<SentenceHit | null>; onFitted?: () => void; drops?: DropsRise }) {
   const reduced = useReducedMotion();
   const { t } = useT();
   const { width } = useWindowDimensions();
+  // The units view's x in the ink layer: a unit's centre for the rise is its own x plus this (BL-106 V2).
+  const unitsX = useSharedValue(0);
   // The Final take (round 2, the blind take): its count-in is the grain blur itself (V4 "Grain",
   // research/pre-animator/final-take-blur/recipe.md), no grey dim and no band; the take starts once
   // the text is fully soft. `countMs` is the whole count's length. Bob P fills these in.
@@ -91,7 +96,15 @@ export function Sentence({ p, frame, hidden, maxH, counting, countRun, tint, swe
   }, [hitRef, hitTest, boxAt]);
   // The text in one colour (`ink`), or in its own colours with the highlight. `plainBlur` (the ink and
   // grey copies) takes the Final take's blur; the band runs only through the count, always sharp.
-  const content = (ink: string | undefined, layer: typeof textStyle | null, plainBlur: boolean) => (
+  // Every copy: each unit rises under the Listen count's wavelet (BL-106 V2); the grey copy and the
+  // band too, so a jump out of that count mid-way shows the words rise under them, never a pop.
+  const content = (ink: string | undefined, layer: typeof textStyle | null, plainBlur: boolean) => {
+    const plain = plainBlur ? (
+      <BlurText text={p.text} blur={blur} scale={1} base={ink ?? PLAIN_INK} style={[styles.plain, { fontSize: pt, lineHeight: pt * 1.75 }]} />
+    ) : (
+      <Animated.Text style={[styles.plain, { fontSize: pt, lineHeight: pt * 1.75 }, ink ? { color: ink } : null]}>{p.text}</Animated.Text>
+    );
+    return (
     <Animated.View style={[styles.layer, layer]} pointerEvents="none">
       {words ? (
           <View
@@ -101,58 +114,60 @@ export function Sentence({ p, frame, hidden, maxH, counting, countRun, tint, swe
                 ? undefined
                 : (e) => {
                     unitsOrigin.current = { x: e.nativeEvent.layout.x, y: e.nativeEvent.layout.y };
+                    unitsX.set(Number.isFinite(e.nativeEvent.layout.x) ? e.nativeEvent.layout.x : 0);
                   }
             }>
-            {units.map((unit, k) => (
-              <View
-                key={unit[0]}
-                style={styles.unit}
-                onLayout={
-                  ink
-                    ? undefined
-                    : (e) => {
-                        unitOrigin.current[k] = { x: e.nativeEvent.layout.x, y: e.nativeEvent.layout.y };
-                        onUnit(e.nativeEvent.layout.width);
-                      }
-                }>
-
-                {unit.map((wi) => (
-                  <RubyWord
-                    key={wi}
-                    word={words[wi]!}
-                    showRuby
-                    index={wi}
-                    selected={false}
-                    onLayout={
-                      ink
-                        ? noop
-                        : (i, e) => {
-                            const l = e.nativeEvent.layout;
-                            wordLocal.current[i] = { x: l.x, y: l.y, w: l.width, h: l.height };
-                          }
-                    }
-                    showPosAndRomaji={false}
-                    scale={pt / 22}
-                    highlight={follow && !ink ? p.highlight : undefined}
-                    litColor={XP_GOLD}
-                    color={ink}
-                    blur={plainBlur ? blur : undefined}
-                    grain={plainBlur ? grain : undefined}
-                    noWrap
-                  />
-                ))}
-              </View>
-            ))}
+            {units.map((unit, k) => {
+              const inner = unit.map((wi) => (
+                <RubyWord
+                  key={wi}
+                  word={words[wi]!}
+                  showRuby
+                  index={wi}
+                  selected={false}
+                  onLayout={
+                    ink
+                      ? noop
+                      : (i, e) => {
+                          const l = e.nativeEvent.layout;
+                          wordLocal.current[i] = { x: l.x, y: l.y, w: l.width, h: l.height };
+                        }
+                  }
+                  showPosAndRomaji={false}
+                  scale={pt / 22}
+                  highlight={follow && !ink ? p.highlight : undefined}
+                  litColor={XP_GOLD}
+                  color={ink}
+                  blur={plainBlur ? blur : undefined}
+                  grain={plainBlur ? grain : undefined}
+                  noWrap
+                />
+              ));
+              return (
+                <RiseUnit
+                  key={unit[0]}
+                  drops={drops}
+                  offX={unitsX}
+                  style={styles.unit}
+                  onLayout={
+                    ink
+                      ? undefined
+                      : (e) => {
+                          unitOrigin.current[k] = { x: e.nativeEvent.layout.x, y: e.nativeEvent.layout.y };
+                          onUnit(e.nativeEvent.layout.width);
+                        }
+                  }>
+                  {inner}
+                </RiseUnit>
+              );
+            })}
           </View>
         ) : (
-          plainBlur ? (
-            <BlurText text={p.text} blur={blur} scale={1} base={ink ?? PLAIN_INK} style={[styles.plain, { fontSize: pt, lineHeight: pt * 1.75 }]} />
-          ) : (
-            <Animated.Text style={[styles.plain, { fontSize: pt, lineHeight: pt * 1.75 }, ink ? { color: ink } : null]}>{p.text}</Animated.Text>
-          )
+          <RiseUnit drops={drops}>{plain}</RiseUnit>
         )}
     </Animated.View>
-  );
+    );
+  };
   const core = towardWhite(tint, 0.85);
   return (
     // Remounted per line, size step and fit pass, so each one reports its height.
@@ -186,6 +201,59 @@ export function Sentence({ p, frame, hidden, maxH, counting, countRun, tint, swe
           ))
         : null}
     </ScrollView>
+  );
+}
+
+/**
+ * The Listen count-in's clock for the sentence (BL-106 V2): `tk` in recipe ms, `impactMs` and
+ * `goMs` on it, `impactX` the falling drop's x in the sentence's own coordinates, `prev` 1 while a
+ * sentence that was on screen when its line counted again sinks away, `live` true while a drops
+ * count runs (the units are hidden from their first frame, before the clock has started), `sameLine` true when
+ * that count is on the line the last one ran on (its sentence stays up until the sink starts).
+ */
+export type DropsRise = { tk: SharedValue<number>; prev: SharedValue<number>; live: boolean; sameLine: boolean; impactMs: number; goMs: number; impactX: number };
+
+/**
+ * One unit of the ink sentence (a kinsoku unit or the plain line) that rises 16pt and fades in as
+ * the count's wavelet passes under it, `|x - impactX| / 0.9` ms after the impact (V2 "Ripple Lifts
+ * the Words"); identity with no `drops` or at the clock's rest. Reduced motion: a 150ms fade at go.
+ */
+function RiseUnit({ drops, offX, style, onLayout, children }: { drops?: DropsRise; offX?: SharedValue<number>; style?: object; onLayout?: (e: LayoutChangeEvent) => void; children: ReactNode }) {
+  const reduced = useReducedMotion();
+  const cx = useSharedValue(0);
+  const tk = drops?.tk;
+  const prev = drops?.prev;
+  const live = drops?.live ?? false;
+  const sameLine = drops?.sameLine ?? false;
+  const impactMs = drops?.impactMs ?? 0;
+  const goMs = drops?.goMs ?? 0;
+  const impactX = drops?.impactX ?? 0;
+  const rise = useAnimatedStyle(() => {
+    if (!tk || !prev) return { opacity: 1, transform: [{ translateY: 0 }] };
+    const t = fin(tk.value, REST);
+    const sink = fin(prev.value);
+    // At rest: identity, or hidden while a drops count on a new line runs and its clock has not started yet.
+    // Past go in a new line's count is the last count's clock on the frame before the restart: hidden too (the
+    // count's own words wait for the impact there anyway; under reduced motion they fade in from go, so not then).
+    const hide = live && !sameLine;
+    if (!(t < REST) || (hide && !reduced && t >= goMs)) {
+      return { opacity: hide ? sink : 1, transform: [{ translateY: hide && !reduced ? 16 * (1 - sink) : 0 }] };
+    }
+    if (reduced) return { opacity: Math.max(clamp((t - goMs) / 150), sink), transform: [{ translateY: 0 }] };
+    const x = fin(cx.value) + (offX ? fin(offX.value) : 0);
+    const k = t - (impactMs + Math.abs(x - impactX) / 0.9);
+    return { opacity: Math.max(OUT(k / 200), sink), transform: [{ translateY: 16 * (1 - springAt(k, 15, 200)) * (1 - sink) }] };
+  });
+  return (
+    <Animated.View
+      style={[style, rise]}
+      onLayout={(e) => {
+        onLayout?.(e);
+        const l = e.nativeEvent.layout;
+        cx.set(Number.isFinite(l.x) && Number.isFinite(l.width) ? l.x + l.width / 2 : 0);
+      }}>
+      {children}
+    </Animated.View>
   );
 }
 

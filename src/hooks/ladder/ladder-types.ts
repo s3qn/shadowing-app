@@ -83,6 +83,12 @@ export type LadderStageProps = {
   total: number;
   phase: 'announce' | 'count' | 'gap' | 'run' | 'waiting';
   beat: number | null;
+  /** How long the hook's announce lasts, in ms: the drops' lead on Listen, the pace's announce elsewhere. */
+  announceMs?: number;
+  /** Goes up on every announce the hook starts, also one that restarts on top of another. */
+  announceRun?: number;
+  /** The hold is ending: the sentence and score lift away before the next line. */
+  leaving?: boolean;
   repeat: number;
   repeats: number;
   isRecording: boolean;
@@ -96,6 +102,8 @@ export type LadderStageProps = {
   /** The playing line's word highlight, so the stage's line lights up with the audio. */
   highlight?: Highlight;
   fill: SharedValue<number>;
+  /** The STEPS index `fill` belongs to (segOf), written with each reset; any other segment draws it empty. */
+  fillStep: SharedValue<number>;
   colour: string;
   /** The line is not playing under the take (no headset: turn-taking); the hint asks for headphones. */
   speaker?: boolean;

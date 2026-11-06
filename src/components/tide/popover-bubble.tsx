@@ -92,8 +92,9 @@ type Props = {
    * 'top' (default): the bubble sits over the tile, tail pointing down.
    * 'left': the bubble sits left of a tray pill (DOCK_PILL_W wide, DOCK_PILL_H
    * high), tail pointing right at its left edge.
+   * 'bottom': the bubble hangs under the tile, tail pointing up; `anchorTop` is then the tile's bottom edge.
    */
-  side?: 'top' | 'left';
+  side?: 'top' | 'left' | 'bottom';
   /** Space between the tail's tip and the tile: 0 on a tray pill, 4 on the chip. */
   gap?: number;
   onClose: () => void;
@@ -120,12 +121,13 @@ export function PopoverBubble({
 }: Props) {
   const { t } = useT();
   const left = side === 'left' ? anchorX - DOCK_PILL_W / 2 - gap - TIP - width : Math.max(EDGE, Math.min(parentWidth - width - EDGE, anchorX - width / 2));
-  const top = side === 'left' ? anchorTop + DOCK_PILL_H / 2 - height / 2 : anchorTop - gap - TIP - height;
+  const isBelow = side === 'bottom';
+  const top = side === 'left' ? anchorTop + DOCK_PILL_H / 2 - height / 2 : isBelow ? anchorTop + gap : anchorTop - gap - TIP - height;
   // Kept on the body's straight run, clear of its rounded corners.
   const arrowLeft = Math.max(radius, Math.min(width - radius, anchorX - left));
   const isLeft = side === 'left';
   const originX = isLeft ? width + TIP : arrowLeft;
-  const originY = isLeft ? height / 2 : height + TIP;
+  const originY = isLeft ? height / 2 : isBelow ? 0 : height + TIP;
 
   return (
     <View style={styles.cover} pointerEvents="box-none">
@@ -150,10 +152,12 @@ export function PopoverBubble({
             styles.arrow,
             isLeft
               ? { left: width - ARROW / 2, top: height / 2 - ARROW / 2, borderRightWidth: 1, borderBottomWidth: 1, transform: [{ rotate: '-45deg' }] }
-              : { left: arrowLeft - ARROW / 2, top: height - ARROW / 2, borderRightWidth: 1, borderBottomWidth: 1, transform: [{ rotate: '45deg' }] },
+              : isBelow
+                ? { left: arrowLeft - ARROW / 2, top: TIP - ARROW / 2, borderLeftWidth: 1, borderTopWidth: 1, transform: [{ rotate: '45deg' }] }
+                : { left: arrowLeft - ARROW / 2, top: height - ARROW / 2, borderRightWidth: 1, borderBottomWidth: 1, transform: [{ rotate: '45deg' }] },
           ]}
         />
-        <View style={[styles.body, { height, width, borderRadius: radius }, bodyStyle]}>{children}</View>
+        <View style={[styles.body, { height, width, borderRadius: radius }, isBelow && { marginTop: TIP }, bodyStyle]}>{children}</View>
       </Animated.View>
     </View>
   );

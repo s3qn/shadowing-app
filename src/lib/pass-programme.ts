@@ -270,6 +270,19 @@ export const LADDER_PACING: Record<
   quick: { announceMs: 400, beatMs: 450, gapMs: 300, memorise: 1, say: 1 },
 };
 
+/**
+ * The Listen count-in's drops (bl106-countin): the announce before the first beat (the LISTEN
+ * plate's fall and park), the short announce when the plate does not fall again (a resume, a
+ * restart on the same step), how long the last beat runs past the beat so the line starts at
+ * the drop's impact, and where the clock rests after the fall.
+ */
+export const COUNT_DROPS = { leadMs: 1950, shortLeadMs: 300, impactMs: 260, endMs: 1300 } as const;
+
+/** Whether a step's count-in is the drops (Listen) rather than the hairline. */
+export function isDropsCount(step: PassStep): boolean {
+  return step === 'ladderListen';
+}
+
 /** What comes before a stage runs (or between its repeats). */
 export type Prelude = { phase: 'announce' } | { phase: 'count'; beat: number } | { phase: 'gap' } | null;
 

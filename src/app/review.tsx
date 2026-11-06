@@ -2,7 +2,7 @@ import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, type LayoutChangeEvent, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { AppState, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -10,7 +10,7 @@ import { CatConstellation } from '@/components/cat-constellation';
 import { PrismButton } from '@/components/prism';
 import { GRAMMAR_LILAC } from '@/components/ruby-word';
 import { DragRows } from '@/components/review/drag-rows';
-import { ProjectRow, ROW_H, rowStyles, SizeTray, UpFirst } from '@/components/review/project-row';
+import { ProjectRow, rowStyles, SizeTray, UpFirst } from '@/components/review/project-row';
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
 import { SheetAction } from '@/components/sheet/sheet-rows';
 import { HeroNumber } from '@/components/tide/hero-number';
@@ -30,7 +30,6 @@ import { peekSessionPlan } from '@/lib/plan-cache';
 import { getSettingsSync, SESSION_SIZES, sessionLanguage, type SessionSize, setSessionSize } from '@/lib/settings';
 
 const SIZES = SESSION_SIZES;
-const MORE_H = 32;
 const NOTE_H = 28;
 // Same cap as MAX_EDIT_PROJECTS in backend/review_session.py.
 const MAX_PROJECTS = 8;
@@ -71,12 +70,6 @@ export default function ReviewScreen() {
   const [loadError, setLoadError] = useState('');
   const retryAnchor = useGuideAnchor('sizeRetry', guideSize && !!plan && plan.count === 0 && !!loadError);
   const [starting, setStarting] = useState(false);
-  // The picker never scrolls: rows that do not fit between the mix bar and Up first fold into a "+N more" line.
-  const [fit, setFit] = useState<{ avail: number | null; top: number | null; up: number | null }>({ avail: null, top: null, up: null });
-  const measure = (key: 'avail' | 'top' | 'up') => (e: LayoutChangeEvent) => {
-    const h = e.nativeEvent.layout.height;
-    setFit((f) => (f[key] === h ? f : { ...f, [key]: h }));
-  };
   // Mock gaps at 844 high, down to 45% of them at 667.
   const winH = useWindowDimensions().height;
   const k = Math.min(1, Math.max(0.45, 0.45 + (0.55 * (winH - 667)) / (844 - 667)));
@@ -134,6 +127,7 @@ export default function ReviewScreen() {
   useFocusEffect(
     useCallback(() => {
       setStarting(false);
+      api.clearSessionLines();
       setEdit(null);
       setUndo(null);
       void getSessionPrefs().then((pr) => setEdited(pr.edited));
@@ -227,8 +221,8 @@ export default function ReviewScreen() {
           </View>
         ),
         headerRight: () => (
-          <View style={{ marginEnd: 12 }}>
-            <LadderHelpButton onPress={help} />
+          <View style={Platform.select({ ios: undefined, default: { marginEnd: 12 } })}>
+            <LadderHelpButton onPress={help} inHeader />
           </View>
         ),
       }}
@@ -276,10 +270,6 @@ export default function ReviewScreen() {
   const total = plan.projects.length;
   const canAdd = total < MAX_PROJECTS;
   const note = undo ? 'undo' : !edited ? 'hint' : null;
-  const fitReady = fit.avail !== null && fit.top !== null && fit.up !== null;
-  const space = fitReady ? fit.avail! - gap(24) - fit.top! - gap(14) - fit.up! - gap(14) - (canAdd ? ROW_H : 0) - (note ? NOTE_H : 0) : Infinity;
-  const shown = total * ROW_H <= space ? total : Math.max(0, Math.floor((space - MORE_H) / ROW_H));
-  const more = total - shown;
   const lit = edit ? ((SIZES as readonly number[]).includes(plan.count) ? plan.count : null) : size;
   const inPlan = new Set(plan.projects.map((p) => p.island_id));
   const addable = (catalogue ?? []).filter((c) => !inPlan.has(c.island_id) && c.total > 0);
@@ -336,8 +326,9 @@ export default function ReviewScreen() {
       {header}
       {
         <Animated.View style={styles.fill} onStartShouldSetResponderCapture={closeSoon}>
-          <View style={[styles.body, { paddingTop: gap(24) }]} onLayout={measure('avail')}>
-            <View onLayout={measure('top')}>
+          {/* The body scrolls when the box, Add, the note and Up first outgrow the screen; Practice now stays pinned below. The box scrolls inside it and takes its own touches first. */}
+          <ScrollView style={styles.body} contentContainerStyle={[styles.bodyContent, { paddingTop: gap(24) }]} showsVerticalScrollIndicator={false} nestedScrollEnabled bounces={false}>
+            <View>
               <SizeTray lit={lit} onPick={pick} guide={guideSize} />
               <View style={{ marginTop: gap(28) }}>
                 <HeroNumber value={plan.count} />
@@ -349,10 +340,10 @@ export default function ReviewScreen() {
                 ))}
               </View>
             </View>
-            <View style={{ marginTop: gap(14), opacity: fitReady ? 1 : 0 }}>
+            <View style={{ marginTop: gap(14) }}>
               <DragRows
-                key={plan.projects.slice(0, shown).map((p) => p.island_id).join(',')}
-                items={plan.projects.slice(0, shown)}
+                key={plan.projects.map((p) => p.island_id).join(',')}
+                items={plan.projects}
                 enabled={!starting}
                 dirRow={dir.row}
                 rtl={dir.rtl}
@@ -362,14 +353,9 @@ export default function ReviewScreen() {
                 onTap={openRow}
                 onRemove={removeId}
               />
-              {more > 0 ? (
-                <Text style={[styles.more, dir.text]} numberOfLines={1}>
-                  {t('review.moreProjects', { n: more })}
-                </Text>
-              ) : null}
               {canAdd ? (
                 <Pressable onPress={() => !starting && setAdding(true)} accessibilityRole="button" style={({ pressed }) => [rowStyles.row, dir.row, pressed && styles.pressed]}>
-                  <Tile look={READY} size={40} radius={12} fontSize={22}>
+                  <Tile look={READY} size={44} radius={12} fontSize={22}>
                     +
                   </Tile>
                   <Text style={[rowStyles.rowKind, rowStyles.rowText, dir.text]}>{t('review.addFrom')}</Text>
@@ -383,15 +369,15 @@ export default function ReviewScreen() {
                   <Text style={styles.undo}>{t('review.undo')}</Text>
                 </Pressable>
               ) : note === 'hint' ? (
-                <Text style={[styles.note, styles.noteText, dir.text]} numberOfLines={1}>
+                <Text style={[styles.note, styles.noteText, dir.text]} numberOfLines={2}>
                   {t('review.editHint')}
                 </Text>
               ) : null}
             </View>
-            <View style={{ marginTop: gap(14), opacity: fitReady ? 1 : 0 }} onLayout={measure('up')}>
+            <View style={{ marginTop: gap(14) }}>
               <UpFirst plan={plan} />
             </View>
-          </View>
+          </ScrollView>
           <View style={[styles.cta, { paddingBottom: Math.max(insets.bottom + 2, 20) }]}>
             <View ref={practiceBtn.ref} onLayout={practiceBtn.onLayout}>
               <PrismButton shape="pill" verb="read" height={58} label={t('review.practiceNow')} disabled={starting} onPress={practice}>
@@ -452,13 +438,13 @@ const styles = StyleSheet.create({
   headTitle: { alignItems: 'center' },
   headMain: { fontSize: 15, fontWeight: '600', color: tide.text, fontFamily: fonts.ui },
   headSub: { fontSize: 11.5, color: tide.textDim, fontFamily: fonts.ui },
-  body: { flex: 1, paddingHorizontal: 20, overflow: 'hidden' },
+  body: { flex: 1 },
+  bodyContent: { paddingHorizontal: 20, paddingBottom: 8 },
   heroMeta: { marginTop: 6, fontSize: 18, color: tide.textDim, fontFamily: fonts.ui },
   mix: { flexDirection: 'row', height: 14, borderRadius: 7, overflow: 'hidden', gap: 3 },
-  more: { height: MORE_H, lineHeight: MORE_H, fontSize: 13, fontWeight: '600', color: tide.textDim, fontFamily: fonts.ui },
   pressed: { opacity: 0.6 },
-  note: { flexDirection: 'row', alignItems: 'center', height: NOTE_H, gap: 12 },
-  noteText: { fontSize: 13, color: tide.textDim, fontFamily: fonts.ui, lineHeight: NOTE_H },
+  note: { flexDirection: 'row', alignItems: 'center', minHeight: NOTE_H, gap: 12 },
+  noteText: { fontSize: 13, color: tide.textDim, fontFamily: fonts.ui, lineHeight: 18, paddingVertical: 5 },
   undo: { fontSize: 13, fontWeight: '700', color: verb.read.c1, fontFamily: fonts.ui },
   stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 8 },
   stepMid: { alignItems: 'center' },

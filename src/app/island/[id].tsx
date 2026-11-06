@@ -26,6 +26,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { PassHelpSheet } from '@/components/tide/pass-help-sheet';
 import { IslandMenuSheet } from '@/components/tide/island-menu-sheet';
 import { LadderStageView } from '@/components/tide/ladder-stage';
+import { segOf } from '@/components/tide/ladder/stage-model';
 import { StagePreview } from '@/components/tide/ladder/stage-preview';
 import { useIslandHop,type HopActions } from '@/hooks/island/use-island-hop'; // focus-stories
 import { useStageWord } from '@/hooks/island/use-stage-word'; // focus-stories
@@ -116,7 +117,7 @@ import { useStableHandler } from '@/hooks/use-stable-handler';
 import { IslandSentenceCard } from '@/components/island/island-sentence-card';
 import { HEADER_ROW_H, Leaf, PlayerHeader } from '@/components/island/player-header';
 import { useDir, useT } from '@/lib/i18n'; // offline-islands: useDir
-import { CONTEXT_LINES, EASY_OFFER_HOLD_MS, EXPORT_GAP_MS, GUIDE_AUDIO_MS, OPEN_HOLD_MAX_MS, TAKE_LAG_MAX_MS, TAKE_READ_AFTER_COVER_MS, TRANSCRIPT_WIDEN_MS } from '@/lib/island/island-consts';
+import { CONTEXT_LINES, EXPORT_GAP_MS, GUIDE_AUDIO_MS, OPEN_HOLD_MAX_MS, TAKE_LAG_MAX_MS, TAKE_READ_AFTER_COVER_MS, TRANSCRIPT_WIDEN_MS } from '@/lib/island/island-consts';
 import { useIslandWordPanel } from '@/hooks/island/use-island-word-panel';
 import type { IslandCore } from '@/hooks/island/island-core';
 import { readWarmStart, useIslandLoad } from '@/hooks/island/use-island-load';
@@ -274,10 +275,8 @@ export default function IslandScreen() {
   // bl58-easy-for-me: the lines marked Easy for me (backend idx, from GET /islands and the mark replies), the 90+
   // offer (the line's position here) and the reaction after a mark. `offered` keeps the offer to once per line per open.
   const [known, setKnown] = useState<ReadonlySet<number>>(() => new Set());
-  const offerClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [easyOffer, setEasyOffer] = useState<number | null>(null);
   const [easyDone, setEasyDone] = useState<{ count: number } | null>(null);
-  const offeredRef = useRef(new Set<string>());
   const easyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const glideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -642,7 +641,7 @@ export default function IslandScreen() {
     // The pace sheet's speed ruler: the same settle as the dock's Speed popover
     // (an arrow: commitSpeed comes from useLinePlayback, called below).
     setSpeed: (next) => commitSpeed(next),
-    onLineDone: (score) => {
+    onLineDone: () => {
       if (!island) return;
       // A Compare played back is one sentence ladder finished, which is what
       // a day on the streak counts.
@@ -653,23 +652,8 @@ export default function IslandScreen() {
         noteSessionLine(island.id, line.idx, lineStartRef.current ? (Date.now() - lineStartRef.current) / 1000 : 0, line);
       }
       lineStartRef.current = Date.now();
-      if (guideOn) return;
-      // bl58-easy-for-me: a 90+ Compare on a line not yet known offers Easy, once per line per open. Only a tap marks.
-      const key = line ? `${island.id}:${line.idx}` : null;
-      if (key === null || !line || typeof score !== 'number' || score < 90 || known.has(line.idx) || offeredRef.current.has(key)) return;
-      offeredRef.current.add(key);
-      setEasyOffer(idx);
-      if (!autoEcho) {
-        // Without Auto Echo nothing else ends the offer: it clears by itself, never marking.
-        if (offerClearRef.current) clearTimeout(offerClearRef.current);
-        offerClearRef.current = setTimeout(() => {
-          offerClearRef.current = null;
-          setEasyOffer(null);
-        }, EASY_OFFER_HOLD_MS);
-        return;
-      }
-      // Auto Echo holds the run on the score while the offer is up.
-      return { holdMs: EASY_OFFER_HOLD_MS };
+      // bl106-countin (ET-23): no Easy offer here. The stage's Easy chip is the one way to mark, so the run never
+      // drops to the island card between lines.
     },
     advance: () => {
       if (!island) return false;
@@ -1012,13 +996,14 @@ export default function IslandScreen() {
 
   // The stage fill (useEchoFill): the `echoFill` value, its line and take aims and the
   // step effect. It also assigns `takeStatusHandler` for the Play step.
-  const { echoFill, aimEchoLine } = useEchoFill({
+  const { echoFill, echoFillSeg, aimEchoLine } = useEchoFill({
     core,
     echoRef,
     rateRef,
     latestStatus,
     takeStatusHandler,
     ladderStep: ladder.step,
+    ladderSeg: segOf(ladder.stage),
     ladderPaused: ladder.paused,
     takePhase: take.phase,
     lineSecLive,
@@ -1498,6 +1483,11 @@ export default function IslandScreen() {
   // The three sheets and the header are memoised; these keep their handler
   // props at one identity so a screen render does not render a closed sheet.
   const onEchoClose = useStableHandler(() => {
+    // A Practice session or auto run: the stage chevron leaves like the header back (to Practice, recap shows there).
+    if (autoRunRef.current || autoUi) {
+      onHeaderBack();
+      return;
+    }
     dropChain(); // auto-practice
     endRun();
     setSheet(null);
@@ -1792,6 +1782,7 @@ export default function IslandScreen() {
       ladder.stage && {
         ...ladder.stage,
         fill: echoFill,
+        fillStep: echoFillSeg,
         highlight,
         chip: easyChipButton, // bl58-easy-for-me: E3, a mark ends the run
         easy: easyChipAction,
@@ -1802,7 +1793,7 @@ export default function IslandScreen() {
         onEnd: onEchoClose,
         onHelp: onPassHelp,
       },
-    [ladder.stage, echoFill, highlight, easyChipButton, easyChipAction, speedLive, stageHoldTitle, onEchoClose, onPassHelp],
+    [ladder.stage, echoFill, echoFillSeg, highlight, easyChipButton, easyChipAction, speedLive, stageHoldTitle, onEchoClose, onPassHelp],
   );
   // bl58-easy-for-me (D55): the 90+ offer lives in the dock, which the opaque stage view covers, and Auto Echo holds the
   // run on Compare while it is up. The stage stays mounted and goes hidden for the offer's hold, so the bubble and the
@@ -2118,7 +2109,7 @@ export default function IslandScreen() {
           The header stays laid out under it, so the scene never shifts when the stage comes or goes. */}
       {stageProps ? (
         <Animated.View style={[StyleSheet.absoluteFill, stageInStyle]} pointerEvents="box-none" onTouchStart={onSceneTouch}>
-          <LadderStageView {...stageProps} top={0} ownsHeader followsReveal hidden={easyOffer !== null} still={hopCover} onFitted={onStageFitted} />
+          <LadderStageView {...stageProps} top={0} ownsHeader followsReveal still={hopCover} onFitted={onStageFitted} />
         </Animated.View>
       ) : null}
       {/* A cube hop lands on the still stage face it turned to, over everything, until the live stage has fitted under it. */}

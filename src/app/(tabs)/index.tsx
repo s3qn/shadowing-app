@@ -21,6 +21,7 @@ import { SymbolView } from 'expo-symbols'; // icon-buttons: record FAB and renam
 
 import { AddIslandSheet } from '@/components/add-island-sheet';
 import { IslandMenuSheet, type IslandMenuHandle } from '@/components/home/island-menu-sheet';
+import { IslandPeek, type IslandPeekContext, type IslandPeekHandle } from '@/components/home/island-peek';
 import { useHomeSearch } from '@/hooks/home/use-home-search';
 import { CatConstellation } from '@/components/cat-constellation';
 import { PracticeCard } from '@/components/practice-card';
@@ -215,6 +216,7 @@ export default function IslandsScreen() {
   }, []);
   // The Rename/Delete sheet a long press opens; it holds its own state.
   const menuRef = useRef<IslandMenuHandle>(null);
+  const peekRef = useRef<IslandPeekHandle>(null);
   // Stable, like openRowMenu below, so a render of Home leaves IslandRow's memo
   // alone. Each row passes its own item back.
   const openIsland = useCallback((item: api.IslandSummary, rect: CardRect) => {
@@ -440,8 +442,11 @@ export default function IslandsScreen() {
   // Stable across renders, like openIsland, so memo(IslandRow) can skip every
   // row whose own props did not change: a centre change re-renders only the
   // row leaving and the row arriving.
-  const openRowMenu = useCallback((item: api.IslandSummary) => {
-    menuRef.current?.open(item);
+  const openRowMenu = useCallback((item: api.IslandSummary, ctx: IslandPeekContext) => {
+    peekRef.current?.open(item, ctx);
+  }, []);
+  const openRename = useCallback((item: api.IslandSummary) => {
+    menuRef.current?.openRename(item);
   }, []);
 
   // Built once per change of what it shows, not per Home render: the header
@@ -707,7 +712,8 @@ export default function IslandsScreen() {
       {/* prism-home: end */}
       <AddIslandSheet open={addOpen} onClose={() => setAddOpen(false)} />
       <StreakSheet open={streakOpen} onClose={() => setStreakOpen(false)} streak={streakDays(log, new Date())} longest={cachedProgress?.longest_streak ?? 0} />
-      <IslandMenuSheet ref={menuRef} onRename={rename} onDelete={confirmDelete} />
+      <IslandMenuSheet ref={menuRef} onRename={rename} />
+      <IslandPeek ref={peekRef} onRename={openRename} onDelete={confirmDelete} />
     </SafeAreaView>
   );
 }

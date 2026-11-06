@@ -21,6 +21,7 @@ import Animated, {
 import { SymbolView } from 'expo-symbols';
 
 import { CatConstellation } from '@/components/cat-constellation';
+import { prefetchPeek, type IslandPeekContext } from '@/components/home/island-peek';
 import { LANTERN_FADE_MS, LANTERN_RISE_MS, LANTERN_STEP_MS, LanternRow } from '@/components/lantern-row';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide, verb } from '@/constants/theme';
@@ -129,7 +130,7 @@ export type IslandRowProps = {
    * the morph into the player. */
   onOpen: (item: api.IslandSummary, rect: CardRect) => void;
   /** A held tap: opens the Rename/Delete sheet for the given island. */
-  onMenu: (item: api.IslandSummary) => void;
+  onMenu: (item: api.IslandSummary, ctx: IslandPeekContext) => void;
 };
 
 /**
@@ -349,6 +350,8 @@ export const IslandRow = memo(function IslandRow({
     // Most presses become an open: start reading the island now, so it is
     // parsed by the time the morph has covered the screen.
     if (!busy) {
+      // The hold is about 400ms: the peek's lines are usually cached by then.
+      prefetchPeek(item);
       prewarmIsland(itemId);
       // Reads the saved lines file, so the open can show the resume line.
       void getLastLine(itemId);
@@ -373,17 +376,12 @@ export const IslandRow = memo(function IslandRow({
     });
   }
 
-  function openOwnMenu() {
-    onMenu(item);
-  }
-
   function handleLongPress() {
     longPressFired.current = true;
     void hapticImpact(Haptics.ImpactFeedbackStyle.Medium);
-    pressed.value = withTiming(0, { duration: 180 }, (finished) => {
-      'worklet';
-      if (finished) runOnJS(openOwnMenu)();
-    });
+    // The peek opens at once; the press-in scale returns underneath it.
+    onMenu(item, { meta, due, tiers });
+    pressed.value = withTiming(0, { duration: 180 });
   }
 
   const cardStyle = useAnimatedStyle(() => {
@@ -508,7 +506,7 @@ const styles = StyleSheet.create({
   flashFill: { ...StyleSheet.absoluteFill },
   flashBorder: { ...StyleSheet.absoluteFill, borderWidth: 2, borderRadius: 16 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  cardTitle: { flex: 1, fontSize: 17, fontWeight: '600', fontFamily: fonts.serifJp },
+  cardTitle: { flex: 1, fontSize: 17, fontWeight: '600', lineHeight: 24, includeFontPadding: false, fontFamily: fonts.serifJp },
   // No minHeight: the card has a fixed CARD_H, so the compact constellation
   // leaving never changes the card's height, and a 50pt meta row would push
   // a two-line title's lanterns past the card's clip.

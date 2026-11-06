@@ -18,6 +18,7 @@ import { LevelBars } from '@/components/level-bars';
 import { EnergyChip } from '@/components/energy-bolt';
 import { canAfford, priceOf, refreshEnergy, useEnergy } from '@/lib/energy';
 import { PrismButton } from '@/components/prism';
+import { POP, PopoverBubble } from '@/components/tide/popover-bubble';
 import { Segmented, type SegmentOption } from '@/components/segmented';
 
 import { HeaderClosePill } from '@/components/header-close-pill';
@@ -57,6 +58,9 @@ const TOPIC_MAX_SECONDS = 10;
 const SAY_MIN_SECONDS = 1;
 const SAY_MAX_SECONDS = 15;
 const SIDE = 16;
+/** The energy note's bubble: three short lines of copy. */
+const ENERGY_POP_W = 280;
+const ENERGY_POP_H = 118;
 /** Bars in the review waveform. */
 const WAVE_BARS = 40;
 const WAVE_MIN_H = 3;
@@ -156,6 +160,18 @@ export default function RecordScreen() {
   const { t } = useT();
   const energy = useEnergy();
   const dir = useDir();
+  // The energy note: the chip's centre and bottom edge, in the screen body's coordinates.
+  const chipRef = useRef<View>(null);
+  const bodyRef = useRef<View>(null);
+  const [energyInfo, setEnergyInfo] = useState<{ x: number; bottom: number; parentW: number } | null>(null);
+  function openEnergyInfo() {
+    chipRef.current?.measureInWindow((cx, cy, cw, ch) => {
+      bodyRef.current?.measureInWindow((bx, by, bw) => {
+        if (![cx, cy, cw, ch, bx, by, bw].every(Number.isFinite)) return;
+        setEnergyInfo({ x: cx - bx + cw / 2, bottom: cy - by + ch, parentW: bw });
+      });
+    });
+  }
   const router = useRouter();
   const modeParam = useLocalSearchParams<{ mode?: string }>().mode;
   const topic = modeParam === 'topic';
@@ -499,7 +515,7 @@ export default function RecordScreen() {
   );
 
   return (
-    <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: screenBg }])}>
+    <SafeAreaView ref={bodyRef} collapsable={false} edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: screenBg }])}>
       <StatusBar style="light" />
       <Stack.Screen
         options={{
@@ -567,12 +583,16 @@ export default function RecordScreen() {
             <View style={styles.header}>
               <View style={[styles.titleRow, dir.row]}>
                 <Text style={[styles.title, styles.titleText, dir.text]}>{t(titleKey, { language: nativeName })}</Text>
-                {say ? <EnergyChip energy={energy} cost={priceOf(energy, 'say')} /> : null}
+                {say && energy?.on ? (
+                  <Pressable ref={chipRef} onPress={openEnergyInfo} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('energy.info.what')}>
+                    <EnergyChip energy={energy} cost={priceOf(energy, 'say')} />
+                  </Pressable>
+                ) : null}
               </View>
               {phase !== 'review' ? (
                 <Text style={[styles.hint, dir.text]}>
                   {say
-                    ? t('record.say.hint', { native: nativeName, language: languageName[language] })
+                    ? t('record.say.hint', { language: languageName[language] })
                     : topic
                       ? t('record.topic.hint')
                       : t('record.promptHint', { language: languageName[language] })}
@@ -679,6 +699,22 @@ export default function RecordScreen() {
           </View>
         </>
       )}
+      {energyInfo && energy?.on ? (
+        <PopoverBubble
+          anchorX={energyInfo.x}
+          anchorTop={energyInfo.bottom}
+          parentWidth={energyInfo.parentW}
+          width={ENERGY_POP_W}
+          height={ENERGY_POP_H}
+          radius={POP.radius}
+          side="bottom"
+          gap={4}
+          bodyStyle={styles.energyPop}
+          onClose={() => setEnergyInfo(null)}>
+          <Text style={[styles.energyPopText, dir.text]}>{t('energy.info.what')}</Text>
+          <Text style={[styles.energyPopMeta, dir.text]}>{`${t('energy.info.left', { n: energy.daily_left + energy.granted_left })}. ${t('energy.info.refill')}.`}</Text>
+        </PopoverBubble>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -701,6 +737,9 @@ const styles = StyleSheet.create({
   },
   centerText: { textAlign: 'center' },
   header: { gap: Spacing.sm },
+  energyPop: { padding: 14, gap: 6, justifyContent: 'center' },
+  energyPopText: { fontSize: 14, lineHeight: 19, color: POP.ink, fontFamily: fonts.ui },
+  energyPopMeta: { fontSize: 13, lineHeight: 18, color: POP.goldInk, fontFamily: fonts.uiMedium, fontWeight: '600' },
   titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
   titleText: { flex: 1 },
   title: { fontSize: 20, lineHeight: 26, color: tide.text, fontFamily: fonts.uiMedium, fontWeight: '500' },

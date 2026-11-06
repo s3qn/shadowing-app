@@ -6441,6 +6441,73 @@
     "summary": "Review Session Finished"
    }
   },
+  "/shadow/review/session/lines/{island_id}": {
+   "get": {
+    "operationId": "review_session_lines_shadow_review_session_lines__island_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "island_id",
+      "required": true,
+      "schema": {
+       "title": "Island Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Review Session Lines Shadow Review Session Lines  Island Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Session Lines"
+   }
+  },
   "/shadow/review/session/plan": {
    "get": {
     "description": "`catalogue=1` adds the Add list (as /session/projects returns it) as\n`catalogue`, built from the same project scan, so a screen focus needs\none request instead of two.",

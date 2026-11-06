@@ -11,7 +11,7 @@ import type { LineTier } from '@/lib/takes';
 const MAX_LANTERNS = 24;
 const NEUTRAL_OPACITY = 0.18;
 const EMPTY_CACHE: { tiers: LineTier[]; weakest: number } = { tiers: [], weakest: -1 };
-const TIER_COLOR: Record<LineTier, string> = {
+export const TIER_COLOR: Record<LineTier, string> = {
   none: '#7E7892',
   retry: '#5C4A8A',
   good: tide.turn,

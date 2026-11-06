@@ -6,6 +6,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 
 import { LevelBars } from '@/components/level-bars';
+import { ShimmerText } from '@/components/shimmer-text';
+import { devScoringHold } from '@/lib/dev-simulate';
 import { OUT, SCORE_H, SLOT_GAP, XP_GOLD } from '@/components/tide/ladder/stage-tokens';
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
@@ -80,14 +82,15 @@ export function XpPop({ beside }: { beside: boolean }) {
 export function ScoreSlot({ isRecording, level, score }: { isRecording: LadderStageProps['isRecording']; level: LadderStageProps['level']; score: LadderStageProps['score'] }) {
   const { t } = useT();
   const total = score?.total;
-  const scored = typeof total === 'number' && Number.isFinite(total);
+  const hold = devScoringHold();
+  const scored = !hold && typeof total === 'number' && Number.isFinite(total);
   return (
     <View style={styles.slot}>
       {isRecording && level ? <LevelBars level={level} live /> : null}
       {scored ? (
         <ScoreValue key={`${total}|${score?.keptUp ?? ''}|${score?.at ?? 0}`} total={total} keptUp={score?.keptUp} />
-      ) : score?.scoring ? (
-        <Text style={styles.scoring}>{t('ladder.scoring')}</Text>
+      ) : hold || score?.scoring ? (
+        <ShimmerText style={styles.scoring}>{t('ladder.scoring')}</ShimmerText>
       ) : null}
       <XpPop beside={scored} />
     </View>
