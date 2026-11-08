@@ -91,7 +91,10 @@ export type Energy = {
   daily_max: number;
   daily_left: number;
   granted_left: number;
-  refill_at: number;
+  /** ISO time of the next 00:00 UTC. */
+  refill_at: string;
+  /** Today's spend, net of refunds; `by_kind` carries units per paid kind and drops zero kinds. */
+  spent_today: { units: number; by_kind: Record<string, number> };
   prices: Record<string, number>;
   owner: boolean;
   last_grant: unknown;
@@ -101,6 +104,22 @@ export type Energy = {
 
 export async function getEnergy(): Promise<Energy> {
   return json<Energy>(await fetch(`${BASE}/energy`, { headers: headers() }));
+}
+
+// --- support-packs ---
+/** POST /iap/verify: `granted` is 0 for a transaction already granted (`duplicate`) or a test purchase over
+ * the daily allowance (`code: "sandbox_limit"`); `energy` is the meter after it. */
+export type IapVerify = { granted: number; duplicate: boolean; energy: Energy; code?: string | null };
+
+/** Sends StoreKit's signed transaction (the JWS); the server checks Apple's signature, grants once and returns the meter. */
+export async function verifyIapPurchase(jws: string): Promise<IapVerify> {
+  return json<IapVerify>(
+    await fetch(`${BASE}/iap/verify`, {
+      method: 'POST',
+      headers: { ...headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jws }),
+    }),
+  );
 }
 
 export async function getProgress(): Promise<Progress> {

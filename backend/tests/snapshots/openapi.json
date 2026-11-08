@@ -1170,6 +1170,19 @@
     ],
     "title": "VerdictBody",
     "type": "object"
+   },
+   "VerifyBody": {
+    "properties": {
+     "jws": {
+      "title": "Jws",
+      "type": "string"
+     }
+    },
+    "required": [
+     "jws"
+    ],
+    "title": "VerifyBody",
+    "type": "object"
    }
   }
  },
@@ -1543,6 +1556,74 @@
      }
     },
     "summary": "Admin Device Approve"
+   }
+  },
+  "/shadow/admin/purchases": {
+   "get": {
+    "operationId": "admin_purchases_shadow_admin_purchases_get",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-admin-key",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Admin-Key",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Admin Purchases Shadow Admin Purchases Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Admin Purchases"
    }
   },
   "/shadow/app/latest": {
@@ -3671,6 +3752,96 @@
      }
     },
     "summary": "Health"
+   }
+  },
+  "/shadow/iap/notifications": {
+   "post": {
+    "description": "App Store Server Notifications V2. Public (middleware.PUBLIC_PATHS):\nthe signature on `signedPayload` is the whole proof, so a body that does\nnot verify is 401 and Apple retries nothing it should not.",
+    "operationId": "iap_notifications_shadow_iap_notifications_post",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Iap Notifications Shadow Iap Notifications Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Iap Notifications"
+   }
+  },
+  "/shadow/iap/verify": {
+   "post": {
+    "description": "Grants the pack a StoreKit 2 transaction JWS proves, once. The energy\nstatus rides along so the phone needs no second fetch. `code` is\n\"sandbox_limit\" when a prod Sandbox purchase over the daily allowance was\nrecorded with 0 \u26a1 (the phone still finishes the transaction).",
+    "operationId": "iap_verify_shadow_iap_verify_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/VerifyBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Iap Verify Shadow Iap Verify Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Iap Verify"
    }
   },
   "/shadow/islands": {

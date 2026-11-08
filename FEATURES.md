@@ -302,6 +302,9 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - Harmonize: one look across headers, buttons, cards, sheets (no Done, swipe
   down)
 - Welcome V6 and admin device keys approved by passcode; Hebrew ASR (ET-28)
+- Energy 5 a day with chip A, energy sheet and the out-of-energy sheet
+- Support the developer packs with StoreKit 2 and server verification
+- Rate prompt and Settings row
 
 ## Next (approved, in order)
 

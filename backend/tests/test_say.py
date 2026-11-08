@@ -77,10 +77,10 @@ def test_say_schema_is_strict_and_closes_the_items():
     assert set(items["properties"]) == {"text", "reading", "romaji", "translation"}
 
 
-def test_say_routes_to_sonnet_and_costs_one_energy():
+def test_say_routes_to_sonnet_and_is_free():
     assert llm.model_for("say") == llm.TIERS["sonnet"]
     assert llm.MAX_TOKENS["say"] == 1024
-    assert energy.PRICES["say"] == 1
+    assert "say" not in energy.PRICES
     assert "say" not in main.guardrails.BUILD_KINDS
 
 

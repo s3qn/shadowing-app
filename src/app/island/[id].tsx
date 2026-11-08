@@ -62,6 +62,7 @@ import {
 } from '@/lib/card-morph';
 import { alertSheet } from '@/lib/confirm-sheet';
 import { invalidateCachedIsland } from '@/lib/island-cache';
+import { gateEnergy } from '@/lib/energy';
 import { requestLoader } from '@/lib/loading-overlay';
 import { IslandGuide } from '@/components/onboarding/island-guide';
 import { useBetaFeatures } from '@/lib/beta'; // beta-gate
@@ -96,6 +97,7 @@ import {
 } from '@/lib/pass-programme';
 import { wordPitches } from '@/lib/pitch';
 import { addLadder } from '@/lib/practice';
+import { noteIslandFinished } from '@/lib/rate-prompt';
 import {
   autoPlaceOf,
   noteSessionLine,
@@ -680,6 +682,7 @@ export default function IslandScreen() {
       if (idx >= island.lines.length - 1) {
         setEasyOffer(null);
         if (autoRunRef.current) autoIslandDone(); // auto-practice
+        noteIslandFinished();
         return false;
       }
       lineStartRef.current = Date.now();
@@ -1913,17 +1916,19 @@ export default function IslandScreen() {
                 shape="round"
                 size={prism.sizes.roundSm}
                 verb="read"
-                onPress={async () => {
-                  try {
-                    await api.regenerate(island.id, island.complexity);
-                    invalidateLineAudio(island.id);
-                    invalidateCachedIsland(island.id);
-                    deleteTakes(island.id);
-                    setAttempt((n) => n + 1);
-                  } catch (e) {
-                    setError(e instanceof Error ? e.message : t('player.couldNotRegenerate'));
-                  }
-                }}
+                onPress={() =>
+                  gateEnergy('regenerate', async () => {
+                    try {
+                      await api.regenerate(island.id, island.complexity);
+                      invalidateLineAudio(island.id);
+                      invalidateCachedIsland(island.id);
+                      deleteTakes(island.id);
+                      setAttempt((n) => n + 1);
+                    } catch (e) {
+                      setError(e instanceof Error ? e.message : t('player.couldNotRegenerate'));
+                    }
+                  })
+                }
                 accessibilityLabel={t('player.regenerateLabel')}>
                 <SymbolView name={{ ios: 'sparkles', android: 'auto_awesome' }} size={16} weight="regular" tintColor={verb.read.c1} />
               </PrismButton>

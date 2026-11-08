@@ -5,7 +5,7 @@ export const ar = {
   'podcast.aiPick.label': 'اختيار جمل بالذكاء الاصطناعي',
   'podcast.aiPick.hint': 'لا توجد جمل محفوظة بعد. اضغط على أيقونة البريق ✨ ليختار الذكاء الاصطناعي بعض الجمل للترديد.',
   'podcast.aiPick.confirmTitle': 'هل يختار الذكاء الاصطناعي الجمل؟',
-  'podcast.aiPick.confirmBody': 'يختار من 5 إلى 10 جمل سهلة من هذه الحلقة ويحفظها. يستهلك هذا 3 وحدات طاقة.',
+  'podcast.aiPick.confirmBody': 'يختار من 5 إلى 10 جمل سهلة من هذه الحلقة ويحفظها.',
   'podcast.aiPick.confirm': 'اختيار الجمل',
   'podcast.aiPick.cancel': 'ليس الآن',
   'podcast.aiPick.done': 'تم حفظ {n} جمل',

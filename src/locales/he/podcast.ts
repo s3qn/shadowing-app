@@ -5,7 +5,7 @@ export const he = {
   'podcast.aiPick.label': 'בחירת משפטים עם AI',
   'podcast.aiPick.hint': 'עוד אין משפטים שמורים. לחצו על הניצוצות וה־AI יבחר משפטים לתרגול.',
   'podcast.aiPick.confirmTitle': 'לתת ל־AI לבחור משפטים?',
-  'podcast.aiPick.confirmBody': 'הוא בוחר 5 עד 10 שורות קלות מהפרק ושומר אותן. זה עולה 3 אנרגיה.',
+  'podcast.aiPick.confirmBody': 'הוא בוחר 5 עד 10 שורות קלות מהפרק ושומר אותן.',
   'podcast.aiPick.confirm': 'בחירת משפטים',
   'podcast.aiPick.cancel': 'לא עכשיו',
   'podcast.aiPick.done': '{n} משפטים נשמרו',

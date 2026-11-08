@@ -14,9 +14,10 @@ import { ja as player } from './player';
 import { ja as podcast } from './podcast';
 import { ja as profile } from './profile';
 import { ja as record } from './record';
+import { ja as rate } from './rate';
 import { ja as review } from './review';
 import { ja as settings } from './settings';
 import { ja as video } from './video';
 import { ja as wardrobe } from './wardrobe';
 
-export const ja = { ...admin, ...beforeAfter, ...common, ...drive, ...home, ...importFile, ...intro, ...leaderboard, ...playerIsland, ...playerSheets, ...playerTide, ...player, ...podcast, ...profile, ...record, ...review, ...settings, ...video, ...wardrobe } satisfies Record<Key, string>;
+export const ja = { ...admin, ...beforeAfter, ...common, ...drive, ...home, ...importFile, ...intro, ...leaderboard, ...playerIsland, ...playerSheets, ...playerTide, ...player, ...podcast, ...profile, ...rate, ...record, ...review, ...settings, ...video, ...wardrobe } satisfies Record<Key, string>;

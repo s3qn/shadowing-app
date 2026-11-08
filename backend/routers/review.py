@@ -284,12 +284,12 @@ async def ai_picks(
     usable = [l for l in island["lines"] if generate.PICK_MIN_S <= float(l.get("duration") or 0) <= generate.PICK_MAX_S]
     if len(usable) < generate.PICK_MIN_PICKS:
         raise HTTPException(409, {"code": "no_lines"})
-    await asyncio.to_thread(dependencies._take_use_slot, device, "pick_sentences", "pick")
+    await asyncio.to_thread(dependencies._take_use_slot, device, "pick_sentences")
     picks = await asyncio.to_thread(
         generate.pick_shadow_lines, island["lines"], island.get("native") or "en"
     )
     if len(picks) < generate.PICK_MIN_PICKS:
-        await asyncio.to_thread(dependencies._refund_use_slot, device, "pick_sentences", "pick")
+        await asyncio.to_thread(dependencies._refund_use_slot, device, "pick_sentences", "")
         raise HTTPException(502, {"code": "pick_failed"})
     by_idx = {l["idx"]: l for l in island["lines"]}
     video = await asyncio.to_thread(store_video.get_video, island_id)
@@ -303,6 +303,6 @@ async def ai_picks(
             if str(exc) == "full":
                 break  # keep what is saved so far
     if not cards:
-        await asyncio.to_thread(dependencies._refund_use_slot, device, "pick_sentences", "pick")
+        await asyncio.to_thread(dependencies._refund_use_slot, device, "pick_sentences", "")
         raise HTTPException(502, {"code": "pick_failed"})
     return {"cards": cards, "picked": len(cards)}

@@ -5,7 +5,7 @@ export const de = {
   'podcast.aiPick.label': 'Sätze per KI auswählen',
   'podcast.aiPick.hint': 'Noch keine gespeicherten Sätze. Tippe auf das Funkel-Symbol, dann wählt die KI einige zum Nachsprechen aus.',
   'podcast.aiPick.confirmTitle': 'Die KI Sätze auswählen lassen?',
-  'podcast.aiPick.confirmBody': 'Sie wählt 5 bis 10 leichte Sätze aus dieser Folge und speichert sie. Das kostet 3 Energie.',
+  'podcast.aiPick.confirmBody': 'Sie wählt 5 bis 10 leichte Sätze aus dieser Folge und speichert sie.',
   'podcast.aiPick.confirm': 'Sätze auswählen',
   'podcast.aiPick.cancel': 'Jetzt nicht',
   'podcast.aiPick.done': '{n} Sätze gespeichert',

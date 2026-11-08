@@ -14,9 +14,10 @@ import { zh as player } from './player';
 import { zh as podcast } from './podcast';
 import { zh as profile } from './profile';
 import { zh as record } from './record';
+import { zh as rate } from './rate';
 import { zh as review } from './review';
 import { zh as settings } from './settings';
 import { zh as video } from './video';
 import { zh as wardrobe } from './wardrobe';
 
-export const zh = { ...admin, ...beforeAfter, ...common, ...drive, ...home, ...importFile, ...intro, ...leaderboard, ...playerIsland, ...playerSheets, ...playerTide, ...player, ...podcast, ...profile, ...record, ...review, ...settings, ...video, ...wardrobe } satisfies Record<Key, string>;
+export const zh = { ...admin, ...beforeAfter, ...common, ...drive, ...home, ...importFile, ...intro, ...leaderboard, ...playerIsland, ...playerSheets, ...playerTide, ...player, ...podcast, ...profile, ...rate, ...record, ...review, ...settings, ...video, ...wardrobe } satisfies Record<Key, string>;

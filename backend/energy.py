@@ -1,15 +1,18 @@
-"""bl52-energy: a daily energy meter per device, spent by the routes that cost
-an AI call, with a global daily stop and owner grants.
+"""bl52-energy: a daily energy meter per device, spent by the three routes
+that make a new island from scratch, with a global daily stop and owner
+grants. Sean: "one island a day, which is 5 a day".
 
 Everything is behind SHADOW_ENERGY, on by default (SHADOW_ENERGY=0 turns it
 off). With it off `charge` is a no-op, `status` is never called by a route, and
 no route sends `no_energy` or `global_limit`.
 
-PRICES is the only price table. One unit is at most about $0.001 on the
-cheapest mix, so while the backend runs on the claude CLI and local whisper
-the global stop counts calls, never dollars: 3000 a day is at most about 600
-creates or 1500 explain turns. Module-level constants so tests monkeypatch
-them without touching the environment.
+PRICES is the only price table and holds only the paid kinds, so a stray
+charge of a free kind is a loud KeyError in tests instead of a silent spend.
+One unit is at most about $0.001 on the cheapest mix, so while the backend
+runs on the claude CLI and local whisper the global stop counts calls, never
+dollars: 3000 a day is at most about 600 creates or 1000 regenerates.
+Module-level constants so tests monkeypatch them without touching the
+environment.
 """
 
 import logging
@@ -25,25 +28,27 @@ import suggest
 log = logging.getLogger("shadow.energy")
 
 ON = os.getenv("SHADOW_ENERGY", "1") != "0"
-DAILY_UNITS = int(os.getenv("SHADOW_DAILY_UNITS", "60"))
+DAILY_UNITS = int(os.getenv("SHADOW_DAILY_UNITS", "5"))
 GLOBAL_DAILY_UNITS = int(os.getenv("SHADOW_GLOBAL_DAILY_UNITS", "3000"))
 WARN_FRACTION = float(os.getenv("SHADOW_ENERGY_WARN", "0.8"))
 GRANT_MAX = 1000
 
-# Takes, word audio, playback, review and practice cost nothing and stay
-# under main.DAILY_CAPS. Imports (file, podcast, YouTube) are a flat 10,
-# whatever their length: one number to change if Sean wants it per minute.
+# Only a new island costs energy. Explain, phrases, say, word audio, re-voice,
+# picks, catch meanings, takes, playback, review and practice cost nothing and
+# stay under the hidden daily caps (dependencies.DAILY_CAPS, config.DAILY_SAYS).
+# Imports (file, podcast, YouTube) are a flat 10, whatever their length: one
+# number to change if Sean wants it per minute.
 PRICES = {
     "create": 5,
-    "phrases": 1,
     "regenerate": 3,
-    "revoice": 1,
     "import": 10,
-    "explain": 2,
-    "word": 1,
-    "pick": 3,
-    "say": 1,
 }
+
+# Kinds that used to cost energy and are free now. Builds up to 24 gate the
+# Say button with canAfford(energy, "say") and fall back to a price of 1 when
+# the server omits the kind, so status() sends these as an explicit 0. They
+# stay out of PRICES, so charge() still refuses them.
+FREE_FOR_OLD_CLIENTS = {"say": 0}
 
 # The last warning relay thread, kept so a test can join it.
 _warn_thread: threading.Thread | None = None
@@ -63,19 +68,22 @@ def _balances(device: str) -> tuple[int, int]:
 
 def status(device: str, owner: bool) -> dict:
     """What the client shows. The owner is never charged and sees a full
-    meter."""
+    meter. `spent_today` feeds the energy sheet's "Spent today" bar: the
+    day's net units per paid kind, so a refunded build is not shown."""
     if owner:
         daily_left, granted_left = DAILY_UNITS, 0
     else:
         daily_left, granted_left = _balances(device)
     last = store_energy.energy_last_grant(device)
+    by_kind = store_energy.energy_spent_today_by_kind(device)
     return {
         "on": True,
         "daily_max": DAILY_UNITS,
         "daily_left": daily_left,
         "granted_left": granted_left,
         "refill_at": refill_at(),
-        "prices": dict(PRICES),
+        "spent_today": {"units": sum(by_kind.values()), "by_kind": by_kind},
+        "prices": {**FREE_FOR_OLD_CLIENTS, **PRICES},
         "owner": owner,
         "last_grant": (
             {"id": last["id"], "amount": last["amount"], "at": last["created_at"]}

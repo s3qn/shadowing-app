@@ -9,10 +9,12 @@ import { clearSessionLines, devGrantCoins, devTtsSim, linesSim, type CatchCollec
 import { setBetaOverride } from '@/lib/beta';
 import { clearLevelUp, clearStreakMoment, MILESTONE_DAYS, milestoneOf, pushLevelUp, pushStreakMoment } from '@/lib/level-up-store';
 import { setDevApiBlock } from '@/lib/dev-api-block';
-import { setDevEnergy } from '@/lib/energy';
+import { devAdjustGranted, requestEnergy, setDevEnergy, setDevEnergyLater } from '@/lib/energy';
+import { devRefundRequest, setIapSim } from '@/lib/iap';
 import { LANGUAGE_IDS } from '@/lib/languages';
 import { requestTranscriptEnd, resetTranscriptSim, setTranscriptSim } from '@/lib/dev-transcripts';
 import { setDevStreak } from '@/lib/practice';
+import { devRateAsk, devRateReset, devRateStreak3 } from '@/lib/rate-prompt';
 import { applyProgress, catalogNow, progressNow } from '@/lib/progression';
 
 // Home's list and due count, faked in memory (dev only). Home reads it each render.
@@ -400,10 +402,35 @@ const SIMULATIONS: Record<string, () => Promise<void> | void> = {
   'home-due-many': () => {
     homeSim = 'due99';
   },
-  // --- energy meter --- full 60, low 8, empty 0.
-  'energy-full': () => setDevEnergy(60),
-  'energy-low': () => setDevEnergy(8),
+  // --- energy meter --- 5 a day: full 5, low 2, empty 0; the motions take their second step 1.5 s later.
+  'energy-full': () => setDevEnergy(5),
+  'energy-low': () => setDevEnergy(2),
   'energy-empty': () => setDevEnergy(0),
+  // The V7 drain without a build, the refill, and a 300 pack after an empty day.
+  'energy-spend': () => {
+    setDevEnergy(5);
+    setDevEnergyLater(0, 0, 1500);
+  },
+  'energy-refill': () => {
+    setDevEnergy(0);
+    setDevEnergyLater(5, 0, 1500);
+  },
+  'energy-purchase': () => {
+    setDevEnergy(0);
+    setDevEnergyLater(0, 300, 1500);
+  },
+  // A paid tap at 0 ⚡: the empty-energy sheet (design L, motion V6) without leaving Home.
+  'energy-empty-moment': () => {
+    setDevEnergy(0);
+    requestEnergy('create');
+  },
+  // rate-prompt: the ask path, the reset, and the streak trigger. Proof is the Metro log line.
+  'rate-ask': () => devRateAsk(),
+  'rate-reset': () => devRateReset(),
+  'rate-streak3': async () => {
+    streak(3);
+    await devRateStreak3();
+  },
   'streak-zero': () => streak(0),
   'streak-milestone': () => streak(7),
   // The gem's calm (non-milestone) and three-digit numeral states.
@@ -537,7 +564,26 @@ const SIMULATIONS: Record<string, () => Promise<void> | void> = {
   'voice-budget-out': () => devTtsSim('budget_out'),
   'voice-provider-down': () => devTtsSim('provider_down'),
   'voice-hosted-off': () => devTtsSim('hosted_off'),
+  // --- support-packs --- the fake store behind the support sheet (web and Expo Go have no StoreKit).
+  // Every pill tap answers the same way until reset: Apple's OK after 600 ms, a cancel, an Ask to Buy
+  // approval that lands 8 s later, a store error, or a verify that fails after Apple's OK.
+  'iap-success': () => setIapSim('success'),
+  'iap-cancelled': () => setIapSim('cancelled'),
+  'iap-pending': () => setIapSim('pending'),
+  'iap-failed': () => setIapSim('failed'),
+  'iap-verify-offline': () => setIapSim('verify-offline'),
+  // A second TestFlight purchase in one UTC day: the server records it with 0 ⚡ (`sandbox_limit`).
+  'iap-sandbox-limit': () => setIapSim('sandbox-limit'),
+  // The products fail to load: pills at half, the "not available" line, Restore answers the same.
+  'iap-store-down': () => setIapSim('store-down'),
+  'iap-restore-some': () => setIapSim('restore-some'),
+  'iap-restore-none': () => setIapSim('restore-none'),
+  // A refund: the grant balance drops by 300 at once (the V7 drain on the next Home focus).
+  'iap-refund': () => devAdjustGranted(-300),
+  // Phone and sandbox only: Apple's refund sheet for the last pack bought here, so a real REFUND reaches dev.
+  'iap-refund-request': () => devRefundRequest(),
   reset: () => {
+    setIapSim(null);
     fakeTake = null;
     resetFocus();
     resetSay();
@@ -583,6 +629,7 @@ export function resetSimulation(): void {
   welcomeReduced = false;
   setBetaOverride({});
   streak(null);
+  void devRateReset();
   repairPhases = [];
   wordsSim = null;
   harmonizeError = false;
@@ -591,6 +638,7 @@ export function resetSimulation(): void {
   resetTranscriptSim();
   setDevApiBlock(null);
   setDevEnergy(null);
+  setIapSim(null);
   resetTtsSim();
   clearLevelUp();
   clearStreakMoment();

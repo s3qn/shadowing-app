@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
 import { EnergyChip } from '@/components/energy-bolt';
-import { canAfford, priceOf, useEnergy } from '@/lib/energy';
+import { gateEnergy, priceOf, useEnergy } from '@/lib/energy';
 import { PrimaryAction } from '@/components/prism/actions';
 import { GlassCard } from '@/components/glass-card';
 import { ScreenTitle } from '@/components/screen-title';
@@ -140,9 +140,9 @@ export default function ImportScreen() {
           <View style={styles.actions}>
             <PrimaryAction
               label={t('import.build')}
-              disabled={!audio || !canAfford(energy, 'import')}
+              disabled={!audio}
               trailing={<EnergyChip energy={energy} cost={priceOf(energy, 'import')} />}
-              onPress={build}
+              onPress={() => gateEnergy('import', build)}
               containerStyle={styles.primary}
             />
           </View>

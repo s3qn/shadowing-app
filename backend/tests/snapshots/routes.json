@@ -51,6 +51,12 @@
   [
    "GET"
   ],
+  "/shadow/admin/purchases"
+ ],
+ [
+  [
+   "GET"
+  ],
   "/shadow/app/latest"
  ],
  [
@@ -506,6 +512,18 @@
    "POST"
   ],
   "/shadow/grammar/import"
+ ],
+ [
+  [
+   "POST"
+  ],
+  "/shadow/iap/notifications"
+ ],
+ [
+  [
+   "POST"
+  ],
+  "/shadow/iap/verify"
  ],
  [
   [

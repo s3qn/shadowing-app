@@ -40,15 +40,15 @@ async def explain_word(word: str, sentence_ja: str, sentence_en: str = "",
     cached = await asyncio.to_thread(store.get_word_context, word, cache_key)
     if cached is not None:
         return {"context": cached}
-    dependencies._take_use_slot(device, "explain_word", "word")
+    dependencies._take_use_slot(device, "explain_word")
     context = await asyncio.to_thread(
         explain.word_context, word, sentence_ja, sentence_en, language=language, native=native
     )
     if context:
         await asyncio.to_thread(store.set_word_context, word, cache_key, context)
     else:
-        # The CLI failed and nothing was cached, so a retap would pay again.
-        await asyncio.to_thread(dependencies._refund_use_slot, device, "explain_word", "word")
+        # The CLI failed and nothing was cached, so a retap would take a second cap slot.
+        await asyncio.to_thread(dependencies._refund_use_slot, device, "explain_word", "")
     return {"context": context}
 
 
@@ -88,15 +88,15 @@ async def explain_chat(body: ExplainChatBody,
                 # fall through to a fresh answer, which overwrites it below.
                 log.warning("explain cache row is not valid JSON, treating as a miss")
     device = dependencies._require_device(x_shadow_device)
-    dependencies._take_use_slot(device, "explain", "explain")
+    dependencies._take_use_slot(device, "explain")
     raw = await asyncio.to_thread(
         explain.chat_answer, body.sentence_ja, body.sentence_en, body.marked,
         body.question, body.history, language=body.language, native=body.native,
     )
     answer = explain.parse_explain_answer(raw, body.sentence_ja)
     if not answer:
-        # The CLI failed and nothing was cached, so a retap would pay again.
-        await asyncio.to_thread(dependencies._refund_use_slot, device, "explain", "explain")
+        # The CLI failed and nothing was cached, so a retap would take a second cap slot.
+        await asyncio.to_thread(dependencies._refund_use_slot, device, "explain", "")
     if answer and not body.history:
         await asyncio.to_thread(
             store.set_explain_answer, body.sentence_ja, body.marked, question_key,

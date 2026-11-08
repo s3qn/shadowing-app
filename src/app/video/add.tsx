@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CatConstellation } from '@/components/cat-constellation';
 import { PressScale } from '@/components/press-scale';
 import { EnergyChip } from '@/components/energy-bolt';
-import { canAfford, priceOf, useEnergy } from '@/lib/energy';
+import { gateEnergy, priceOf, useEnergy } from '@/lib/energy';
 import { PrimaryAction, SecondaryAction } from '@/components/prism/actions';
 import { LoadingBlock } from '@/components/state-blocks';
 import { fonts } from '@/constants/fonts';
@@ -113,7 +113,7 @@ export default function VideoAddScreen() {
           {info ? (
             <>
               <SecondaryAction label={t('video.watchPreview')} onPress={preview} />
-              <PrimaryAction label={t('video.build')} onPress={build} disabled={!canAfford(energy, 'import')} trailing={<EnergyChip energy={energy} cost={priceOf(energy, 'import')} />} />
+              <PrimaryAction label={t('video.build')} onPress={() => gateEnergy('import', build)} trailing={<EnergyChip energy={energy} cost={priceOf(energy, 'import')} />} />
               <SecondaryAction label={t('video.pasteAnother')} onPress={paste} />
             </>
           ) : (

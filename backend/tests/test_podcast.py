@@ -493,7 +493,7 @@ def test_ai_picks_refunds_energy_on_failure(monkeypatch):
     monkeypatch.setattr(dependencies, "_refund_use_slot", lambda d, k, c: calls.append(("refund", k, c)))
     _cli(monkeypatch, {"picks": []})
     assert _code(_picks, iid).status_code == 502
-    assert calls == [("take", "pick_sentences", "pick"), ("refund", "pick_sentences", "pick")]
+    assert calls == [("take", "pick_sentences", ""), ("refund", "pick_sentences", "")]
 
 
 def test_ai_picks_second_call_has_cards(monkeypatch):

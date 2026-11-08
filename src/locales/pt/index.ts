@@ -14,9 +14,10 @@ import { pt as player } from './player';
 import { pt as podcast } from './podcast';
 import { pt as profile } from './profile';
 import { pt as record } from './record';
+import { pt as rate } from './rate';
 import { pt as review } from './review';
 import { pt as settings } from './settings';
 import { pt as video } from './video';
 import { pt as wardrobe } from './wardrobe';
 
-export const pt = { ...admin, ...beforeAfter, ...common, ...drive, ...home, ...importFile, ...intro, ...leaderboard, ...playerIsland, ...playerSheets, ...playerTide, ...player, ...podcast, ...profile, ...record, ...review, ...settings, ...video, ...wardrobe } satisfies Record<Key, string>;
+export const pt = { ...admin, ...beforeAfter, ...common, ...drive, ...home, ...importFile, ...intro, ...leaderboard, ...playerIsland, ...playerSheets, ...playerTide, ...player, ...podcast, ...profile, ...rate, ...record, ...review, ...settings, ...video, ...wardrobe } satisfies Record<Key, string>;

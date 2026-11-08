@@ -46,7 +46,11 @@ def _signin_required(raw: str | None) -> bool:
 # SHADOW_REQUIRE_SIGNIN=0 to accept device-only requests again.
 REQUIRE_SIGNIN = _signin_required(config.REQUIRE_SIGNIN_RAW)
 
-PUBLIC_PATHS = ("/health", "/shadow/health", "/shadow", "/shadow/", "/shadow/privacy", "/shadow/app/latest")
+PUBLIC_PATHS = (
+    "/health", "/shadow/health", "/shadow", "/shadow/", "/shadow/privacy", "/shadow/app/latest",
+    # support-packs: Apple posts here with no bearer; the JWS signature is the proof.
+    "/shadow/iap/notifications",
+)
 
 
 # device-scope: middleware

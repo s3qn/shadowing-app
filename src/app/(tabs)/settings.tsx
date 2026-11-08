@@ -1,7 +1,7 @@
 import { useKnownWords } from '@/hooks/use-known-words';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -10,10 +10,12 @@ import { Segmented } from '@/components/segmented';
 import { SettingsRow, SettingsSection } from '@/components/tide/settings-row';
 import { Spacing, prism, tide } from '@/constants/theme';
 import { alertSheet, confirmSheet } from '@/lib/confirm-sheet';
+import { openSupportSheet, useIapReady } from '@/lib/iap';
 import * as api from '@/lib/api';
 import { provider, signOut, signOutLocal, usingDevBypass } from '@/lib/auth';
 import { refreshBeta, useBetaFeatures } from '@/lib/beta';
 import { getGuideStep } from '@/lib/guide';
+import { openWriteReview } from '@/lib/rate-prompt';
 import { LOCALES, type Lang, useT } from '@/lib/i18n';
 import { voiceRowLabel } from '@/lib/voice-label';
 import {
@@ -48,6 +50,8 @@ export default function SettingsScreen() {
   const [streakOn, setStreakOnState] = useState(false);
   const [streakHour, setStreakHourState] = useState(20);
   const streakBusy = useRef(false);
+  // support-packs: the Support row shows only once StoreKit has the products (never on web, Expo Go or Android).
+  const iapReady = useIapReady();
 
   async function confirmSignOut() {
     try {
@@ -308,11 +312,21 @@ export default function SettingsScreen() {
         </SettingsSection>
 
         <SettingsSection title={t('settings.section.about')}>
+          {iapReady ? (
+            <SettingsRow label={t('energy.getMore')} value={t('energy.getMoreSub')} icon={{ ios: 'bolt.fill', android: 'bolt' }} onPress={openSupportSheet} />
+          ) : null}
           <SettingsRow
             label={t('settings.row.about')}
             icon={{ ios: 'info.circle', android: 'info' }}
             onPress={() => router.push('/settings/about')}
           />
+          {Platform.OS !== 'web' ? (
+            <SettingsRow
+              label={t('rate.row')}
+              icon={{ ios: 'star', android: 'star' }}
+              onPress={() => void openWriteReview()}
+            />
+          ) : null}
           <SettingsRow
             label={t('settings.row.replayOnboarding')}
             last={!__DEV__}

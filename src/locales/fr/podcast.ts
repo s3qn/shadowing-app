@@ -5,7 +5,7 @@ export const fr = {
   'podcast.aiPick.label': 'Choisir des phrases avec l\'IA',
   'podcast.aiPick.hint': 'Pas encore de phrases sauvegardées. Touche les étincelles et l\'IA en choisit à répéter.',
   'podcast.aiPick.confirmTitle': 'Laisser l\'IA choisir des phrases ?',
-  'podcast.aiPick.confirmBody': 'Elle choisit 5 à 10 phrases faciles dans cet épisode et les sauvegarde. Cela consomme 3 points d\'énergie.',
+  'podcast.aiPick.confirmBody': 'Elle choisit 5 à 10 phrases faciles dans cet épisode et les sauvegarde.',
   'podcast.aiPick.confirm': 'Choisir des phrases',
   'podcast.aiPick.cancel': 'Pas maintenant',
   'podcast.aiPick.done': '{n} phrases sauvegardées',

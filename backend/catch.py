@@ -411,7 +411,7 @@ def _meanings_gated(device: str, language: str, native: str, items: list[dict]) 
     if all(w in cached for w in words):
         return meanings(language, native, items)
     try:
-        guardrails.take_ai_call(device, "catch_meaning", "word")  # --- ai-guardrails ---
+        guardrails.take_ai_call(device, "catch_meaning")  # --- ai-guardrails ---
     except HTTPException:
         return cached
     return meanings(language, native, items)
@@ -428,7 +428,7 @@ def word_meaning(island_id: str, device: str, word: str) -> str:
         return got
     item = {"word": word, "sentence": _sentence_for(island, word, language)}
     try:
-        guardrails.take_ai_call(device, "catch_meaning", "word")  # --- ai-guardrails ---
+        guardrails.take_ai_call(device, "catch_meaning")  # --- ai-guardrails ---
     except HTTPException:
         return ""
     return _ask_chunk(language, native, [item], MEANINGS_BACKGROUND_TIMEOUT_S).get(word, "")

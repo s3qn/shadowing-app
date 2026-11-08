@@ -182,8 +182,13 @@ def _principal_known(principal: str) -> bool:  # --- ai-guardrails ---
 def _refund_use_slot(device: str, kind: str, charge: str) -> None:
     """Undoes `_take_use_slot` for a call whose AI step failed and cached
     nothing: the energy and the cap slot both come back, so a failed call
-    costs nothing. Only when a charge was refunded, so with SHADOW_ENERGY off
+    costs nothing. For a free kind (charge "") the cap slot alone comes back;
+    for a paid kind only when a charge was refunded, so with SHADOW_ENERGY off
     the routes behave as before."""
+    if not charge:
+        if not _is_owner(device):
+            store.unlog_build(device, kind)
+        return
     if energy.refund(device, charge, _is_owner(device)):
         store.unlog_build(device, kind)
 
@@ -243,13 +248,12 @@ def _take_build_slot(device: str, kind: str, charge: str = "") -> None:
 # --- say-it ---
 def _take_say_slot(device: str) -> None:
     """`_take_build_slot` for one said sentence: the switch, its own daily
-    cap, one energy unit, then the slot row. "say" is not in
+    cap, then the slot row. Say is free (no energy); "say" is not in
     guardrails.BUILD_KINDS, so it never eats the daily AI build budget.
-    Owner exempt, refunded by `_refund_build_slot(device, "say", "say")`."""
+    Owner exempt, refunded by `_refund_build_slot(device, "say", "")`."""
     if _is_owner(device):
         return
     guardrails.check_switch("say")
     if store.count_builds_today(device, "say") >= config.DAILY_SAYS:
         raise HTTPException(429, {"code": "daily_limit", "limit": config.DAILY_SAYS, "kind": "say"})
-    energy.charge(device, "say", False)
     store.log_build(device, "say")

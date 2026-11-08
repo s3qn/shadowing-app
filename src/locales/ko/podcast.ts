@@ -5,7 +5,7 @@ export const ko = {
   'podcast.aiPick.label': 'AI로 문장 고르기',
   'podcast.aiPick.hint': '저장된 문장이 아직 없어요. 반짝이 아이콘을 누르면 AI가 따라 말할 문장을 골라 줘요.',
   'podcast.aiPick.confirmTitle': 'AI가 문장을 고르게 할까요?',
-  'podcast.aiPick.confirmBody': '이 에피소드에서 쉬운 문장 5~10개를 골라 저장해요. 에너지 3을 써요.',
+  'podcast.aiPick.confirmBody': '이 에피소드에서 쉬운 문장 5~10개를 골라 저장해요.',
   'podcast.aiPick.confirm': '문장 고르기',
   'podcast.aiPick.cancel': '나중에',
   'podcast.aiPick.done': '문장 {n}개 저장됨',

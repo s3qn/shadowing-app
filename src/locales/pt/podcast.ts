@@ -5,7 +5,7 @@ export const pt = {
   'podcast.aiPick.label': 'Escolher frases com IA',
   'podcast.aiPick.hint': 'Nenhuma frase salva ainda. Toque no ícone de brilhos e a IA escolhe algumas para o shadowing.',
   'podcast.aiPick.confirmTitle': 'Deixar a IA escolher frases?',
-  'podcast.aiPick.confirmBody': 'Ela escolhe de 5 a 10 frases fáceis deste episódio e as salva. Isso usa 3 de energia.',
+  'podcast.aiPick.confirmBody': 'Ela escolhe de 5 a 10 frases fáceis deste episódio e as salva.',
   'podcast.aiPick.confirm': 'Escolher frases',
   'podcast.aiPick.cancel': 'Agora não',
   'podcast.aiPick.done': '{n} frases salvas',

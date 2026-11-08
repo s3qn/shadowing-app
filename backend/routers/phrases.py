@@ -113,13 +113,13 @@ async def import_phrases(
         except Exception:
             log.exception("phrase cache copy failed for %s/%s", language, topic)
 
-    dependencies._take_build_slot(device, "create", "phrases")
+    dependencies._take_build_slot(device, "create")
     island_id = store.create_island(
         "simple", speaker, language=language, native=native, source="phrases",
         source_name=topic, device=device,
     )
     background.add_task(
-        dependencies._refunding(build._build_phrases, island_id, device, "create", "phrases"),
+        dependencies._refunding(build._build_phrases, island_id, device, "create", ""),
         island_id, [e["text"] for e in entries],
         [e.get(native, "") for e in entries],
         island_title, speaker, language, native, topic=topic,

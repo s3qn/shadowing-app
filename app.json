@@ -82,7 +82,8 @@
           "iosUrlScheme": "com.googleusercontent.apps.788400158570-vqc9qvd0dc1hti80o9ch7k4qofk75a6l"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-iap"
     ],
     "experiments": {
       "typedRoutes": true,

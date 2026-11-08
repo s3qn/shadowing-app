@@ -5,7 +5,7 @@ export const zh = {
   'podcast.aiPick.label': '用 AI 挑选句子',
   'podcast.aiPick.hint': '还没有保存的句子。点按闪光图标，AI 会挑一些来跟读。',
   'podcast.aiPick.confirmTitle': '让 AI 挑选句子？',
-  'podcast.aiPick.confirmBody': '会从这一集挑出 5 到 10 个简单的句子并保存，消耗 3 点能量。',
+  'podcast.aiPick.confirmBody': '会从这一集挑出 5 到 10 个简单的句子并保存。',
   'podcast.aiPick.confirm': '挑选句子',
   'podcast.aiPick.cancel': '暂时不要',
   'podcast.aiPick.done': '已保存 {n} 个句子',

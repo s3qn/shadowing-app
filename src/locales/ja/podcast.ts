@@ -5,7 +5,7 @@ export const ja = {
   'podcast.aiPick.label': 'AIで文を選ぶ',
   'podcast.aiPick.hint': '保存した文はまだありません。キラキラをタップすると、AIがシャドーイング向きの文を選びます。',
   'podcast.aiPick.confirmTitle': 'AIに文を選ばせますか？',
-  'podcast.aiPick.confirmBody': 'このエピソードから、やさしい文を5〜10文選んで保存します。エネルギーを3使います。',
+  'podcast.aiPick.confirmBody': 'このエピソードから、やさしい文を5〜10文選んで保存します。',
   'podcast.aiPick.confirm': '文を選ぶ',
   'podcast.aiPick.cancel': '今はしない',
   'podcast.aiPick.done': '{n}文を保存しました',

@@ -58,6 +58,24 @@ export async function adminSetBeta(owner: string, enabled: boolean): Promise<voi
   await json<unknown>(res);
 }
 
+/** support-packs: the admin Purchases card. Counts and `net_cents` exclude
+ * refunded and sandbox rows; sandbox purchases are counted apart in `sandbox`. */
+export type AdminPurchases = {
+  today: number;
+  week: number;
+  total: number;
+  net_cents: number;
+  sandbox: number;
+  packs: { product_id: string; amount: number; count: number; net_cents: number }[];
+};
+
+/** Admin only. A 403 throws an `AdminRefused`. */
+export async function adminPurchases(): Promise<AdminPurchases> {
+  const res = await fetch(`${BASE}/admin/purchases`, { headers: await adminHeaders('GET', '/admin/purchases') });
+  if (res.status === 403) throw await refused(res);
+  return json<AdminPurchases>(res);
+}
+
 /** admin-device-bound: registers this phone's public key under the signed-in
  * account and returns its status (`pending`, `approved` or `revoked`).
  * Approval happens on the server box, or until launch through

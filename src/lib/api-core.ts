@@ -44,6 +44,19 @@ export async function adminHeaders(method: string, path: string, body = ''): Pro
   return h;
 }
 
+/** A failed response: the readable message plus the HTTP status and the
+ * server's `detail.code` when it sent one, for callers that branch on them. */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: string | null;
+  constructor(message: string, status: number, code: string | null) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
 /** Turns any failed response into a short, readable message. Gateway errors
  * (the tunnel could not reach the server) come back as full HTML pages, which
  * are useless on a phone screen. */
@@ -54,18 +67,19 @@ export async function json<T>(res: Response): Promise<T> {
     // object carrying a code plus its values for anything a person reads. A
     // gateway error is neither: it arrives as a full HTML page.
     const detail = parseDetail(body);
+    const code = detail && typeof detail === 'object' ? detail.code : null;
     if (detail && typeof detail === 'object') {
       const key = codeKey('api', detail.code);
-      if (key) throw new Error(t(key, scalarsOf(detail)));
+      if (key) throw new ApiError(t(key, scalarsOf(detail)), res.status, code);
     }
     if (res.status === 502 || res.status === 503 || res.status === 504) {
-      throw new Error(t('api.unreachable'));
+      throw new ApiError(t('api.unreachable'), res.status, code);
     }
     if (res.status === 429) {
-      throw new Error(t('api.daily_limit_any'));
+      throw new ApiError(t('api.daily_limit_any'), res.status, code);
     }
     // A plain-string detail is English developer text: never shown, only the status.
-    throw new Error(t('api.requestFailed', { status: res.status }));
+    throw new ApiError(t('api.requestFailed', { status: res.status }), res.status, code);
   }
   return (await res.json()) as T;
 }

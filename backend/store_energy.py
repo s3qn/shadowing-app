@@ -50,6 +50,18 @@ def _global_today(conn: sqlite3.Connection) -> int:
     return int(row["n"])
 
 
+def energy_spent_today_by_kind(device: str) -> dict[str, int]:
+    """Today's net units per kind for the energy sheet: refunds are negative
+    rows, so a kind that nets to zero (or below, for a refund that landed
+    after midnight) is dropped."""
+    rows = store.connect().execute(
+        "SELECT kind, COALESCE(SUM(units),0) AS n FROM energy_ledger"
+        " WHERE device=? AND created_at>=? GROUP BY kind",
+        (device, _day_start()),
+    ).fetchall()
+    return {r["kind"]: int(r["n"]) for r in rows if int(r["n"]) > 0}
+
+
 def energy_balances(device: str, daily_max: int) -> tuple[int, int]:
     """(daily_left, granted_left). Daily units are spent first, then the
     grant balance; `from_grant` on each ledger row records the split, so the
@@ -148,6 +160,16 @@ def energy_add_grant(target_device: str, target_username: str, amount: int,
             (target_device, target_username, amount, note, granted_by, store._now()),
         )
         return int(cur.lastrowid)
+
+
+def energy_grant_noted(target_device: str, note: str) -> bool:
+    """Whether a grant with this exact note exists: an App Store grant that
+    landed before its purchase row was marked is not paid twice on retry."""
+    with store.connect() as conn:
+        return conn.execute(
+            "SELECT 1 FROM energy_grants WHERE target_device=? AND note=? LIMIT 1",
+            (target_device, note),
+        ).fetchone() is not None
 
 
 def energy_last_grant(device: str) -> dict | None:

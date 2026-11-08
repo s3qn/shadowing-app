@@ -12,6 +12,7 @@ import { he as playerIsland } from './player-island';
 import { he as playerTide } from './player-tide';
 import { he as playerSheets } from './player-sheets';
 import { he as record } from './record';
+import { he as rate } from './rate';
 import { he as review } from './review';
 import { he as settings } from './settings';
 import { he as podcast } from './podcast';
@@ -19,4 +20,4 @@ import { he as profile } from './profile';
 import { he as video } from './video';
 import { he as wardrobe } from './wardrobe';
 
-export const he = { ...admin, ...beforeAfter, ...common, ...drive, ...home, ...importFile, ...intro, ...leaderboard, ...player, ...playerIsland, ...playerTide, ...playerSheets, ...podcast, ...profile, ...record, ...review, ...settings, ...video, ...wardrobe } satisfies Record<Key, string>;
+export const he = { ...admin, ...beforeAfter, ...common, ...drive, ...home, ...importFile, ...intro, ...leaderboard, ...player, ...playerIsland, ...playerTide, ...playerSheets, ...podcast, ...profile, ...rate, ...record, ...review, ...settings, ...video, ...wardrobe } satisfies Record<Key, string>;

@@ -5,7 +5,7 @@ export const en = {
   'podcast.aiPick.label': 'Pick sentences with AI',
   'podcast.aiPick.hint': 'No saved sentences yet. Tap the sparkles and the AI picks some to shadow.',
   'podcast.aiPick.confirmTitle': 'Let the AI pick sentences?',
-  'podcast.aiPick.confirmBody': 'It picks 5 to 10 easy lines from this episode and saves them. This uses 3 energy.',
+  'podcast.aiPick.confirmBody': 'It picks 5 to 10 easy lines from this episode and saves them.',
   'podcast.aiPick.confirm': 'Pick sentences',
   'podcast.aiPick.cancel': 'Not now',
   'podcast.aiPick.done': '{n} sentences saved',

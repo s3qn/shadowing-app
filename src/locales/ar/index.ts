@@ -14,9 +14,10 @@ import { ar as player } from './player';
 import { ar as podcast } from './podcast';
 import { ar as profile } from './profile';
 import { ar as record } from './record';
+import { ar as rate } from './rate';
 import { ar as review } from './review';
 import { ar as settings } from './settings';
 import { ar as video } from './video';
 import { ar as wardrobe } from './wardrobe';
 
-export const ar = { ...admin, ...beforeAfter, ...common, ...drive, ...home, ...importFile, ...intro, ...leaderboard, ...playerIsland, ...playerSheets, ...playerTide, ...player, ...podcast, ...profile, ...record, ...review, ...settings, ...video, ...wardrobe } satisfies Record<Key, string>;
+export const ar = { ...admin, ...beforeAfter, ...common, ...drive, ...home, ...importFile, ...intro, ...leaderboard, ...playerIsland, ...playerSheets, ...playerTide, ...player, ...podcast, ...profile, ...rate, ...record, ...review, ...settings, ...video, ...wardrobe } satisfies Record<Key, string>;

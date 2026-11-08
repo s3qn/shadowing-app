@@ -59,27 +59,27 @@ def _write(tmp_path, data, bump=0):
 def test_user_budget_blocks_the_sixth_build():
     d = _dev()
     for i in range(5):
-        dependencies._take_build_slot(d, "create" if i % 2 else "rework", "revoice")
-    assert _code(dependencies._take_build_slot, d, "create", "revoice") == (429, "daily_budget")
+        dependencies._take_build_slot(d, "create" if i % 2 else "rework")
+    assert _code(dependencies._take_build_slot, d, "create") == (429, "daily_budget")
 
 
 def test_global_budget_across_devices(monkeypatch):
     monkeypatch.setattr(guardrails, "GLOBAL_AI_BUILDS", 3)
     a, b = _dev(), _dev()
-    dependencies._take_build_slot(a, "create", "revoice")
-    dependencies._take_build_slot(a, "create", "revoice")
-    dependencies._take_build_slot(b, "create", "revoice")
-    assert _code(dependencies._take_build_slot, _dev(), "create", "revoice") == (429, "global_budget")
+    dependencies._take_build_slot(a, "create")
+    dependencies._take_build_slot(a, "create")
+    dependencies._take_build_slot(b, "create")
+    assert _code(dependencies._take_build_slot, _dev(), "create") == (429, "global_budget")
 
 
 def test_day_rollover_restores_the_budget(monkeypatch):
     d = _dev()
     monkeypatch.setattr(store, "_now", lambda: "2030-01-01T10:00:00+00:00")
     for _ in range(5):
-        dependencies._take_build_slot(d, "create", "revoice")
-    assert _code(dependencies._take_build_slot, d, "create", "revoice")[1] == "daily_budget"
+        dependencies._take_build_slot(d, "create")
+    assert _code(dependencies._take_build_slot, d, "create")[1] == "daily_budget"
     monkeypatch.setattr(store, "_now", lambda: "2030-01-02T00:00:01+00:00")
-    dependencies._take_build_slot(d, "create", "revoice")
+    dependencies._take_build_slot(d, "create")
 
 
 def test_owner_is_exempt():
@@ -107,7 +107,7 @@ def test_phrases_cache_hit_burns_nothing(monkeypatch):
 
 
 @pytest.mark.parametrize("key,charge,code", [
-    ("ai_jobs", "revoice", "ai_paused"),
+    ("ai_jobs", "", "ai_paused"),
     ("imports", "import", "imports_paused"),
 ])
 def test_switch_codes_and_live_flip(tmp_path, key, charge, code):
@@ -120,12 +120,12 @@ def test_switch_codes_and_live_flip(tmp_path, key, charge, code):
 
 def test_imports_off_leaves_other_builds(tmp_path):
     _write(tmp_path, {"imports": False})
-    dependencies._take_build_slot(_dev(), "create", "phrases")
+    dependencies._take_build_slot(_dev(), "create")
 
 
 def test_ai_jobs_blocks_use_routes(tmp_path):
     _write(tmp_path, {"ai_jobs": False})
-    assert _code(dependencies._take_use_slot, _dev(), "explain", "explain") == (503, "ai_paused")
+    assert _code(dependencies._take_use_slot, _dev(), "explain") == (503, "ai_paused")
     dependencies._take_use_slot(_dev(), "take")
 
 
@@ -172,12 +172,13 @@ def test_signup_switch(tmp_path):
     assert dependencies._principal_known(unknown) is True
 
 
-def test_catch_slot_charges_and_blocks(tmp_path):
+def test_catch_slot_is_free_and_blocks(tmp_path):
     d = _dev()
-    guardrails.take_ai_call(d, "catch_meaning", "word")
-    assert energy.status(d, False)["daily_left"] == 999
+    guardrails.take_ai_call(d, "catch_meaning")
+    assert energy.status(d, False)["daily_left"] == 1000
+    assert store.count_builds_today(d, "catch_meaning") == 1
     _write(tmp_path, {"ai_jobs": False})
-    assert _code(guardrails.take_ai_call, d, "catch_meaning", "word")[1] == "ai_paused"
+    assert _code(guardrails.take_ai_call, d, "catch_meaning")[1] == "ai_paused"
 
 
 def test_energy_route_has_builds():
@@ -212,7 +213,7 @@ def _run_build(device, kind, charge, job):
 
 @pytest.mark.parametrize("kind,charge", [
     ("create", "create"), ("create", "import"), ("rework", "regenerate"),
-    ("create", "phrases"),
+    ("create", ""),
 ])
 def test_a_failed_build_refunds_energy_and_the_budget(kind, charge):
     d = _dev()

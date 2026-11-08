@@ -9,6 +9,7 @@ import type { PhraseSpan } from '@/hooks/use-phrase';
 import * as api from '@/lib/api';
 import { stopPlayback } from '@/lib/audio-mode';
 import { alertSheet, confirmSheet } from '@/lib/confirm-sheet';
+import { canAfford, energyNow, requestEnergy } from '@/lib/energy';
 import { t } from '@/lib/i18n';
 import { invalidateCachedIsland } from '@/lib/island-cache';
 import { invalidateLineAudio } from '@/lib/line-audio-cache';
@@ -162,6 +163,11 @@ export function useIslandRebuild({
 
   async function confirmRegenerate() {
     if (!island || revoicing || regenerating) return;
+    // At 0 ⚡ the empty-energy sheet opens in place of the confirm (regenerate costs 3).
+    if (!canAfford(energyNow(), 'regenerate')) {
+      requestEnergy('regenerate');
+      return;
+    }
     const target: api.Complexity = island.complexity === 'simple' ? 'complex' : 'simple';
     const pick = await confirmSheet({
       title: target === 'complex' ? t('player.regenerateComplexTitle') : t('player.regenerateSimpleTitle'),

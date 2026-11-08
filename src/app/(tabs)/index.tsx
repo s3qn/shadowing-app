@@ -57,6 +57,8 @@ import { maybeOfferStreakReminder } from '@/lib/streak-reminder';
 import { checkStreakMoments } from '@/lib/streak-moments';
 import { progressNow, useProgressCache } from '@/lib/progression';
 import { StreakSheet } from '@/components/streak-sheet';
+import { EnergySheet } from '@/components/energy-sheet';
+import { refreshEnergy, useEnergy } from '@/lib/energy';
 import { getSettingsSync, subscribeSettings, toIslandLanguage } from '@/lib/settings';
 import { getSettings, setHomeWaveDate } from '@/lib/settings';
 import { deleteTakes } from '@/lib/takes';
@@ -131,6 +133,8 @@ export default function IslandsScreen() {
   const [sort, setSort] = useState<Sort>('newest');
   const [log, setLog] = useState<PracticeLog>(EMPTY_LOG);
   const [streakOpen, setStreakOpen] = useState(false);
+  const [energyOpen, setEnergyOpen] = useState(false);
+  const energy = useEnergy();
   const { progress: cachedProgress } = useProgressCache();
   const progressLoaded = cachedProgress !== null;
   useEffect(() => {
@@ -374,6 +378,7 @@ export default function IslandsScreen() {
       setFocused(true);
       bumpTakesEpoch();
       void load();
+      void refreshEnergy(); // a spend made on record.tsx: the chip replays it from the value it held
       void prefetchSessionPlan(); // review.tsx opens on it instead of its loader
       void getPracticeLog().then((next) => {
         if (!alive) return;
@@ -652,6 +657,9 @@ export default function IslandsScreen() {
           log={log}
           dueCount={dueReady && !loading ? readyDueCount : null}
           onStreak={() => setStreakOpen(true)}
+          energy={energy}
+          onEnergy={() => setEnergyOpen(true)}
+          energyActive={focused}
         />
         {/* pill-tray-tab-bar: sort row start */}
         <SortRow sort={sort} onSort={setSort} labels={SORT_LABEL} />
@@ -742,6 +750,8 @@ export default function IslandsScreen() {
       />
       <AddIslandSheet open={addOpen} onClose={() => setAddOpen(false)} />
       <StreakSheet log={log} open={streakOpen} onClose={() => setStreakOpen(false)} streak={streakDays(log, new Date())} longest={cachedProgress?.longest_streak ?? 0} />
+      {/* The sheet's Support row opens the support sheet (SupportSheetHost in _layout.tsx) once this one has left. */}
+      <EnergySheet open={energyOpen} onClose={() => setEnergyOpen(false)} energy={energy} />
       <IslandMenuSheet ref={menuRef} onRename={rename} />
       <IslandPeek ref={peekRef} onRename={openRename} onDelete={confirmDelete} />
     </SafeAreaView>

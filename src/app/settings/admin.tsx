@@ -22,7 +22,8 @@ type Load =
   // admin-device-bound: the account is listed but this phone's key is not approved (or cannot exist).
   | { kind: 'device'; status: AdminDeviceSim; keyId: string }
   // `approved`: the server checked this phone's proof on the list call.
-  | { kind: 'ready'; people: api.BetaPerson[]; approved: boolean };
+  // support-packs: `purchases` null means its load failed (the card reads "Could not load").
+  | { kind: 'ready'; people: api.BetaPerson[]; approved: boolean; purchases: api.AdminPurchases | null };
 
 const DEVICE_NOTE = {
   pending: 'admin.devicePending',
@@ -50,7 +51,8 @@ async function deviceState(): Promise<Load> {
 async function fetchLoad(): Promise<Load> {
   try {
     const list = await api.adminListBeta();
-    return { kind: 'ready', people: list.people, approved: list.device === 'approved' };
+    const purchases = await api.adminPurchases().catch(() => null);
+    return { kind: 'ready', people: list.people, approved: list.device === 'approved', purchases };
   } catch (e: unknown) {
     const refusal = e as { status?: number; code?: string };
     if (refusal.status !== 403) return { kind: 'failed' };
@@ -179,6 +181,13 @@ export default function AdminScreen() {
   // admin-device-bound: the row shows only when the server says it checked this phone's proof
   // (a dev device principal needs none and gets no row).
   const keyId = load.approved ? adminKeyId() : '';
+  // support-packs: the Purchases card. Every value reads "Could not load" when its request failed.
+  const buys = load.purchases;
+  const count = (n: number | undefined) => (n === undefined ? t('support.adminFailed') : String(n));
+  const purchasesFoot = buys
+    ? `${buys.total === 0 ? `${t('support.adminEmpty')} ` : ''}${t('support.adminNetFoot', { n: buys.sandbox })}`
+    : undefined;
+  const packRows = buys?.packs ?? [];
   return (
     <SafeAreaView style={styles.fill} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -192,6 +201,15 @@ export default function AdminScreen() {
           {others.length === 0 ? <SettingsRow label={t('admin.empty')} last /> : null}
           {others.map((p, i) => (
             <SettingsRow key={p.owner} label={name(p)} last={i === others.length - 1} switchValue={p.enabled} onSwitchChange={(v) => toggle(p.owner, v, false)} />
+          ))}
+        </SettingsSection>
+        <SettingsSection title={t('support.adminTitle')} footnote={purchasesFoot}>
+          <SettingsRow label={t('support.adminToday')} value={count(buys?.today)} />
+          <SettingsRow label={t('support.adminWeek')} value={count(buys?.week)} />
+          <SettingsRow label={t('support.adminTotal')} value={count(buys?.total)} />
+          <SettingsRow label={t('support.adminNet')} value={buys ? `$${(buys.net_cents / 100).toFixed(2)}` : t('support.adminFailed')} last={packRows.length === 0} />
+          {packRows.map((row, i) => (
+            <SettingsRow key={row.product_id} label={t('support.pack', { n: new Intl.NumberFormat().format(row.amount) })} value={String(row.count)} last={i === packRows.length - 1} />
           ))}
         </SettingsSection>
         {keyId ? (

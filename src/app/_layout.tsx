@@ -12,6 +12,8 @@ import { CardMorphOverlay } from '@/components/card-morph-overlay';
 import { SessionCelebration, StreakUpMoment, XpToast } from '@/components/session-celebration';
 import { StreakBrokenSheet } from '@/components/streak-sheet';
 import { ConfirmSheetHost } from '@/components/confirm-sheet-host';
+import { NoEnergyHost } from '@/components/no-energy-host';
+import { SupportSheetHost } from '@/components/support-sheet';
 import { GuideHost } from '@/components/onboarding/guide-host';
 import { LoadingOverlay } from '@/components/loading-overlay';
 import { ReviewTour } from '@/components/review-tour';
@@ -340,6 +342,8 @@ export default function RootLayout() {
       <GuideHost />
       <LoadingOverlay />
       <ConfirmSheetHost />
+      <NoEnergyHost />
+      <SupportSheetHost />
       <UpdateGate />
     </GestureHandlerRootView>
   );

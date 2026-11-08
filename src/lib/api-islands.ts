@@ -184,7 +184,8 @@ export function cleanTakeUrl(islandId: string, idx: number, version: number): st
 
 /** Spends create energy on the tap and refreshes the meter afterwards. */
 export const createIsland = (...args: Parameters<typeof createIslandRaw>): ReturnType<typeof createIslandRaw> => withEnergy('create', () => createIslandRaw(...args));
-export const createSay = (...args: Parameters<typeof createSayRaw>): ReturnType<typeof createSayRaw> => withEnergy('say', () => createSayRaw(...args));
+/** Say is free: no energy spend, only the server's hidden daily cap. */
+export const createSay = createSayRaw;
 
 /** Spends regenerate energy on the tap and refreshes the meter afterwards. */
 export const regenerate = (...args: Parameters<typeof regenerateRaw>): ReturnType<typeof regenerateRaw> => withEnergy('regenerate', () => regenerateRaw(...args));

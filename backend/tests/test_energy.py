@@ -93,77 +93,79 @@ def test_a_charge_spends_daily_first_then_the_grant_with_an_exact_split(on):
     ]
     st = energy.status(dev, False)
     assert (st["daily_left"], st["granted_left"]) == (0, 7)
-    energy.charge(dev, "explain", False)  # all from the grant
-    assert _rows("energy_ledger", dev)[-1]["from_grant"] == 2
-    assert energy.status(dev, False)["granted_left"] == 5
+    energy.charge(dev, "regenerate", False)  # all 3 from the grant
+    assert _rows("energy_ledger", dev)[-1]["from_grant"] == 3
+    assert energy.status(dev, False)["granted_left"] == 4
 
 
-def test_a_charge_past_both_balances_is_429_and_writes_nothing(on):
+def test_a_charge_past_both_balances_is_429_and_writes_nothing(on, monkeypatch):
+    monkeypatch.setattr(energy, "DAILY_UNITS", 8)
     dev = _dev()
     energy.charge(dev, "create", False)
     before = _counts()
     with pytest.raises(HTTPException) as exc_info:
-        energy.charge(dev, "create", False)  # needs 5, 2 daily left, no grant
+        energy.charge(dev, "create", False)  # needs 5, 3 daily left, no grant
     assert exc_info.value.status_code == 429
     assert exc_info.value.detail["code"] == "no_energy"
     assert exc_info.value.detail["need"] == 5
     assert exc_info.value.detail["refill_at"] == energy.refill_at()
     assert _counts() == before
     # The cheaper call still fits in what is left.
-    energy.charge(dev, "phrases", False)
-    assert energy.status(dev, False)["daily_left"] == 1
+    energy.charge(dev, "regenerate", False)
+    assert energy.status(dev, False)["daily_left"] == 0
 
 
 def test_a_cap_429_from_the_slot_helper_writes_no_ledger_row(on, monkeypatch):
     monkeypatch.setattr(dependencies, "DAILY_CREATES", 1)
     dev = _dev()
-    dependencies._take_build_slot(dev, "create", "phrases")
+    dependencies._take_build_slot(dev, "create", "create")
     assert len(_rows("energy_ledger", dev)) == 1
     assert store.count_builds_today(dev, "create") == 1
     with pytest.raises(HTTPException) as exc_info:
-        dependencies._take_build_slot(dev, "create", "phrases")
+        dependencies._take_build_slot(dev, "create", "create")
     assert exc_info.value.detail["code"] == "daily_limit"
     assert len(_rows("energy_ledger", dev)) == 1
 
 
 def test_a_refused_charge_never_burns_a_build_slot(on):
     dev = _dev()
-    energy.charge(dev, "create", False)
-    energy.charge(dev, "phrases", False)  # 1 of 7 left
+    energy.charge(dev, "create", False)  # 2 of 7 left
     with pytest.raises(HTTPException) as exc_info:
-        dependencies._take_build_slot(dev, "create", "import")  # 10 > 1
+        dependencies._take_build_slot(dev, "create", "import")  # 10 > 2
     assert exc_info.value.detail["code"] == "no_energy"
     assert store.count_builds_today(dev, "create") == 0
     with pytest.raises(HTTPException) as exc_info:
-        dependencies._take_use_slot(dev, "explain", "explain")
+        dependencies._take_build_slot(dev, "rework", "regenerate")  # 3 > 2
     assert exc_info.value.detail["code"] == "no_energy"
-    assert store.count_builds_today(dev, "explain") == 0
+    assert store.count_builds_today(dev, "rework") == 0
 
 
 def test_the_global_stop_is_429_global_limit_for_the_next_device(on, monkeypatch):
-    monkeypatch.setattr(energy, "GLOBAL_DAILY_UNITS", 6)
+    monkeypatch.setattr(energy, "DAILY_UNITS", 8)
+    monkeypatch.setattr(energy, "GLOBAL_DAILY_UNITS", 8)
     first, second = _dev(), _dev()
-    energy.charge(first, "create", False)  # global 5 of 6
+    energy.charge(first, "create", False)  # global 5 of 8
     with pytest.raises(HTTPException) as exc_info:
-        energy.charge(second, "explain", False)  # 5 + 2 > 6
+        energy.charge(second, "create", False)  # 5 + 5 > 8
     assert exc_info.value.status_code == 429
     assert exc_info.value.detail == {"code": "global_limit", "refill_at": energy.refill_at()}
     assert _rows("energy_ledger", second) == []
-    assert energy.status(second, False)["daily_left"] == 7
+    assert energy.status(second, False)["daily_left"] == 8
     # The first device still has daily units; what fits the budget still goes.
-    assert energy.status(first, False)["daily_left"] == 2
-    energy.charge(first, "phrases", False)  # 5 + 1 = 6 fits
+    assert energy.status(first, False)["daily_left"] == 3
+    energy.charge(first, "regenerate", False)  # 5 + 3 = 8 fits
     with pytest.raises(HTTPException) as exc_info:
-        energy.charge(first, "phrases", False)
+        energy.charge(_dev(), "regenerate", False)
     assert exc_info.value.detail["code"] == "global_limit"
 
 
 def test_the_global_stop_lets_a_charge_that_exactly_fills_the_budget(on, monkeypatch):
-    monkeypatch.setattr(energy, "GLOBAL_DAILY_UNITS", 6)
+    monkeypatch.setattr(energy, "DAILY_UNITS", 8)
+    monkeypatch.setattr(energy, "GLOBAL_DAILY_UNITS", 8)
     dev = _dev()
     energy.charge(dev, "create", False)
-    energy.charge(dev, "phrases", False)  # 6 of 6
-    assert store_energy.energy_global_today() == 6
+    energy.charge(dev, "regenerate", False)  # 8 of 8
+    assert store_energy.energy_global_today() == 8
 
 
 def test_the_warning_relays_once_when_the_budget_crosses_the_line(on, monkeypatch):
@@ -229,7 +231,8 @@ def test_a_row_dated_yesterday_does_not_count_and_refill_is_next_midnight(on):
             " VALUES (?, 'create', 5, 0, ?)", (dev, yesterday))
     st = energy.status(dev, False)
     assert st["daily_left"] == 7
-    assert st["prices"] == energy.PRICES and st["last_grant"] is None
+    assert st["prices"] == {**energy.PRICES, "say": 0} and st["last_grant"] is None
+    assert st["spent_today"] == {"units": 0, "by_kind": {}}
     now = datetime.now(timezone.utc)
     at = datetime.fromisoformat(st["refill_at"])
     assert at.tzinfo is not None and (at.hour, at.minute, at.second) == (0, 0, 0)
@@ -244,6 +247,59 @@ def test_status_carries_the_last_grant(on):
     assert last["id"] == gid and last["amount"] == 60
     assert last["at"][:10] == datetime.now(timezone.utc).isoformat()[:10]
     assert energy.status(dev, False)["granted_left"] == 90
+
+
+def test_prices_are_only_the_three_paid_kinds(on):
+    assert energy.PRICES == {"create": 5, "regenerate": 3, "import": 10}
+    # A stray charge of a free kind is a loud error, never a silent spend.
+    for kind in ("say", "phrases", "revoice", "explain", "word", "pick"):
+        with pytest.raises(KeyError):
+            energy.charge(_dev(), kind, False)
+
+
+def test_status_prices_say_as_zero_for_old_builds(on):
+    # Build 24 gates Say with canAfford(energy, "say") and falls back to a
+    # price of 1 when the kind is missing, so after one island (5 of 7 here,
+    # 5 of 5 in prod) it would lock Say. The status names it at 0, and
+    # charge() still refuses it.
+    dev = _dev()
+    energy.charge(dev, "create", False)
+    st = energy.status(dev, False)
+    assert st["daily_left"] == 2 and st["prices"]["say"] == 0
+    assert energy.status(OWNER, True)["prices"]["say"] == 0
+    with pytest.raises(KeyError):
+        energy.charge(dev, "say", False)
+
+
+def test_free_slots_write_no_ledger_row(on):
+    dev = _dev()
+    dependencies._take_build_slot(dev, "create")  # phrases build
+    dependencies._take_say_slot(dev)
+    dependencies._take_use_slot(dev, "pick_sentences")
+    assert _rows("energy_ledger", dev) == []
+    assert energy.status(dev, False)["daily_left"] == 7
+    assert [r["kind"] for r in _rows("builds", dev)] == ["create", "say", "pick_sentences"]
+    # A failed free call gives its cap slot back, flag or no flag; the owner
+    # took no slot, so nothing to give back.
+    dependencies._refund_use_slot(dev, "pick_sentences", "")
+    assert store.count_builds_today(dev, "pick_sentences") == 0
+    dependencies._refund_use_slot(OWNER, "pick_sentences", "")
+    assert _rows("builds", OWNER) == []
+
+
+def test_status_carries_spent_today_by_kind(on):
+    dev = _dev()
+    assert energy.status(dev, False)["spent_today"] == {"units": 0, "by_kind": {}}
+    energy.charge(dev, "create", False)
+    assert energy.status(dev, False)["spent_today"] == {"units": 5, "by_kind": {"create": 5}}
+    energy.grant(OWNER, dev, "cat", 10)
+    energy.charge(dev, "regenerate", False)
+    assert energy.status(dev, False)["spent_today"] == {
+        "units": 8, "by_kind": {"create": 5, "regenerate": 3}}
+    # Net of refunds: the refunded kind drops out instead of showing 0.
+    energy.refund(dev, "regenerate", False)
+    assert energy.status(dev, False)["spent_today"] == {"units": 5, "by_kind": {"create": 5}}
+    assert energy.status(OWNER, True)["spent_today"] == {"units": 0, "by_kind": {}}
 
 
 # --- routes ---
@@ -326,15 +382,15 @@ def test_a_refund_nets_out_the_daily_grant_and_global_totals(on):
 
 def test_refund_is_a_no_op_for_the_owner_flag_off_or_with_no_charge(on, monkeypatch):
     dev = _dev()
-    energy.refund(dev, "explain", False)  # nothing charged yet
-    energy.refund(OWNER, "explain", True)
+    energy.refund(dev, "create", False)  # nothing charged yet
+    energy.refund(OWNER, "create", True)
     monkeypatch.setattr(energy, "ON", False)
-    energy.refund(dev, "explain", False)
+    energy.refund(dev, "create", False)
     assert _rows("energy_ledger", dev) == [] and _rows("energy_ledger", OWNER) == []
 
 
 def test_two_threads_cannot_both_spend_the_last_unit(on, monkeypatch):
-    monkeypatch.setattr(energy, "DAILY_UNITS", 1)
+    monkeypatch.setattr(energy, "DAILY_UNITS", 3)
     dev = _dev()
     gate = threading.Barrier(2)
     results: list[str] = []
@@ -342,7 +398,7 @@ def test_two_threads_cannot_both_spend_the_last_unit(on, monkeypatch):
     def spend():
         gate.wait()
         try:
-            energy.charge(dev, "word", False)
+            energy.charge(dev, "regenerate", False)
             results.append("ok")
         except HTTPException as exc:
             results.append(exc.detail["code"])
@@ -352,7 +408,7 @@ def test_two_threads_cannot_both_spend_the_last_unit(on, monkeypatch):
     for t in threads:
         t.join(10)
     assert sorted(results) == ["no_energy", "ok"]
-    assert [r["units"] for r in _rows("energy_ledger", dev)] == [1]
+    assert [r["units"] for r in _rows("energy_ledger", dev)] == [3]
 
 
 def _explain_word(dev, word="猫"):
@@ -375,12 +431,13 @@ def test_a_failed_explain_word_leaves_the_balance_unchanged(on, monkeypatch):
     assert store_energy.energy_global_today() == 0
 
 
-def test_a_good_explain_word_charges_once(on, monkeypatch):
+def test_a_good_explain_word_is_free(on, monkeypatch):
     dev = _dev()
     monkeypatch.setattr(main.explain, "word_context", lambda *a, **k: "subject")
     assert _explain_word(dev) == {"context": "subject"}
-    assert _explain_word(dev) == {"context": "subject"}  # cache hit, free
-    assert [r["units"] for r in _rows("energy_ledger", dev)] == [energy.PRICES["word"]]
+    assert _explain_word(dev) == {"context": "subject"}  # cache hit, no slot
+    assert _rows("energy_ledger", dev) == []
+    assert energy.status(dev, False)["daily_left"] == 7
     assert store.count_builds_today(dev, "explain_word") == 1
 
 
@@ -394,12 +451,13 @@ def test_a_failed_explain_chat_leaves_the_balance_unchanged(on, monkeypatch):
     assert store_energy.energy_global_today() == 0
 
 
-def test_a_good_explain_chat_charges_once(on, monkeypatch):
+def test_a_good_explain_chat_is_free(on, monkeypatch):
     dev = _dev()
     monkeypatch.setattr(main.explain, "chat_answer", lambda *a, **k: '{"summary": "a cat"}')
     assert _explain_chat(dev) == {"summary": "a cat"}
-    assert _explain_chat(dev) == {"summary": "a cat"}  # cache hit, free
-    assert [r["units"] for r in _rows("energy_ledger", dev)] == [energy.PRICES["explain"]]
+    assert _explain_chat(dev) == {"summary": "a cat"}  # cache hit, no slot
+    assert _rows("energy_ledger", dev) == []
+    assert energy.status(dev, False)["daily_left"] == 7
     assert store.count_builds_today(dev, "explain") == 1
 
 
@@ -448,7 +506,7 @@ def test_flag_off_the_slot_helpers_and_progress_behave_as_before(monkeypatch):
     dev = _dev()
     before = _counts()
     dependencies._take_build_slot(dev, "create", "import")
-    dependencies._take_use_slot(dev, "explain", "explain")
+    dependencies._take_use_slot(dev, "explain")
     after = _counts()
     assert after == {**before, "builds": before["builds"] + 2}
     assert [r["kind"] for r in _rows("builds", dev)] == ["create", "explain"]

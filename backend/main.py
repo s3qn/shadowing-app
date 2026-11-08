@@ -273,3 +273,14 @@ async def _tts_startup() -> None:
 
 
 
+# --- support-packs ---
+import iap  # noqa: E402
+from routers import iap as iap_r  # noqa: E402
+
+app.include_router(iap_r.router)
+
+
+@app.on_event("startup")
+async def _iap_startup() -> None:
+    await asyncio.to_thread(iap.init)
+# --- end support-packs ---

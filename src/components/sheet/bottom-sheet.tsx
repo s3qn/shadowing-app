@@ -4,6 +4,7 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-g
 import Animated, {
   Easing,
   runOnJS,
+  type SharedValue,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -21,7 +22,22 @@ const CLOSE_MS = 200;
 const DISMISS_DISTANCE = 80;
 const DISMISS_VELOCITY = 600;
 
+/** The sheet's own motion, handed to the content through `onProgress` so it can read how open the sheet is. */
+export type SheetMotion = {
+  /** 0 closed to 1 open, on the sheet's own curve (240 ms out-cubic open, 200 ms close). */
+  progress: SharedValue<number>;
+  /** How far the finger has pulled the panel down, in pt; 0 at rest. */
+  drag: SharedValue<number>;
+  /** The panel's measured height, so `drag / panelHeight` is the pulled share. */
+  panelHeight: SharedValue<number>;
+  /** 0..1, written by the content: the panel scales to 0.96 and lifts 10 pt while another sheet takes over. */
+  stepBack: SharedValue<number>;
+};
+
 type BottomSheetProps = {
+  /** Called once, on mount, with the sheet's SharedValues (never per frame): the
+   * empty-energy ring grows with the open and unwinds under a drag. */
+  onProgress?: (motion: SheetMotion) => void;
   /** Controlled by the parent: true shows the sheet, false starts its exit. */
   open: boolean;
   /** Backdrop tap, drag past the threshold, or Android back. The parent flips `open`. */
@@ -51,7 +67,7 @@ type BottomSheetProps = {
  * dismiss. An internal `mounted` state keeps the Modal on screen through the
  * exit animation instead of yanking it away the instant `open` goes false.
  */
-export function BottomSheet({ open, onClose, onDismissed, onOpened, title, contentTitle, hint, avoidKeyboard, overlay, children }: BottomSheetProps) {
+export function BottomSheet({ open, onClose, onDismissed, onOpened, onProgress, title, contentTitle, hint, avoidKeyboard, overlay, children }: BottomSheetProps) {
   const insets = useSafeAreaInsets();
   const { t } = useT();
   const dir = useDir();
@@ -60,6 +76,15 @@ export function BottomSheet({ open, onClose, onDismissed, onOpened, title, conte
   const progress = useSharedValue(open ? 1 : 0);
   const drag = useSharedValue(0);
   const panelHeight = useSharedValue(0);
+  const stepBack = useSharedValue(0);
+  // The values live as long as this component, so one hand-off on mount is enough. Through a ref,
+  // so the effect never names the SharedValues themselves (the compiler lint would then refuse
+  // every later write to them).
+  const motionRef = useRef<SheetMotion>({ progress, drag, panelHeight, stepBack });
+  useEffect(() => {
+    onProgress?.(motionRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // The latest onOpened, read when the slide (started renders earlier) ends.
   const openedRef = useRef(onOpened);
   useEffect(() => {
@@ -127,8 +152,9 @@ export function BottomSheet({ open, onClose, onDismissed, onOpened, title, conte
       }
     });
 
+  // `stepBack` is the content's (see SheetMotion): 0 for every sheet that never writes it.
   const panelStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: (1 - progress.value) * panelHeight.value + drag.value }],
+    transform: [{ translateY: (1 - progress.value) * panelHeight.value + drag.value - 10 * stepBack.value }, { scale: 1 - 0.04 * stepBack.value }],
   }));
   const backdropStyle = useAnimatedStyle(() => ({
     opacity: progress.value * 0.55,

@@ -213,7 +213,7 @@ async def revoice(
     if voices.language_for(speaker) != island.get("language", "ja"):
         raise HTTPException(400, {"code": "voice_language_mismatch"})
 
-    dependencies._take_build_slot(device, "rework", "revoice")
+    dependencies._take_build_slot(device, "rework")
     store.set_speaker(island_id, speaker)
     store.set_stage(island_id, "speaking")
     # Lines are replaced one at a time as they render (INSERT OR REPLACE), so
@@ -270,12 +270,12 @@ async def create_say(
     if not media_io._to_wav(src, wav):
         shutil.rmtree(tmp_dir, ignore_errors=True)
         store.set_failed(island_id, "That audio file could not be decoded.", "audio_undecodable")
-        dependencies._refund_build_slot(device, "say", "say")
+        dependencies._refund_build_slot(device, "say", "")
         raise HTTPException(400, {"code": "audio_undecodable"})
     shutil.rmtree(tmp_dir, ignore_errors=True)
 
     background.add_task(
-        dependencies._refunding(build._build_say, island_id, device, "say", "say"),
+        dependencies._refunding(build._build_say, island_id, device, "say", ""),
         island_id, wav, speaker, register, language, native, transcript,
     )
     return {"id": island_id, "status": "pending"}

@@ -67,6 +67,17 @@ def _fresh_tts_cache(monkeypatch, tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def _energy_fits_every_route(monkeypatch):
+    """The free day is 5 units (one island) while an import costs 10, so the
+    route tests would hit no_energy on the production default. They test the
+    routes, not the meter: give them a big day. test_energy.py and
+    test_guardrails.py set their own DAILY_UNITS after this fixture."""
+    import energy
+
+    monkeypatch.setattr(energy, "DAILY_UNITS", 1000)
+
+
+@pytest.fixture(autouse=True)
 def _device_only_requests(monkeypatch):
     """Sign-in is required by default; most route tests drive the routes with
     a bare device id, so they run with the switch off. tests/test_security.py
