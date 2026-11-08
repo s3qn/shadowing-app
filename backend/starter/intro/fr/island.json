@@ -1,0 +1,192 @@
+{
+ "language": "fr",
+ "title": {
+  "en": "First steps",
+  "he": "צעדים ראשונים"
+ },
+ "lines": [
+  {
+   "ja": "Bonjour.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Hello.",
+    "he": "שלום."
+   },
+   "duration": 0.8746666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Bonjour.",
+     "start": 0.134,
+     "end": 0.875,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Bonjour.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "D'où venez-vous?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Where are you from?",
+    "he": "מאיפה אתה?"
+   },
+   "duration": 0.896,
+   "timeline": [],
+   "words": [
+    {
+     "text": "D'où",
+     "start": 0.134,
+     "end": 0.284,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "D'où",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "venez-vous?",
+     "start": 0.284,
+     "end": 0.896,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "venez-vous?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Demain, je vais étudier le français avec un ami.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Tomorrow I'm going to study French with a friend.",
+    "he": "מחר אלמד צרפתית עם חבר."
+   },
+   "duration": 2.6666666666666665,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Demain,",
+     "start": 0.137,
+     "end": 0.612,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Demain,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "je",
+     "start": 0.612,
+     "end": 0.762,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "je",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "vais",
+     "start": 0.762,
+     "end": 1.012,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "vais",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "étudier",
+     "start": 1.012,
+     "end": 1.387,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "étudier",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "le",
+     "start": 1.387,
+     "end": 1.512,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "le",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "français",
+     "start": 1.512,
+     "end": 1.937,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "français",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "avec",
+     "start": 1.937,
+     "end": 2.187,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "avec",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "un",
+     "start": 2.187,
+     "end": 2.337,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "un",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "ami.",
+     "start": 2.337,
+     "end": 2.667,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "ami.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

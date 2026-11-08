@@ -1,72 +1,13 @@
 import { useCallback, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
+import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
-import {
-  PILL_CHROME_BORDER,
-  PILL_H,
-  PILL_LABEL_SIZE,
-  PILL_PAD_X,
-  type PillItemBox,
-  PillTrayShell,
-  SlidingLitPill,
-  usePillChromeStyle,
-  usePillLabelStyle,
-  useSlidingPill,
-} from '@/components/prism/pill-tray';
-import { fonts } from '@/constants/fonts';
-import { prism, Spacing } from '@/constants/theme';
+import { PillTrayItem, PillTrayShell, SlidingLitPill, useSlidingPill } from '@/components/prism/pill-tray';
+import { Spacing } from '@/constants/theme';
 import { useDir } from '@/lib/i18n';
 import { hapticSelection } from '@/lib/haptics';
 
 export const SORTS = ['newest', 'least'] as const;
 export type Sort = (typeof SORTS)[number];
-
-// pill-tray-tab-bar: sort row start
-const SORT_PILL_BORDER = 1;
-/**
- * One sort option: a pill that hugs its label with a plain press scale. The
- * active option shows only the sliding lit pill underneath; an inactive one
- * draws its own faint chip. The border width is constant so the pill never
- * changes size when it turns on. The chip and the label colour follow how
- * much of the sliding pill covers this option.
- */
-function SortPill({
-  label,
-  onPress,
-  onLayout,
-  box,
-  pillX,
-  pillW,
-}: {
-  label: string;
-  onPress: () => void;
-  onLayout: (e: LayoutChangeEvent) => void;
-  box: PillItemBox | undefined;
-  pillX: SharedValue<number>;
-  pillW: SharedValue<number>;
-}) {
-  const scale = useSharedValue(1);
-  const scaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  const cover = { translateX: pillX, width: pillW, item: box };
-  const chromeStyle = usePillChromeStyle(cover);
-  const labelStyle = usePillLabelStyle(cover);
-  return (
-    <Pressable
-      onLayout={onLayout}
-      onPress={onPress}
-      onPressIn={() => {
-        scale.value = withTiming(0.96, { duration: 80 });
-      }}
-      onPressOut={() => {
-        scale.value = withSpring(1, prism.press.spring);
-      }}>
-      <Animated.View style={[styles.pill, chromeStyle, scaleStyle]}>
-        <Animated.Text style={[styles.pillText, labelStyle]}>{label}</Animated.Text>
-      </Animated.View>
-    </Pressable>
-  );
-}
 
 /**
  * The Home sort row: one lit pill slides between the options, like the tab
@@ -91,7 +32,7 @@ export function SortRow({ sort, onSort, labels }: { sort: Sort; onSort: (s: Sort
       <View style={[styles.sortRow, dir.row]}>
         <SlidingLitPill translateX={translateX} width={width} fillWidth={fillWidth} />
         {SORTS.map((s, i) => (
-          <SortPill
+          <PillTrayItem
             key={s}
             label={labels[s]}
             box={layouts[i]}
@@ -119,15 +60,5 @@ const styles = StyleSheet.create({
   sortRowWrap: { alignSelf: 'flex-start' },
   // Hebrew reads from the right, so the tray hugs the opposite edge.
   sortRowWrapRtl: { alignSelf: 'flex-end' },
-  pill: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: PILL_H,
-    borderRadius: PILL_H / 2,
-    borderWidth: SORT_PILL_BORDER,
-    borderColor: PILL_CHROME_BORDER,
-    paddingHorizontal: PILL_PAD_X,
-  },
-  pillText: { fontSize: PILL_LABEL_SIZE, fontWeight: '600', fontFamily: fonts.ui },
   // pill-tray-tab-bar: sort row end
 });

@@ -5,7 +5,7 @@
  */
 export const en = {
   'settings.appLanguage': 'App language',
-  'settings.appLanguageAuto': 'Same as understood',
+  'settings.appLanguageAuto': 'Same as the language I understand',
 
   // Settings tab: the section headers and the rows under them. Separate keys
   // from `title.*` in common.ts, which names the screen a row opens.
@@ -149,6 +149,8 @@ export const en = {
   // Settings > Practice.
   'settings.practice.reading': 'Reading',
   'settings.practice.readingOff': 'Off',
+  'settings.practice.readingOn': 'Show reading',
+  'settings.practice.readingFootnoteLatin': 'A reading in Latin letters with each line. Applies to every island.',
   'settings.practice.readingFurigana': 'Furigana',
   'settings.practice.readingKana': 'Kana',
   'settings.practice.readingRomaji': 'Romaji',
@@ -169,6 +171,7 @@ export const en = {
   'settings.voice.male': 'male',
   'settings.voice.loadError': 'Could not load voices',
   'settings.voice.credit': 'Audio made with this voice is credited as VOICEVOX:{name}',
+  'settings.voice.hostedNote': 'AI voice. Up to {n} lines a day, then the free voice fills in.',
 
   // Onboarding.
   'settings.onboarding.skip': 'Skip',
@@ -190,6 +193,7 @@ export const en = {
   'settings.onboarding.goalLine':
     'Short and daily beats long and rare. A day counts once you finish one full sentence ladder.',
   'settings.onboarding.goalMinutes': '{n} minutes',
+  'settings.onboarding.goalMinutes_one': '{n} minute',
   'settings.onboarding.goalHint5': 'A few sentences',
   'settings.onboarding.goalHint10': 'One island',
   'settings.onboarding.goalHint20': 'Deep practice',
@@ -277,6 +281,7 @@ export const en = {
   'settings.streak.needsBuild': 'Reminders need the installed app, not Expo Go or the web preview.',
   'settings.words.row': 'My words',
   'settings.words.count': '{n} words',
+  'settings.words.count_one': '{n} word',
   'settings.words.countOne': '1 word',
   'settings.words.stats': 'Your words',
   'settings.words.known': 'Known',
@@ -289,6 +294,7 @@ export const en = {
   'settings.words.failed': 'Could not load your words',
   'settings.words.counts': 'Caught {caught}, missed {missed}',
   'settings.words.hear': 'Hear it',
+  'settings.words.sheetTitle': 'Word',
   'settings.streak.testRow': 'Test reminder in 10 seconds',
   'settings.streak.channel': 'Streak reminders',
 };

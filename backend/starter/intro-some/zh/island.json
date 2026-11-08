@@ -1,0 +1,408 @@
+{
+ "language": "zh",
+ "title": {
+  "en": "First steps",
+  "he": "צעדים ראשונים"
+ },
+ "lines": [
+  {
+   "ja": "请问，去车站怎么走？",
+   "kana": "",
+   "romaji": "qǐngwèn, qù chēzhàn zěnme zǒu?",
+   "gloss": {
+    "en": "Excuse me, how do I get to the station?",
+    "he": "סליחה, איך מגיעים לתחנה?"
+   },
+   "duration": 2.0353333333333334,
+   "timeline": [],
+   "words": [
+    {
+     "text": "请问，",
+     "start": 0.0,
+     "end": 0.94,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "请问，",
+       "rt": "qǐngwèn"
+      }
+     ]
+    },
+    {
+     "text": "去",
+     "start": 0.94,
+     "end": 1.06,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "去",
+       "rt": "qù"
+      }
+     ]
+    },
+    {
+     "text": "车站",
+     "start": 1.06,
+     "end": 1.34,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "车站",
+       "rt": "chēzhàn"
+      }
+     ]
+    },
+    {
+     "text": "怎么",
+     "start": 1.34,
+     "end": 1.56,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "怎么",
+       "rt": "zěnme"
+      }
+     ]
+    },
+    {
+     "text": "走？",
+     "start": 1.56,
+     "end": 2.035,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "走？",
+       "rt": "zǒu"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "这个周末我打算和几个朋友一起去看电影。",
+   "kana": "",
+   "romaji": "zhège zhōumò wǒ dǎsuàn hé jǐgè péngyǒu yìqǐ qù kàn diànyǐng.",
+   "gloss": {
+    "en": "This weekend I plan to go and see a movie with a few friends.",
+    "he": "בסוף השבוע אני מתכנן ללכת לראות סרט עם כמה חברים."
+   },
+   "duration": 3.3820833333333336,
+   "timeline": [],
+   "words": [
+    {
+     "text": "这个",
+     "start": 0.0,
+     "end": 0.44,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "这个",
+       "rt": "zhège"
+      }
+     ]
+    },
+    {
+     "text": "周末",
+     "start": 0.44,
+     "end": 1.12,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "周末",
+       "rt": "zhōumò"
+      }
+     ]
+    },
+    {
+     "text": "我",
+     "start": 1.12,
+     "end": 1.26,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "我",
+       "rt": "wǒ"
+      }
+     ]
+    },
+    {
+     "text": "打算",
+     "start": 1.26,
+     "end": 1.58,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "打算",
+       "rt": "dǎsuàn"
+      }
+     ]
+    },
+    {
+     "text": "和",
+     "start": 1.58,
+     "end": 1.72,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "和",
+       "rt": "hé"
+      }
+     ]
+    },
+    {
+     "text": "几个",
+     "start": 1.72,
+     "end": 2.04,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "几个",
+       "rt": "jǐgè"
+      }
+     ]
+    },
+    {
+     "text": "朋友",
+     "start": 2.04,
+     "end": 2.26,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "朋友",
+       "rt": "péngyǒu"
+      }
+     ]
+    },
+    {
+     "text": "一起",
+     "start": 2.26,
+     "end": 2.56,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "一起",
+       "rt": "yìqǐ"
+      }
+     ]
+    },
+    {
+     "text": "去",
+     "start": 2.56,
+     "end": 2.76,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "去",
+       "rt": "qù"
+      }
+     ]
+    },
+    {
+     "text": "看",
+     "start": 2.76,
+     "end": 2.9,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "看",
+       "rt": "kàn"
+      }
+     ]
+    },
+    {
+     "text": "电影。",
+     "start": 2.9,
+     "end": 3.382,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "电影。",
+       "rt": "diànyǐng"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "搬到这里以后，每天早上在附近散步成了我的习惯。",
+   "kana": "",
+   "romaji": "bān dào zhèlǐ yǐhòu, měitiān zǎoshàng zài fùjìn sànbù chéng le wǒ de xíguàn.",
+   "gloss": {
+    "en": "Since moving here, a walk around the neighbourhood every morning has become my habit.",
+    "he": "מאז שעברתי לכאן, טיול בשכונה כל בוקר נהיה הרגל."
+   },
+   "duration": 3.8697083333333335,
+   "timeline": [],
+   "words": [
+    {
+     "text": "搬",
+     "start": 0.0,
+     "end": 0.33,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "搬",
+       "rt": "bān"
+      }
+     ]
+    },
+    {
+     "text": "到",
+     "start": 0.33,
+     "end": 0.66,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "到",
+       "rt": "dào"
+      }
+     ]
+    },
+    {
+     "text": "这里",
+     "start": 0.66,
+     "end": 0.88,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "这里",
+       "rt": "zhèlǐ"
+      }
+     ]
+    },
+    {
+     "text": "以后，",
+     "start": 0.88,
+     "end": 1.44,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "以后，",
+       "rt": "yǐhòu"
+      }
+     ]
+    },
+    {
+     "text": "每天",
+     "start": 1.44,
+     "end": 1.64,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "每天",
+       "rt": "měitiān"
+      }
+     ]
+    },
+    {
+     "text": "早上",
+     "start": 1.64,
+     "end": 1.98,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "早上",
+       "rt": "zǎoshàng"
+      }
+     ]
+    },
+    {
+     "text": "在",
+     "start": 1.98,
+     "end": 2.1,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "在",
+       "rt": "zài"
+      }
+     ]
+    },
+    {
+     "text": "附近",
+     "start": 2.1,
+     "end": 2.46,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "附近",
+       "rt": "fùjìn"
+      }
+     ]
+    },
+    {
+     "text": "散步",
+     "start": 2.46,
+     "end": 2.82,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "散步",
+       "rt": "sànbù"
+      }
+     ]
+    },
+    {
+     "text": "成",
+     "start": 2.82,
+     "end": 2.98,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "成",
+       "rt": "chéng"
+      }
+     ]
+    },
+    {
+     "text": "了",
+     "start": 2.98,
+     "end": 3.12,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "了",
+       "rt": "le"
+      }
+     ]
+    },
+    {
+     "text": "我",
+     "start": 3.12,
+     "end": 3.23,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "我",
+       "rt": "wǒ"
+      }
+     ]
+    },
+    {
+     "text": "的",
+     "start": 3.23,
+     "end": 3.34,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "的",
+       "rt": "de"
+      }
+     ]
+    },
+    {
+     "text": "习惯。",
+     "start": 3.34,
+     "end": 3.87,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "习惯。",
+       "rt": "xíguàn"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

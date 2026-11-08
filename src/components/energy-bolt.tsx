@@ -140,7 +140,8 @@ export function EnergyMeter({ left, max }: MeterProps) {
           </Group>
         </Canvas>
       </Animated.View>
-      <View style={[styles.count, dir.row]}>
+      {/* One LTR unit: "5 / 60" reads the same way in Hebrew and Arabic. */}
+      <View style={styles.count}>
         <AnimatedInput
           editable={false}
           pointerEvents="none"
@@ -212,7 +213,7 @@ export function EnergyNote({ energy }: { energy: Energy }) {
 const styles = StyleSheet.create({
   beside: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 },
   bolt: { width: 24, height: 24 },
-  count: { flexDirection: 'row', alignItems: 'baseline' },
+  count: { flexDirection: 'row', direction: 'ltr', alignItems: 'baseline' },
   num: { fontFamily: fonts.ui, fontSize: 14, fontWeight: '800', fontVariant: ['tabular-nums'], padding: 0, textAlign: 'right' },
   of: { fontFamily: fonts.ui, fontSize: 14, fontWeight: '600', color: DIM, fontVariant: ['tabular-nums'] },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 26, paddingStart: 7, paddingEnd: 10, borderRadius: 13, borderWidth: 1 },

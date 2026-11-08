@@ -11,6 +11,7 @@ import config
 import dependencies
 import dev_review
 import generate
+import languages
 import store
 import voicevox
 import voices
@@ -37,17 +38,16 @@ async def create_island(
     dependencies.require_token(authorization)
     device = dependencies._require_device(x_shadow_device)
     if complexity not in generate.COMPLEXITY_RULES:
-        raise HTTPException(400, "complexity must be 'simple' or 'complex'")
+        raise HTTPException(400, {"code": "bad_complexity"})
     if register not in generate.REGISTER_RULES:
-        raise HTTPException(400, "register must be 'polite' or 'casual'")
-    if language not in ("ja", "es", "en"):
-        raise HTTPException(400, "language must be 'ja', 'es' or 'en'")
+        raise HTTPException(400, {"code": "bad_register"})
+    languages.require_learning(language, device)
     if native not in ("he", "en"):
-        raise HTTPException(400, "native must be 'he' or 'en'")
+        raise HTTPException(400, {"code": "bad_native"})
     if language == native:
-        raise HTTPException(400, "the learning language must differ from the native one")
+        raise HTTPException(400, {"code": "same_language"})
     if voices.language_for(speaker) != language:
-        raise HTTPException(400, "that voice does not speak the chosen language")
+        raise HTTPException(400, {"code": "voice_language_mismatch"})
 
     raw = await audio.read()
     if not raw:
@@ -97,14 +97,13 @@ async def create_import_island(
     the original audio, sliced per line."""
     dependencies.require_token(authorization)
     device = dependencies._require_device(x_shadow_device)
-    if language not in ("ja", "es", "en"):
-        raise HTTPException(400, "language must be 'ja', 'es' or 'en'")
+    languages.require_learning(language, device)
     if native not in ("he", "en"):
-        raise HTTPException(400, "native must be 'he' or 'en'")
+        raise HTTPException(400, {"code": "bad_native"})
     if language == native:
-        raise HTTPException(400, "the learning language must differ from the native one")
+        raise HTTPException(400, {"code": "same_language"})
     if voices.language_for(speaker) != language:
-        raise HTTPException(400, "that voice does not speak the chosen language")
+        raise HTTPException(400, {"code": "voice_language_mismatch"})
     if not math.isfinite(start_min) or start_min < 0:
         raise HTTPException(400, "start_min must be a finite number >= 0")
 
@@ -160,7 +159,7 @@ async def regenerate(
     dependencies.require_token(authorization)
     device = dependencies._require_device(x_shadow_device)
     if complexity not in generate.COMPLEXITY_RULES:
-        raise HTTPException(400, "complexity must be 'simple' or 'complex'")
+        raise HTTPException(400, {"code": "bad_complexity"})
     island = await asyncio.to_thread(dependencies._own_island, island_id, device)
     if island["source"] == "phrases":
         raise HTTPException(409, "a phrase island has no recording to rewrite from")
@@ -212,7 +211,7 @@ async def revoice(
     if not lines:
         raise HTTPException(409, "the island has no lines to re-voice")
     if voices.language_for(speaker) != island.get("language", "ja"):
-        raise HTTPException(400, "that voice does not speak the island's language")
+        raise HTTPException(400, {"code": "voice_language_mismatch"})
 
     dependencies._take_build_slot(device, "rework", "revoice")
     store.set_speaker(island_id, speaker)
@@ -241,15 +240,14 @@ async def create_say(
     dependencies.require_token(authorization)
     device = dependencies._require_device(x_shadow_device)
     if register not in generate.REGISTER_RULES:
-        raise HTTPException(400, "register must be 'polite' or 'casual'")
-    if language not in ("ja", "es", "en"):
-        raise HTTPException(400, "language must be 'ja', 'es' or 'en'")
+        raise HTTPException(400, {"code": "bad_register"})
+    languages.require_learning(language, device)
     if native not in ("he", "en"):
-        raise HTTPException(400, "native must be 'he' or 'en'")
+        raise HTTPException(400, {"code": "bad_native"})
     if language == native:
-        raise HTTPException(400, "the learning language must differ from the native one")
+        raise HTTPException(400, {"code": "same_language"})
     if voices.language_for(speaker) != language:
-        raise HTTPException(400, "that voice does not speak the chosen language")
+        raise HTTPException(400, {"code": "voice_language_mismatch"})
 
     raw = await audio.read()
     if not raw:

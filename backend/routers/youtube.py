@@ -6,6 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, File, Header, HTTPException, Req
 
 import config
 import dependencies
+import languages
 import media as media_io
 import repair
 import store
@@ -62,8 +63,7 @@ async def import_youtube_captions(
             or not isinstance(speaker, int) or not isinstance(language, str)
             or not isinstance(native, str)):
         raise HTTPException(400, {"code": "captions_invalid"})
-    if language not in ("ja", "es", "en"):
-        raise HTTPException(400, "language must be 'ja', 'es' or 'en'")
+    languages.require_learning(language, device)
     if native not in ("he", "en"):
         raise HTTPException(400, "native must be 'he' or 'en'")
     if language == native:

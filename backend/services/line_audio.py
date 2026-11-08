@@ -16,6 +16,7 @@ import export
 import kokoro_tts
 import media as media_io
 import store
+import tts_registry
 import voicevox
 import voices
 
@@ -112,9 +113,11 @@ async def _resolve_line_audio(island: dict, idx: int, speed: float,
             line = next((l for l in island.get("lines", []) if l["idx"] == idx), None)
             if line is None:
                 raise HTTPException(404, "no such line")
-            if island["source"] != "voice":
-                # Imported islands play the source recording, not VOICEVOX:
-                # slow it down (pitch preserved) instead of re-synthesizing.
+            voice = tts_registry.voice(island["speaker"])
+            if island["source"] != "voice" or not (voice and voice.native_speed):
+                # Imported islands play the source recording, and every voice
+                # but VOICEVOX renders only at 1.0: slow the island's own wav
+                # down (pitch preserved) instead of re-synthesizing.
                 base = store.line_audio_path(island["id"], idx)
                 if not await asyncio.to_thread(base.exists):
                     raise HTTPException(404, "no audio for that line")
@@ -124,7 +127,7 @@ async def _resolve_line_audio(island: dict, idx: int, speed: float,
             else:
                 try:
                     wav, _, _, _ = await voices.speak(line["ja"], island["speaker"], speed)
-                except (voicevox.VoicevoxError, kokoro_tts.KokoroError) as exc:
+                except voices.VOICE_ERRORS as exc:
                     log.warning("voice failed: %s", exc)
                     raise HTTPException(502, {"code": "voice_unreachable"}) from exc
                 await asyncio.to_thread(_write_atomic, path, wav)

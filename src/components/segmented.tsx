@@ -35,6 +35,8 @@ type Props<T extends string> = {
    * scrolled into view. For option sets too long to share one line.
    */
   scrollable?: boolean;
+  /** A numeric scale (speeds): the pills keep left to right order in a right to left interface, like the player's speed ruler. */
+  ltr?: boolean;
 };
 
 const SEGMENT_BORDER = 1;
@@ -102,7 +104,7 @@ function SegmentPill({
  * with one deep blue lit pill that slides to the selected option, the same
  * look as the Home sort row.
  */
-export function Segmented<T extends string>({ label, options, value, onChange, scrollable }: Props<T>) {
+export function Segmented<T extends string>({ label, options, value, onChange, scrollable, ltr }: Props<T>) {
   const index = Math.max(0, options.findIndex((o) => o.value === value));
   const dir = useDir();
   const scroller = useRef<ScrollView>(null);
@@ -171,14 +173,14 @@ export function Segmented<T extends string>({ label, options, value, onChange, s
                   viewW.current = e.nativeEvent.layout.width;
                   reveal(false);
                 }}
-                contentContainerStyle={[styles.scrollContent, dir.row]}>
+                contentContainerStyle={[styles.scrollContent, !ltr && dir.row]}>
                 {slider}
                 {pills}
               </ScrollView>
             </PillTrayShell>
           ) : (
             <PillTrayShell>
-              <View style={[styles.tray, dir.row]}>
+              <View style={[styles.tray, !ltr && dir.row]}>
                 {slider}
                 {pills}
               </View>

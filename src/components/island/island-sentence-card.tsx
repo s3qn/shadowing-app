@@ -13,7 +13,7 @@ import { SELECTION_HANDLE_CLEARANCE, SelectionHandles } from '@/components/selec
 import { SELECTION_POPUP_WIDTH, SelectionPopup } from '@/components/selection-popup';
 import { SlideReveal } from '@/components/slide-reveal';
 import { TakeFeedback } from '@/components/take-feedback';
-import { speedLabel } from '@/components/tide/speed-popover';
+import { formatSpeed } from '@/lib/format';
 import type { Highlight } from '@/components/word-highlight';
 import { POPOVER_WIDTH, WordPanel } from '@/components/word-panel';
 import { fonts } from '@/constants/fonts';
@@ -34,6 +34,8 @@ type Props = {
   hidden: boolean;
   readingMode: ReadingMode;
   isJa: boolean;
+  /** Mandarin: pinyin ruby over the characters, while the reading is not Off. */
+  pinyin: boolean;
   isRtl: boolean;
   isGrammar: boolean;
   highlight: Highlight;
@@ -91,6 +93,7 @@ type WordsProps = Pick<
   | 'hidden'
   | 'readingMode'
   | 'isJa'
+  | 'pinyin'
   | 'isGrammar'
   | 'highlight'
   | 'selected'
@@ -157,6 +160,7 @@ function SentenceWords({
   hidden,
   readingMode,
   isJa,
+  pinyin,
   isGrammar,
   highlight,
   selected,
@@ -280,7 +284,7 @@ function SentenceWords({
                   <RubyWord
                     key={i}
                     word={line.words[i]!}
-                    showRuby={isJa && readingMode === 'furigana'}
+                    showRuby={pinyin || (isJa && readingMode === 'furigana')}
                     showPosAndRomaji={isJa}
                     index={i}
                     highlight={highlight}
@@ -302,7 +306,7 @@ function SentenceWords({
                     <RubyWord
                       key={i}
                       word={w}
-                      showRuby={isJa && readingMode === 'furigana'}
+                      showRuby={pinyin || (isJa && readingMode === 'furigana')}
                       showPosAndRomaji={isJa}
                       index={i}
                       highlight={highlight}
@@ -406,7 +410,7 @@ function SentenceFooter({
             ? `${total !== null ? ' · ' : ''}${t('player.keptUpWords', { kept: keptUp.kept, total: keptUp.total })}`
             : ''}
           {ladderNote
-            ? `${keptUp !== null || total !== null ? ' · ' : ''}${t(ladderNote.dir === 'up' ? 'player.ladderUp' : 'player.ladderDown', { speed: speedLabel(ladderNote.speed) })}`
+            ? `${keptUp !== null || total !== null ? ' · ' : ''}${t(ladderNote.dir === 'up' ? 'player.ladderUp' : 'player.ladderDown', { speed: formatSpeed(ladderNote.speed) })}`
             : ''}
         </Text>
       ) : null}

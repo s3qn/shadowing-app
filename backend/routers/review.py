@@ -8,6 +8,7 @@ from pydantic import BaseModel
 import access
 import dependencies
 import generate
+import languages
 import progression
 import review_deck
 import review_session
@@ -238,12 +239,11 @@ async def starter_start(
     the island the device already has; the other level seeds its own."""
     dependencies.require_token(authorization)
     device = dependencies._require_device(x_shadow_device)
-    if language not in ("ja", "es", "en"):
-        raise HTTPException(400, "language must be 'ja', 'es' or 'en'")
+    languages.require_learning(language, device)
     if native not in ("he", "en"):
-        raise HTTPException(400, "native must be 'he' or 'en'")
+        raise HTTPException(400, {"code": "bad_native"})
     if language == native:
-        raise HTTPException(400, "the learning language must differ from the native one")
+        raise HTTPException(400, {"code": "same_language"})
     if level not in starter.INTRO_LEVELS:
         raise HTTPException(400, "level must be 'new' or 'some'")
     if not starter.has_intro(language, level):

@@ -8,6 +8,7 @@ import { Spacing, tide } from '@/constants/theme';
 import { confirmSheet } from '@/lib/confirm-sheet';
 import * as api from '@/lib/api';
 import { useT } from '@/lib/i18n';
+import { ltr } from '@/lib/bidi';
 import { humanBytes, removeAllDownloads, totalDownloaded, subscribe } from '@/lib/offline-islands'; // offline-islands
 import { deleteAllTakes, takesStorageBytes } from '@/lib/takes';
 
@@ -85,13 +86,13 @@ export default function DataSettingsScreen() {
         <SettingsSection title={t('settings.data.storage')} footnote={t('settings.data.storageFootnote')}>
           <SettingsRow
             label={t('settings.data.takesOnDevice')}
-            value={humanBytes(storageBytes)}
+            value={ltr(humanBytes(storageBytes))}
             icon={{ ios: 'internaldrive', android: 'storage' }}
           />
           {/* offline-islands */}
           <SettingsRow
             label={t('settings.data.downloadedIslands')}
-            value={t('settings.data.downloadedValue', { count: downloads.count, size: humanBytes(downloads.bytes) })}
+            value={ltr(t('settings.data.downloadedValue', { count: downloads.count, size: humanBytes(downloads.bytes) }))}
             last
             icon={{ ios: 'arrow.down.circle', android: 'download' }}
           />

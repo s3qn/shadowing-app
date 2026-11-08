@@ -4,10 +4,10 @@ import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
-import { HeaderClosePill } from '@/components/header-close-pill';
+import { useClosePillOptions } from '@/components/header-close-pill';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
-import { PrismButton } from '@/components/prism';
+import { SecondaryAction } from '@/components/prism/actions';
 import { useT } from '@/lib/i18n';
 
 /** The shared build screen: close pill, the cat loader with the stage label,
@@ -36,6 +36,7 @@ export function BuildProgress({
   onClose: () => void;
 }) {
   const { t } = useT();
+  const closePill = useClosePillOptions(t('record.close'), onClose);
   const router = useRouter();
   const pathname = usePathname();
   const params = useLocalSearchParams();
@@ -47,17 +48,14 @@ export function BuildProgress({
       <Stack.Screen
         options={{
           ...(blankTitle ? { title: '' } : null),
-          headerStyle: { backgroundColor: tide.sky[0] },
-          headerTintColor: tide.text,
-          headerShadowVisible: false,
-          headerLeft: () => <HeaderClosePill label={t('record.close')} onPress={onClose} />,
+          ...closePill,
         }}
       />
       <View style={styles.center}>
         {error ? (
           <>
             <Text style={[styles.error, styles.centerText]}>{error}</Text>
-            {noRetry ? null : <PrismButton shape="pill" verb="speak" label={t('common.retry')} onPress={retry} />}
+            {noRetry ? null : <SecondaryAction label={t('common.retry')} onPress={retry} />}
           </>
         ) : (
           <>

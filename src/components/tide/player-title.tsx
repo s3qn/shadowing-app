@@ -154,7 +154,8 @@ export function PlayerTitle({ title, lineIndex, lineCount, hidden = false, onTit
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center' },
   hidden: { opacity: 0 },
-  title: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 14, color: tide.text },
+  // lang-core: a Hebrew or Arabic island title lays out right to left on its own.
+  title: { fontFamily: fonts.uiMedium, fontWeight: '500', fontSize: 14, color: tide.text, writingDirection: 'auto' },
   lineRow: { flexDirection: 'row', alignItems: 'center' },
   // Keeps the row's height while the island loads, so the title does not move.
   waiting: { opacity: 0 },

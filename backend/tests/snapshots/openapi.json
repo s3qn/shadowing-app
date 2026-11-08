@@ -1,6 +1,25 @@
 {
  "components": {
   "schemas": {
+   "ApproveBody": {
+    "description": "The phone's own pending key id and the passcode Sean set on the box.",
+    "properties": {
+     "key_id": {
+      "title": "Key Id",
+      "type": "string"
+     },
+     "passcode": {
+      "title": "Passcode",
+      "type": "string"
+     }
+    },
+    "required": [
+     "key_id",
+     "passcode"
+    ],
+    "title": "ApproveBody",
+    "type": "object"
+   },
    "BetaBody": {
     "properties": {
      "enabled": {
@@ -386,6 +405,17 @@
     "title": "Body_post_shot_shadow_dev_review_shot_post",
     "type": "object"
    },
+   "Body_post_tts_sim_shadow_dev_tts_sim_post": {
+    "properties": {
+     "mode": {
+      "default": "",
+      "title": "Mode",
+      "type": "string"
+     }
+    },
+    "title": "Body_post_tts_sim_shadow_dev_tts_sim_post",
+    "type": "object"
+   },
    "Body_post_voice_shadow_dev_review_voice_post": {
     "properties": {
      "file": {
@@ -666,6 +696,30 @@
      "amount"
     ],
     "title": "DevCoinsBody",
+    "type": "object"
+   },
+   "DeviceBody": {
+    "description": "The phone's admin key: its id (first 16 hex of sha256 of the public\nkey), the raw Ed25519 public key as hex and a label for the list.",
+    "properties": {
+     "key_id": {
+      "title": "Key Id",
+      "type": "string"
+     },
+     "name": {
+      "default": "",
+      "title": "Name",
+      "type": "string"
+     },
+     "public_key": {
+      "title": "Public Key",
+      "type": "string"
+     }
+    },
+    "required": [
+     "key_id",
+     "public_key"
+    ],
+    "title": "DeviceBody",
     "type": "object"
    },
    "DoneBody": {
@@ -1254,6 +1308,16 @@
        "title": "X-Shadow-Device",
        "type": "string"
       }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-admin-key",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Admin-Key",
+       "type": "string"
+      }
      }
     ],
     "responses": {
@@ -1306,6 +1370,16 @@
        "title": "X-Shadow-Device",
        "type": "string"
       }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-admin-key",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Admin-Key",
+       "type": "string"
+      }
      }
     ],
     "requestBody": {
@@ -1339,6 +1413,136 @@
      }
     },
     "summary": "Admin Beta Set"
+   }
+  },
+  "/shadow/admin/device": {
+   "post": {
+    "description": "Register this phone's admin key for a listed account. The key starts\n`pending`; tools/admin-device.py on the server box approves it, or the\npasscode route below while SHADOW_ADMIN_PASSCODE is set.",
+    "operationId": "admin_device_enrol_shadow_admin_device_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DeviceBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Admin Device Enrol"
+   }
+  },
+  "/shadow/admin/device/approve": {
+   "post": {
+    "description": "Until launch: approve this account's own pending phone key with the\npasscode in SHADOW_ADMIN_PASSCODE. 404 while that is unset. Wrong codes\nare capped per account (admin_devices.approve_with_passcode).",
+    "operationId": "admin_device_approve_shadow_admin_device_approve_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-shadow-device",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "X-Shadow-Device",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ApproveBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Admin Device Approve"
    }
   },
   "/shadow/app/latest": {
@@ -2497,6 +2701,60 @@
      }
     },
     "summary": "Get Transcript"
+   }
+  },
+  "/shadow/dev/tts-sim": {
+   "post": {
+    "description": "Flips tts_budget.DEV_FORCE so the app can walk the hosted-voice\nfallbacks: every hosted render over budget, every one failing, or every\nhosted provider off. \"\" resets.",
+    "operationId": "post_tts_sim_shadow_dev_tts_sim_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "authorization",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Authorization"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/x-www-form-urlencoded": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_post_tts_sim_shadow_dev_tts_sim_post"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Post Tts Sim"
    }
   },
   "/shadow/dev/upload": {
@@ -6953,7 +7211,7 @@
   },
   "/shadow/speakers": {
    "get": {
-    "description": "Every speaker for one learning language: VOICEVOX's own list for ja,\none Kokoro entry with a style per voice for en or es.",
+    "description": "Every speaker for one learning language: VOICEVOX's own list for ja,\none entry per other provider with a style per voice.",
     "operationId": "speakers_shadow_speakers_get",
     "parameters": [
      {
@@ -7593,7 +7851,7 @@
   },
   "/shadow/voices/{style_id}/preview": {
    "get": {
-    "description": "The same sentence in any voice, rendered once and kept on disk.",
+    "description": "The same sentence in any voice, rendered once into the shared cache.\nA hosted voice that is out of budget or down answers in the free voice.",
     "operationId": "voice_preview_shadow_voices__style_id__preview_get",
     "parameters": [
      {
@@ -7657,7 +7915,7 @@
   },
   "/shadow/word-audio": {
    "get": {
-    "description": "One word rendered on its own, so hearing it again is a complete,\nnatural utterance rather than a slice cut out of the line. Cached per\nvoice and text.",
+    "description": "One word rendered on its own, so hearing it again is a complete,\nnatural utterance rather than a slice cut out of the line. Cached per\nvoice and text in the shared render cache; the daily slot is spent only\non a miss.",
     "operationId": "word_audio_shadow_word_audio_get",
     "parameters": [
      {

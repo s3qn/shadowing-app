@@ -4,8 +4,7 @@ blended with the timing and pitch parts into one 0 to 100 number. Pure."""
 import re
 import unicodedata
 
-import latin
-import segment
+import lang_text
 from take_analysis import vowel
 
 WEIGHTS = {"content": 0.6, "timing": 0.3, "pitch": 0.1}
@@ -98,10 +97,9 @@ def _spell_numbers(text: str, language: str) -> str:
 
 
 def units(text: str, language: str) -> list[str]:
-    text = _spell_numbers(text, language)
-    if language == "ja":
-        return segment.moras_of(text)
-    return latin.normalize_words(text)
+    """The scoring units of a line or a transcript: moras, characters,
+    syllables or folded words by the language's `score_unit`."""
+    return lang_text.units(_spell_numbers(text, language), language)
 
 
 def span_text(words: list[dict], span: tuple[int, int] | None, speed: float,
@@ -116,7 +114,7 @@ def span_text(words: list[dict], span: tuple[int, int] | None, speed: float,
         w["text"] for w in words
         if w["end"] / speed * 1000.0 > start and w["start"] / speed * 1000.0 < end
     ]
-    return ("" if language == "ja" else " ").join(inside)
+    return lang_text.joiner(language).join(inside)
 
 
 def _base(ch_text: str) -> str:

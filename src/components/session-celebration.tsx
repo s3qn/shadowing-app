@@ -34,8 +34,10 @@ import { hapticImpact, hapticNotify } from '@/lib/haptics';
 import { useDir, useT } from '@/lib/i18n';
 import { useBetaFeatures } from '@/lib/beta';
 import { clearCelebration, clearLevelUp, clearStreakMoment, clearXpToast, useXpToast, type Celebration, type PendingLevelUp, type RecapLine, type StreakMilestone } from '@/lib/level-up-store';
+import { formatClock } from '@/lib/format';
 import { equippedArt, markUnlockSeen, useProgressCache } from '@/lib/progression';
-import { EmberGlow, WEEKDAY_KEY } from '@/components/practice-card';
+import { EmberGlow } from '@/components/home/ember';
+import { WEEKDAY_KEY } from '@/components/home/week-row';
 import { dayQualifies, devStreakActive, getPracticeLog, lastSevenDays } from '@/lib/practice';
 import { getSettingsSync } from '@/lib/settings';
 
@@ -115,7 +117,6 @@ function BarGrad({ from, to, rtl }: { from: string; to: string; rtl: boolean }) 
 }
 
 const AnimatedInput = Animated.createAnimatedComponent(TextInput);
-const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const frac = (into: number, toNext: number) => (toNext > 0 ? Math.min(1, Math.max(0, into / (into + toNext))) : 1);
 
 /** One breakdown row, faded in on its own slot of the shared stagger clock `rc` (0 to 1 over `span` ms). */
@@ -459,7 +460,7 @@ function Summary({ lines, seconds }: { lines: RecapLine[]; seconds: number }) {
       <View style={[styles.stats, dir.row]}>
         {stat(String(lines.length), t('summary.sentences', { n: lines.length }))}
         {words > 0 ? stat(String(words), t('summary.words', { n: words })) : null}
-        {stat(clock(seconds))}
+        {stat(formatClock(seconds))}
       </View>
       <View style={[styles.mix, dir.row]}>
         {projects.map((p, i) => (

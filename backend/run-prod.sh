@@ -39,6 +39,15 @@ if [ -z "${SHADOW_TOKEN:-}" ]; then
   exit 1
 fi
 
+# Prod always needs sign-in: device-only requests would skip the admin phone key.
+signin="$(printf '%s' "${SHADOW_REQUIRE_SIGNIN:-}" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+case "$signin" in
+  0|false|off)
+    echo "run-prod.sh: SHADOW_REQUIRE_SIGNIN=${SHADOW_REQUIRE_SIGNIN} turns sign-in off, refusing in prod." >&2
+    exit 1
+    ;;
+esac
+
 if [ "${SHADOW_PORT:-8030}" = "8020" ]; then
   echo "run-prod.sh: SHADOW_PORT=8020 is the dev backend, refusing." >&2
   exit 1

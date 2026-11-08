@@ -17,7 +17,7 @@ import { RingButton } from '@/components/ring-button';
 import { GlassPanel } from '@/components/prism';
 import { RoundButton } from '@/components/tide/bottom-row';
 import { PlayerTitle } from '@/components/tide/player-title';
-import { speedLabel } from '@/components/tide/speed-popover';
+import { formatSpeed } from '@/lib/format';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
 import { useLineStatus } from '@/hooks/use-line-status';
@@ -41,7 +41,7 @@ const SLIDE_PX = 18;
 
 function metaText(recordedAt: number, speed: number | null, locale: string): string {
   const date = new Date(recordedAt).toLocaleDateString(locale);
-  return speed !== null ? `${date} · ${speedLabel(speed)}` : date;
+  return speed !== null ? `${date} · ${formatSpeed(speed)}` : date;
 }
 
 /**

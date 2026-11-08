@@ -1,29 +1,24 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { CatConstellation } from '@/components/cat-constellation';
-import { PressScale } from '@/components/press-scale';
-import { PrismButton } from '@/components/prism';
+import { GlassCard } from '@/components/glass-card';
+import { ErrorState, LoadingBlock } from '@/components/state-blocks';
 import { confirmSheet } from '@/lib/confirm-sheet';
+import { formatClock } from '@/lib/format';
 
 import { fonts } from '@/constants/fonts';
 import { useDir, useT } from '@/lib/i18n';
-import { Radius, Spacing, tide } from '@/constants/theme';
+import { Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
 
 const SIDE = 16;
 
 function duration(seconds: number | null): string | null {
   if (seconds == null || !Number.isFinite(seconds)) return null;
-  const s = Math.max(0, Math.floor(seconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const rem = s % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(rem).padStart(2, '0')}`;
-  return `${m}:${String(rem).padStart(2, '0')}`;
+  return formatClock(seconds);
 }
 
 function published(value: string | null, locale: string): string | null {
@@ -92,21 +87,13 @@ export default function PodcastEpisodesScreen() {
       <Stack.Screen
         options={{
           title: feedTitle || t('home.episodesTitle'),
-          headerStyle: { backgroundColor: tide.sky[0] },
-          headerTintColor: tide.text,
-          headerShadowVisible: false,
         }}
       />
 
       {loading ? (
-        <View style={styles.center}>
-          <CatConstellation size={120} label={t('common.loading')} />
-        </View>
+        <LoadingBlock />
       ) : error ? (
-        <View style={styles.center}>
-          <Text style={[styles.hint, styles.centerText]}>{error}</Text>
-          <PrismButton shape="pill" verb="tools" label={t('common.retry')} accessibilityLabel={t('common.retry')} onPress={() => setAttempt((n) => n + 1)} />
-        </View>
+        <ErrorState message={error} onRetry={() => setAttempt((n) => n + 1)} />
       ) : (
         <FlatList
           style={styles.fill}
@@ -118,12 +105,12 @@ export default function PodcastEpisodesScreen() {
             const pub = published(item.published, locale);
             const meta = [dur, pub].filter(Boolean).join(' · ');
             return (
-              <PressScale onPress={() => void buildFrom(item)} accessibilityRole="button" style={styles.episode}>
+              <GlassCard onPress={() => void buildFrom(item)} style={styles.episode}>
                 <Text style={[styles.episodeTitle, dir.content]} numberOfLines={2}>
                   {item.title || t('home.untitledEpisode')}
                 </Text>
                 {meta ? <Text style={[styles.episodeMeta, dir.text]}>{meta}</Text> : null}
-              </PressScale>
+              </GlassCard>
             );
           }}
         />
@@ -134,20 +121,9 @@ export default function PodcastEpisodesScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.lg,
-    paddingHorizontal: SIDE,
-  },
-  centerText: { textAlign: 'center' },
-  hint: { fontSize: 14, lineHeight: 20, color: tide.textDim, fontFamily: fonts.ui },
   list: { paddingHorizontal: SIDE, paddingTop: Spacing.md, paddingBottom: Spacing.xl, gap: Spacing.sm },
   episode: {
     padding: Spacing.md,
-    borderRadius: Radius.md,
-    backgroundColor: 'rgba(255,255,255,0.06)',
     gap: Spacing.xs,
   },
   episodeTitle: { fontSize: 15, lineHeight: 20, color: tide.text, fontFamily: fonts.uiMedium, fontWeight: '500' },

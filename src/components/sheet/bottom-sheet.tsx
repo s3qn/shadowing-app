@@ -32,7 +32,7 @@ type BottomSheetProps = {
   onDismissed?: () => void;
   /** Runs once the open slide has settled, so a control can be measured where it rests. */
   onOpened?: () => void;
-  title?: string;
+  title: string;
   /** The title is content (an island's own name), not interface copy: it
    * keeps its own writing direction whatever language the app is in. */
   contentTitle?: boolean;

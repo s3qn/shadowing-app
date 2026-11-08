@@ -130,6 +130,7 @@ DAILY_CAPS = {
     for name, default in (
         ("explain", 100), ("explain_word", 100), ("word_audio", 400),
         ("podcast_search", 60), ("take", 200), ("pick_sentences", 20),
+        ("hosted_tts", 60),
     )
 }
 

@@ -9,6 +9,7 @@ export const en = {
   'podcast.aiPick.confirm': 'Pick sentences',
   'podcast.aiPick.cancel': 'Not now',
   'podcast.aiPick.done': '{n} sentences saved',
+  'podcast.aiPick.done_one': '{n} sentence saved',
   'api.pick_failed': 'The AI could not pick sentences from this episode. No energy was used.',
   'api.not_podcast': 'Only podcast episodes can be picked from.',
   'api.has_cards': 'This episode already has saved sentences.',

@@ -33,3 +33,18 @@ const PDI = '⁩';
 export function isolate(text: string): string {
   return text === '' ? '' : FSI + text + PDI;
 }
+
+/** U+2066 LEFT-TO-RIGHT ISOLATE. */
+const LRI = '⁦';
+
+/**
+ * Wraps a direction glyph (a chevron, an arrow) or a number with its unit
+ * ("0 B", "1×") so it keeps the order and shape it was
+ * given. `‹` and `›` are mirrored characters: inside a right to left run the
+ * browser and the native text engines draw `›` as `‹`, so a glyph picked per
+ * direction (`dir.chevron`) came out flipped whenever the surrounding text or
+ * the page was right to left. Inside a left to right isolate nothing mirrors it.
+ */
+export function ltr(text: string): string {
+  return LRI + text + PDI;
+}

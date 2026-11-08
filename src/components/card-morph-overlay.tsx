@@ -15,6 +15,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BackGlyph } from '@/components/island/player-header';
 import { PlayerTitle } from '@/components/tide/player-title';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
@@ -408,7 +409,7 @@ function MorphRun({ state }: { state: MorphState }) {
       {phase === 'open' || stage === 'fly' ? (
         <>
           <Animated.View style={[styles.button, { left: backLeft, top: buttonTop }, buttonStyle]}>
-            <Text style={styles.backGlyph}>{dir.rtl ? '›' : '‹'}</Text>
+            <BackGlyph />
           </Animated.View>
           {showMenu ? (
             <Animated.View style={[styles.button, { left: menuLeft, top: buttonTop }, buttonStyle]}>
@@ -483,7 +484,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backGlyph: { fontFamily: fonts.ui, fontSize: 28, color: tide.text },
   menuGlyph: { fontFamily: fonts.ui, fontSize: 22, color: tide.text },
   headerSlot: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
 });

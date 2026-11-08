@@ -34,9 +34,25 @@ def _is_admin(principal: str) -> bool:
     return bool(principal) and (principal in ADMIN_USERS or dependencies._is_owner(principal))
 
 
-def _require_admin(principal: str) -> None:
+def _require_admin_listed(principal: str) -> None:
+    """Listed (or the owner device): enough to open the Admin screen and to
+    enrol a phone key."""
     if not _is_admin(principal):
         raise HTTPException(403, {"code": "not_admin"})
+
+
+def _require_admin(principal: str, admin_key: str = "") -> None:
+    """Listed, and for a signed-in user also holding an approved phone key.
+    DeviceGuard sets `admin_key` from a valid X-Shadow-Proof and drops any
+    client copy, so a stolen account without the phone gets admin_device.
+    A bare device principal (dev, sign-in off) needs no proof. A direct
+    call from a test passes the Header default object, which counts as
+    no key."""
+    _require_admin_listed(principal)
+    if not isinstance(admin_key, str):
+        admin_key = ""
+    if accounts.is_user(principal) and not admin_key:
+        raise HTTPException(403, {"code": "admin_device"})
 
 
 def _beta_on(principal: str) -> bool:
@@ -119,3 +135,12 @@ def _beta_people(me: str) -> list[dict]:
 class BetaBody(BaseModel):
     owner: str
     enabled: bool
+
+
+class DeviceBody(BaseModel):
+    """The phone's admin key: its id (first 16 hex of sha256 of the public
+    key), the raw Ed25519 public key as hex and a label for the list."""
+
+    key_id: str
+    public_key: str
+    name: str = ""

@@ -2,22 +2,24 @@ import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { AppState, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
+import { useBackHeaderOptions } from '@/components/island/player-header';
 import { PrismButton } from '@/components/prism';
 import { GRAMMAR_LILAC } from '@/components/ruby-word';
 import { DragRows } from '@/components/review/drag-rows';
 import { ProjectRow, rowStyles, SizeTray, UpFirst } from '@/components/review/project-row';
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
 import { SheetAction } from '@/components/sheet/sheet-rows';
+import { LoadingBlock } from '@/components/state-blocks';
 import { HeroNumber } from '@/components/tide/hero-number';
 import type { Look } from '@/components/tide/ladder/stage-model';
-import { LadderHelpButton, Tile } from '@/components/tide/ladder/stage-tile';
+import { Tile } from '@/components/tide/ladder/stage-tile';
 import { fonts } from '@/constants/fonts';
-import { Spacing, tide, verb } from '@/constants/theme';
+import { Spacing, prism, tide, verb } from '@/constants/theme';
 import * as api from '@/lib/api';
 import { getSessionPrefs, routeFor, setSessionPrefs, startSession } from '@/lib/auto-practice';
 import { useBetaFeatures } from '@/lib/beta';
@@ -211,6 +213,13 @@ export default function ReviewScreen() {
 
   const help = () => void confirmSheet({ title: t('review.helpTitle'), message: t('review.helpBody'), actions: [{ label: t('common.ok'), verb: 'tools' }] });
 
+  const backHeader = useBackHeaderOptions({
+    right: () => (
+      <PrismButton shape="round" size={prism.sizes.roundSm} verb="tools" onPress={help} accessibilityLabel={t('player.help')}>
+        <Text style={styles.helpGlyph}>?</Text>
+      </PrismButton>
+    ),
+  });
   const header = (
     <Stack.Screen
       options={{
@@ -220,11 +229,7 @@ export default function ReviewScreen() {
             <Text style={[styles.headSub, dir.writing]}>{t('review.subtitle')}</Text>
           </View>
         ),
-        headerRight: () => (
-          <View style={Platform.select({ ios: undefined, default: { marginEnd: 12 } })}>
-            <LadderHelpButton onPress={help} inHeader />
-          </View>
-        ),
+        ...backHeader,
       }}
     />
   );
@@ -234,9 +239,7 @@ export default function ReviewScreen() {
       <SafeAreaView edges={['bottom']} style={[styles.fill, { backgroundColor: tide.sky[0] }]}>
         <StatusBar style="light" />
         {header}
-        <View style={styles.center}>
-          <CatConstellation size={120} />
-        </View>
+        <LoadingBlock />
       </SafeAreaView>
     );
   }
@@ -387,7 +390,7 @@ export default function ReviewScreen() {
           </View>
         </Animated.View>
       }
-      <BottomSheet open={sheetOpen} onClose={closeSheet} title={sheetP?.title} contentTitle>
+      <BottomSheet open={sheetOpen} onClose={closeSheet} title={sheetP?.title ?? t('review.sheetTitle')} contentTitle>
         {sheetP ? (
           <>
             <View style={[styles.stepper, dir.row]}>
@@ -436,6 +439,7 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 20, fontWeight: '700', color: tide.text, fontFamily: fonts.ui, textAlign: 'center' },
   hint: { fontSize: 14, lineHeight: 20, color: tide.textDim, fontFamily: fonts.ui, textAlign: 'center' },
   headTitle: { alignItems: 'center' },
+  helpGlyph: { fontFamily: fonts.uiMedium, fontSize: 18, color: tide.text },
   headMain: { fontSize: 15, fontWeight: '600', color: tide.text, fontFamily: fonts.ui },
   headSub: { fontSize: 11.5, color: tide.textDim, fontFamily: fonts.ui },
   body: { flex: 1 },

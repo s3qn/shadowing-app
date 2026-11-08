@@ -10,6 +10,7 @@ from fastapi import APIRouter
 import align
 import caption_timing
 import config
+import languages
 import latin
 import segment
 import store
@@ -118,7 +119,7 @@ async def _align_one(island_id: str) -> None:
             job = store_video.video_audio_path(island_id, "job.json")
             job.write_text(json.dumps({
                 "wav": str(wav),
-                "language": align.LANGUAGE_NAMES.get(island.get("language", "ja"), "Japanese"),
+                "language": languages.NAMES.get(island.get("language", "ja"), "Japanese"),
                 "windows": [{k: w[k] for k in ("id", "start", "end", "text")} for w in windows],
             }, ensure_ascii=False), encoding="utf-8")
             result = await asyncio.to_thread(
@@ -127,14 +128,16 @@ async def _align_one(island_id: str) -> None:
             )
             by_idx = {ln["idx"]: ln for ln in lines}
             updates = align.apply(windows, lines, result)
+            code = island.get("language", "ja")
+            lang = languages.get(code)
             for upd in updates:
                 line = by_idx[upd["idx"]]
-                if island.get("language", "ja") == "ja":
+                if lang is not None and lang.segmenter == "mora":
                     words = await asyncio.to_thread(
                         segment.align_pieces, line["text"], upd["pieces"], upd["duration"])
                 else:
                     words = await asyncio.to_thread(
-                        latin.align, line["text"], upd["pieces"], upd["duration"])
+                        latin.align, line["text"], upd["pieces"], upd["duration"], code)
                 wrote = await asyncio.to_thread(
                     store.set_words, island_id, upd["idx"], words, line["words"])
                 if wrote:

@@ -142,7 +142,7 @@ export default function SettingsScreen() {
         try {
           const [speakers, voiceId] = await Promise.all([
             api.listSpeakers(toIslandLanguage(settings.learningLanguage)),
-            getVoice(settings.learningLanguage),
+            getVoice(toIslandLanguage(settings.learningLanguage)),
           ]);
           if (!alive) return;
           const speaker = speakers.find((sp) => sp.styles.some((st) => st.id === voiceId));
@@ -270,6 +270,7 @@ export default function SettingsScreen() {
             label={t('settings.appLanguage')}
             value={appLanguage === 'auto' ? t('settings.appLanguageAuto') : (LOCALES[appLanguage as Lang]?.native ?? t('settings.appLanguageAuto'))}
             last
+            fitValue
             icon={{ ios: 'textformat', android: 'translate' }}
             onPress={() => router.push('/settings/app-language')}
           />

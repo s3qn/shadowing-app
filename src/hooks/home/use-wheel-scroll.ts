@@ -9,6 +9,7 @@ import {
 } from 'react-native-reanimated';
 
 import { STEP } from '@/components/home/island-row';
+import { DOCK_REACH } from '@/components/home/practice-dock';
 import { PILL_TAB_BAR_REACH } from '@/components/pill-tab-bar';
 
 // How much of the list's bottom the floating tab bar covers. The screen pads
@@ -16,9 +17,10 @@ import { PILL_TAB_BAR_REACH } from '@/components/pill-tab-bar';
 // above the screen edge, so the inset cancels and only the bar's reach is left.
 export const TAB_BAR_OVERLAP = PILL_TAB_BAR_REACH;
 
-/** The part of a list this tall that the tab bar leaves visible. */
+/** The part of a list this tall that the tab bar and the practice dock above
+ * it leave visible. */
 export function visibleOf(listH: number): number {
-  return Math.max(1, listH - TAB_BAR_OVERLAP);
+  return Math.max(1, listH - TAB_BAR_OVERLAP - DOCK_REACH);
 }
 
 /** What the list shows: the wheel or the plain search list, and the wheel's

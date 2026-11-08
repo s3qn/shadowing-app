@@ -18,12 +18,14 @@ import Animated, {
 import { CatConstellation } from '@/components/cat-constellation';
 import { GuideBubble } from '@/components/onboarding/guide-bubble';
 import { PrismButton } from '@/components/prism';
+import { PrimaryAction, SecondaryAction } from '@/components/prism/actions';
 import { Segmented } from '@/components/segmented';
 import { GlassInput } from '@/components/tide/glass-input';
 import { fonts } from '@/constants/fonts';
-import { Spacing, tide } from '@/constants/theme';
+import { Spacing, prism, tide, verb as verbTokens } from '@/constants/theme';
 import { applyPlaybackMode, applyRecordingMode, scheduleAudioSessionRelease } from '@/lib/audio-mode';
 import { flushFeedback, submitFeedback, type FeedbackKind } from '@/lib/feedback';
+import { formatClock } from '@/lib/format';
 import { hapticNotify } from '@/lib/haptics';
 import { useDir, useT } from '@/lib/i18n';
 
@@ -47,11 +49,6 @@ function loadPicker(): Picker | null {
     return null;
   }
 }
-
-const clock = (ms: number) => {
-  const s = Math.floor(ms / 1000);
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-};
 
 export default function FeedbackScreen() {
   const { t } = useT();
@@ -229,17 +226,22 @@ export default function FeedbackScreen() {
         <View style={[styles.row, dir.row]} pointerEvents={locked ? 'none' : 'auto'}>
           {recording ? <Animated.View style={[styles.dot, dotStyle]} /> : null}
           <PrismButton
-            shape="pill"
+            shape="round"
+            size={prism.sizes.bigRound}
             verb="speak"
             on={recording}
-            label={recording ? t('feedback.stop', { time: clock(recMs) }) : t('feedback.record')}
             onPress={() => void toggleVoice()}
             accessibilityRole="button"
-          />
+            accessibilityLabel={recording ? t('feedback.stop', { time: formatClock(recMs / 1000) }) : t('feedback.record')}>
+            <View style={[styles.recordDot, recording && styles.recordDotActive]} />
+          </PrismButton>
+          <Text style={[styles.line, { color: tide.text }, dir.text]}>
+            {recording ? t('feedback.stop', { time: formatClock(recMs / 1000) }) : t('feedback.record')}
+          </Text>
           {voice && !recording ? (
             <View style={[styles.voice, dir.row]}>
               <Text style={[styles.line, { color: tide.text }, dir.text]}>
-                {t('feedback.voiceNote', { time: clock(voice.ms) })}
+                {t('feedback.voiceNote', { time: formatClock(voice.ms / 1000) })}
               </Text>
               <Pressable onPress={() => setVoice(null)} accessibilityRole="button" accessibilityLabel="Remove" hitSlop={8} style={styles.x}>
                 <Text style={styles.xGlyph}>×</Text>
@@ -265,13 +267,7 @@ export default function FeedbackScreen() {
               </View>
             ))}
             {images.length < MAX_IMAGES ? (
-              <PrismButton
-                shape="pill"
-                verb="tools"
-                label={t('feedback.addImage')}
-                onPress={() => void addImages()}
-                accessibilityRole="button"
-              />
+              <SecondaryAction label={t('feedback.addImage')} onPress={() => void addImages()} />
             ) : null}
           </View>
         ) : null}
@@ -282,16 +278,7 @@ export default function FeedbackScreen() {
 
         <View style={styles.stack}>
           <Animated.View style={[styles.layer, buttonStyle]} pointerEvents={locked ? 'none' : 'auto'}>
-            <PrismButton
-              shape="pill"
-              verb="tools"
-              on
-              label={t('feedback.send')}
-              disabled={!canSend}
-              onPress={send}
-              accessibilityRole="button"
-              containerStyle={styles.send}
-            />
+            <PrimaryAction label={t('feedback.send')} disabled={!canSend} onPress={send} containerStyle={styles.send} />
           </Animated.View>
           <Animated.View style={[styles.layer, loaderStyle]} pointerEvents={sending && !done ? 'auto' : 'none'}>
             <CatConstellation size={90} label={t('feedback.sending')} />
@@ -313,6 +300,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Spacing.sm },
   voice: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   line: { fontFamily: fonts.ui, fontSize: 14 },
+  recordDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: tide.record },
+  recordDotActive: { backgroundColor: verbTokens.speak.c1 },
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: tide.record },
   thumbWrap: { width: 72, height: 72 },
   thumb: { width: 72, height: 72, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' },
@@ -323,5 +312,5 @@ const styles = StyleSheet.create({
   error: { fontFamily: fonts.ui, fontSize: 14, minHeight: 20 },
   stack: { height: 150 },
   layer: { ...StyleSheet.absoluteFill, justifyContent: 'center', alignItems: 'center' },
-  send: { alignSelf: 'center' },
+  send: { alignSelf: 'stretch' },
 });

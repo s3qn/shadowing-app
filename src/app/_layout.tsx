@@ -24,7 +24,7 @@ import { getBetaSync, loadBetaCache, refreshBeta, useBetaFeatures } from '@/lib/
 import { noteRoute, useFeedbackFlush } from '@/lib/feedback';
 import { loadOfflineIndex } from '@/lib/offline-islands'; // offline-islands
 import { type GuideStep, guideStartHome, useGuideStep } from '@/lib/guide';
-import { useT } from '@/lib/i18n';
+import { useDir, useT } from '@/lib/i18n';
 import { clearCelebration, clearLevelUp, clearStreakMoment, clearXpToast, isSessionActive, useCelebration, usePendingLevelUp, useStreakMoment, useXpToast } from '@/lib/level-up-store';
 import { getSettings } from '@/lib/settings';
 import { startStreakReminderSync } from '@/lib/streak-reminder';
@@ -99,6 +99,7 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Pro
 
 export default function RootLayout() {
   const { t } = useT();
+  const dir = useDir();
   const reducedMotion = useReducedMotion();
   const [ready, setReady] = useState(false);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
@@ -209,7 +210,9 @@ export default function RootLayout() {
         screenOptions={{
           headerStyle: { backgroundColor: tide.sky[0] },
           headerTintColor: tide.text,
+          headerShadowVisible: false,
           headerTitleStyle: { fontWeight: '600' },
+          ...dir.headerSides,
           contentStyle: { backgroundColor: tide.sky[0] },
         }}>
         {/* title names the back button the next screen shows, even though

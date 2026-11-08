@@ -1,0 +1,16 @@
+export const pt = {
+  'player.lookingUp': 'Buscando…',
+  'player.noDictionaryEntry': 'Sem verbete no dicionário.',
+  'player.nothingToAdd': 'Nada a acrescentar.',
+  'player.inThisSentence': 'Nesta frase: {context}',
+  'player.hearAgain': 'Ouvir de novo',
+  'player.explainTitle': 'Explicação',
+  'player.explainNoAnswer': 'Não foi possível obter uma resposta agora.',
+  'player.vocabulary': 'Vocabulário',
+  'player.grammar': 'Gramática',
+  'player.summary': 'Resumo',
+  'player.saveTakeFailed': 'Não foi possível salvar a gravação.',
+  'player.recordingStoppedUnexpectedly': 'A gravação parou inesperadamente.',
+  'player.micAccessOff': 'O acesso ao microfone está desligado. Ative nos Ajustes e tente de novo.',
+  'player.startRecordingFailed': 'Não foi possível iniciar a gravação.',
+};

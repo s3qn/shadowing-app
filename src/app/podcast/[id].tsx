@@ -8,6 +8,9 @@ import type { ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
+import { useBackHeaderOptions } from '@/components/island/player-header';
+import { PrismButton } from '@/components/prism';
+import { LoadingBlock } from '@/components/state-blocks';
 import { ExplainSheet } from '@/components/explain-sheet';
 import { DockPopovers } from '@/components/tide/dock-popovers';
 import { PassHelpSheet } from '@/components/tide/pass-help-sheet';
@@ -19,7 +22,7 @@ import { useListeningCat } from '@/components/cat/listening-cat';
 import { SaveStar } from '@/components/save-star';
 import { fonts } from '@/constants/fonts';
 import { GRAMMAR_LILAC } from '@/components/ruby-word';
-import { Spacing, tide, verb } from '@/constants/theme';
+import { Spacing, prism, tide, verb } from '@/constants/theme';
 import { snapRate, takeWatchSec, type useLadder } from '@/hooks/use-ladder';
 import { useDockPopovers } from '@/hooks/use-dock-popovers';
 import { useTrayPills } from '@/hooks/use-tray-pills';
@@ -488,6 +491,16 @@ export default function PodcastScreen() {
 
   // The dock floats over the transcript's bottom, above the home indicator;
   // the transcript runs on under it to the screen's edge.
+  const backHeader = useBackHeaderOptions({
+    right:
+      canAiPick && !ladder.stage
+        ? () => (
+            <PrismButton shape="round" size={prism.sizes.roundSm} verb="read" onPress={aiPick} accessibilityLabel={t('podcast.aiPick.label')}>
+              <SymbolView name={{ ios: 'sparkles', android: 'auto_awesome' }} size={20} weight="regular" tintColor={verb.read.c1} />
+            </PrismButton>
+          )
+        : undefined,
+  });
   return (
     <View style={[styles.fill, { backgroundColor: tide.sky[0] }]} onTouchStart={noteTouch}>
       <StatusBar style="light" />
@@ -495,14 +508,7 @@ export default function PodcastScreen() {
         options={{
           title: island?.title ?? '',
           // The stage draws its own `?` while the ladder runs; the AI pick is for the plain player.
-          headerRight:
-            canAiPick && !ladder.stage
-              ? () => (
-                  <Pressable onPress={aiPick} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('podcast.aiPick.label')} style={styles.sparkles}>
-                    <SymbolView name={{ ios: 'sparkles', android: 'auto_awesome' }} size={20} weight="regular" tintColor={verb.read.c1} />
-                  </Pressable>
-                )
-              : undefined,
+          ...backHeader,
         }}
       />
       {error || failed ? (
@@ -510,9 +516,7 @@ export default function PodcastScreen() {
           <Text style={styles.hint}>{t('podcast.loadFailed')}</Text>
         </View>
       ) : !island || !loaded || (review && !reviewSet) ? (
-        <View style={styles.center}>
-          <CatConstellation size={120} />
-        </View>
+        <LoadingBlock />
       ) : (
         <>
           <View style={styles.fill}>
@@ -685,7 +689,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   slot: { position: 'relative' },
-  sparkles: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   aiHint: { paddingHorizontal: 24, paddingVertical: 8 },
   pickVeil: { backgroundColor: 'rgba(0,0,0,0.45)' },
   tagChip: {

@@ -1,7 +1,7 @@
 // --- ai-guardrails ---
 // Dev only: makes the next build or import request answer like a real budget
 // or kill-switch block, without touching the network. Cleared by resetSimulation().
-export type DevApiBlock = 'daily_budget' | 'ai_paused';
+export type DevApiBlock = 'daily_budget' | 'ai_paused' | 'language_unavailable';
 
 let block: DevApiBlock | null = null;
 
@@ -21,5 +21,9 @@ export function devBlockedResponse(input: unknown, init?: { method?: string }): 
   if (!code || init?.method !== 'POST') return null;
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : ((input as { url?: string })?.url ?? '');
   if (!BUILD_PATH.test(url)) return null;
+  if (code === 'language_unavailable') {
+    // lang-core: the route guard's refusal for a language this device may not build in.
+    return new Response(JSON.stringify({ detail: { code, language: 'fr' } }), { status: 400 });
+  }
   return new Response(JSON.stringify({ detail: { code } }), { status: code === 'ai_paused' ? 503 : 429 });
 }

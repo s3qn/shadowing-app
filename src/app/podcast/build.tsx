@@ -23,13 +23,14 @@ export default function PodcastBuildScreen() {
     setError('');
     getSettings().then(async (settings) => {
       const { learningLanguage, understoodLanguage } = settings;
-      const voice = await getVoice(learningLanguage);
+      const language = toIslandLanguage(learningLanguage);
+      const voice = await getVoice(language);
       api
         .importPodcastEpisode(
           audioUrl,
           title || t('record.defaultEpisodeTitle'),
           voice,
-          toIslandLanguage(learningLanguage),
+          language,
           toNativeLanguage(understoodLanguage),
         )
         .then(({ id }) => follow(id))

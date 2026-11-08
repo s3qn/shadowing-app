@@ -5,6 +5,7 @@ import { SymbolView } from 'expo-symbols';
 import { memo, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
+  type LayoutChangeEvent,
   type ListRenderItem,
   Pressable,
   StyleSheet,
@@ -22,6 +23,7 @@ import Animated, {
   type SharedValue,
   useAnimatedReaction,
   useAnimatedStyle,
+  useDerivedValue,
   useSharedValue,
   Easing,
   withTiming,
@@ -30,9 +32,12 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { Canvas, LinearGradient, Rect, vec } from '@shopify/react-native-skia';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { CatConstellation } from '@/components/cat-constellation';
 import { PressScale } from '@/components/press-scale';
+import { GLASS_RADIUS } from '@/components/glass-card';
+import { headerRightButton } from '@/lib/header-buttons';
 import { PrismButton } from '@/components/prism';
+import { PillTrayItem, PillTrayShell, SlidingLitPill, type PillItemBox } from '@/components/prism/pill-tray';
+import { ErrorState, LoadingBlock } from '@/components/state-blocks';
 import { GRAMMAR_LILAC } from '@/components/ruby-word';
 import { SearchIcon } from '@/components/tide/toolbar-icons';
 
@@ -42,7 +47,9 @@ import * as api from '@/lib/api';
 import { hapticSelection } from '@/lib/haptics';
 import { getGuideStep, setGuideStep, useGuideAnchor, useGuideLock, useGuideStep } from '@/lib/guide';
 import { useDir, useT } from '@/lib/i18n';
+import { hasGrammar as languageHasGrammar } from '@/lib/languages';
 import { getSettingsSync, isGrammarLevel, setGrammarLevel, subscribeSettings, toIslandLanguage, toNativeLanguage } from '@/lib/settings';
+import { type Key } from '@/locales/en';
 
 const SIDE = 16;
 const MIC_SIZE = 44;
@@ -59,13 +66,10 @@ const SEARCH_DEBOUNCE = 200;
 // GR3-2 .fade: 110 tall, clear to the sky's foot at 85%.
 const FADE_H = 110;
 const FADE_TO = '#16243A';
-const TILE_RADIUS = 20;
 // GR3-2 deck: the page is 50 narrower than the screen. A flip moves it a screen width
 // plus 24, so the other side sits fully off screen at rest and slides in on a drag.
 const PAGE_INSET = 50;
 const PAGE_OFF = 24;
-const PILL_W = 196;
-const KNOB_W = (PILL_W - 8) / 2;
 const GRAMMAR_EMOJI: Record<string, string> = {
   ながら: '🎧',
   てしまう: '😅',
@@ -404,7 +408,7 @@ export default function PhrasesScreen() {
     ({ item }) => <GrammarTile point={item} text={dir.text} onOpen={openPoint} />,
     [dir.text, openPoint],
   );
-  const isJa = toIslandLanguage(learningLanguage) === 'ja';
+  const isJa = languageHasGrammar(toIslandLanguage(learningLanguage));
   // The deck shows until the backend says it has no grammar, so the first fetch paints its loader there.
   const hasGrammar = isJa && (grammarLevelList === null || grammarLevelList.length > 0);
   // Fetched on mount, the shown level first, then the rest. Refetched on focus so a point added
@@ -482,10 +486,34 @@ export default function PhrasesScreen() {
       scheduleOnRN(setSide, to);
     });
   const deckStyle = useAnimatedStyle(() => ({ transform: [{ translateX: -flip.value * stride }] }));
-  const knobStyle = useAnimatedStyle(() => ({ transform: [{ translateX: flip.value * KNOB_W }] }));
-  const phrasesInk = useAnimatedStyle(() => ({ color: interpolateColor(flip.value, [0, 1], ['#FFE2A0', '#B7B1C6']) }));
-  const grammarInk = useAnimatedStyle(() => ({ color: interpolateColor(flip.value, [0, 1], ['#B7B1C6', '#FFE2A0']) }));
+  // The switcher's lit pill follows the deck: it sits between the two measured tabs as the page drags.
+  const [tabBoxes, setTabBoxes] = useState<(PillItemBox | undefined)[]>([]);
+  const tabsReady = !!tabBoxes[0] && !!tabBoxes[1];
+  const x0 = tabBoxes[0]?.x ?? 0;
+  const x1 = tabBoxes[1]?.x ?? 0;
+  const w0 = tabBoxes[0]?.width ?? 0;
+  const w1 = tabBoxes[1]?.width ?? 0;
+  const tabX = useDerivedValue(() => interpolate(flip.value, [0, 1], [x0, x1]));
+  const tabW = useDerivedValue(() => interpolate(flip.value, [0, 1], [w0, w1]));
+  const tabFill = Math.max(w0, w1);
+  const measureTab = useCallback((i: number, e: LayoutChangeEvent) => {
+    const { x, width } = e.nativeEvent.layout;
+    setTabBoxes((prev) => {
+      if (prev[i]?.x === x && prev[i]?.width === width) return prev;
+      const next = [...prev];
+      next[i] = { x, width };
+      return next;
+    });
+  }, []);
   const hintStyle = useAnimatedStyle(() => ({ opacity: interpolate(flip.value, [0, 0.5, 1], [1, 0.6, 1]) }));
+  // A language without grammar has no Grammar page: land on Phrases, so coming back to a grammar
+  // language does not reopen the deck flipped.
+  useEffect(() => {
+    if (!isJa && (side !== 0 || flip.value !== 0)) {
+      flip.value = 0;
+      setSide(0);
+    }
+  }, [isJa, side, flip]);
   const flipTo = (to: number) => {
     flip.value = withTiming(to, DECK_FLIP);
     setSide(to);
@@ -521,6 +549,12 @@ export default function PhrasesScreen() {
       numColumns={2}
       data={topics}
       keyExtractor={(topic) => topic.id}
+      // lang-core: a language with no baked catalogue yet (the Record hint above still stands).
+      ListEmptyComponent={
+        <Text style={[styles.hint, styles.centerText]}>
+          {t('phrases.noneYet', { language: t(`language.${toIslandLanguage(learningLanguage)}` as Key) })}
+        </Text>
+      }
       renderItem={({ item }) => {
         const title = lang === 'he' ? (item.titleHe ?? item.title) : item.title;
         // The Hebrew sub-label is for a learner whose glosses are Hebrew under another UI language.
@@ -571,10 +605,7 @@ export default function PhrasesScreen() {
       <Stack.Screen
         options={{
           title: t('home.phrasesTitle'),
-          headerStyle: { backgroundColor: tide.sky[0] },
-          headerTintColor: tide.text,
-          headerShadowVisible: false,
-          headerRight: () => (
+          ...headerRightButton(() => (
             <View style={{ marginEnd: 12 }}>
               <PrismButton
                 shape="round"
@@ -586,7 +617,7 @@ export default function PhrasesScreen() {
                 <View style={styles.recordDot} />
               </PrismButton>
             </View>
-          ),
+          )),
         }}
       />
       <View style={styles.promptWrap}>
@@ -594,36 +625,37 @@ export default function PhrasesScreen() {
         <Text style={[styles.hint, dir.text]}>{t('phrases.promptHint')}</Text>
       </View>
       {error ? (
-        <View style={styles.center}>
-          <Text style={[styles.hint, styles.centerText]}>{error}</Text>
-          <View ref={guideGrid.ref} onLayout={guideGrid.onLayout} style={styles.retryBox}>
-            <PrismButton shape="pill" verb="read" height={48} label={t('common.retry')} onPress={retry} />
-          </View>
+        <View ref={guideGrid.ref} onLayout={guideGrid.onLayout} style={styles.fill}>
+          <ErrorState message={error} onRetry={retry} />
         </View>
       ) : !topics ? (
-        <View style={styles.center}>
-          <CatConstellation size={120} label={t('common.loading')} />
-        </View>
+        <LoadingBlock />
       ) : hasGrammar ? (
         <View style={styles.fill} onLayout={(e) => setDeckH(e.nativeEvent.layout.height || 0)}>
           <View
-            style={[styles.pill, { width: PILL_W }]}
+            style={styles.tabs}
             onLayout={(e) => setPillBox({ y: e.nativeEvent.layout.y || 0, h: e.nativeEvent.layout.height || 0 })}>
-            <Animated.View style={[styles.knob, { width: KNOB_W }, knobStyle]} pointerEvents="none" />
-            <Pressable
-              style={styles.seg}
-              onPress={() => flipTo(0)}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: side === 0 }}>
-              <Animated.Text style={[styles.segText, phrasesInk]}>{t('phrases.tabPhrases')}</Animated.Text>
-            </Pressable>
-            <Pressable
-              style={styles.seg}
-              onPress={() => flipTo(1)}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: side === 1 }}>
-              <Animated.Text style={[styles.segText, grammarInk]}>{t('phrases.tabGrammar')}</Animated.Text>
-            </Pressable>
+            <PillTrayShell wrapStyle={styles.tabsWrap}>
+              <View style={[styles.tabsRow, dir.row]}>
+                {tabsReady ? <SlidingLitPill translateX={tabX} width={tabW} fillWidth={tabFill} /> : null}
+                <PillTrayItem
+                  label={t('phrases.tabPhrases')}
+                  box={tabBoxes[0]}
+                  pillX={tabX}
+                  pillW={tabW}
+                  onLayout={(e) => measureTab(0, e)}
+                  onPress={() => flipTo(0)}
+                />
+                <PillTrayItem
+                  label={t('phrases.tabGrammar')}
+                  box={tabBoxes[1]}
+                  pillX={tabX}
+                  pillW={tabW}
+                  onLayout={(e) => measureTab(1, e)}
+                  onPress={() => flipTo(1)}
+                />
+              </View>
+            </PillTrayShell>
           </View>
           <GestureDetector gesture={deck}>
             <Animated.View style={[styles.deck, { width: pageW + stride, gap: stride - pageW }, deckStyle]}>
@@ -633,9 +665,7 @@ export default function PhrasesScreen() {
               </View>
               <View style={{ width: pageW }}>
                 {!shown ? (
-                  <View style={styles.center}>
-                    <CatConstellation size={120} label={t('common.loading')} />
-                  </View>
+                  <LoadingBlock />
                 ) : (
                   <FlatList
                     ref={gridRef}
@@ -729,8 +759,6 @@ const styles = StyleSheet.create({
   recordDot: { width: 13, height: 13, borderRadius: 7, backgroundColor: tide.record },
   promptWrap: { paddingHorizontal: SIDE, paddingTop: Spacing.sm, gap: 4 },
   prompt: { fontSize: 20, lineHeight: 26, color: tide.text, fontFamily: fonts.uiMedium, fontWeight: '500' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.lg, paddingHorizontal: SIDE },
-  retryBox: { minWidth: 160 },
   centerText: { textAlign: 'center' },
   hint: { fontSize: 14, lineHeight: 20, color: tide.textDim, fontFamily: fonts.ui },
   list: { paddingHorizontal: SIDE, paddingVertical: Spacing.md, gap: TILE_GAP },
@@ -765,29 +793,9 @@ const styles = StyleSheet.create({
   },
   searchClear: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   tile: { flex: 1 },
-  pill: {
-    alignSelf: 'center',
-    flexDirection: 'row',
-    height: 38,
-    padding: 4,
-    marginTop: Spacing.sm,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-  },
-  knob: {
-    position: 'absolute',
-    left: 4,
-    top: 4,
-    bottom: 4,
-    borderRadius: 15,
-    backgroundColor: 'rgba(255,200,87,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,200,87,0.40)',
-  },
-  seg: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  segText: { fontSize: 14, fontFamily: fonts.uiMedium, fontWeight: '600' },
+  tabs: { alignItems: 'center', marginTop: Spacing.sm },
+  tabsWrap: { alignSelf: 'center' },
+  tabsRow: { flexDirection: 'row', gap: Spacing.sm },
   deck: { flex: 1, flexDirection: 'row', marginLeft: SIDE },
   // GR3-2 .cc.lv
   lvl: {
@@ -837,7 +845,7 @@ const styles = StyleSheet.create({
   },
   card: {
     height: TILE_H,
-    borderRadius: TILE_RADIUS,
+    borderRadius: GLASS_RADIUS,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.14)',

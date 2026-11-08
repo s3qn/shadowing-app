@@ -1,22 +1,16 @@
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  FlatList,
-  Image,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { FlatList, Image, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { CatConstellation } from '@/components/cat-constellation';
+import { LanguageCard } from '@/components/language-card';
 import { Segmented } from '@/components/segmented';
-import { fonts } from '@/constants/fonts';
-import { Radius, Spacing, tide } from '@/constants/theme';
+import { ErrorState, LoadingBlock } from '@/components/state-blocks';
+import { Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
 import { applyPlaybackMode, scheduleAudioSessionRelease, startPlayback, useSessionPlayer } from '@/lib/audio-mode';
-import { useDir, useT } from '@/lib/i18n';
+import { midSentence, useDir, useT } from '@/lib/i18n';
 import { localizeVoicePart } from '@/lib/voice-label';
 import { getLanguage, type LanguageId } from '@/lib/languages';
 import { getSettingsSync, getVoice, setVoice, subscribeSettings, toIslandLanguage } from '@/lib/settings';
@@ -32,11 +26,12 @@ function languageName(t: (key: Key) => string, id: LanguageId): string {
 }
 
 export default function VoiceScreen() {
-  const { t } = useT();
+  const { t, lang: appLang } = useT();
   const dir = useDir();
   const [speakers, setSpeakers] = useState<api.Speaker[]>([]);
   const [chosen, setChosen] = useState<number | null>(null);
   const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
   const player = useAudioPlayer(null);
   const status = useAudioPlayerStatus(player);
   useSessionPlayer(player);
@@ -81,7 +76,7 @@ export default function VoiceScreen() {
       return () => {
         alive = false;
       };
-    }, [island, t]),
+    }, [island, t, attempt]),
   );
 
   // Tapping a style both previews it and makes it the voice for new islands.
@@ -93,7 +88,7 @@ export default function VoiceScreen() {
   }
 
   const chosenSpeaker = speakers.find((sp) => sp.styles.some((st) => st.id === chosen));
-  const islandName = languageName(t, island);
+  const islandName = midSentence(appLang, languageName(t, island));
 
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
@@ -103,7 +98,6 @@ export default function VoiceScreen() {
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <View style={styles.header}>
-            <Text style={[styles.title, { color: tide.text }, dir.text]}>{t('title.voice')}</Text>
             {comingSoonName ? (
               <Text style={[styles.hint, { color: tide.textDim }, dir.text]}>
                 {t('settings.voice.comingSoonNote', { name: comingSoonName, lang: islandName })}
@@ -116,11 +110,15 @@ export default function VoiceScreen() {
         }
         ListEmptyComponent={
           error ? (
-            <Text style={[styles.hint, { color: tide.record }, dir.text]}>{error}</Text>
+            <ErrorState
+              message={error}
+              onRetry={() => {
+                setError('');
+                setAttempt((n) => n + 1);
+              }}
+            />
           ) : (
-            <View style={{ marginTop: Spacing.xl, alignItems: 'center' }}>
-              <CatConstellation size={110} />
-            </View>
+            <LoadingBlock />
           )
         }
         ListFooterComponent={
@@ -132,29 +130,30 @@ export default function VoiceScreen() {
         }
         renderItem={({ item: sp }) => {
           const active = sp.styles.find((st) => st.id === chosen) ?? sp.styles[0];
+          const name = localizeVoicePart(t, sp.name);
           return (
-            <View style={[styles.row, { backgroundColor: tide.water, borderColor: tide.waterline }]}>
-              <View style={[styles.rowTop, dir.row]}>
-                {active ? (
-                  active.icon ? (
-                    <Image source={{ uri: api.iconUrl(active.icon) }} style={styles.icon} />
-                  ) : (
-                    <View style={[styles.icon, styles.iconFallback]}>
-                      <Text style={styles.iconFallbackText}>{active.name.charAt(0).toUpperCase()}</Text>
-                    </View>
-                  )
-                ) : null}
-                {/* A voice's own name (Japanese for VOICEVOX), so it reads by
-                    its own script, not the interface's. */}
-                <Text style={[styles.name, { color: tide.text }, dir.content]}>{localizeVoicePart(t, sp.name)}</Text>
-              </View>
+            <LanguageCard
+              // A voice's own name (Japanese for VOICEVOX) reads by its own script, not the interface's.
+              avatar={
+                active?.icon ? (
+                  <Image source={{ uri: api.iconUrl(active.icon) }} style={styles.icon} />
+                ) : (
+                  (active?.name ?? sp.name).charAt(0).toUpperCase()
+                )
+              }
+              title={name}
+              subtitle={sp.kind === 'hosted' ? t('settings.voice.hostedNote', { n: sp.limit ?? 60 }) : undefined}
+              selected={sp.styles.some((st) => st.id === chosen)}
+              onPress={() => {
+                if (sp.styles[0]) void pick(sp.styles[0].id);
+              }}>
               <Segmented
                 scrollable
                 options={sp.styles.map((st) => ({ value: String(st.id), label: localizeVoicePart(t, st.name) }))}
                 value={String(chosen)}
                 onChange={(v) => void pick(Number(v))}
               />
-            </View>
+            </LanguageCard>
           );
         }}
       />
@@ -164,15 +163,9 @@ export default function VoiceScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  list: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: 170 },
+  list: { padding: Spacing.lg, paddingBottom: 170 },
   header: { gap: Spacing.xs, marginBottom: Spacing.sm },
-  title: { fontSize: 22, fontWeight: '700' },
+  icon: { width: 40, height: 40 },
   hint: { fontSize: 14, lineHeight: 20 },
   credit: { fontSize: 12, lineHeight: 18, marginTop: Spacing.lg, textAlign: 'center' },
-  row: { borderWidth: 1, borderRadius: Radius.md, padding: Spacing.md, gap: Spacing.sm },
-  rowTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  icon: { width: 44, height: 44, borderRadius: 22 },
-  iconFallback: { backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
-  iconFallbackText: { fontSize: 17, color: tide.text, fontFamily: fonts.uiMedium, fontWeight: '500' },
-  name: { fontSize: 17, fontWeight: '600' },
 });

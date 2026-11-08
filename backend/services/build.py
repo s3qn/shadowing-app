@@ -17,6 +17,7 @@ import export
 import generate
 import grammar
 import kokoro_tts
+import lang_text
 import latin
 import media as media_io
 import podcast
@@ -24,6 +25,7 @@ import segment
 import starter
 import store
 import transcribe
+import tts_registry
 import voicevox
 import voices
 
@@ -32,46 +34,91 @@ from services import line_audio
 log = logging.getLogger("shadow")
 
 
+def _asr_steer(language: str) -> dict:
+    """The `initial_prompt` kwarg for a pinned language that has one in the
+    table (zh, ko, fr, pt), nothing for the rest."""
+    prompt = lang_text.asr_prompt(language)
+    return {"initial_prompt": prompt} if prompt else {}
+
+
 async def _synthesize_lines(island_id: str, lines: list[dict], speaker: int,
-                            language: str = "ja") -> int:
+                            language: str = "ja", device: str = "") -> int:
     """Render every line to its own wav. Returns how many succeeded.
 
-    ja's word timing comes from VOICEVOX's own mora timeline. Kokoro (es,
-    en) is timed from the model's own phoneme durations (latin.align_phonemes)
-    when the export has them; otherwise the line is re-transcribed with whisper
-    right after rendering and the words mapped on with latin.align; a
-    transcription failure never fails the island, just that line's timing
-    (steady-pace fallback, logged)."""
+    Word timing follows what the voice gives back: VOICEVOX's mora timeline
+    (segment.align), a hosted provider's word pieces (latin.align), Kokoro's
+    phoneme durations (latin.align_phonemes), else the line is re-transcribed
+    with whisper right after rendering and the words mapped on with
+    latin.align; a transcription failure never fails the island, just that
+    line's timing (steady-pace fallback, logged). `device` (the island's
+    owner when not given) counts hosted lines against the daily cap; when a
+    hosted voice fell back the island's speaker becomes the voice it got."""
+    if not device:
+        row = await asyncio.to_thread(store.get_island, island_id)
+        device = (row or {}).get("device") or ""
+    requested = speaker
+    if tts_registry.voice(speaker) is None:
+        # A saved hosted voice whose provider is gone (no key): the free voice.
+        speaker = tts_registry.default_voice(language)
+        log.warning("island %s: voice %d is not registered, using %d", island_id, requested, speaker)
     done = 0
+    fell = 0
+    used = speaker
     for idx, line in enumerate(lines):
         try:
-            wav, timeline, duration, _, timings = await voices.speak_timed(line["ja"], speaker)
-        except (voicevox.VoicevoxError, kokoro_tts.KokoroError):
+            out = await voices.render(line["ja"], speaker, device)
+        except voices.VOICE_ERRORS:
             log.exception("synthesis failed for line %d of %s", idx, island_id)
             continue
+        if out.fallback or speaker != requested:
+            fell += 1
+            used = out.voice
+        if out.fallback == "error":
+            # The provider is failing: the rest of the build goes straight to
+            # the free voice instead of waiting on it once per line.
+            speaker = tts_registry.default_voice(language)
+        timeline, duration = out.timeline, out.duration
         # Write beside the target and swap, so a player streaming the old file
         # never reads a half-written one.
         target = store.line_audio_path(island_id, idx)
         tmp = target.with_suffix(".tmp")
-        tmp.write_bytes(wav)
+        tmp.write_bytes(out.wav)
         os.replace(tmp, target)
-        if language == "ja":
+        voice = tts_registry.voice(out.voice)
+        timing = voice.timing if voice else "none"
+        words = []
+        if timing == "mora":
             words = await asyncio.to_thread(segment.align, line["ja"], timeline)
-        else:
-            words = latin.align_phonemes(line["ja"], timings, duration)
-            if not words:
-                log.info("no phoneme timings for line %d, timing with whisper", idx)
-                result = await asyncio.to_thread(
-                    transcribe.transcribe, target, language, word_timestamps=True
+        elif timing == "pieces" and out.pieces:
+            words = await asyncio.to_thread(latin.align, line["ja"], out.pieces, duration, language)
+        elif timing == "phoneme":
+            words = latin.align_phonemes(line["ja"], out.phonemes, duration, language)
+        if not words and timing != "mora":
+            log.info("no provider timings for line %d, timing with whisper", idx)
+            result = await asyncio.to_thread(
+                transcribe.transcribe, target, lang_text.asr_language(language),
+                word_timestamps=True, **_asr_steer(language),
+            )
+            if not result.get("ok"):
+                log.warning(
+                    "island %s: whisper could not time line %d, falling back to a steady pace",
+                    island_id, idx,
                 )
-                if not result.get("ok"):
-                    log.warning(
-                        "island %s: whisper could not time line %d, falling back to a steady pace",
-                        island_id, idx,
-                    )
-                words = await asyncio.to_thread(latin.align, line["ja"], result.get("words", []), duration)
+            if lang_text.segmenter(language) == "mora":
+                # Unspaced text: the same kanji-aware alignment and reading an import gets.
+                words = await asyncio.to_thread(
+                    segment.align_pieces, line["ja"], result.get("words", []), duration)
+                line = {**line, "kana": line.get("kana") or await asyncio.to_thread(segment.reading, line["ja"])}
+            else:
+                words = await asyncio.to_thread(
+                    latin.align, line["ja"], result.get("words", []), duration, language)
+        if lang_text.segmenter(language) != "mora":
+            lang_text.ruby(words, language)
         store.add_line(island_id, idx, line, duration, timeline, words)
         done += 1
+    if done and fell == done and used != requested:
+        # Only when every line fell back: a mixed build keeps the requested voice.
+        store.set_speaker(island_id, used)
     # A re-voice or regenerate with fewer lines must not leave old wavs behind.
     for stale in (store.AUDIO_DIR / island_id).glob("*.wav"):
         base = stale.stem.split("@")[0]
@@ -213,13 +260,16 @@ async def _build_from_cues(island_id: str, source_wav: Path, cue_list: list[dict
             {"text": w["text"], "start": w["start"] - start, "end": w["end"] - start}
             for w in cue.get("words", [])
         ]
-        if language == "ja":
+        if lang_text.segmenter(language) == "mora":
             words = await asyncio.to_thread(segment.align_pieces, cue["text"], pieces, duration)
             kana = segment.reading(cue["text"])
+            romaji = ""
         else:
-            words = await asyncio.to_thread(latin.align, cue["text"], pieces, duration)
+            words = await asyncio.to_thread(latin.align, cue["text"], pieces, duration, language)
+            lang_text.ruby(words, language)
             kana = ""
-        line = {"ja": cue["text"], "kana": kana, "romaji": "", "en": ""}
+            romaji = lang_text.reading(cue["text"], language)
+        line = {"ja": cue["text"], "kana": kana, "romaji": romaji, "en": ""}
         store.add_line(island_id, made, line, duration, [], words, offset=start)
         if cue.get("words"):
             with_words += 1
@@ -299,7 +349,10 @@ async def _build_import(island_id: str, media: Path, srt_text: str | None,
 
         store.set_media(island_id, total)
         store.set_stage(island_id, "transcribing")
-        result = await asyncio.to_thread(transcribe.transcribe, wav, language, True, True)
+        result = await asyncio.to_thread(
+            transcribe.transcribe, wav, lang_text.asr_language(language), True, True,
+            **_asr_steer(language),
+        )
         if not result.get("ok"):
             store.set_failed(
                 island_id,
@@ -476,8 +529,10 @@ async def _build_phrases(island_id: str, texts: list[str], glosses: list[str], t
         lines = []
         for i, text in enumerate(texts):
             gloss = translations[i] if i < len(translations) else ""
-            kana = await asyncio.to_thread(segment.reading, text) if language == "ja" else ""
-            lines.append({"ja": text, "kana": kana, "romaji": "", "en": gloss or ""})
+            mora = lang_text.segmenter(language) == "mora"
+            kana = await asyncio.to_thread(segment.reading, text) if mora else ""
+            romaji = "" if mora else await asyncio.to_thread(lang_text.reading, text, language)
+            lines.append({"ja": text, "kana": kana, "romaji": romaji, "en": gloss or ""})
         made = await _synthesize_lines(island_id, lines, speaker, language)
         if made == 0:
             store.set_failed(island_id, "The voice engine produced no audio.", "voice_no_audio")
@@ -511,7 +566,20 @@ async def _build_say(island_id: str, wav: Path, speaker: int, register: str,
         text = (transcript or "").strip()
         if not text:
             store.set_stage(island_id, "transcribing")
-            result = await asyncio.to_thread(transcribe.transcribe, wav, native)
+            # The account's native setting is not the language spoken: hear
+            # Hebrew vs English from the audio. detect_he_en answers only when
+            # confident, so a weak lean (None) keeps the setting, as does a
+            # detection of the language being learned.
+            lang = await asyncio.to_thread(transcribe.detect_he_en, wav)
+            if lang is None or lang == learning:
+                lang = native
+            model = "he" if lang == "he" else "default"
+            result = await asyncio.to_thread(
+                transcribe.transcribe, wav, lang_text.asr_language(lang),
+                model=model, **_asr_steer(lang))
+            if lang != native:
+                native = lang
+                store.set_island_native(island_id, lang)
             text = (result.get("text") or "").strip()
             if not text:
                 store.set_failed(

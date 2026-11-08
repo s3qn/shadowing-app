@@ -3,6 +3,7 @@ import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View, type 
 import Animated, { cancelAnimation, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
 
 import { CosmeticArt, SHAPE_BOX } from '@/components/cat/cosmetic-layer';
+import { CheckCircle } from '@/components/language-card';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide, verb } from '@/constants/theme';
 import { useDir, useT } from '@/lib/i18n';
@@ -157,7 +158,7 @@ function Cell({ item, state, selected, index, size, animate, onPress }: CellProp
           </View>
           {worn ? (
             <Animated.View style={[styles.check, dir.rtl ? { left: -6 } : { right: -6 }, checkStyle]}>
-              <Text style={styles.checkGlyph}>✓</Text>
+              <CheckCircle selected />
             </Animated.View>
           ) : null}
         </View>
@@ -337,8 +338,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     boxShadow: 'inset 0 0 0 1px rgba(124,200,255,0.55), inset 0 -26px 28px -14px rgba(124,200,255,0.30)',
   },
-  check: { position: 'absolute', top: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: CYAN, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
-  checkGlyph: { fontSize: 13, lineHeight: 16, fontWeight: '700', color: INK },
+  check: { position: 'absolute', top: -6, zIndex: 2 },
   discRing: { width: DISC, height: DISC, borderRadius: DISC / 2 },
   discRingWorn: { boxShadow: `0 0 0 2px ${CYAN}, 0 0 18px rgba(124,200,255,0.55)` },
   disc: { width: DISC, height: DISC, borderRadius: DISC / 2, backgroundColor: '#232b5e', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },

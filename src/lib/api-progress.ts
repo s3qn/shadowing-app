@@ -107,7 +107,7 @@ export async function getProgress(): Promise<Progress> {
   return json<Progress>(await fetch(`${BASE}/progress`, { headers: headers() }));
 }
 
-export async function getCosmeticsCatalog(ui: 'en' | 'he'): Promise<CosmeticsCatalog> {
+export async function getCosmeticsCatalog(ui: string): Promise<CosmeticsCatalog> {
   return json<CosmeticsCatalog>(await fetch(`${BASE}/cosmetics/catalog?ui=${ui}`, { headers: headers() }));
 }
 
@@ -122,6 +122,15 @@ export async function buyCosmetic(itemId: string): Promise<Progress> {
   const form = new FormData();
   form.append('item_id', itemId);
   return json<Progress>(await expoFetch(`${BASE}/cosmetics/buy`, { method: 'POST', headers: headers(), body: form }));
+}
+
+/** Dev only (tts-providers): forces every hosted voice render into one
+ * state on the dev backend: `budget_out`, `provider_down`, `hosted_off`, or
+ * `""` to clear. 404 in prod. */
+export async function devTtsSim(mode: 'budget_out' | 'provider_down' | 'hosted_off' | ''): Promise<void> {
+  const form = new FormData();
+  form.append('mode', mode);
+  await expoFetch(`${BASE}/dev/tts-sim`, { method: 'POST', headers: headers(), body: form });
 }
 
 /** Dev only: grants coins to this device and returns the new snapshot. */

@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 
 import access
 import accounts
+import admin_devices
 import config
 import dependencies
 import dev_upload
@@ -18,10 +19,11 @@ import guardrails  # --- ai-guardrails ---
 
 
 class RedactAccessLog(logging.Filter):
-    """Blanks the `user=` (a Supabase JWT) and `token=` query values in
-    uvicorn's access log lines, so the log never holds a usable credential."""
+    """Blanks the `user=` (a Supabase JWT), `token=` and `device=` query
+    values in uvicorn's access log lines, so the log never holds a usable
+    credential or a device id."""
 
-    _SECRET = re.compile(r"([?&](?:user|token)=)[^&\s\"]*")
+    _SECRET = re.compile(r"([?&](?:user|token|device)=)[^&\s\"]*")
 
     def filter(self, record: logging.LogRecord) -> bool:
         if isinstance(record.args, tuple):
@@ -116,6 +118,26 @@ class DeviceGuard:
             response = JSONResponse({"detail": "missing device id"}, status_code=401)
             await response(scope, receive, send)
             return
+        # --- admin-device-bound ---
+        # The admin routes trust x-shadow-admin-key only from here: a client
+        # copy is dropped, and the header is set when a signed X-Shadow-Proof
+        # from an approved key of this very principal checks out.
+        kept = [(k, v) for k, v in scope["headers"] if k != b"x-shadow-admin-key"]
+        proof = headers.get(b"x-shadow-proof", b"").decode("latin-1")
+        if user_token and proof:
+            path = scope["path"]
+            if path.startswith("/shadow/"):
+                path = path[len("/shadow"):]
+            # The proof signs the body too: read it here and replay it to the
+            # route, which then sees the same bytes as if nothing had read them.
+            body, receive = await _buffer_body(receive)
+            key_id = body is not None and await asyncio.to_thread(
+                admin_devices.verify, proof, principal, scope["method"], path, body
+            )
+            if key_id:
+                kept.append((b"x-shadow-admin-key", key_id.encode()))
+        scope["headers"] = kept
+        # --- end admin-device-bound ---
         # --- launch-basics: beta gate (BETA_PATHS and _beta_denied at file end) ---
         # Only for a request with the shared token: without it the route's own
         # check answers 401, so a probe cannot tell gated paths from open ones.
@@ -125,6 +147,39 @@ class DeviceGuard:
             return
         # --- end launch-basics ---
         await self.app(scope, receive, send)
+
+
+# --- admin-device-bound ---
+# An admin body is a few dozen bytes; past this the proof is not checked.
+PROOF_BODY_MAX = 64 * 1024
+
+
+async def _buffer_body(receive):
+    """Reads the request body from `receive` and returns it (None when it
+    passes PROOF_BODY_MAX or the client left early) with a receive callable
+    that replays every message read, then defers to the original. The route
+    sees the same messages as if nothing had read them."""
+    read: list[dict] = []
+    size = 0
+    complete = False
+    while size <= PROOF_BODY_MAX:
+        message = await receive()
+        read.append(message)
+        if message["type"] != "http.request":
+            break
+        size += len(message.get("body", b""))
+        if not message.get("more_body", False):
+            complete = True
+            break
+    body = b"".join(m.get("body", b"") for m in read) if complete and size <= PROOF_BODY_MAX else None
+
+    async def replay():
+        if read:
+            return read.pop(0)
+        return await receive()
+
+    return body, replay
+# --- end admin-device-bound ---
 
 
 # --- security headers ---

@@ -9,9 +9,8 @@ import { GlassPanel } from '@/components/prism';
 import type { Equipped } from '@/constants/cosmetics';
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
-import { getUsername, type Energy } from '@/lib/api';
-import { EnergyMeter, EnergyNote } from '@/components/energy-bolt';
-import { refreshEnergy, useEnergy } from '@/lib/energy';
+import { getUsername } from '@/lib/api';
+import { refreshEnergy } from '@/lib/energy';
 import { useGuideAnchor } from '@/lib/guide';
 import { useDir, useT } from '@/lib/i18n';
 import { equippedArt, useProgress } from '@/lib/progression';
@@ -42,7 +41,7 @@ function CatBadgeView({ level, xpIntoLevel, xpToNext, coins, equipped, username,
   const size = nameSize(name.length);
   return (
     <PressScale onPress={onPress} accessibilityRole="button" accessibilityLabel={t('wardrobe.title')} style={styles.wrap}>
-      <GlassPanel radius={34} style={[styles.panel, dir.row]}>
+      <GlassPanel radius={33} style={[styles.panel, dir.row]}>
         <View pointerEvents="none" style={styles.sheen} />
         <View pointerEvents="none" style={[styles.glow, dir.rtl ? styles.glowRtl : styles.glowLtr]} />
         <CatAvatar size={56} equipped={equipped} frameRate={30} />
@@ -67,26 +66,8 @@ function CatBadgeView({ level, xpIntoLevel, xpToNext, coins, equipped, username,
           <View style={styles.disc} />
           <Text style={styles.coinText}>{coins}</Text>
         </View>
-        <View style={styles.go}>
-          <Text style={styles.goText}>{dir.chevron}</Text>
-        </View>
       </GlassPanel>
     </PressScale>
-  );
-}
-
-/** The V7 bolt, its count and the note, as a plain row 8pt under the badge,
- * on the badge's start edge. Nothing when metering is off. */
-function EnergyRow({ energy }: { energy: Energy | null }) {
-  const dir = useDir();
-  if (!energy?.on) return null;
-  return (
-    <View>
-      <View style={[styles.energyRow, dir.row]}>
-        <EnergyMeter left={energy.daily_left + energy.granted_left} max={energy.daily_max} />
-      </View>
-      <EnergyNote energy={energy} />
-    </View>
   );
 }
 
@@ -95,13 +76,13 @@ export function CatBadge({ anchorGuide = false }: { anchorGuide?: boolean }) {
   const router = useRouter();
   const { progress, catalog } = useProgress();
   const [username, setName] = useState<string | null>(null);
-  const energy = useEnergy();
   // BL-64: the guide's cat step lights the card. PressScale forwards no ref, so the box comes from a wrapper.
   const anchor = useGuideAnchor('catBadge', anchorGuide);
   // Refetch on focus so a handle picked in the gate shows on return to Home.
   useFocusEffect(
     useCallback(() => {
       let alive = true;
+      // Home draws no meter (mock E); this keeps the ⚡ counts on the build buttons current.
       void refreshEnergy();
       getUsername()
         .then((n) => alive && setName(n))
@@ -114,9 +95,7 @@ export function CatBadge({ anchorGuide = false }: { anchorGuide?: boolean }) {
   // Reserve the row height so Home does not jump when progress lands (or never does, offline).
   if (!progress || !catalog) return <View style={styles.placeholder} />;
   return (
-    // One block in Home's gapped column, so the energy row sits exactly 8pt under the badge.
-    <View>
-    <View ref={anchor.ref} onLayout={anchor.onLayout} collapsable={false}>
+    <View ref={anchor.ref} onLayout={anchor.onLayout} collapsable={false} style={styles.block}>
       <CatBadgeView
         level={progress.level}
         xpIntoLevel={progress.xp_into_level}
@@ -127,15 +106,16 @@ export function CatBadge({ anchorGuide = false }: { anchorGuide?: boolean }) {
         onPress={() => router.push('/wardrobe')}
       />
     </View>
-    <EnergyRow energy={energy} />
-    </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: {},
-  placeholder: { height: 68 },
-  panel: { flexDirection: 'row', alignItems: 'center', height: 68, paddingStart: 10, paddingEnd: 14, gap: 12, overflow: 'hidden' },
+  // Mock E: the pill is 66pt and the chips sit 10pt under it, 2pt inside
+  // Home's 12pt column gap.
+  placeholder: { height: 66, marginBottom: -2 },
+  block: { marginBottom: -2 },
+  panel: { flexDirection: 'row', alignItems: 'center', height: 66, paddingStart: 10, paddingEnd: 14, gap: 12, overflow: 'hidden' },
   sheen: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(255,255,255,0.04)' },
   glowLtr: { left: -2 },
   glowRtl: { right: -2 },
@@ -151,7 +131,4 @@ const styles = StyleSheet.create({
   coins: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   disc: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#FFC857' },
   coinText: { fontFamily: fonts.uiMedium, fontSize: 14, color: tide.textDim },
-  go: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.08)' },
-  energyRow: { flexDirection: 'row', marginTop: 8 },
-  goText: { fontFamily: fonts.ui, fontSize: 18, color: '#ECE8F4' },
 });

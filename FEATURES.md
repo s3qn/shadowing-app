@@ -296,6 +296,12 @@ Statuses: **done** (merged to main), **next** (approved, in Sean's order),
 - BL-107 + BL-108 stage stamp V6, seal becomes the stop button
 - BL-109 island peek on Home
 - ET-18/19/20/24/25/26/27 fixes, scoring shimmer
+- Learn 10 languages (ja es en fr pt zh ko de he ar), free local voices,
+  hosted voice adapters with budgets
+- App UI in 10 languages with RTL, picker F, Home E/H, streak B for everyone
+- Harmonize: one look across headers, buttons, cards, sheets (no Done, swipe
+  down)
+- Welcome V6 and admin device keys approved by passcode; Hebrew ASR (ET-28)
 
 ## Next (approved, in order)
 

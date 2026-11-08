@@ -2,13 +2,13 @@ import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
-import { PressScale } from '@/components/press-scale';
+import { GlassCard } from '@/components/glass-card';
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
-import { SheetAction, type SheetIcon } from '@/components/sheet/sheet-rows';
+import { type SheetIcon } from '@/components/sheet/sheet-rows';
 import { skipGuide } from '@/components/onboarding/guide-host';
 import { GuideLayer, guideBubbleHeight } from '@/components/onboarding/guide-layer';
 import { getGuideStep, setGuideStep, useGuideAnchor, useGuideAnchors, useGuideStep } from '@/lib/guide';
-import { tide, verb, withAlpha } from '@/constants/theme';
+import { tide, verb } from '@/constants/theme';
 import { fonts } from '@/constants/fonts';
 import { useBetaFeatures } from '@/lib/beta';
 import { useDir, useT } from '@/lib/i18n';
@@ -22,9 +22,11 @@ type Row = {
 };
 
 /** launch-basics: the two square tiles. Side padding of the sheet, gap between tiles, largest tile edge. */
-const SHEET_SIDE = 16;
+const SHEET_SIDE = 20;
 const TILE_GAP = 12;
 const TILE_MAX = 168;
+/** Space the sheet needs besides the tiles: the status bar gap and the bottom inset. */
+const SHEET_FOOT = 148;
 /** From the sheet's top edge to the tile row's top: the grab bar and the title. */
 const SHEET_HEAD = 44;
 
@@ -36,8 +38,8 @@ export function AddIslandSheet({ open, onClose }: { open: boolean; onClose: () =
   const { t } = useT();
   const dir = useDir();
   const beta = useBetaFeatures();
-  const { width } = useWindowDimensions();
-  const tile = Math.min(TILE_MAX, (width - SHEET_SIDE * 2 - TILE_GAP) / 2);
+  const { width, height } = useWindowDimensions();
+  const tile = Math.min(TILE_MAX, Math.floor((width - SHEET_SIDE * 2 - TILE_GAP) / 2));
   const router = useRouter();
   const guide = useGuideStep() === 'add' && open;
   const phrases = useGuideAnchor('addPhrases', guide);
@@ -48,10 +50,12 @@ export function AddIslandSheet({ open, onClose }: { open: boolean; onClose: () =
     { key: 'phrases', label: t('home.add.phrases'), icon: { ios: 'text.bubble', android: 'chat' }, href: '/phrases' },
   ];
   // Hidden from everyone the admin has not switched on.
-  const rows: Row[] = [
-    ...(beta.import ? [{ key: 'import', label: t('home.add.import'), icon: { ios: 'square.and.arrow.down', android: 'upload' }, href: '/import' } as Row] : []),
-    ...(beta.youtube ? [{ key: 'video', label: t('home.add.video'), icon: { ios: 'play.rectangle', android: 'smart_display' }, href: '/video/add' } as Row] : []), // youtube-shadowing
-  ];
+  if (beta.import) tiles.push({ key: 'import', label: t('home.add.import'), icon: { ios: 'square.and.arrow.down', android: 'upload' }, href: '/import' });
+  if (beta.youtube) tiles.push({ key: 'video', label: t('home.add.video'), icon: { ios: 'play.rectangle', android: 'smart_display' }, href: '/video/add' }); // youtube-shadowing
+  // On a short screen the tiles get shorter (never under 120) so the sheet title stays on screen.
+  const rows = Math.ceil(tiles.length / 2);
+  const room = (height - SHEET_HEAD - SHEET_FOOT - TILE_GAP * (rows - 1)) / rows;
+  const tileH = Math.max(120, Math.min(tile, Math.floor(Number.isFinite(room) ? room : tile)));
   const open_ = (row: Row) => {
     if (guide && row.key === 'phrases') {
       setGuideStep('listen');
@@ -64,16 +68,18 @@ export function AddIslandSheet({ open, onClose }: { open: boolean; onClose: () =
     router.push(row.href);
   };
 
+  const close = () => {
+    // While the add moment is up the sheet stays open (State table: back is blocked); a tap outside is a miss.
+    // Before the Phrases row is measured there is no overlay, so a close then hands the guide back to Home's +.
+    if (guide && box) return;
+    if (guide) setGuideStep('home');
+    onClose();
+  };
+
   return (
     <BottomSheet
       open={open}
-      onClose={() => {
-        // While the add moment is up the sheet stays open (State table: back is blocked); a tap outside is a miss.
-        // Before the Phrases row is measured there is no overlay, so a close then hands the guide back to Home's +.
-        if (guide && box) return;
-        if (guide) setGuideStep('home');
-        onClose();
-      }}
+      onClose={close}
       onOpened={phrases.onLayout}
       title={t('home.addTitle')}
       overlay={
@@ -92,12 +98,7 @@ export function AddIslandSheet({ open, onClose }: { open: boolean; onClose: () =
       }>
       <View style={[styles.tiles, dir.row]}>
         {tiles.map((row) => (
-          <PressScale
-            key={row.key}
-            onPress={() => open_(row)}
-            accessibilityRole="button"
-            accessibilityLabel={row.label}
-            style={[styles.tile, { width: tile, height: tile }]}>
+          <GlassCard key={row.key} onPress={() => open_(row)} accessibilityLabel={row.label} style={{ width: tile, height: tileH }}>
             <View
               ref={row.key === 'phrases' ? phrases.ref : undefined}
               onLayout={row.key === 'phrases' ? phrases.onLayout : undefined}
@@ -105,25 +106,17 @@ export function AddIslandSheet({ open, onClose }: { open: boolean; onClose: () =
               <SymbolView name={row.icon} size={44} weight="regular" tintColor={verb.speak.c1} />
               <Text style={styles.tileLabel}>{row.label}</Text>
             </View>
-          </PressScale>
+          </GlassCard>
         ))}
       </View>
-      {rows.map((row) => (
-        <SheetAction key={row.key} label={row.label} icon={row.icon} onPress={() => open_(row)} />
-      ))}
     </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  tiles: { flexDirection: 'row', justifyContent: 'center', gap: TILE_GAP, paddingHorizontal: SHEET_SIDE, paddingBottom: 8 },
-  tile: { borderRadius: 20 },
+  tiles: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: TILE_GAP, paddingBottom: 8 },
   tileFace: {
     flex: 1,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: withAlpha(tide.text, 0.12),
-    backgroundColor: withAlpha(tide.text, 0.06),
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,

@@ -9,9 +9,10 @@ export const en = {
   'record.topic.title.recording': 'Listening…',
   'record.topic.title.review': 'Your topic',
   'record.topic.hint': "Say a topic, like 'phrases for the gym', or a grammar point, like ながら",
+  'record.topic.hintNoGrammar': "Say a topic, like 'phrases for the gym'",
   'record.topic.build': 'Build phrases',
   'record.promptHint':
-    'Speak Hebrew or English, whichever comes naturally. What you say becomes {language} sentences about your own life, so use real names and real places.',
+    'Speak {first} or {second}, whichever comes naturally. What you say becomes {language} sentences about your own life, so use real names and real places.',
   'record.language.ja': 'Japanese',
   'record.language.es': 'Spanish',
   'record.language.en': 'English',

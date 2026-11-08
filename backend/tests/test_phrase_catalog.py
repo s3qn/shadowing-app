@@ -11,6 +11,7 @@ import pytest
 from fastapi import BackgroundTasks, HTTPException
 
 import main
+from tts_registry import Render
 from routers import phrases as phrases_r
 from routers import create as create_r
 import config
@@ -38,14 +39,14 @@ async def _fake_speak(text, speaker, speed=1.0):
     return b"RIFF", [], 1.0, ""
 
 
-async def _fake_speak_timed(text, speaker):
-    return b"RIFF", [], 1.0, "", []
+async def _fake_render(text, speaker, device="", speed=1.0):
+    return Render(b"RIFF", 1.0, voice=speaker)
 
 
 @pytest.fixture
 def fakes(monkeypatch):
     monkeypatch.setattr(main.voices, "speak", _fake_speak)
-    monkeypatch.setattr(main.voices, "speak_timed", _fake_speak_timed)
+    monkeypatch.setattr(main.voices, "render", _fake_render)
     calls = []
 
     def fake_translate(texts, language, native):

@@ -10,6 +10,8 @@ import { useRepeatPause } from '@/hooks/video/use-repeat-pause';
 import YoutubePlayer, { type YoutubeIframeRef } from 'react-native-youtube-iframe';
 
 import { CatConstellation } from '@/components/cat-constellation';
+import { useBackHeaderOptions } from '@/components/island/player-header';
+import { LoadingBlock } from '@/components/state-blocks';
 import { CatchCard, CatchHud } from '@/components/catch-card';
 import { PrismButton } from '@/components/prism';
 import { VideoFrame } from '@/components/video/video-frame';
@@ -97,6 +99,7 @@ export default function VideoScreen() {
   // review cards reach loadReviewCards through a ref set once it exists.
   const reviewCardsRef = useRef<(cards: api.ReviewCard[]) => void>(() => {});
   const { island, video, error } = useVideoLoad(id, preview, review, (cards) => reviewCardsRef.current(cards));
+  const backHeader = useBackHeaderOptions();
   // review-deck: saved sentences of this island, line idx to card id.
   // "Shadow the best bits" hops here as a review of three picked lines.
   const picked = useMemo(() => parsePick(pick), [pick]);
@@ -559,7 +562,7 @@ export default function VideoScreen() {
     return (
       <SafeAreaView edges={fs ? [] : ['bottom']} style={[styles.fill, fs && styles.row, { backgroundColor: tide.sky[0] }]}>
         <StatusBar style="light" hidden={fs} />
-        <Stack.Screen options={{ title: '', headerShown: !fs }} />
+        <Stack.Screen options={{ title: '', headerShown: !fs, ...backHeader }} />
         <VideoFrame videoId={preview} size={playerSize} cannotPlay={cannotPlay} full={full} onToggleFull={() => setFull((f) => !f)}>
           <YoutubePlayer
             height={playerSize.height}
@@ -603,6 +606,7 @@ export default function VideoScreen() {
         options={{
           title: island?.title ?? '',
           headerShown: !fs,
+          ...backHeader,
         }}
       />
       {error ? (
@@ -610,9 +614,7 @@ export default function VideoScreen() {
           <Text style={styles.error}>{error}</Text>
         </View>
       ) : !island || !video || (review && !reviewSet) ? (
-        <View style={styles.center}>
-          <CatConstellation size={120} />
-        </View>
+        <LoadingBlock />
       ) : (
         <View style={[styles.fill, fs && styles.row]}>
           <VideoFrame videoId={video.video_id} size={playerSize} cannotPlay={cannotPlay} full={full} onToggleFull={() => setFull((f) => !f)}>

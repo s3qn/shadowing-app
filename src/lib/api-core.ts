@@ -2,6 +2,7 @@
 // the error-aware json helper, and the config and health checks.
 // Moved out of api.ts as a pure move.
 
+import { loadAdminKey, proofFor } from '@/lib/admin-device';
 import { accessTokenSync } from '@/lib/auth';
 import { BASE, TOKEN, fetch } from '@/lib/api-http';
 import { deviceIdSync } from '@/lib/device';
@@ -26,6 +27,20 @@ export function headers(): Record<string, string> {
   const h: Record<string, string> = { Authorization: `Bearer ${TOKEN}`, 'X-Shadow-Device': deviceIdSync() };
   const user = accessTokenSync();
   if (user) h['X-Shadow-User'] = user;
+  return h;
+}
+
+/** admin-device-bound: the headers plus this phone's signed proof, the one
+ * place the proof is attached. `path` is the route without `/shadow`
+ * (`/admin/beta`); `body` is the exact string the request sends ('' for
+ * none). Without a key (web before first load, or a build without the
+ * keychain module) the request goes out unsigned and the server answers
+ * 403 `admin_device`. */
+export async function adminHeaders(method: string, path: string, body = ''): Promise<Record<string, string>> {
+  await loadAdminKey();
+  const h = headers();
+  const proof = proofFor(method, path, body);
+  if (proof) h['X-Shadow-Proof'] = proof;
   return h;
 }
 

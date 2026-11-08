@@ -162,3 +162,20 @@ def post_done(body: DoneBody, authorization: str | None = Header(None)):
     with path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(row, ensure_ascii=False) + "\n")
     return {"ok": True}
+
+
+TTS_SIM_MODES = ("", "budget_out", "provider_down", "hosted_off")
+
+
+@router.post("/shadow/dev/tts-sim")
+def post_tts_sim(mode: str = Form(""), authorization: str | None = Header(None)):
+    """Flips tts_budget.DEV_FORCE so the app can walk the hosted-voice
+    fallbacks: every hosted render over budget, every one failing, or every
+    hosted provider off. "" resets."""
+    _require_token(authorization)
+    if mode not in TTS_SIM_MODES:
+        raise HTTPException(400, "bad mode")
+    import tts_budget
+
+    tts_budget.DEV_FORCE = mode
+    return {"ok": True, "mode": mode}

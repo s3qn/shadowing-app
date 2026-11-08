@@ -11,4 +11,18 @@ export const en = {
   'admin.failed': 'Could not load the list.',
   'admin.saveFailed': 'Could not save that change.',
   'admin.back': 'Back',
+  // admin-device-bound: the phone key that admin needs on top of the account.
+  'admin.deviceTitle': 'This device',
+  'admin.deviceApproved': 'Approved',
+  'admin.devicePending': "This phone is not approved yet. Enter the admin passcode to approve it.",
+  'admin.deviceRevoked': 'This device was revoked.',
+  'admin.deviceRejected': "This device is approved but the proof was rejected. Check the phone's date and time.",
+  'admin.deviceUnsupported': 'This build cannot hold an admin key. Update the app.',
+  'admin.deviceKey': 'Key {id}',
+  // Until launch: the pending phone approves itself with the server's passcode.
+  'admin.passcode': 'Passcode',
+  'admin.approve': 'Approve',
+  'admin.passcodeWrong': 'Wrong passcode.',
+  'admin.passcodeLater': 'Too many wrong codes. Try again later.',
+  'admin.approveFailed': 'Could not approve this device.',
 } as const;

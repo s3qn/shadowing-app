@@ -1,0 +1,168 @@
+{
+ "language": "ar",
+ "title": {
+  "en": "First steps",
+  "he": "צעדים ראשונים"
+ },
+ "lines": [
+  {
+   "ja": "مرحبا.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Hello.",
+    "he": "שלום."
+   },
+   "duration": 0.75,
+   "timeline": [],
+   "words": [
+    {
+     "text": "مرحبا.",
+     "start": 0.0,
+     "end": 0.75,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "مرحبا.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "من أين أنت؟",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Where are you from?",
+    "he": "מאיפה אתה?"
+   },
+   "duration": 0.975,
+   "timeline": [],
+   "words": [
+    {
+     "text": "من",
+     "start": 0.0,
+     "end": 0.4,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "من",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "أين",
+     "start": 0.4,
+     "end": 0.58,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "أين",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "أنت؟",
+     "start": 0.58,
+     "end": 0.975,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "أنت؟",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "غدا سأدرس اللغة العربية مع صديق.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Tomorrow I'm going to study Arabic with a friend.",
+    "he": "מחר אלמד ערבית עם חבר."
+   },
+   "duration": 3.125,
+   "timeline": [],
+   "words": [
+    {
+     "text": "غدا",
+     "start": 0.0,
+     "end": 0.46,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "غدا",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "سأدرس",
+     "start": 0.46,
+     "end": 1.04,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "سأدرس",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "اللغة",
+     "start": 1.04,
+     "end": 1.48,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "اللغة",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "العربية",
+     "start": 1.48,
+     "end": 2.2,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "العربية",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "مع",
+     "start": 2.2,
+     "end": 2.5,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "مع",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "صديق.",
+     "start": 2.5,
+     "end": 3.125,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "صديق.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

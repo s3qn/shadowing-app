@@ -1,0 +1,22 @@
+import type { Key } from '../en';
+import { ko as admin } from './admin';
+import { ko as beforeAfter } from './before-after';
+import { ko as common } from './common';
+import { ko as drive } from './drive';
+import { ko as home } from './home';
+import { ko as importFile } from './import';
+import { ko as intro } from './intro';
+import { ko as leaderboard } from './leaderboard';
+import { ko as playerIsland } from './player-island';
+import { ko as playerSheets } from './player-sheets';
+import { ko as playerTide } from './player-tide';
+import { ko as player } from './player';
+import { ko as podcast } from './podcast';
+import { ko as profile } from './profile';
+import { ko as record } from './record';
+import { ko as review } from './review';
+import { ko as settings } from './settings';
+import { ko as video } from './video';
+import { ko as wardrobe } from './wardrobe';
+
+export const ko = { ...admin, ...beforeAfter, ...common, ...drive, ...home, ...importFile, ...intro, ...leaderboard, ...playerIsland, ...playerSheets, ...playerTide, ...player, ...podcast, ...profile, ...record, ...review, ...settings, ...video, ...wardrobe } satisfies Record<Key, string>;

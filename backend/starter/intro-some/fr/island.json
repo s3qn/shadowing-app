@@ -1,0 +1,444 @@
+{
+ "language": "fr",
+ "title": {
+  "en": "First steps",
+  "he": "צעדים ראשונים"
+ },
+ "lines": [
+  {
+   "ja": "Pourriez-vous m'indiquer le chemin de la gare?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Could you tell me the way to the station?",
+    "he": "אפשר להסביר לי איך מגיעים לתחנה?"
+   },
+   "duration": 2.1973333333333334,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Pourriez-vous",
+     "start": 0.062,
+     "end": 0.662,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Pourriez-vous",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "m'indiquer",
+     "start": 0.662,
+     "end": 1.112,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "m'indiquer",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "le",
+     "start": 1.112,
+     "end": 1.287,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "le",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "chemin",
+     "start": 1.287,
+     "end": 1.537,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "chemin",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "de",
+     "start": 1.537,
+     "end": 1.612,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "de",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "la",
+     "start": 1.612,
+     "end": 1.762,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "la",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "gare?",
+     "start": 1.762,
+     "end": 2.197,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "gare?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Ce week-end, je compte aller au cinéma avec des amis.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "This weekend I'm planning to go to the cinema with some friends.",
+    "he": "בסוף השבוע אני מתכנן ללכת לקולנוע עם כמה חברים."
+   },
+   "duration": 3.477333333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Ce",
+     "start": 0.137,
+     "end": 0.312,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Ce",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "week-end,",
+     "start": 0.312,
+     "end": 1.562,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "week-end,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "je",
+     "start": 1.562,
+     "end": 1.712,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "je",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "compte",
+     "start": 1.712,
+     "end": 1.962,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "compte",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "aller",
+     "start": 1.962,
+     "end": 2.187,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "aller",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "au",
+     "start": 2.187,
+     "end": 2.312,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "au",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "cinéma",
+     "start": 2.312,
+     "end": 2.687,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "cinéma",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "avec",
+     "start": 2.687,
+     "end": 2.912,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "avec",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "des",
+     "start": 2.912,
+     "end": 3.137,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "des",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "amis.",
+     "start": 3.137,
+     "end": 3.477,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "amis.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Depuis que j'ai emménagé ici, me promener dans le quartier chaque matin est devenu une habitude.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Since I moved here, a walk around the neighbourhood every morning has become a habit.",
+    "he": "מאז שעברתי לכאן, טיול בשכונה כל בוקר נהיה הרגל."
+   },
+   "duration": 5.1626666666666665,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Depuis",
+     "start": 0.137,
+     "end": 0.512,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Depuis",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "que",
+     "start": 0.512,
+     "end": 0.662,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "que",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "j'ai",
+     "start": 0.662,
+     "end": 0.812,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "j'ai",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "emménagé",
+     "start": 0.812,
+     "end": 1.412,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "emménagé",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "ici,",
+     "start": 1.412,
+     "end": 2.062,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "ici,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "me",
+     "start": 2.062,
+     "end": 2.212,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "me",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "promener",
+     "start": 2.212,
+     "end": 2.537,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "promener",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "dans",
+     "start": 2.537,
+     "end": 2.637,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "dans",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "le",
+     "start": 2.637,
+     "end": 2.762,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "le",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "quartier",
+     "start": 2.762,
+     "end": 3.187,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "quartier",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "chaque",
+     "start": 3.187,
+     "end": 3.437,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "chaque",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "matin",
+     "start": 3.437,
+     "end": 3.912,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "matin",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "est",
+     "start": 3.912,
+     "end": 4.012,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "est",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "devenu",
+     "start": 4.012,
+     "end": 4.337,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "devenu",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "une",
+     "start": 4.337,
+     "end": 4.462,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "une",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "habitude.",
+     "start": 4.462,
+     "end": 5.163,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "habitude.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

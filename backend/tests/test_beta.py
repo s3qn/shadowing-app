@@ -16,7 +16,9 @@ import middleware
 import access
 import config
 import dependencies
+import languages
 import store
+import voices
 
 from test_accounts import _token, key  # noqa: F401  (key is a fixture)
 
@@ -80,7 +82,9 @@ def test_separate_db_file():
 
 
 def _state(admin: bool, on: bool) -> dict:
-    return {"admin": admin, "beta": on, "youtube": on, "podcast": on, "import": on}
+    langs = [{"id": c, "speaker": voices.default_speaker(c)} for c in languages.available_for(on)]
+    return {"admin": admin, "beta": on, "youtube": on, "podcast": on, "import": on,
+            "languages": langs}
 
 
 def test_store_flag_is_none_without_a_row():

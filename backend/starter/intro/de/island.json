@@ -1,0 +1,180 @@
+{
+ "language": "de",
+ "title": {
+  "en": "First steps",
+  "he": "צעדים ראשונים"
+ },
+ "lines": [
+  {
+   "ja": "Hallo.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Hello.",
+    "he": "שלום."
+   },
+   "duration": 0.6269583333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Hallo.",
+     "start": 0.0,
+     "end": 0.627,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Hallo.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Woher kommst du?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Where are you from?",
+    "he": "מאיפה אתה?"
+   },
+   "duration": 1.0449166666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Woher",
+     "start": 0.0,
+     "end": 0.273,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Woher",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "kommst",
+     "start": 0.273,
+     "end": 0.6,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "kommst",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "du?",
+     "start": 0.6,
+     "end": 1.045,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "du?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Morgen lerne ich mit einem Freund Deutsch.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Tomorrow I'm going to study German with a friend.",
+    "he": "מחר אלמד גרמנית עם חבר."
+   },
+   "duration": 1.8111666666666666,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Morgen",
+     "start": 0.0,
+     "end": 0.26,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Morgen",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "lerne",
+     "start": 0.26,
+     "end": 0.58,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "lerne",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "ich",
+     "start": 0.58,
+     "end": 0.7,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "ich",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "mit",
+     "start": 0.7,
+     "end": 0.8,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "mit",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "einem",
+     "start": 0.8,
+     "end": 1.02,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "einem",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "Freund",
+     "start": 1.02,
+     "end": 1.32,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Freund",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "Deutsch.",
+     "start": 1.32,
+     "end": 1.811,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Deutsch.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

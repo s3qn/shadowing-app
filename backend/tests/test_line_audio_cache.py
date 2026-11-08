@@ -105,3 +105,37 @@ def test_cached_transform_runs_cleanly_off_the_event_loop(tmp_path):
     asyncio.run(run())
 
     assert dest.read_bytes() == b"oidua-war"
+
+
+def test_non_native_speed_voice_stretches_the_island_wav_without_the_provider(tmp_path, monkeypatch):
+    """A Kokoro (or hosted) island at 0.8 is the island's own 1.0 wav slowed
+    down; only VOICEVOX re-renders at speed."""
+    import shutil
+
+    import store
+    import voices
+
+    store.init()
+    island_id = store.create_island("simple", 10011, register="polite", language="es")
+    (store.AUDIO_DIR / island_id).mkdir(parents=True, exist_ok=True)
+    store.add_line(island_id, 0, {"ja": "Hola", "kana": "", "romaji": "", "en": "Hi"}, 1.0, [], [])
+    store.line_audio_path(island_id, 0).write_bytes(b"RIFF-base")
+    stretched = []
+
+    def fake_stretch(src, dst, speed):
+        stretched.append(speed)
+        shutil.copy(src, dst)
+        return True
+
+    async def never(*a, **k):
+        raise AssertionError("the provider must not be called for a speed variant")
+
+    monkeypatch.setattr(line_audio.media_io, "_stretch", fake_stretch)
+    monkeypatch.setattr(voices, "speak", never)
+    monkeypatch.setattr(voices, "render", never)
+
+    path = asyncio.run(line_audio._resolve_line_audio({"id": island_id}, 0, 0.8))
+
+    assert stretched == [0.8]
+    assert path.name == "0@0.80.wav"
+    assert path.read_bytes() == b"RIFF-base"

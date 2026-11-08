@@ -10,24 +10,44 @@
  */
 
 import { useMemo, useSyncExternalStore } from 'react';
-import { Platform } from 'react-native';
+import { Platform, type TextStyle } from 'react-native';
 
 import { type Key, en } from '@/locales/en';
+import { ar } from '@/locales/ar';
+import { de } from '@/locales/de';
+import { es } from '@/locales/es';
+import { fr } from '@/locales/fr';
 import { he } from '@/locales/he';
+import { ja } from '@/locales/ja';
+import { ko } from '@/locales/ko';
+import { pt } from '@/locales/pt';
+import { zh } from '@/locales/zh';
+import { isCompleteLang } from '@/lib/app-languages';
 import { isolate } from '@/lib/bidi';
 import { getSettingsSync, subscribeSettings, type Settings } from '@/lib/settings';
 
-export type Lang = 'en' | 'he';
+export type Lang = 'en' | 'he' | 'fr' | 'pt' | 'de' | 'es' | 'zh' | 'ko' | 'ja' | 'ar';
 
 export const LOCALES: Record<Lang, { tag: string; rtl: boolean; native: string }> = {
   en: { tag: 'en-US', rtl: false, native: 'English' },
   he: { tag: 'he-IL', rtl: true, native: 'עברית' },
+  fr: { tag: 'fr-FR', rtl: false, native: 'Français' },
+  pt: { tag: 'pt-BR', rtl: false, native: 'Português' },
+  de: { tag: 'de-DE', rtl: false, native: 'Deutsch' },
+  es: { tag: 'es-ES', rtl: false, native: 'Español' },
+  zh: { tag: 'zh-CN', rtl: false, native: '中文' },
+  ko: { tag: 'ko-KR', rtl: false, native: '한국어' },
+  ja: { tag: 'ja-JP', rtl: false, native: '日本語' },
+  // Latin digits and the Gregorian calendar: `ar-SA` would print Arabic-Indic
+  // digits and Hijri dates through toLocaleString.
+  ar: { tag: 'ar-u-nu-latn-ca-gregory', rtl: true, native: 'العربية' },
 };
 
-const CATALOGUES: Record<Lang, Record<string, string>> = { en, he };
+const CATALOGUES: Record<Lang, Partial<Record<string, string>>> = { en, he, fr, pt, de, es, zh, ko, ja, ar };
 
-function isLang(v: string): v is Lang {
-  return v === 'en' || v === 'he';
+/** A language that has a catalogue and is listed in `COMPLETE_LANGS`. */
+export function isLang(v: string): v is Lang {
+  return v in LOCALES && isCompleteLang(v);
 }
 
 /** The interface language a settings snapshot resolves to: the explicit
@@ -60,12 +80,53 @@ function subscribeLang(listener: () => void): () => void {
 
 type Vars = Record<string, string | number>;
 
-function pluralSuffix(lang: Lang, count: number): 'one' | 'two' | 'other' {
+/** Plural category from the platform's CLDR rules when `Intl.PluralRules`
+ * exists (Hermes may not ship it), else null and the hand rules below apply.
+ * Only `one`, `two`, `few` and `many` have catalogue variants; any other
+ * category (and a missing variant) reads as `other`. */
+type PluralCat = 'one' | 'two' | 'few' | 'many' | 'other';
+const pluralRules = new Map<Lang, Intl.PluralRules | null>();
+function intlPluralSuffix(lang: Lang, count: number): PluralCat | null {
+  let rules = pluralRules.get(lang);
+  if (rules === undefined) {
+    try {
+      rules = typeof Intl !== 'undefined' && typeof Intl.PluralRules === 'function' ? new Intl.PluralRules(LOCALES[lang].tag) : null;
+    } catch {
+      rules = null;
+    }
+    pluralRules.set(lang, rules);
+  }
+  if (!rules) return null;
+  const cat = rules.select(count);
+  return cat === 'one' || cat === 'two' || cat === 'few' || cat === 'many' ? cat : 'other';
+}
+
+/** A language name from `language.*` lowercased for the middle of a sentence
+ * in the languages that do not capitalise language names. */
+export function midSentence(lang: Lang, name: string): string {
+  return lang === 'fr' || lang === 'es' || lang === 'pt' ? name.toLocaleLowerCase(lang) : name;
+}
+
+function pluralSuffix(lang: Lang, count: number): PluralCat {
+  const viaIntl = intlPluralSuffix(lang, count);
+  if (viaIntl) return viaIntl;
   if (lang === 'he') {
     if (count === 1) return 'one';
     if (count === 2) return 'two';
     return 'other';
   }
+  if (lang === 'ar') {
+    // CLDR Arabic: 3-10 few, 11-99 many, 0 and 100+ other (by the last two digits).
+    if (count === 1) return 'one';
+    if (count === 2) return 'two';
+    const mod100 = Math.abs(Math.trunc(count)) % 100;
+    if (Number.isInteger(count) && mod100 >= 3 && mod100 <= 10) return 'few';
+    if (Number.isInteger(count) && mod100 >= 11 && mod100 <= 99) return 'many';
+    return 'other';
+  }
+  if (lang === 'zh' || lang === 'ko' || lang === 'ja') return 'other';
+  // French and Portuguese count 0 and 1 as singular.
+  if (lang === 'fr' || lang === 'pt') return count === 0 || count === 1 ? 'one' : 'other';
   return count === 1 ? 'one' : 'other';
 }
 
@@ -151,6 +212,10 @@ export type Dir = {
    * interface: the title of an island being learned in Hebrew or Arabic
    * needs it there too. */
   content: { textAlign: 'right'; writingDirection: 'auto' } | { writingDirection: 'auto' };
+  /** Korean only: breaks lines between words, never inside one ("핸즈프|리").
+   * Spread on a `Text` that holds interface copy. `props` is the iOS prop,
+   * `style` the web style; Android already breaks Hangul at spaces. */
+  words: { props?: { lineBreakStrategyIOS: 'hangul-word' }; style?: TextStyle };
   /** The "go forward" chevron glyph, mirrored for a reversed reading order. */
   chevron: '›' | '‹';
   /** Header options that hand the title's free space to the left side, so a left-aligned title (the web and Android default) sits at the right, next to a mirrored header button. The iOS header centres its title, so it keeps the default there. */
@@ -163,11 +228,32 @@ export type Dir = {
  * (decision 1: soft RTL). Media controls, centred and symmetric layouts are
  * left alone, see the plan's Direction pass. Memoised so `style={[a, dir.row]}`
  * does not get a new object every render while `rtl` stays the same. */
+const RTL_START = /^[^\p{L}]*[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/u;
+const RTL_STYLE = { textAlign: 'right', writingDirection: 'rtl' } as const;
+
+/** Extra style for a `Text` of content that opens in a right to left script
+ * (Hebrew, Arabic) inside a left to right interface (Korean, Japanese,
+ * English): iOS "auto" direction follows the interface there, so the title
+ * sat on the left with its period on the wrong side. Undefined for every
+ * other string, so those keep the look `dir.content` gives them. Spread it
+ * after `dir.content`. */
+export function scriptStyle(text: string | undefined | null): typeof RTL_STYLE | undefined {
+  return text && RTL_START.test(text) ? RTL_STYLE : undefined;
+}
+
 export function useDir(): Dir {
-  const { rtl } = useT();
+  const { rtl, lang } = useT();
   return useMemo(
     () => ({
       rtl,
+      words:
+        lang === 'ko'
+          ? Platform.select<Dir['words']>({
+              ios: { props: { lineBreakStrategyIOS: 'hangul-word' } },
+              web: { style: { wordBreak: 'keep-all' } as unknown as TextStyle },
+              default: {},
+            })
+          : NO_WORDS,
       row: rtl ? ({ flexDirection: 'row-reverse' } as const) : undefined,
       text: rtl ? ({ textAlign: 'right', writingDirection: 'rtl' } as const) : undefined,
       writing: rtl ? ({ writingDirection: 'rtl' } as const) : undefined,
@@ -178,6 +264,8 @@ export function useDir(): Dir {
           ? ({ headerLeftContainerStyle: { flexGrow: 1, flexBasis: 0 }, headerRightContainerStyle: { flexGrow: 0, flexBasis: 'auto' } } as const)
           : undefined,
     }),
-    [rtl],
+    [rtl, lang],
   );
 }
+
+const NO_WORDS: Dir['words'] = {};

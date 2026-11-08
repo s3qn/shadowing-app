@@ -102,6 +102,7 @@ import {
   routeFor,
   finishAutoIsland,
 } from '@/lib/auto-practice'; // auto-practice
+import { getLanguage } from '@/lib/languages';
 import { lineRomaji } from '@/lib/romaji';
 import { forgetRung, getRung, peekRung, recordTake } from '@/lib/speed-ladder';
 import {
@@ -409,6 +410,10 @@ export default function IslandScreen() {
   // mora feedback only apply to Japanese. Defaults to Japanese while the
   // island is still loading so nothing flashes into the wrong gating.
   const isJa = (island?.language ?? 'ja') === 'ja';
+  // The reading system of the island's language (pinyin ruby for zh, a reading
+  // line for ko/he/ar). The Practice reading setting only switches it off.
+  const reading = isJa ? undefined : getLanguage(island?.language ?? 'ja')?.reading;
+  const pinyin = reading === 'pinyin' && readingMode !== 'off';
   // languages: the translation line reads right to left when the learner's
   // understood language is Hebrew.
   const isRtl = island?.native === 'he';
@@ -1590,14 +1595,16 @@ export default function IslandScreen() {
       // languages: es and en have no reading mode; the tile that sets it is
       // already gone from the dock, but a saved kana/romaji pick from an
       // earlier Japanese island must not leak in here.
-      !line || !isJa
+      !line
         ? null
-        : readingMode === 'kana'
+        : !isJa
+          ? reading && reading !== 'pinyin' && readingMode !== 'off' && line.romaji ? line.romaji : null
+          : readingMode === 'kana'
           ? line.timeline.map((m) => m.kana).join('')
           : readingMode === 'romaji'
             ? lineRomajiText
             : null,
-    [line, readingMode, lineRomajiText, isJa],
+    [line, readingMode, lineRomajiText, isJa, reading],
   );
   const pitches = isJa && pitch ? linePitches : null;
 
@@ -1634,6 +1641,7 @@ export default function IslandScreen() {
       hidden={hidden}
       readingMode={readingMode}
       isJa={isJa}
+      pinyin={pinyin}
       isRtl={isRtl}
       isGrammar={isGrammar}
       highlight={highlight}

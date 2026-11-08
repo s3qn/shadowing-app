@@ -64,6 +64,10 @@ export type PrismFaceProps = {
   label?: string;
   /** Extra text style for the label, e.g. a Japanese font. */
   labelStyle?: StyleProp<TextStyle>;
+  /** Pill: shrink a long label (down to 80%) instead of clipping it. */
+  fitLabel?: boolean;
+  /** 0 to 1, read on the UI thread: the label alone fades while the face stays (the welcome pill's label swap). */
+  labelOpacity?: SharedValue<number>;
   /** Tile only, under the label. A string or number gets the value style; any other node renders as given. */
   value?: ReactNode;
   style?: StyleProp<ViewStyle>;
@@ -86,7 +90,7 @@ function safeT(v: number): number {
  * rim that strengthens when `onT` reaches 1. Carries no press behaviour;
  * `PrismButton` adds the drop and the ripples on top of this.
  */
-export function PrismFace({ shape, size, width, height, verb, onT, dimT, flat, tint, label, labelStyle, value, style, children, trailing }: PrismFaceProps) {
+export function PrismFace({ shape, size, width, height, verb, onT, dimT, flat, tint, label, labelStyle, fitLabel, labelOpacity, value, style, children, trailing }: PrismFaceProps) {
   const colours = verbTokens[verb];
   const dir = useDir();
   // A face used outside PrismButton (the lab's static discs) never passes
@@ -128,6 +132,7 @@ export function PrismFace({ shape, size, width, height, verb, onT, dimT, flat, t
       color: interpolateColor(t, [0, 1], [labelOff, labelOn]),
       textShadowColor: interpolateColor(t, [0, 1], [glowOff, glowOn]),
       textShadowRadius: GLOW_RADIUS_OFF + (GLOW_RADIUS_ON - GLOW_RADIUS_OFF) * t,
+      opacity: labelOpacity === undefined ? 1 : safeT(labelOpacity.value),
     };
   });
 
@@ -175,7 +180,7 @@ export function PrismFace({ shape, size, width, height, verb, onT, dimT, flat, t
 
   const labelNode =
     label !== undefined && shape !== 'round' ? (
-      <Animated.Text numberOfLines={1} style={[shape === 'pill' ? styles.pillLabel : styles.tileLabel, labelColourStyle, labelStyle]}>
+      <Animated.Text numberOfLines={1} adjustsFontSizeToFit={fitLabel} minimumFontScale={fitLabel ? 0.8 : undefined} style={[shape === 'pill' ? styles.pillLabel : styles.tileLabel, labelColourStyle, labelStyle]}>
         {label}
       </Animated.Text>
     ) : null;

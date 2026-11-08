@@ -171,6 +171,81 @@ HOLA = _ph(
 )
 
 
+def test_zh_align_maps_character_pieces_onto_jieba_words():
+    text = "我明天和朋友一起学习中文。"
+    pieces = [
+        {"text": "我", "start": 0.0, "end": 0.3},
+        {"text": "明天和", "start": 0.3, "end": 0.9},
+        {"text": "朋友", "start": 0.9, "end": 1.4},
+        {"text": "一起学", "start": 1.4, "end": 2.0},
+        {"text": "习中文", "start": 2.0, "end": 2.6},
+    ]
+    words = latin.align(text, pieces, 2.8, "zh")
+    assert [w["text"] for w in words] == ["我", "明天", "和", "朋友", "一起", "学习", "中文。"]
+    assert words[0]["start"] == 0.0
+    assert words[-1]["end"] == 2.8
+    # A piece shared by two words is split by character, not handed whole.
+    assert words[1]["start"] == 0.3 and words[1]["end"] == 0.7
+    assert words[2]["start"] == 0.7 and words[2]["end"] == 0.9
+    for a, b in zip(words, words[1:]):
+        assert a["end"] == b["start"]
+        assert a["end"] > a["start"]
+
+
+def test_he_align_matches_pieces_with_niqqud_and_final_letters():
+    text = "שָׁלוֹם עוֹלָם"
+    pieces = [
+        {"text": "שלום", "start": 0.0, "end": 0.5},
+        {"text": "עולם", "start": 0.5, "end": 1.0},
+    ]
+    words = latin.align(text, pieces, 1.0, "he")
+    assert [w["text"] for w in words] == ["שָׁלוֹם", "עוֹלָם"]
+    assert words[0]["end"] == 0.5 and words[1]["start"] == 0.5
+    assert latin._normalize("שָׁלוֹם", "he") == latin._normalize("שלומ", "he")
+
+
+def test_zh_align_phonemes_folds_per_character_groups_into_words():
+    # Kokoro's cmn export: one phoneme group per character, 5 for 你是哪里人？
+    timings = []
+    t = 0.2
+    for ch in "你是哪里人":
+        timings.append({"phoneme": ch, "start": t, "end": t + 0.3})
+        timings.append({"phoneme": " ", "start": t + 0.3, "end": t + 0.3})
+        t += 0.3
+    words = latin.align_phonemes("你是哪里人？", timings, 2.0, "zh")
+    assert [w["text"] for w in words] == ["你", "是", "哪里", "人？"]
+    assert [(w["start"], w["end"]) for w in words] == [(0.2, 0.5), (0.5, 0.8), (0.8, 1.4), (1.4, 1.7)]
+    for w in words:
+        assert w["end"] > w["start"]
+
+
+def test_zh_align_never_leaves_a_zero_length_word():
+    pieces = [{"text": "你是", "start": 0.0, "end": 0.4}, {"text": "哪里人", "start": 0.4, "end": 1.0}]
+    words = latin.align("你是哪里人？", pieces, 1.2, "zh")
+    assert [w["text"] for w in words] == ["你", "是", "哪里", "人？"]
+    for w in words:
+        assert w["end"] > w["start"]
+
+
+def test_zh_words_get_a_minimum_width_from_their_neighbours():
+    words = [
+        {"text": "你", "start": 0.0, "end": 0.48}, {"text": "是", "start": 0.48, "end": 0.48},
+        {"text": "哪里", "start": 0.48, "end": 0.88}, {"text": "人？", "start": 0.88, "end": 1.152},
+    ]
+    out = latin._widen_cjk(words)
+    assert out[0]["start"] == 0.0 and out[-1]["end"] == 1.152
+    for a, b in zip(out, out[1:]):
+        assert a["end"] == b["start"]
+    for w in out:
+        assert w["end"] - w["start"] >= latin.MIN_CJK_WORD_S - 1e-9
+
+
+def test_align_default_code_keeps_the_es_en_path():
+    words = latin.align("Hola mucho gusto", [{"text": "mucho", "start": 0.5, "end": 1.0}], 1.5)
+    assert [w["text"] for w in words] == ["Hola", "mucho", "gusto"]
+    assert words[1]["start"] == 0.5 and words[1]["end"] == 1.0
+
+
 def test_align_phonemes_spans_are_contiguous_and_own_their_trailing_gap_and_keep_absolute_times():
     words = latin.align_phonemes("Hola, mucho gusto.", HOLA, 1.4)
     assert [w["text"] for w in words] == ["Hola,", "mucho", "gusto."]

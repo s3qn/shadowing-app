@@ -12,6 +12,7 @@ import { tide, verb } from '@/constants/theme';
 import * as api from '@/lib/api';
 import { useGuideAnchor } from '@/lib/guide';
 import { useDir, useT } from '@/lib/i18n';
+import { ltr } from '@/lib/bidi';
 import { kinsokuUnits } from '@/lib/kinsoku';
 import { SESSION_SIZES, type SessionSize } from '@/lib/settings';
 
@@ -102,7 +103,7 @@ export function CountPill({ p }: { p: api.SessionProject }) {
         {p.picked.length}
         <Text style={styles.pillOf}>{` ${t('review.ofTotal', { n: p.total })}`}</Text>
       </Text>
-      <Text style={styles.pillArrow}>{dir.rtl ? '‹' : '›'}</Text>
+      <Text style={styles.pillArrow}>{ltr(dir.chevron)}</Text>
     </View>
   );
 }

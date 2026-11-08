@@ -1,11 +1,11 @@
-import { Canvas, Fill, LinearGradient, vec } from '@shopify/react-native-skia';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
+import { Easing, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CatAvatar } from '@/components/cat/cat-avatar';
 import { OnboardingSky } from '@/components/onboarding/onboarding-sky';
+import { ProgressBar } from '@/components/progress-bar';
 import { fonts } from '@/constants/fonts';
 import { tide, verb } from '@/constants/theme';
 import type { CosmeticItem } from '@/lib/api';
@@ -52,8 +52,6 @@ export function StarterFinish({
   useEffect(() => {
     fill.value = reduced ? toFrac : withTiming(toFrac, { duration: 900, easing: Easing.out(Easing.cubic) });
   }, [fill, toFrac, reduced]);
-  const fillStyle = useAnimatedStyle(() => ({ width: `${Math.round((Number.isFinite(fill.value) ? fill.value : 0) * 100)}%` }));
-  const [trackW, setTrackW] = useState(0);
 
   const num = (n: number) => n.toLocaleString(locale);
   const xpRight = after.xp_to_next > 0 ? `${num(after.xp_into_level)} / ${num(after.xp_into_level + after.xp_to_next)} XP` : `${num(after.xp)} XP`;
@@ -85,16 +83,8 @@ export function StarterFinish({
           <Text style={styles.xpText}>{t('intro.finish.xpLevel', { n: after.level })}</Text>
           <Text style={styles.xpText}>{xpRight}</Text>
         </View>
-        <View style={styles.track} onLayout={(e) => setTrackW(e.nativeEvent.layout.width)}>
-          <Animated.View style={[styles.fillClip, fillStyle]}>
-            {trackW > 0 ? (
-              <Canvas style={{ width: trackW, height: 10 }}>
-                <Fill>
-                  <LinearGradient start={vec(0, 0)} end={vec(trackW, 0)} colors={[verb.read.c1, '#FFE9A8']} />
-                </Fill>
-              </Canvas>
-            ) : null}
-          </Animated.View>
+        <View style={styles.bar}>
+          <ProgressBar value={fill} height={10} gradient={[verb.read.c1, '#FFE9A8']} />
         </View>
       </ScrollView>
     </View>
@@ -115,6 +105,5 @@ const styles = StyleSheet.create({
   caption: { fontFamily: fonts.uiMedium, fontSize: 12 },
   xpRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 28 },
   xpText: { fontFamily: fonts.ui, fontSize: 12, color: tide.textDim },
-  track: { height: 10, borderRadius: 5, backgroundColor: 'rgba(255,255,255,0.10)', overflow: 'hidden', marginTop: 8 },
-  fillClip: { height: 10, borderRadius: 5, overflow: 'hidden' },
+  bar: { marginTop: 8 },
 });

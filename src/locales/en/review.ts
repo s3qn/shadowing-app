@@ -31,6 +31,7 @@ export const en = {
   'review.emptyHint': 'Build an island, or tap the star on a sentence in a video or podcast.',
   'review.addFrom': 'Add from…',
   'review.addTitle': 'Add to this session',
+  'review.sheetTitle': 'Practice set',
   'review.addEmpty': 'Every project with saved lines is already in this session.',
   'review.editHint': 'Drag ⋮⋮ to reorder, tap to see lines, tap the count to change, swipe to remove',
   'review.reorder': 'Reorder',

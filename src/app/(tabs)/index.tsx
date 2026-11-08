@@ -17,22 +17,24 @@ import Animated, {
   useSharedValue,
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { SymbolView } from 'expo-symbols'; // icon-buttons: record FAB and rename sheet
 
 import { AddIslandSheet } from '@/components/add-island-sheet';
 import { IslandMenuSheet, type IslandMenuHandle } from '@/components/home/island-menu-sheet';
 import { IslandPeek, type IslandPeekContext, type IslandPeekHandle } from '@/components/home/island-peek';
 import { useHomeSearch } from '@/hooks/home/use-home-search';
 import { CatConstellation } from '@/components/cat-constellation';
-import { PracticeCard } from '@/components/practice-card';
+import { StatsChips } from '@/components/home/stats-chips';
+import { PracticeDock, DOCK_H } from '@/components/home/practice-dock';
+import { LangFlagButton } from '@/components/home/lang-flag-button';
+import { devHomeSim } from '@/lib/dev-simulate';
 import { IslandSearch } from '@/components/island-search';
 // prism-home: prism kit imports for the search button, record FAB and rename sheet
 import { PrismButton } from '@/components/prism/prism-button';
 import { SearchIcon } from '@/components/tide/toolbar-icons';
-import { IslandRow, CARD_H, STEP, WAVE_MAX_CARDS } from '@/components/home/island-row';
+import { IslandRow, STEP, WAVE_MAX_CARDS } from '@/components/home/island-row';
 import { SortRow, type Sort } from '@/components/home/sort-row';
 import { fonts } from '@/constants/fonts';
-import { prism, Spacing, tide, verb } from '@/constants/theme';
+import { Spacing, tide, verb } from '@/constants/theme';
 import { alertSheet, confirmSheet } from '@/lib/confirm-sheet';
 import { useSkyStyle, isNight } from '@/lib/sky';
 import { getGuideStep, setGuideStep, useGuideAnchor, useGuideStep } from '@/lib/guide';
@@ -42,11 +44,11 @@ import * as api from '@/lib/api';
 import { startOpen, type CardRect } from '@/lib/card-morph';
 import { invalidateCachedIsland } from '@/lib/island-cache';
 import { prefetchSessionPlan } from '@/lib/plan-cache';
-import { TAB_BAR_OVERLAP, useWheelScroll, visibleOf, type Shape } from '@/hooks/home/use-wheel-scroll';
+import { useWheelScroll, type Shape } from '@/hooks/home/use-wheel-scroll';
 import { invalidateLineAudio } from '@/lib/line-audio-cache';
 import { forgetLastLine, peekLastLine, resumeLine } from '@/lib/last-line';
 import { forgetRung, loadLadder, peekRung } from '@/lib/speed-ladder';
-import { speedLabel } from '@/components/tide/speed-popover';
+import { formatSpeed } from '@/lib/format';
 import { isDownloaded } from '@/lib/offline-islands'; // offline-islands
 import { CatBadge } from '@/components/cat/cat-badge';
 import { forgetIsland, getPracticeLog, minutesOn, streakDays, type PracticeLog } from '@/lib/practice';
@@ -62,15 +64,20 @@ import { useHomeIslands } from '@/hooks/home/use-home-islands';
 
 /** Small code shown on a card whose language differs from the learning
  * language, once Show all languages is on. */
-const LANG_CODE: Record<api.Language, string> = { ja: 'JP', es: 'ES', en: 'EN' };
+const LANG_CODE: Record<api.Language, string> = { ja: 'JP', es: 'ES', en: 'EN', fr: 'FR', pt: 'PT', zh: 'ZH', ko: 'KO', de: 'DE', he: 'HE', ar: 'AR' };
 
 /** How long the wheel has to stay at rest before the centred card lights. */
 const SETTLE_MS = 120;
 // The plain search list's space above the first card and below the last.
 const LIST_TOP = Spacing.sm;
-// Tall enough that the last card scrolls clear above the floating add button
-// (fab: bottom 96 plus its height).
-const LIST_BOTTOM = 168;
+// The wheel's space above its first (lit) slot. The fixed header's bottom
+// margin already leaves the gap under the sort pills.
+const WHEEL_TOP = 0;
+// Mock E's header buttons: 40pt, the same as the flag.
+const HEADER_BUTTON = 40;
+// Tall enough that the last card scrolls clear above the floating dock (the
+// dock's height over the tab bar's reach, plus a gap).
+const LIST_BOTTOM = 98 + DOCK_H;
 
 /** Today's date where the phone is, `YYYY-MM-DD`. Local, not UTC, so the wave
  * resets at midnight for the person holding the phone. */
@@ -130,15 +137,15 @@ export default function IslandsScreen() {
     if (progressLoaded && beta) checkStreakMoments(true);
   }, [progressLoaded, beta]);
   const reducedMotion = useReducedMotion();
-  // The list has two shapes. The wheel (search closed): a pad above the first
-  // card and below the last one centres any card, snapping, scale and dim,
-  // and the centred card tinted and lit. The plain list (search open):
-  // cards top aligned under the sort pills, no snapping, every card a side
-  // card. `shape` is what is on screen and the only source for the pad, so
-  // the centring maths and the screen always agree. `wheelH` is the list's
-  // height with search closed, 0 until the first onLayout, and the list
-  // stays invisible until it is known. The wheel centres in the part above
-  // the tab bar (`visibleOf`), not in the full height.
+  // The list has two shapes. The wheel (search closed): the lit slot is the
+  // first one, right under the sort pills, behind a fixed top pad. Snapping,
+  // scale and dim key off it, and the card in it is tinted and lit. Only the
+  // bottom pad follows the list's height, so the last card can reach the
+  // first slot. The plain list (search open): cards top aligned under the
+  // sort pills, no snapping, every card a side card. `shape` is what is on
+  // screen and the only source for the pads. `wheelH` is the list's height
+  // with search closed, 0 until the first onLayout, and the list stays
+  // invisible until it is known.
   //
   // A new shape lands in two commits: the first turns the cells' layout
   // animation off, the second changes the pad. Otherwise every cell would
@@ -147,6 +154,16 @@ export default function IslandsScreen() {
   const wanted = useRef<Shape>({ wheel: true, wheelH: 0 });
   const [shapeReq, setShapeReq] = useState(0);
   const [animLayout, setAnimLayout] = useState(false);
+  // The language filter changes which cards exist, often while Home sits
+  // behind Settings where a layout animation never runs to its end and leaves
+  // the cells below at their old offsets (a blank gap). A render whose filter
+  // differs from the last committed one gets no layout animation.
+  const filterKey = showAllLanguages ? 'all' : learningLanguage;
+  const committedFilter = useRef(filterKey);
+  const filterSettled = committedFilter.current === filterKey;
+  useEffect(() => {
+    committedFilter.current = filterKey;
+  }, [filterKey]);
   const listRef = useRef<FlatList<api.IslandSummary>>(null);
   // The card to centre once the wheel is back on screen, or null.
   const pendingPlace = useRef<number | null>(null);
@@ -288,9 +305,10 @@ export default function IslandsScreen() {
 
   // Sorted before filtering, so closing search can find where the centred
   // island sits in the full list.
+  const homeSim = devHomeSim();
   const sortedAll = useMemo(
     () =>
-      [...visibleIslands].sort((a, b) => {
+      (homeSim === 'empty' ? [] : [...visibleIslands]).sort((a, b) => {
         if (sort === 'least') {
           const diff = (log.islands[a.id]?.seconds ?? 0) - (log.islands[b.id]?.seconds ?? 0);
           if (diff !== 0) return diff;
@@ -298,7 +316,7 @@ export default function IslandsScreen() {
         // Newest first: the tie break above, and the "Newest" sort itself.
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       }),
-    [visibleIslands, sort, log],
+    [visibleIslands, sort, log, homeSim],
   );
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -312,10 +330,11 @@ export default function IslandsScreen() {
     (i: api.IslandSummary) => dueIds.has(i.id) && i.status === 'ready' && (!listOffline || isDownloaded(i.id)),
     [dueIds, listOffline],
   );
-  const readyDueCount = useMemo(
+  const realDueCount = useMemo(
     () => visibleIslands.reduce((n, i) => (practicable(i) ? n + 1 : n), 0),
     [visibleIslands, practicable],
   );
+  const readyDueCount = homeSim === 'empty' || homeSim === 'due0' ? 0 : homeSim === 'due99' ? 99 : realDueCount;
 
   // Drive: starts on the first due island with audio, else the newest ready one with audio.
   const startDrive = useCallback(() => {
@@ -452,18 +471,32 @@ export default function IslandsScreen() {
   // Built once per change of what it shows, not per Home render: the header
   // re-renders whenever it gets new options.
   // The search button sits at the reading start: left in English, right in Hebrew.
+  // Both sides are set, in every language, so the Tabs header never draws its
+  // own default on the side left open: exactly one search and one flag. The
+  // flag takes the opposite side.
   const searchSide = dir.rtl ? 'headerRight' : 'headerLeft';
+  const flagSide = dir.rtl ? 'headerLeft' : 'headerRight';
   const screenOptions = useMemo(
     () => ({
       headerStyle: { backgroundColor: sky.top },
       headerTintColor: tide.text,
       headerShadowVisible: false,
+      // Mock E: the title centred between two 40pt buttons, 16pt from the
+      // screen edges. Centred, the title needs no RTL side swap (dir.headerSides).
+      headerTitleAlign: 'center' as const,
+      headerLeftContainerStyle: undefined,
+      headerRightContainerStyle: undefined,
+      [flagSide]: () => (
+        <View style={styles.headerSide}>
+          <LangFlagButton />
+        </View>
+      ),
       [searchSide]: () => (
         // prism-home: edited region
-        <Animated.View style={[searchButtonStyle, { marginHorizontal: 12 }]} pointerEvents={searchOpen ? 'none' : 'auto'}>
+        <Animated.View style={[searchButtonStyle, styles.headerSide]} pointerEvents={searchOpen ? 'none' : 'auto'}>
           <PrismButton
             shape="round"
-            size={prism.sizes.roundSm}
+            size={HEADER_BUTTON}
             verb="tools"
             onPress={openSearch}
             accessibilityLabel={t('home.searchAccessibilityLabel')}>
@@ -473,7 +506,7 @@ export default function IslandsScreen() {
         // prism-home: end
       ),
     }),
-    [sky.top, searchOpen, openSearch, searchButtonStyle, t, searchSide],
+    [sky.top, searchOpen, openSearch, searchButtonStyle, t, searchSide, flagSide],
   );
 
   const wheel = shape.wheel;
@@ -510,7 +543,7 @@ export default function IslandsScreen() {
         ? t('home.failed')
         : busy
           ? `${api.stageLabel(item.stage)}${etaShort(item.eta_s) ? ` · ${etaShort(item.eta_s)}` : ''}`
-          : `${t('home.lines', { count: item.line_count })} · ${complexityLabel}${minutes >= 1 ? ` · ${t('home.minutes', { count: minutes })}` : ''}${keptUp && keptUp.total > 0 ? ` · ${t('home.keptUp', { kept: keptUp.kept, total: keptUp.total })}` : ''}${rung ? ` · ${speedLabel(rung.speed)}` : ''}`;
+          : `${t('home.lines', { count: item.line_count })} · ${complexityLabel}${minutes >= 1 ? ` · ${t('home.minutes', { count: minutes })}` : ''}${keptUp && keptUp.total > 0 ? ` · ${t('home.keptUp', { kept: keptUp.kept, total: keptUp.total })}` : ''}${rung ? ` · ${formatSpeed(rung.speed)}` : ''}`;
       return (
         <IslandRow
           item={item}
@@ -556,10 +589,11 @@ export default function IslandsScreen() {
     ],
   );
 
-  // Top pad centres card 0 in the visible part; the bottom pad adds the
-  // covered part back so the last card can centre there too.
-  const wheelPad = Math.max(0, (visibleOf(shape.wheelH) - CARD_H) / 2);
-  const wheelPadBottom = wheelPad + TAB_BAR_OVERLAP;
+  // The top pad is fixed and never reads the measured height, so a height
+  // change cannot move card 0. The bottom pad fills the rest of the list
+  // under the last card, so it can scroll up into the first slot.
+  const wheelPad = WHEEL_TOP;
+  const wheelPadBottom = Math.max(0, shape.wheelH - WHEEL_TOP - STEP);
   const shapeVisible = !shape.wheel || shape.wheelH > 0;
 
   if (!api.configured()) {
@@ -614,12 +648,10 @@ export default function IslandsScreen() {
       />
       <View ref={headAnchor.ref} onLayout={headAnchor.onLayout} collapsable={false} style={styles.headerFixed}>
         {beta ? <CatBadge anchorGuide={focused && guideStep === 'cat'} /> : null}
-        <PracticeCard
+        <StatsChips
           log={log}
           dueCount={dueReady && !loading ? readyDueCount : null}
-          onPractice={() => router.push('/review')}
-          onDrive={beta ? startDrive : undefined}
-          onStreak={beta ? () => setStreakOpen(true) : undefined}
+          onStreak={() => setStreakOpen(true)}
         />
         {/* pill-tray-tab-bar: sort row start */}
         <SortRow sort={sort} onSort={setSort} labels={SORT_LABEL} />
@@ -637,7 +669,7 @@ export default function IslandsScreen() {
         keyboardShouldPersistTaps="handled"
         // Off while search is open: a keystroke changes most rows' places,
         // and the results should simply appear where they land.
-        itemLayoutAnimation={animLayout && !searchOpen ? LinearTransition.duration(220) : undefined}
+        itemLayoutAnimation={animLayout && !searchOpen && focused && filterSettled ? LinearTransition.duration(220) : undefined}
         onLayout={(e) => {
           // With search open, or its row still moving, the height is not the
           // wheel's.
@@ -695,23 +727,21 @@ export default function IslandsScreen() {
         }
         renderItem={renderIsland}
       />
-      {/* prism-home: edited region */}
-      <View ref={fab.ref} onLayout={fab.onLayout} style={[styles.fab, dir.rtl && styles.fabRtl]}>
-        <PrismButton
-          shape="round"
-          size={prism.sizes.bigRound}
-          verb="speak"
-          onPress={() => {
-            if (getGuideStep() === 'home') setGuideStep('add');
-            setAddOpen(true);
-          }}
-          accessibilityLabel={t('home.addTitle')}>
-          <SymbolView name={{ ios: 'plus', android: 'add' }} size={24} weight="regular" tintColor={verb.speak.c1} />
-        </PrismButton>
-      </View>
-      {/* prism-home: end */}
+      <PracticeDock
+        dueCount={dueReady && !loading ? readyDueCount : null}
+        hasIslands={sortedAll.length > 0}
+        onPractice={() => router.push('/review')}
+        onDrive={beta ? startDrive : undefined}
+        onAdd={() => {
+          if (getGuideStep() === 'home') setGuideStep('add');
+          setAddOpen(true);
+        }}
+        addAnchor={fab}
+        style={searchButtonStyle}
+        hidden={searchOpen}
+      />
       <AddIslandSheet open={addOpen} onClose={() => setAddOpen(false)} />
-      <StreakSheet open={streakOpen} onClose={() => setStreakOpen(false)} streak={streakDays(log, new Date())} longest={cachedProgress?.longest_streak ?? 0} />
+      <StreakSheet log={log} open={streakOpen} onClose={() => setStreakOpen(false)} streak={streakDays(log, new Date())} longest={cachedProgress?.longest_streak ?? 0} />
       <IslandMenuSheet ref={menuRef} onRename={rename} />
       <IslandPeek ref={peekRef} onRename={openRename} onDelete={confirmDelete} />
     </SafeAreaView>
@@ -721,13 +751,14 @@ export default function IslandsScreen() {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   center: { alignItems: 'center', justifyContent: 'center', paddingTop: Spacing.xxl },
-  // Horizontal padding only: the header and footer spacers centre the first
+  // Horizontal padding only: the header and footer spacers place the first
   // and last card.
   list: { paddingHorizontal: Spacing.lg },
   hidden: { opacity: 0 },
   empty: { fontSize: 15, lineHeight: 22, textAlign: 'center', paddingHorizontal: Spacing.xl, fontFamily: fonts.ui },
-  // Above the wheel, not inside it: the FlatList needs its own full
-  // viewport to centre the first card, same horizontal padding as the list.
+  // Above the wheel, not inside it: the FlatList scrolls under a fixed
+  // header, same horizontal padding as the list.
+  headerSide: { marginHorizontal: Spacing.lg },
   headerFixed: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, gap: Spacing.md, marginBottom: Spacing.md },
   star: {
     position: 'absolute',
@@ -737,13 +768,4 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     zIndex: 0,
   },
-  // prism-home: sizing and colour now come from PrismButton's face; this
-  // only positions the FAB.
-  fab: {
-    position: 'absolute',
-    right: Spacing.lg,
-    bottom: 96,
-  },
-  // Hebrew cards read from the right, so the button moves to the left corner.
-  fabRtl: { right: 'auto', left: Spacing.lg },
 });

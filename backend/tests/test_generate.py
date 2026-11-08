@@ -357,6 +357,50 @@ def test_japanese_prompt_has_no_latin_speakable_rule(monkeypatch):
 
 # --- voice topic -----------------------------------------------------------
 
+# -- generate_lines: the general branch (lang-core) ------------------------
+
+
+def test_fr_prompt_names_french_and_contains_its_style(monkeypatch):
+    import languages
+
+    prompt = _captured_prompt(monkeypatch, learning="fr", native="en")
+    assert "French" in prompt
+    assert languages.LANGUAGES["fr"].style in prompt
+    assert '"reading"' not in prompt
+    assert "Japanese" not in prompt
+
+
+def test_zh_prompt_forbids_spaces_and_asks_for_chinese_numerals(monkeypatch):
+    prompt = _captured_prompt(monkeypatch, learning="zh", native="en")
+    assert "Mandarin Chinese" in prompt
+    assert "no spaces between words" in prompt
+    assert "Chinese numerals" in prompt
+    assert '"reading"' not in prompt
+
+
+def test_he_prompt_asks_for_a_transliteration_reading(monkeypatch):
+    prompt = _captured_prompt(monkeypatch, learning="he", native="en")
+    assert '"reading": "a simple Latin transliteration' in prompt
+    assert "shaLOM" in prompt
+
+
+def test_he_lines_take_the_reading_as_romaji(monkeypatch):
+    stdout = json.dumps({"title": "t", "lines": [
+        {"text": "שלום עולם", "reading": "shaLOM oLAM", "translation": "Hello world"},
+    ]})
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: FakeCompleted(returncode=0, stdout=stdout))
+    out = generate.generate_lines("hello", learning="he", native="en")
+    assert out["lines"] == [{"ja": "שלום עולם", "kana": "", "romaji": "shaLOM oLAM", "en": "Hello world"}]
+
+
+def test_zh_lines_get_pinyin_romaji_after_parsing(monkeypatch):
+    stdout = json.dumps({"title": "t", "lines": [{"text": "你好。", "translation": "Hello."}]})
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: FakeCompleted(returncode=0, stdout=stdout))
+    out = generate.generate_lines("hello", learning="zh", native="en")
+    assert out["lines"][0]["romaji"] == "nǐhǎo."
+    assert out["lines"][0]["kana"] == ""
+
+
 def _cli_ok(stdout, captured=None):
     def fake_run(argv, **kw):
         if captured is not None:

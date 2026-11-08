@@ -2,24 +2,28 @@ import { requestRecordingPermissionsAsync } from 'expo-audio';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LanguagePicker } from '@/components/language-picker';
 import { GoalOptions } from '@/components/onboarding/goal-step';
+import { useHeroClock } from '@/components/onboarding/hero-clock';
 import { MicArt } from '@/components/onboarding/mic-art';
 import { OnboardingSky } from '@/components/onboarding/onboarding-sky';
 import { StarterStep } from '@/components/onboarding/starter-step';
 import { StepAction, StepCopy, StepFrame } from '@/components/onboarding/step-frame';
-import { SignInStep } from '@/components/onboarding/sign-in-step';
+import { SignInStep, prefetchAppleAvailable } from '@/components/onboarding/sign-in-step';
 import { WelcomeStep } from '@/components/onboarding/welcome-step';
 import { PrismButton } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
 import { Spacing, prism, tide, verb } from '@/constants/theme';
 import { getUsername } from '@/lib/api';
 import { hasSessionSync } from '@/lib/auth';
-import { previewAppLanguage, useDir, useT } from '@/lib/i18n';
+import { devWelcomeForceAccount, devWelcomeReduced } from '@/lib/dev-simulate';
+import { isLang, previewAppLanguage, useDir, useT } from '@/lib/i18n';
 import { LANGUAGES } from '@/lib/languages';
 import { requestLoader } from '@/lib/loading-overlay';
+import { useExitScreen } from '@/lib/use-exit-screen';
 import {
   type DailyGoalMinutes,
   type LearningLanguage,
@@ -63,6 +67,7 @@ export default function OnboardingScreen() {
   const dir = useDir();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const exit = useExitScreen('/(tabs)');
   const [step, setStep] = useState(0);
 
   // After the account step: a new account has no handle, so the required
@@ -83,6 +88,24 @@ export default function OnboardingScreen() {
   const [micError, setMicError] = useState(false);
   const leaving = useRef(false);
 
+  // The welcome's hand-off. Read once at mount: whether Get started leads to
+  // the Account step (no session, or the `welcome.handoff` key) decides
+  // whether SignInStep mounts under the welcome from the start, invisible,
+  // so nothing mounts on the press itself. One clock drives the hero, its
+  // exit and the Account entrance; at h 760 the welcome layer unmounts once.
+  const needsAccount = useRef(!hasSessionSync() || devWelcomeForceAccount()).current;
+  const reduced = useReducedMotion() || devWelcomeReduced();
+  // How far the welcome pill rides up to land on the Account step's first
+  // pill: measured by SignInStep's footer, 0 when it is not mounted.
+  const travel = useSharedValue(0);
+  const clock = useHeroClock({
+    running: step === STEP_WELCOME,
+    onDone: () => setStep(needsAccount ? STEP_ACCOUNT : STEP_LEARN),
+  });
+  useEffect(() => {
+    void prefetchAppleAvailable();
+  }, []);
+
   // Previews the interface in whichever language is picked as "understood",
   // so the languages step flips the rest of onboarding at once (decision 1,
   // soft RTL: no restart needed). Only 'en'/'he' have a catalogue today; any
@@ -90,7 +113,7 @@ export default function OnboardingScreen() {
   useEffect(() => {
     // The welcome and sign-in steps keep the saved app language: the saved
     // understood language says nothing about it until the learner reaches the pickers.
-    previewAppLanguage(step >= STEP_LEARN && (understand === 'en' || understand === 'he') ? understand : null);
+    previewAppLanguage(step >= STEP_LEARN && isLang(understand) ? understand : null);
     return () => previewAppLanguage(null);
   }, [understand, step]);
 
@@ -128,8 +151,7 @@ export default function OnboardingScreen() {
     if (leaving.current) return;
     leaving.current = true;
     await saveAll();
-    if (router.canGoBack()) router.back();
-    else router.replace('/(tabs)');
+    exit();
   }
 
   // A level pill: saves the languages and the pick, then arms the first-run guide on Home.
@@ -194,11 +216,26 @@ export default function OnboardingScreen() {
           />
         ) : null}
 
+        {/* Two layers while the welcome is up: SignInStep above it (the
+            board's kicker sits over the hero), untouchable until the
+            hand-off is done. Each sits in its own slot, so the welcome
+            unmounting never remounts the Account step. */}
         {step === STEP_WELCOME ? (
-          <WelcomeStep onNext={() => setStep(hasSessionSync() ? STEP_LEARN : STEP_ACCOUNT)} />
+          <View style={styles.layer}>
+            <WelcomeStep tk={clock.tk} tapT={clock.tapT} travel={travel} reduced={reduced} onPress={clock.press} />
+          </View>
         ) : null}
 
-        {step === STEP_ACCOUNT ? <SignInStep onSignedIn={() => void afterSignIn()} /> : null}
+        {step === STEP_ACCOUNT || (step === STEP_WELCOME && needsAccount) ? (
+          <View style={styles.layer} pointerEvents={step === STEP_ACCOUNT ? 'auto' : 'none'}>
+            <SignInStep
+              clock={needsAccount ? clock : undefined}
+              travel={travel}
+              reduced={reduced}
+              onSignedIn={() => void afterSignIn()}
+            />
+          </View>
+        ) : null}
 
         {/* language-picker: start */}
         {step === STEP_LEARN ? (
@@ -303,6 +340,8 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: tide.sky[0] },
   flow: { flex: 1 },
+  // The welcome and the Account step overlap through the hand-off.
+  layer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   // Skip lies on the row `StepFrame` reserves at the top of every step, so
   // the picker's search field starts below it and a tap near the pill's
   // bottom edge cannot land on the field underneath. It hugs the end of the

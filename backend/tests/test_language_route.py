@@ -15,6 +15,7 @@ import pytest
 from fastapi import BackgroundTasks, HTTPException
 
 import main
+from tts_registry import Render
 from routers import create as create_r
 from routers import podcasts as podcasts_r
 from routers import words as words_r
@@ -85,8 +86,8 @@ async def _fake_speak(text, speaker, speed=1.0):
     return b"RIFF....WAVEfmt ", [], 0.8, ""
 
 
-async def _fake_speak_timed(text, speaker):
-    return b"RIFF....WAVEfmt ", [], 0.8, "", []
+async def _fake_render(text, speaker, device="", speed=1.0):
+    return Render(b"RIFF....WAVEfmt ", 0.8, voice=speaker)
 
 
 def test_build_island_for_es_and_he_stores_latin_aligned_words(monkeypatch, tmp_path):
@@ -99,7 +100,7 @@ def test_build_island_for_es_and_he_stores_latin_aligned_words(monkeypatch, tmp_
         },
     )
     monkeypatch.setattr(main.voices, "speak", _fake_speak)
-    monkeypatch.setattr(main.voices, "speak_timed", _fake_speak_timed)
+    monkeypatch.setattr(main.voices, "render", _fake_render)
 
     island_id = store.create_island("simple", 10011, register="polite", language="es", native="he")
     wav = tmp_path / "source.wav"
@@ -266,6 +267,26 @@ def test_create_island_rejects_learning_english_with_native_english():
     assert exc.value.status_code == 400
 
 
+def test_create_island_rejects_a_japanese_voice_for_spanish_with_a_code():
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(create_r.create_island(
+            background=BackgroundTasks(), audio=_FakeUpload(), complexity="simple",
+            register="polite", language="es", native="en", speaker=3, count=8,
+            authorization=AUTH, x_shadow_device=DEV,
+        ))
+    assert exc.value.detail == {"code": "voice_language_mismatch"}
+
+
+def test_same_language_400_carries_a_code():
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(create_r.create_island(
+            background=BackgroundTasks(), audio=_FakeUpload(), complexity="simple",
+            register="polite", language="en", native="en", speaker=10001, count=8,
+            authorization=AUTH, x_shadow_device=DEV,
+        ))
+    assert exc.value.detail == {"code": "same_language"}
+
+
 def test_import_rejects_learning_english_with_native_english():
     with pytest.raises(HTTPException) as exc:
         asyncio.run(create_r.create_import_island(
@@ -291,7 +312,7 @@ def test_import_rejects_a_voicevox_voice_for_spanish():
             speaker=3, language="es", native="en", start_min=0, authorization=AUTH, x_shadow_device=DEV,
         ))
     assert exc.value.status_code == 400
-    assert "voice" in exc.value.detail
+    assert exc.value.detail == {"code": "voice_language_mismatch"}
 
 
 def test_podcast_import_rejects_a_kokoro_voice_for_japanese():
@@ -301,7 +322,7 @@ def test_podcast_import_rejects_a_kokoro_voice_for_japanese():
             start_min=0, speaker=10001, language="ja", native="en", authorization=AUTH, x_shadow_device=DEV,
         ))
     assert exc.value.status_code == 400
-    assert "voice" in exc.value.detail
+    assert exc.value.detail == {"code": "voice_language_mismatch"}
 
 
 # ---------------------------------------------------------------------------

@@ -3,6 +3,7 @@
 
 import type { ArtSpec, Slot } from '@/constants/cosmetics';
 import { t } from '@/lib/i18n';
+import type { LanguageCode } from '@/lib/languages';
 import { en, type Key } from '@/locales/en';
 
 export type Complexity = 'simple' | 'complex';
@@ -11,8 +12,9 @@ export type Complexity = 'simple' | 'complex';
  * form. Keep in sync with `Register` in `src/lib/settings.ts`. */
 export type Register = 'polite' | 'casual';
 
-/** The learning language an island was built in. */
-export type Language = 'ja' | 'es' | 'en';
+/** The learning language an island was built in: one of the ten codes in
+ * `src/lib/languages.ts`'s `LANGUAGE_IDS` (the backend's `languages.py` table). */
+export type Language = LanguageCode;
 
 /** One syllable of the synthesized line, with the timing VOICEVOX reported. */
 export type Mora = {
@@ -61,7 +63,16 @@ export type Line = {
 };
 
 export type SpeakerStyle = { id: number; name: string; icon: string };
-export type Speaker = { uuid: string; name: string; policy: string; styles: SpeakerStyle[] };
+export type Speaker = {
+  uuid: string;
+  name: string;
+  policy: string;
+  styles: SpeakerStyle[];
+  /** tts-providers: a hosted AI voice is capped per day (`limit` lines),
+   * then the language's free local voice fills in server-side. */
+  kind?: 'local' | 'hosted';
+  limit?: number;
+};
 
 /** The language the learner already understands, `native` on the island. */
 export type NativeLanguage = 'he' | 'en';

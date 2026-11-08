@@ -1,0 +1,22 @@
+import type { Key } from '../en';
+import { ja as admin } from './admin';
+import { ja as beforeAfter } from './before-after';
+import { ja as common } from './common';
+import { ja as drive } from './drive';
+import { ja as home } from './home';
+import { ja as importFile } from './import';
+import { ja as intro } from './intro';
+import { ja as leaderboard } from './leaderboard';
+import { ja as playerIsland } from './player-island';
+import { ja as playerSheets } from './player-sheets';
+import { ja as playerTide } from './player-tide';
+import { ja as player } from './player';
+import { ja as podcast } from './podcast';
+import { ja as profile } from './profile';
+import { ja as record } from './record';
+import { ja as review } from './review';
+import { ja as settings } from './settings';
+import { ja as video } from './video';
+import { ja as wardrobe } from './wardrobe';
+
+export const ja = { ...admin, ...beforeAfter, ...common, ...drive, ...home, ...importFile, ...intro, ...leaderboard, ...playerIsland, ...playerSheets, ...playerTide, ...player, ...podcast, ...profile, ...record, ...review, ...settings, ...video, ...wardrobe } satisfies Record<Key, string>;

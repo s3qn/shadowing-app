@@ -391,6 +391,18 @@
   [
    "POST"
   ],
+  "/shadow/admin/device"
+ ],
+ [
+  [
+   "POST"
+  ],
+  "/shadow/admin/device/approve"
+ ],
+ [
+  [
+   "POST"
+  ],
   "/shadow/catch/review"
  ],
  [
@@ -452,6 +464,12 @@
    "POST"
   ],
   "/shadow/dev/transcripts/undo"
+ ],
+ [
+  [
+   "POST"
+  ],
+  "/shadow/dev/tts-sim"
  ],
  [
   [

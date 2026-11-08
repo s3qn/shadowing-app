@@ -1,0 +1,336 @@
+{
+ "language": "he",
+ "title": {
+  "en": "First steps",
+  "he": "צעדים ראשונים"
+ },
+ "lines": [
+  {
+   "ja": "אפשר להסביר לי איך מגיעים לתחנה?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Could you tell me how to get to the station?",
+    "he": "אפשר להסביר לי איך מגיעים לתחנה?"
+   },
+   "duration": 2.1594583333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "אפשר",
+     "start": 0.0,
+     "end": 0.36,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "אפשר",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "להסביר",
+     "start": 0.36,
+     "end": 0.78,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "להסביר",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "לי",
+     "start": 0.78,
+     "end": 0.9,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "לי",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "איך",
+     "start": 0.9,
+     "end": 1.12,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "איך",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "מגיעים",
+     "start": 1.12,
+     "end": 1.52,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "מגיעים",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "לתחנה?",
+     "start": 1.52,
+     "end": 2.159,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "לתחנה?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "בסוף השבוע אני מתכנן ללכת לסרט עם כמה חברים.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "This weekend I'm planning to go to a movie with some friends.",
+    "he": "בסוף השבוע אני מתכנן ללכת לסרט עם כמה חברים."
+   },
+   "duration": 3.3436666666666666,
+   "timeline": [],
+   "words": [
+    {
+     "text": "בסוף",
+     "start": 0.0,
+     "end": 0.38,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "בסוף",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "השבוע",
+     "start": 0.38,
+     "end": 0.86,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "השבוע",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "אני",
+     "start": 0.86,
+     "end": 1.1,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "אני",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "מתכנן",
+     "start": 1.1,
+     "end": 1.64,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "מתכנן",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "ללכת",
+     "start": 1.64,
+     "end": 2.08,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "ללכת",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "לסרט",
+     "start": 2.08,
+     "end": 2.44,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "לסרט",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "עם",
+     "start": 2.44,
+     "end": 2.64,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "עם",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "כמה",
+     "start": 2.64,
+     "end": 2.86,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "כמה",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "חברים.",
+     "start": 2.86,
+     "end": 3.344,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "חברים.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "מאז שעברתי לכאן, טיול בשכונה כל בוקר נהיה הרגל.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Since I moved here, a walk around the neighbourhood every morning has become a habit.",
+    "he": "מאז שעברתי לכאן, טיול בשכונה כל בוקר נהיה הרגל."
+   },
+   "duration": 3.204375,
+   "timeline": [],
+   "words": [
+    {
+     "text": "מאז",
+     "start": 0.0,
+     "end": 0.32,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "מאז",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "שעברתי",
+     "start": 0.32,
+     "end": 0.82,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "שעברתי",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "לכאן,",
+     "start": 0.82,
+     "end": 1.38,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "לכאן,",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "טיול",
+     "start": 1.38,
+     "end": 1.56,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "טיול",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "בשכונה",
+     "start": 1.56,
+     "end": 1.96,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "בשכונה",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "כל",
+     "start": 1.96,
+     "end": 2.18,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "כל",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "בוקר",
+     "start": 2.18,
+     "end": 2.52,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "בוקר",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "נהיה",
+     "start": 2.52,
+     "end": 2.8,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "נהיה",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "הרגל.",
+     "start": 2.8,
+     "end": 3.204,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "הרגל.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

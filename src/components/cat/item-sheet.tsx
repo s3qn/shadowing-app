@@ -57,7 +57,7 @@ export function ItemSheet({ item, open, onClose, progress, hours }: ItemSheetPro
   const price = !item || owned ? null : source === 'hours' || item.price === 0 ? t('item.thenFree') : t('item.thenPrice', { n: item.price });
 
   return (
-    <BottomSheet open={open && item !== null} onClose={onClose} title={item?.name}>
+    <BottomSheet open={open && item !== null} onClose={onClose} title={item?.name ?? t('common.itemTitle')}>
       {item ? (
         <View style={styles.body}>
           <ItemDisc item={item} locked={locked} size={DISC} />

@@ -3,12 +3,14 @@ import { StyleSheet, View } from 'react-native';
 
 import { PrismButton } from '@/components/prism/prism-button';
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
+import { useT } from '@/lib/i18n';
 import { currentConfirm, settleConfirm, subscribeConfirm } from '@/lib/confirm-sheet';
 
 /** Renders the request at the head of the confirm-sheet queue. The promise
  * settles in onDismissed, after the Modal has left, so the next sheet or the
  * caller's follow-up work never races the exit. */
 export function ConfirmSheetHost() {
+  const { t } = useT();
   const [tick, bump] = useState(0);
   const [open, setOpen] = useState(false);
   const chosen = useRef(-1);
@@ -37,7 +39,7 @@ export function ConfirmSheetHost() {
   return (
     <BottomSheet
       open={open}
-      title={req?.title}
+      title={req?.title ?? t('common.confirmTitle')}
       hint={req?.message}
       onClose={() => setOpen(false)}
       onDismissed={() => {

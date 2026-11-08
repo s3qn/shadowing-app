@@ -58,7 +58,7 @@ export function PausedLayer({ paused, dimStyle, hintBottom, onResume, onEnd }: {
     <Animated.View style={[styles.dim, dimStyle]} pointerEvents={paused ? 'auto' : 'none'}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onResume} accessibilityRole="button" accessibilityLabel={t('ladder.resume')} />
       <View style={[styles.pausedRow, dir.row, { marginBottom: hintBottom + 28 }]} pointerEvents="box-none">
-        <BluePill icon="▶" label={t('ladder.resume')} onPress={onResume ?? noop} />
+        <BluePill icon={dir.rtl ? '◀' : '▶'} label={t('ladder.resume')} onPress={onResume ?? noop} />
         <Pill label={t('ladder.end')} icon="⏹" kind="tools" big onPress={onEnd} />
       </View>
     </Animated.View>

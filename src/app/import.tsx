@@ -2,18 +2,19 @@ import * as DocumentPicker from 'expo-document-picker';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
 import { EnergyChip } from '@/components/energy-bolt';
 import { canAfford, priceOf, useEnergy } from '@/lib/energy';
-import { PrismButton } from '@/components/prism';
-import { PressScale } from '@/components/press-scale';
+import { PrimaryAction } from '@/components/prism/actions';
+import { GlassCard } from '@/components/glass-card';
+import { ScreenTitle } from '@/components/screen-title';
 
-import { HeaderClosePill } from '@/components/header-close-pill';
+import { useClosePillOptions } from '@/components/header-close-pill';
 import { fonts } from '@/constants/fonts';
-import { Radius, Spacing, tide } from '@/constants/theme';
+import { Spacing, tide } from '@/constants/theme';
 import { useFollowBuild } from '@/hooks/use-follow-build';
 import * as api from '@/lib/api';
 import { etaText } from '@/lib/eta';
@@ -76,13 +77,14 @@ export default function ImportScreen() {
     try {
       const settings = await getSettings();
       const { learningLanguage, understoodLanguage } = settings;
-      const voice = await getVoice(learningLanguage);
+      const language = toIslandLanguage(learningLanguage);
+      const voice = await getVoice(language);
       const { id } = await api.importIsland(
         audio.uri,
         srt?.uri ?? null,
         stem(audio.name),
         voice,
-        toIslandLanguage(learningLanguage),
+        language,
         toNativeLanguage(understoodLanguage),
       );
       follow(id);
@@ -93,16 +95,14 @@ export default function ImportScreen() {
   }
 
   const eta = etaText(etaS);
+  const closePill = useClosePillOptions(phase === 'building' ? t('record.close') : t('common.cancel'), cancel);
 
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       <StatusBar style="light" />
       <Stack.Screen
         options={{
-          headerStyle: { backgroundColor: tide.sky[0] },
-          headerTintColor: tide.text,
-          headerShadowVisible: false,
-          headerLeft: () => <HeaderClosePill label={phase === 'building' ? t('record.close') : t('common.cancel')} onPress={cancel} />,
+          ...closePill,
         }}
       />
 
@@ -116,37 +116,33 @@ export default function ImportScreen() {
         <>
           <ScrollView style={styles.fill} contentContainerStyle={styles.content}>
             <View style={styles.header}>
-              <Text style={[styles.title, dir.text]}>{t('import.title')}</Text>
+              <ScreenTitle>{t('import.title')}</ScreenTitle>
               <Text style={[styles.hint, dir.text]}>{t('import.hint')}</Text>
             </View>
 
-            <PressScale onPress={pickAudio} accessibilityRole="button" style={[styles.pickRow, dir.row]}>
+            <GlassCard onPress={pickAudio} style={[styles.pickRow, dir.row]}>
               <Text style={[styles.pickLabel, dir.writing]}>{t('import.audio')}</Text>
               <Text style={[styles.pickValue, dir.rtl && styles.pickValueRtl]} numberOfLines={1}>
                 {audio ? audio.name : t('import.choose')}
               </Text>
-            </PressScale>
+            </GlassCard>
 
-            <PressScale onPress={pickSubtitles} accessibilityRole="button" style={[styles.pickRow, dir.row]}>
+            <GlassCard onPress={pickSubtitles} style={[styles.pickRow, dir.row]}>
               <Text style={[styles.pickLabel, dir.writing]}>{t('import.subtitles')}</Text>
               <Text style={[styles.pickValue, dir.rtl && styles.pickValueRtl]} numberOfLines={1}>
                 {srt ? srt.name : t('import.choose')}
               </Text>
-            </PressScale>
+            </GlassCard>
 
             {error ? <Text style={[styles.error, dir.text]}>{error}</Text> : null}
           </ScrollView>
 
           <View style={styles.actions}>
-            <PrismButton
-              shape="pill"
-              verb="listen"
-              on
+            <PrimaryAction
               label={t('import.build')}
               disabled={!audio || !canAfford(energy, 'import')}
               trailing={<EnergyChip energy={energy} cost={priceOf(energy, 'import')} />}
               onPress={build}
-              accessibilityRole="button"
               containerStyle={styles.primary}
             />
           </View>
@@ -174,7 +170,6 @@ const styles = StyleSheet.create({
   },
   centerText: { textAlign: 'center' },
   header: { gap: Spacing.sm },
-  title: { fontSize: 20, lineHeight: 26, color: tide.text, fontFamily: fonts.uiMedium, fontWeight: '500' },
   hint: { fontSize: 14, lineHeight: 20, color: tide.textDim, fontFamily: fonts.ui },
   pickRow: {
     flexDirection: 'row',
@@ -182,8 +177,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing.md,
     padding: Spacing.md,
-    borderRadius: Radius.md,
-    backgroundColor: 'rgba(255,255,255,0.06)',
   },
   pickLabel: { fontSize: 15, color: tide.text, fontFamily: fonts.uiMedium, fontWeight: '500' },
   pickValue: { flex: 1, textAlign: 'right', fontSize: 14, color: tide.textDim, fontFamily: fonts.ui },

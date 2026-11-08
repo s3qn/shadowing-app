@@ -137,7 +137,8 @@ def transcribe_report(folder: Path) -> None:
         voice = next(folder.glob("voice.*"), None)
         if voice is None:
             return
-        res = transcribe.transcribe(voice)
+        he = transcribe.detect_he_en(voice) == "he"
+        res = transcribe.transcribe(voice, model="he") if he else transcribe.transcribe(voice)
         if not res.get("ok"):
             raise RuntimeError("transcription failed")
         text = (res.get("text") or "").strip()

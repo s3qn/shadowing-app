@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 import beta
 import main
+from tts_registry import Render
 from routers import voices as voices_r
 import middleware
 import config
@@ -58,8 +59,7 @@ def test_voice_preview_hides_the_voice_error(monkeypatch, tmp_path):
     async def boom(*a, **k):
         raise voicevox.VoicevoxError("http://127.0.0.1:50021 down")
 
-    monkeypatch.setattr(main.voices, "speak", boom)
-    monkeypatch.setattr(voices_r, "PREVIEW_DIR", tmp_path)
+    monkeypatch.setattr(main.voices, "render", boom)
     r = client.get("/shadow/voices/3/preview", headers={**AUTH, "X-Shadow-Device": DEV})
     assert r.status_code == 502
     assert r.json() == {"detail": {"code": "voice_unreachable"}}
@@ -179,17 +179,14 @@ def test_cached_word_audio_does_not_use_a_slot(monkeypatch, tmp_path):
     dev = uuid.uuid4().hex
     calls = {"n": 0}
 
-    async def speak(*a, **k):
+    async def speak(text, speaker, speed=1.0):
+        # The engine itself: the shared render cache in front of it is real.
         calls["n"] += 1
-        return b"RIFF", [], 1.0, None
+        return b"RIFF", [], 1.0, ""
 
-    monkeypatch.setattr(main.voices, "speak", speak)
+    import tts_registry
 
-    async def speak_timed(*a, **k):
-        return (*(await speak()), [])
-
-    monkeypatch.setattr(main.voices, "speak_timed", speak_timed)
-    monkeypatch.setattr(store, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(tts_registry.voicevox, "speak", speak)
     monkeypatch.setitem(dependencies.DAILY_CAPS, "word_audio", 1)
     h = {**AUTH, "X-Shadow-Device": dev}
     assert client.get("/shadow/word-audio", params={"text": "猫"}, headers=h).status_code == 200

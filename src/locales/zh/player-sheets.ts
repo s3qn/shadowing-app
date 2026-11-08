@@ -1,0 +1,16 @@
+export const zh = {
+  'player.lookingUp': '查询中…',
+  'player.noDictionaryEntry': '词典里没有这个词条。',
+  'player.nothingToAdd': '没有可添加的内容。',
+  'player.inThisSentence': '在这个句子里：{context}',
+  'player.hearAgain': '再听一遍',
+  'player.explainTitle': '讲解',
+  'player.explainNoAnswer': '暂时没有得到答案。',
+  'player.vocabulary': '词汇',
+  'player.grammar': '语法',
+  'player.summary': '总结',
+  'player.saveTakeFailed': '无法保存这次录音。',
+  'player.recordingStoppedUnexpectedly': '录音意外停止。',
+  'player.micAccessOff': '麦克风权限已关闭。请在设置中打开后再试。',
+  'player.startRecordingFailed': '无法开始录音。',
+};

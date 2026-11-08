@@ -1,15 +1,17 @@
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { OnboardingSky } from '@/components/onboarding/onboarding-sky';
 import { PrismButton } from '@/components/prism';
+import { ScreenTitle } from '@/components/screen-title';
 import { GlassInput } from '@/components/tide/glass-input';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import { checkUsername, getUsername, setUsername } from '@/lib/api';
 import { useDir, useT } from '@/lib/i18n';
+import { useExitScreen } from '@/lib/use-exit-screen';
 
 const RULE = /^[a-z0-9_]{3,20}$/;
 const CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -25,7 +27,7 @@ type Status = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
 /** Pick or change the public @handle. With `first=1` it is required: no
  * close button and no swipe away. Otherwise (from Settings) it can be left. */
 export default function UsernameScreen() {
-  const router = useRouter();
+  const leave = useExitScreen('/(tabs)');
   const { first } = useLocalSearchParams<{ first?: string }>();
   const required = first === '1';
   const { t } = useT();
@@ -79,11 +81,6 @@ export default function UsernameScreen() {
     return () => clearTimeout(timer);
   }, [name]);
 
-  function leave() {
-    if (router.canGoBack()) router.back();
-    else router.replace('/(tabs)');
-  }
-
   async function save() {
     setSaving(true);
     setError('');
@@ -116,7 +113,7 @@ export default function UsernameScreen() {
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <SafeAreaView style={styles.fill}>
           <Pressable style={styles.body} onPress={Keyboard.dismiss} accessible={false}>
-          <Text style={[styles.title, dir.text]}>{t('username.title')}</Text>
+          <ScreenTitle>{t('username.title')}</ScreenTitle>
           <View style={styles.field}>
             <Text style={styles.at}>@</Text>
             <GlassInput
@@ -162,7 +159,6 @@ export default function UsernameScreen() {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   body: { flex: 1, justifyContent: 'center', paddingHorizontal: Spacing.lg, gap: Spacing.md },
-  title: { fontFamily: fonts.ui, fontSize: 26, fontWeight: '700', color: tide.text },
   field: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   at: { fontFamily: fonts.ui, fontSize: 20, color: tide.textDim },
   input: { flex: 1, textAlign: 'left', writingDirection: 'ltr', borderRadius: Radius.md },

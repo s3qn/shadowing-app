@@ -9,6 +9,7 @@ import pytest
 from fastapi import BackgroundTasks, HTTPException, UploadFile
 
 import main
+from tts_registry import Render
 from routers import create as create_r
 import config
 import media
@@ -35,8 +36,8 @@ def pipeline(monkeypatch):
     async def speak(text, speaker, speed=1.0):
         return b"RIFF", [], 1.0, ""
 
-    async def speak_timed(text, speaker):
-        return b"RIFF", [], 1.0, "", []
+    async def render(text, speaker, device="", speed=1.0):
+        return Render(b"RIFF", 1.0, voice=speaker)
 
     def to_wav(src, dst):
         dst.parent.mkdir(parents=True, exist_ok=True)
@@ -70,7 +71,7 @@ def pipeline(monkeypatch):
     monkeypatch.setattr(main.generate, "generate_lines", generate_lines)
     monkeypatch.setattr(main.generate, "translate_lines", lambda *a, **k: [])
     monkeypatch.setattr(main.voices, "speak", speak)
-    monkeypatch.setattr(main.voices, "speak_timed", speak_timed)
+    monkeypatch.setattr(main.voices, "render", render)
     monkeypatch.setattr(main.segment, "align", lambda *a, **k: [])
     monkeypatch.setattr(main.latin, "align", lambda *a, **k: [])
     return seen

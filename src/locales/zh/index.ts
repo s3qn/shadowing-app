@@ -1,0 +1,22 @@
+import type { Key } from '../en';
+import { zh as admin } from './admin';
+import { zh as beforeAfter } from './before-after';
+import { zh as common } from './common';
+import { zh as drive } from './drive';
+import { zh as home } from './home';
+import { zh as importFile } from './import';
+import { zh as intro } from './intro';
+import { zh as leaderboard } from './leaderboard';
+import { zh as playerIsland } from './player-island';
+import { zh as playerSheets } from './player-sheets';
+import { zh as playerTide } from './player-tide';
+import { zh as player } from './player';
+import { zh as podcast } from './podcast';
+import { zh as profile } from './profile';
+import { zh as record } from './record';
+import { zh as review } from './review';
+import { zh as settings } from './settings';
+import { zh as video } from './video';
+import { zh as wardrobe } from './wardrobe';
+
+export const zh = { ...admin, ...beforeAfter, ...common, ...drive, ...home, ...importFile, ...intro, ...leaderboard, ...playerIsland, ...playerSheets, ...playerTide, ...player, ...podcast, ...profile, ...record, ...review, ...settings, ...video, ...wardrobe } satisfies Record<Key, string>;

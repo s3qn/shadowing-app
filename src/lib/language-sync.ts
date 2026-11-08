@@ -14,7 +14,7 @@
  */
 
 import { confirmSheet } from '@/lib/confirm-sheet';
-import { LOCALES, type Lang, resolveAppLanguage, t } from '@/lib/i18n';
+import { type Lang, isLang, midSentence, resolveAppLanguage, t } from '@/lib/i18n';
 import { getLanguage } from '@/lib/languages';
 import {
   type AppLanguage,
@@ -30,7 +30,7 @@ import { type Key } from '@/locales/en';
  * fifteen understandable languages to the interface's two, so an understood
  * pick the interface has no catalogue for leaves nothing to ask about. */
 function hasInterface(id: string): id is Lang {
-  return id in LOCALES;
+  return isLang(id);
 }
 
 /** The two languages read as one pick right now. Every prompt here fires
@@ -40,7 +40,7 @@ function paired(before: Settings): boolean {
 }
 
 function languageName(id: string): string {
-  return t(`language.${id}` as Key);
+  return midSentence(resolveAppLanguage(getSettingsSync()), t(`language.${id}` as Key));
 }
 
 /**

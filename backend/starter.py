@@ -171,8 +171,7 @@ def _intro_dir(level: str) -> Path:
 def has_intro(language: str, level: str = "new") -> bool:
     """True when the 3-line first-run starter island is baked for `language`
     at `level`."""
-    return (language in ("ja", "en", "es") and level in INTRO_LEVELS
-            and (_intro_dir(level) / language / "island.json").is_file())
+    return level in INTRO_LEVELS and (_intro_dir(level) / language / "island.json").is_file()
 
 
 def seed_intro(device: str, language: str, native: str, level: str = "new") -> str:

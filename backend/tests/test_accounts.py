@@ -201,7 +201,7 @@ def test_access_log_redacts_user_and_token_query_values():
     line = record.getMessage()
     assert "secret" not in line and "eyJ.a.b" not in line
     assert "token=REDACTED" in line and "user=REDACTED" in line
-    assert "device=abc" in line and "v=3" in line
+    assert "device=REDACTED" in line and "abc" not in line and "v=3" in line
 
 
 def test_access_log_filter_is_installed():

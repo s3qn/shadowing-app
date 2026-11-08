@@ -1,0 +1,17 @@
+export const pt = {
+  'podcast.listen': 'Ouvir o episódio',
+  'podcast.loadFailed': 'Não foi possível carregar o áudio do episódio.',
+  'podcast.bestBits.title': 'Fazer shadowing de {n} frases deste episódio?',
+  'podcast.aiPick.label': 'Escolher frases com IA',
+  'podcast.aiPick.hint': 'Nenhuma frase salva ainda. Toque no ícone de brilhos e a IA escolhe algumas para o shadowing.',
+  'podcast.aiPick.confirmTitle': 'Deixar a IA escolher frases?',
+  'podcast.aiPick.confirmBody': 'Ela escolhe de 5 a 10 frases fáceis deste episódio e as salva. Isso usa 3 de energia.',
+  'podcast.aiPick.confirm': 'Escolher frases',
+  'podcast.aiPick.cancel': 'Agora não',
+  'podcast.aiPick.done': '{n} frases salvas',
+  'podcast.aiPick.done_one': '{n} frase salva',
+  'api.pick_failed': 'A IA não conseguiu escolher frases deste episódio. Nenhuma energia foi usada.',
+  'api.not_podcast': 'Só é possível escolher frases de episódios de podcast.',
+  'api.has_cards': 'Este episódio já tem frases salvas.',
+  'api.no_lines': 'Este episódio tem poucas frases claras para escolher. Nenhuma energia foi usada.',
+};

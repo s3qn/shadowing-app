@@ -1,0 +1,156 @@
+{
+ "language": "he",
+ "title": {
+  "en": "First steps",
+  "he": "צעדים ראשונים"
+ },
+ "lines": [
+  {
+   "ja": "שלום.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Hello.",
+    "he": "שלום."
+   },
+   "duration": 0.6269583333333333,
+   "timeline": [],
+   "words": [
+    {
+     "text": "שלום.",
+     "start": 0.0,
+     "end": 0.627,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "שלום.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "מאיפה אתה?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Where are you from?",
+    "he": "מאיפה אתה?"
+   },
+   "duration": 1.0449166666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "מאיפה",
+     "start": 0.0,
+     "end": 0.7,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "מאיפה",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "אתה?",
+     "start": 0.7,
+     "end": 1.045,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "אתה?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "מחר אני לומד עברית עם חבר.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Tomorrow I'm going to study Hebrew with a friend.",
+    "he": "מחר אלמד עברית עם חבר."
+   },
+   "duration": 1.8808333333333334,
+   "timeline": [],
+   "words": [
+    {
+     "text": "מחר",
+     "start": 0.0,
+     "end": 0.44,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "מחר",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "אני",
+     "start": 0.44,
+     "end": 0.64,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "אני",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "לומד",
+     "start": 0.64,
+     "end": 0.94,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "לומד",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "עברית",
+     "start": 0.94,
+     "end": 1.26,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "עברית",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "עם",
+     "start": 1.26,
+     "end": 1.38,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "עם",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "חבר.",
+     "start": 1.38,
+     "end": 1.881,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "חבר.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

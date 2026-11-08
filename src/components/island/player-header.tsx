@@ -1,12 +1,15 @@
-import { memo, useRef } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { type ReactElement, memo, useRef } from 'react';
+import { useRouter } from 'expo-router';
+import { type StyleProp, StyleSheet, Text, type TextStyle, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PressScale } from '@/components/press-scale';
+import { PrismButton } from '@/components/prism';
 import { PlayerTitle } from '@/components/tide/player-title';
 import { fonts } from '@/constants/fonts';
-import { Spacing, tide, verb } from '@/constants/theme';
+import { Spacing, prism, tide, verb } from '@/constants/theme';
 import { PLAYER_HEADER_ROW_H, setHeaderBoxRect, setHeaderTitleRect, useMorphHidesTitle } from '@/lib/card-morph';
+import { headerLeftButton, headerRightButton } from '@/lib/header-buttons';
 import { useDir, useT } from '@/lib/i18n';
 
 export const HEADER_ROW_H = PLAYER_HEADER_ROW_H;
@@ -72,9 +75,11 @@ export const PlayerHeader = memo(function PlayerHeader({
         />
       </View>
       {onBack ? (
-        <PressScale onPress={onBack} hitSlop={12} accessibilityLabel={t('player.back')} style={styles.headerButton}>
-          <Text style={[styles.backGlyph, titleHidden ? styles.hiddenChrome : null]}>{dir.rtl ? '›' : '‹'}</Text>
-        </PressScale>
+        <View style={[styles.headerButton, titleHidden ? styles.hiddenChrome : null]}>
+          <PrismButton shape="round" size={prism.sizes.roundSm} verb="tools" onPress={onBack} accessibilityLabel={t('player.back')}>
+            <BackGlyph />
+          </PrismButton>
+        </View>
       ) : (
         <View style={styles.headerButton} />
       )}{/* bl57-intro-round2 */}
@@ -95,6 +100,41 @@ export const PlayerHeader = memo(function PlayerHeader({
     </View>
   );
 });
+
+/** The back chevron, mirrored in Hebrew and Arabic. The one glyph every back
+ * control draws, the player header and the card morph's flying copy included. */
+export function BackGlyph({ style }: { style?: StyleProp<TextStyle> }) {
+  const dir = useDir();
+  return <Text style={[styles.backGlyph, style]}>{dir.rtl ? '›' : '‹'}</Text>;
+}
+
+/**
+ * Native header options for a screen with the island player's back control:
+ * one round button with the back glyph at the reading start, and an optional
+ * `right` item at the other end (the glass capsule is dropped on iOS 26, see
+ * `headerLeftButton`). Hebrew and Arabic swap the two sides. Spread into
+ * `<Stack.Screen options>`.
+ */
+export function useBackHeaderOptions({ title, right }: { title?: string; right?: () => ReactElement } = {}) {
+  const { t } = useT();
+  const dir = useDir();
+  const router = useRouter();
+  const back = () => (
+    <PrismButton
+      shape="round"
+      size={prism.sizes.roundSm}
+      verb="tools"
+      onPress={() => router.back()}
+      accessibilityLabel={t('player.back')}>
+      <BackGlyph />
+    </PrismButton>
+  );
+  const first = headerLeftButton(back);
+  const options = dir.rtl
+    ? { ...dir.headerSides, ...headerRightButton(back), ...(right ? headerLeftButton(right) : { headerLeft: () => null }) }
+    : { ...first, ...(right ? headerRightButton(right) : null) };
+  return title === undefined ? options : { title, ...options };
+}
 
 /** bl58-easy-for-me: E4's leaf, drawn with two Views (a rounded leaf and its vein), no SVG. */
 export function Leaf({ size }: { size: number }) {

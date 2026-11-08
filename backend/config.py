@@ -31,3 +31,6 @@ SPEED_MIN, SPEED_MAX = 0.5, 1.5
 # Raw env values; middleware and access parse them (read at import, as before).
 REQUIRE_SIGNIN_RAW = os.getenv("SHADOW_REQUIRE_SIGNIN")
 ADMIN_USERS_RAW = os.getenv("SHADOW_ADMIN_USERS")
+# The code that approves a pending admin phone key from the phone itself
+# (POST /shadow/admin/device/approve). Empty turns that route off (404).
+ADMIN_PASSCODE = os.getenv("SHADOW_ADMIN_PASSCODE", "").strip()

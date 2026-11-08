@@ -11,7 +11,7 @@ import { GOLD, LevelChip } from '@/components/cat/leaderboard-row';
 import { formatHours } from '@/components/cat/level-header';
 import { PrismButton } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
-import { streakTier } from '@/components/practice-card';
+import { streakTier } from '@/components/home/ember';
 import { StreakGem } from '@/components/streak-gem';
 import { getPracticeLog, streakDays, type PracticeLog } from '@/lib/practice';
 import { Spacing, prism, tide } from '@/constants/theme';

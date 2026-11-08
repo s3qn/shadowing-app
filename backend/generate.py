@@ -16,6 +16,8 @@ import json
 import logging
 import re
 
+import lang_text
+import languages
 import llm
 import store
 
@@ -133,7 +135,7 @@ translationese. If the transcript is short or unclear, write fewer sentences \
 rather than padding with generic filler. Write numbers, dates and times as \
 words (dos mil trece, not 2013); no abbreviations, symbols, quotation marks, \
 parentheses or line breaks: a speech engine reads each sentence exactly as \
-written and the app highlights it word by word.
+written and the app highlights it word by word.{style}
 
 OUTPUT: reply with RAW JSON only. No prose, no explanation, no markdown code \
 fences. Exactly this shape:
@@ -142,12 +144,51 @@ fences. Exactly this shape:
   "lines": [
     {{
       "text": "the {learning_name} sentence, natural and learner-friendly",
-      "translation": "a natural {native_name} translation"
+{reading_field}      "translation": "a natural {native_name} translation"
     }}
   ]
 }}
 
 Now output the JSON object and nothing else."""
+
+# The general (non-Japanese) prompts take the language's own style rules from
+# the table, and ask for a "reading" only where the model is the source of
+# the transliteration (Hebrew, Arabic); pinyin and Revised Romanization are
+# computed after parsing (lang_text.reading).
+_TRANSLIT_RULES = {
+    "he": "a simple Latin transliteration of the line for an English reader, "
+          "the stressed syllable in capitals (shaLOM, YEled)",
+    "ar": "a simple Latin transliteration of the line, ALA-LC style without "
+          "dots or macrons (sh, kh, gh, long vowels doubled: aa, ii, uu), never Arabizi digits",
+}
+
+
+def _style(code: str) -> str:
+    row = languages.LANGUAGES.get(code)
+    return (row.style if row else "") or ""
+
+
+def _reading_rule(code: str) -> str:
+    if lang_text.reading_kind(code) != "translit":
+        return ""
+    return _TRANSLIT_RULES.get(code, "a simple Latin transliteration of the line")
+
+
+def _reading_field(code: str) -> str:
+    rule = _reading_rule(code)
+    return f'      "reading": "{rule}",\n' if rule else ""
+
+
+def _line_reading(item: dict, text: str, code: str) -> str:
+    """The `romaji` of a general-branch line: the model's transliteration
+    where asked for, pinyin or Revised Romanization computed here, else ""."""
+    kind = lang_text.reading_kind(code)
+    if kind == "translit":
+        return (item.get("reading") or "").strip()
+    if kind in ("pinyin", "rr"):
+        return lang_text.reading(text, code)
+    return ""
+
 
 PROMPT_TEMPLATE = _JA_HEAD + _JA_BODY
 LATIN_PROMPT_TEMPLATE = _LATIN_HEAD + _LATIN_BODY
@@ -215,7 +256,8 @@ where n is the number of the source sentence you adapted, or null.
 GRAMMAR_PROMPT_TEMPLATE = _GRAMMAR_HEAD + _JA_BODY
 
 
-LANGUAGE_NAMES = {"en": "English", "he": "Hebrew", "ja": "Japanese", "es": "Spanish"}
+# The one table of prompt names (catch.py still reads it under this name).
+LANGUAGE_NAMES = languages.NAMES
 
 
 # --- say-it ---
@@ -272,7 +314,7 @@ One phrase per line, the number they named, at most 8.
 standing on its own.
 - "unclear": noise, a lone filler, nothing to say. No lines.
 
-{register_block}STYLE: natural spoken {learning_name}, no literary flourishes, no translationese.
+{register_block}STYLE: natural spoken {learning_name}, no literary flourishes, no translationese.{style_block}
 
 OUTPUT: reply with RAW JSON only. No prose, no explanation, no markdown code fences. \
 Exactly this shape:
@@ -302,9 +344,14 @@ def _say_norm(text: str) -> str:
 
 def _say_key(transcript: str, learning: str, native: str, register: str) -> str:
     """sha256 over everything that changes the reply. Register only shapes a
-    Japanese prompt, so for es and en it is left out of the key."""
+    Japanese prompt, so for the other languages it is left out of the key;
+    their table style rides along instead, so a cached reply never outlives
+    a style edit."""
     reg = register if learning == "ja" else ""
     raw = f"{SAY_PROMPT_VERSION}|{llm.model_for('say')}|{learning}|{native}|{reg}|{_say_norm(transcript)}"
+    style = "" if learning == "ja" else _style(learning)
+    if style:
+        raw += "|" + hashlib.sha256(style.encode("utf-8")).hexdigest()[:12]
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
@@ -334,14 +381,18 @@ def say_lines(transcript: str, learning: str = "ja", native: str = "he",
     learning_name = LANGUAGE_NAMES.get(learning, "English")
     is_ja = learning == "ja"
     register_block = ""
+    style_block = ""
     if is_ja:
         register_block = "REGISTER: " + REGISTER_RULES.get(register, REGISTER_RULES["polite"]) + "\n\n"
+    elif _style(learning):
+        style_block = " " + _style(learning)
     prompt = SAY_PROMPT_TEMPLATE.format(
         learning_name=learning_name,
         native_name=LANGUAGE_NAMES.get(native, "English"),
         transcript=transcript[:2000],
         register_block=register_block,
-        reading_rule="the full reading in hiragana" if is_ja else "",
+        style_block=style_block,
+        reading_rule="the full reading in hiragana" if is_ja else _reading_rule(learning),
         romaji_rule="the reading in Hepburn romaji" if is_ja else "",
     )
     parsed = llm.complete(prompt, SAY_SCHEMA, tag="say", timeout=TIMEOUT_S)
@@ -366,7 +417,7 @@ def say_lines(transcript: str, learning: str = "ja", native: str = "he",
         lines.append({
             "ja": text,
             "kana": (item.get("reading") or "").strip() if is_ja else "",
-            "romaji": (item.get("romaji") or "").strip() if is_ja else "",
+            "romaji": (item.get("romaji") or "").strip() if is_ja else _line_reading(item, text, learning),
             "en": (item.get("translation") or "").strip(),
         })
     result = {"intent": intent, "title": (parsed.get("title") or "").strip(), "lines": lines}
@@ -403,13 +454,14 @@ def generate_lines(transcript: str, complexity: str = "simple", count: int = 8,
                    language: str = "", register: str = "polite",
                    learning: str = "ja", native: str = "en",
                    seed: list[dict] | None = None) -> dict:
-    """Generate shadowing lines from a transcript, in `learning` (ja/es/en).
+    """Generate shadowing lines from a transcript, in `learning` (any code
+    in `languages.LANGUAGES`).
 
     `language` is the recording's own language (from whisper), used only to
     tell the model what it is reading; it has nothing to do with `learning`.
     `native` is the learner's understood language, used for the title and
-    the translation. Register only applies to `learning == "ja"`; es and en
-    ignore it.
+    the translation. Register only applies to `learning == "ja"`; the other
+    languages take their style rules from the table instead.
 
     `seed` (Tatoeba rows) selects the topic prompt; each line then carries
     `tatoeba_id` when the model reported a valid `src`.
@@ -450,6 +502,8 @@ def generate_lines(transcript: str, complexity: str = "simple", count: int = 8,
             language=LANGUAGE_NAMES.get(language, "English or Hebrew"),
             learning_name=LANGUAGE_NAMES.get(learning, "English"),
             native_name=native_name,
+            style=(" " + _style(learning)) if _style(learning) else "",
+            reading_field=_reading_field(learning),
             **extra,
         )
 
@@ -472,7 +526,7 @@ def generate_lines(transcript: str, complexity: str = "simple", count: int = 8,
             line = {
                 "ja": text,
                 "kana": "",
-                "romaji": "",
+                "romaji": _line_reading(item, text, learning),
                 "en": (item.get("translation") or "").strip(),
             }
         if seed is not None and learning != "ja":

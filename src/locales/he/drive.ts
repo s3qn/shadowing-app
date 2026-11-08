@@ -8,7 +8,7 @@ export const he = {
   'drive.pauseAction': 'לחצו להשהיה',
   'drive.tapToReplay': 'לחצו כדי לשמוע את השורה שוב',
   'drive.offline': 'אין חיבור. לחצו כדי לנסות שוב.',
-  'drive.empty': 'עדיין אין איים עם שמע. אי חדש יתנגן כאן.',
+  'drive.empty': 'עדיין אין איים עם שמע. אי חדש יושמע כאן.',
   'drive.previousLine': 'השורה הקודמת',
   'drive.nextLine': 'השורה הבאה',
   'drive.close': 'סגירה',

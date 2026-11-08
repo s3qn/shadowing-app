@@ -62,9 +62,9 @@ async def import_grammar(
     if register not in generate.REGISTER_RULES:
         raise HTTPException(400, "register must be 'polite' or 'casual'")
     if native not in ("he", "en"):
-        raise HTTPException(400, "native must be 'he' or 'en'")
+        raise HTTPException(400, {"code": "bad_native"})
     if voices.language_for(speaker) != "ja":
-        raise HTTPException(400, "that voice does not speak Japanese")
+        raise HTTPException(400, {"code": "voice_language_mismatch"})
     row = grammar.get(point)
     if row is None:
         raise HTTPException(404, f"no such grammar point: {point}")

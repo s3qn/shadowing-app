@@ -10,7 +10,8 @@ import { StatusBar } from 'expo-status-bar';
 import { SymbolView } from 'expo-symbols'; // icon-buttons: discard
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated, { useAnimatedStyle } from 'react-native-reanimated';
+import { useSharedValue } from 'react-native-reanimated';
+import type { ScrollView as GestureScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatConstellation } from '@/components/cat-constellation';
@@ -18,17 +19,25 @@ import { LevelBars } from '@/components/level-bars';
 import { EnergyChip } from '@/components/energy-bolt';
 import { canAfford, priceOf, refreshEnergy, useEnergy } from '@/lib/energy';
 import { PrismButton } from '@/components/prism';
+import { PrimaryAction, SecondaryAction } from '@/components/prism/actions';
+import { ProgressBar } from '@/components/progress-bar';
+import { ScreenTitle } from '@/components/screen-title';
+import { formatClock } from '@/lib/format';
+import { TappableSentence } from '@/components/tide/tappable-sentence';
+import { IDLE, type HighlightState } from '@/components/word-highlight';
 import { POP, PopoverBubble } from '@/components/tide/popover-bubble';
 import { Segmented, type SegmentOption } from '@/components/segmented';
 
-import { HeaderClosePill } from '@/components/header-close-pill';
+import { useClosePillOptions } from '@/components/header-close-pill';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, prism, tide, verb as verbTokens } from '@/constants/theme'; // icon-buttons: discard
 import { useFollowBuild } from '@/hooks/use-follow-build';
 import { useRecorderMeter } from '@/hooks/use-recorder-meter';
 import * as api from '@/lib/api';
+import { useBetaFeatures } from '@/lib/beta';
 import { devSayOffline, devSayResult, devSayTranscript } from '@/lib/dev-simulate';
-import { useDir, useT } from '@/lib/i18n';
+import { midSentence, useDir, useT } from '@/lib/i18n';
+import { type Key } from '@/locales/en';
 import {
   applyPlaybackMode,
   applyRecordingMode,
@@ -48,6 +57,7 @@ import {
   toIslandLanguage,
   toNativeLanguage,
 } from '@/lib/settings';
+import { hasGrammar } from '@/lib/languages';
 
 const MIN_SECONDS = 10;
 const MAX_SECONDS = 90;
@@ -69,6 +79,9 @@ const WAVE_MAX_H = 32;
 const WAVE_FLOOR = 0.15;
 /** The line is drawn smaller past this many characters. */
 const SAY_LONG_LINE = 24;
+// The launch languages keep the big plain say line; the rest render through TappableSentence.
+const SAY_PLAIN = new Set<string>(['ja', 'es', 'en']);
+const noExplain = () => {};
 /** The say result's glass card, the ladder stage's line card. */
 const GLASS = 'rgba(20,28,44,0.72)';
 const RIM = 'rgba(255,255,255,0.14)';
@@ -77,12 +90,6 @@ type Phase = 'idle' | 'recording' | 'review' | 'building' | 'done';
 type RecordMode = 'say' | 'island';
 /** The say frame: what was said, the first voiced line and how many there are. */
 type SayResult = { id: string; said: string; native: api.NativeLanguage; line: api.Line; count: number };
-
-function clock(seconds: number, padMinutes = true): string {
-  const s = Math.max(0, Math.floor(seconds));
-  const m = String(Math.floor(s / 60));
-  return `${padMinutes ? m.padStart(2, '0') : m}:${String(s % 60).padStart(2, '0')}`;
-}
 
 /** A timing strip of one voiced line: per bucket, the share of its time a
  * word sounds (words carry seconds from the line's start). */
@@ -157,7 +164,7 @@ function TakePlay({ playing, disabled, onPress }: { playing: boolean; disabled: 
 }
 
 export default function RecordScreen() {
-  const { t } = useT();
+  const { t, lang: appLang } = useT();
   const energy = useEnergy();
   const dir = useDir();
   // The energy note: the chip's centre and bottom edge, in the screen body's coordinates.
@@ -207,6 +214,11 @@ export default function RecordScreen() {
     const sim = devSayResult();
     return sim && say ? { id: sim.id, said: sim.said, native: sim.native, line: sim.line, count: sim.count } : null;
   });
+  // lang-core: a language beyond ja, es and en shows its say line through
+  // TappableSentence (RTL order, pinyin ruby, the reading line). It has no
+  // audio highlight here, so the highlight rests.
+  const sayHighlight = useSharedValue<HighlightState>(IDLE);
+  const sayScrollRef = useRef<GestureScrollView>(null);
   // The recorder's clock resets once it stops, so the length of the last take
   // is kept separately for the review screen.
   const [taken, setTaken] = useState(0);
@@ -224,7 +236,6 @@ export default function RecordScreen() {
   // D57: the recorder is polled into shared values; the screen renders once a second.
   const meter = useRecorderMeter(recorder, phase === 'recording', maxSeconds, (level) => samplesRef.current.push(level));
   const trackProgress = meter.progress;
-  const trackFillStyle = useAnimatedStyle(() => ({ width: `${Math.min(100, trackProgress.value * 100)}%` }));
 
   // Listening back to the take, or to the voiced line on the say frame. Only
   // loaded on those screens, so a file is never open while the microphone is.
@@ -239,14 +250,26 @@ export default function RecordScreen() {
   const playStatus = useAudioPlayerStatus(player);
   useSessionPlayer(player);
 
+  // The language and its voice are resolved together from one enabled-language
+  // list. Resolving them apart let the beta list land in between, so a Chinese
+  // learner sent language ja with a Chinese voice (or the reverse) and the
+  // server answered 400. A list change re-runs this.
+  const enabledKey = useBetaFeatures().languages.map((l) => l.id).join();
   useEffect(() => {
+    let alive = true;
     getRegister().then(setRegister);
-    getSettings().then((s) => {
-      setLanguage(toIslandLanguage(s.learningLanguage));
+    getSettings().then(async (s) => {
+      const lang = toIslandLanguage(s.learningLanguage);
+      const v = await getVoice(lang);
+      if (!alive) return;
+      setLanguage(lang);
+      setVoice(v);
       setNative(toNativeLanguage(s.understoodLanguage));
-      void getVoice(s.learningLanguage).then(setVoice);
     });
-  }, []);
+    return () => {
+      alive = false;
+    };
+  }, [enabledKey]);
 
   // Remembered for next time, same as the voice picker in island settings.
   function chooseRegister(next: api.Register) {
@@ -478,12 +501,10 @@ export default function RecordScreen() {
   const progress =
     playStatus.duration > 0 ? Math.min(1, playStatus.currentTime / playStatus.duration) : 0;
 
-  const languageName: Record<api.Language, string> = {
-    ja: t('record.language.ja'),
-    es: t('record.language.es'),
-    en: t('record.language.en'),
-  };
+  // lang-core: the catalogue name of the learning language, from the same keys Settings > Language uses.
+  const languageName = t(`language.${language}` as Key);
   const nativeName = t(native === 'he' ? 'record.language.he' : 'record.language.en');
+  const otherNativeName = t(native === 'he' ? 'record.language.en' : 'record.language.he');
   // The said text follows the language the take was sent in (the island stores
   // the request's native), not the settings: Hebrew sits on the right.
   const saidNative = result?.native ?? native;
@@ -507,11 +528,10 @@ export default function RecordScreen() {
   ];
 
   const sayBack = say && (phase === 'building' || phase === 'done');
-  // say-it: a back link, designs/sl-r4-4.png frame 4. A build in progress keeps going.
-  const backLink = (
-    <Pressable onPress={cancel} hitSlop={12} style={styles.backLink} accessibilityRole="button">
-      <Text style={styles.backLinkText}>{`${dir.chevron === '›' ? '‹' : '›'} ${t('record.say.back')}`}</Text>
-    </Pressable>
+  // say-it frame 4 names its close pill "back"; a build in progress keeps going.
+  const closePill = useClosePillOptions(
+    sayBack ? t('record.say.back') : phase === 'building' || phase === 'done' ? t('record.close') : t('common.cancel'),
+    cancel,
   );
 
   return (
@@ -519,17 +539,9 @@ export default function RecordScreen() {
       <StatusBar style="light" />
       <Stack.Screen
         options={{
-          headerStyle: { backgroundColor: screenBg },
-          headerTintColor: tide.text,
-          headerShadowVisible: false,
           // The back link already names the screen; the route title would sit beside it.
           ...(say && (phase === 'building' || phase === 'done') ? { title: '' } : {}),
-          // Hebrew mirrors the header: the back link sits top-right, like the stage header.
-          headerLeft: () =>
-            sayBack ? (dir.rtl ? null : backLink) : (
-              <HeaderClosePill label={phase === 'building' || phase === 'done' ? t('record.close') : t('common.cancel')} onPress={cancel} />
-            ),
-          ...(sayBack && dir.rtl ? { headerRight: () => backLink } : {}),
+          ...closePill,
         }}
       />
 
@@ -551,30 +563,35 @@ export default function RecordScreen() {
                 {t('record.say.youSaid', { language: saidName })}
               </Text>
               <Text style={[styles.saySaid, saidAlign]}>{result.said}</Text>
-              <Text style={[styles.sayLabel, styles.sayLangLabel]}>{languageName[language]}</Text>
-              <Text style={[styles.sayLine, result.line.ja.length > SAY_LONG_LINE && styles.sayLineLong]}>{result.line.ja}</Text>
+              <Text style={[styles.sayLabel, styles.sayLangLabel]}>{languageName}</Text>
+              {SAY_PLAIN.has(language) ? (
+                <Text style={[styles.sayLine, result.line.ja.length > SAY_LONG_LINE && styles.sayLineLong]}>{result.line.ja}</Text>
+              ) : (
+                <TappableSentence
+                  key={result.line.idx}
+                  line={result.line}
+                  language={language}
+                  native={native}
+                  islandId={result.id}
+                  highlight={sayHighlight}
+                  scrollRef={sayScrollRef}
+                  onExplain={noExplain}
+                  englishShown={false}
+                />
+              )}
               <Text style={styles.sayTranslation}>{result.line.en}</Text>
               {result.count > 1 ? <Text style={styles.sayMore}>{t('record.say.more', { count: result.count - 1 })}</Text> : null}
               <View style={styles.sayAudio}>
                 <TakePlay playing={playStatus.playing} disabled={!canPlay} onPress={togglePlay} />
                 <TakeWave bars={wordBars(result.line.words, result.line.duration)} progress={progress} />
-                <Text style={styles.sayTime}>{clock(result.line.duration, false)}</Text>
+                <Text style={styles.sayTime}>{formatClock(result.line.duration)}</Text>
               </View>
             </View>
             {error ? <Text style={[styles.error, styles.sayError, dir.text]}>{error}</Text> : null}
           </ScrollView>
           <View style={[styles.actions, styles.sayActions]}>
-            <PrismButton
-              shape="pill"
-              verb="tools"
-              label={t('record.say.again')}
-              height={56}
-              press="light"
-              onPress={start}
-              disabled={!canAfford(energy, 'say')}
-              accessibilityRole="button"
-            />
-            <PrismButton shape="pill" verb="speak" label={t('record.say.shadow')} height={56} onPress={shadowIt} accessibilityRole="button" />
+            <SecondaryAction label={t('record.say.again')} onPress={start} disabled={!canAfford(energy, 'say')} />
+            <PrimaryAction label={t('record.say.shadow')} onPress={shadowIt} />
           </View>
         </>
       ) : (
@@ -582,7 +599,7 @@ export default function RecordScreen() {
           <ScrollView style={styles.fill} contentContainerStyle={styles.content}>
             <View style={styles.header}>
               <View style={[styles.titleRow, dir.row]}>
-                <Text style={[styles.title, styles.titleText, dir.text]}>{t(titleKey, { language: nativeName })}</Text>
+                <ScreenTitle style={styles.titleText}>{t(titleKey, { language: midSentence(appLang, nativeName) })}</ScreenTitle>
                 {say && energy?.on ? (
                   <Pressable ref={chipRef} onPress={openEnergyInfo} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('energy.info.what')}>
                     <EnergyChip energy={energy} cost={priceOf(energy, 'say')} />
@@ -592,10 +609,14 @@ export default function RecordScreen() {
               {phase !== 'review' ? (
                 <Text style={[styles.hint, dir.text]}>
                   {say
-                    ? t('record.say.hint', { language: languageName[language] })
+                    ? t('record.say.hint', { language: midSentence(appLang, languageName) })
                     : topic
-                      ? t('record.topic.hint')
-                      : t('record.promptHint', { language: languageName[language] })}
+                      ? t(hasGrammar(language) ? 'record.topic.hint' : 'record.topic.hintNoGrammar')
+                      : t('record.promptHint', {
+                          language: midSentence(appLang, languageName),
+                          first: midSentence(appLang, nativeName),
+                          second: midSentence(appLang, otherNativeName),
+                        })}
                 </Text>
               ) : null}
             </View>
@@ -607,7 +628,7 @@ export default function RecordScreen() {
                 <View style={styles.takeCard}>
                   <TakePlay playing={playStatus.playing} disabled={!canPlay} onPress={togglePlay} />
                   <TakeWave bars={bars} progress={progress} />
-                  <Text style={styles.takeTime}>{clock(taken)}</Text>
+                  <Text style={styles.takeTime}>{formatClock(taken)}</Text>
                 </View>
 
                 {topic ? null : (
@@ -632,12 +653,10 @@ export default function RecordScreen() {
             ) : (
               <View style={styles.meter}>
                 <Text style={[styles.timer, { color: recording ? tide.record : tide.textDim }]}>
-                  {clock(elapsed)}
+                  {formatClock(elapsed)}
                 </Text>
                 <LevelBars level={meter.level} live={recording} />
-                <View style={styles.track}>
-                  <Animated.View style={[styles.trackFill, trackFillStyle]} />
-                </View>
+                <ProgressBar value={trackProgress} color={tide.lang.ja} />
               </View>
             )}
 
@@ -647,20 +666,15 @@ export default function RecordScreen() {
           <View style={styles.actions}>
             {phase === 'review' ? (
               <>
-                <PrismButton
-                  shape="pill"
-                  verb="speak"
-                  on
-                  height={prism.sizes.bigRound}
+                <PrimaryAction
                   label={t(topic ? 'record.topic.build' : 'record.buildIsland')}
                   onPress={build}
                   disabled={!topic && !canAfford(energy, 'create')}
                   trailing={topic ? undefined : <EnergyChip energy={energy} cost={priceOf(energy, 'create')} />}
-                  accessibilityRole="button"
                 />
                 <View style={styles.secondaryRow}>
                   {/* prism-record: edited region, one balanced group centred under the primary button */}
-                  <PrismButton shape="pill" verb="tools" label={t('record.recordAgain')} onPress={start} />
+                  <SecondaryAction label={t('record.recordAgain')} onPress={start} />
                   {/* icon-buttons: Discard */}
                   <PrismButton
                     shape="round"
@@ -742,7 +756,6 @@ const styles = StyleSheet.create({
   energyPopMeta: { fontSize: 13, lineHeight: 18, color: POP.goldInk, fontFamily: fonts.uiMedium, fontWeight: '600' },
   titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
   titleText: { flex: 1 },
-  title: { fontSize: 20, lineHeight: 26, color: tide.text, fontFamily: fonts.uiMedium, fontWeight: '500' },
   hint: { fontSize: 14, lineHeight: 20, color: tide.textDim, fontFamily: fonts.ui, alignSelf: 'stretch', flexShrink: 1 },
   meter: { alignItems: 'center', gap: Spacing.lg, marginTop: Spacing.lg },
   timer: {
@@ -751,14 +764,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.uiMedium,
     fontWeight: '500',
   },
-  track: {
-    alignSelf: 'stretch',
-    height: 4,
-    borderRadius: 2,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  trackFill: { height: 4, borderRadius: 2, backgroundColor: tide.lang.ja },
   takeCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -825,8 +830,6 @@ const styles = StyleSheet.create({
   sayTime: { fontSize: 13, fontVariant: ['tabular-nums'], color: tide.textDim, fontFamily: fonts.ui },
   // Say again over Shadow it, both full-width Prism pills.
   sayActions: { alignItems: 'stretch', gap: 12, paddingBottom: 32 },
-  backLink: { marginStart: 12 },
-  backLinkText: { fontSize: 14, color: tide.textDim, fontFamily: fonts.ui },
   rtlText: { textAlign: 'right', writingDirection: 'rtl' },
   ltrText: { textAlign: 'left', writingDirection: 'ltr' },
 });

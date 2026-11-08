@@ -5,6 +5,7 @@ import logging
 from fastapi import APIRouter, BackgroundTasks, Form, Header, HTTPException
 
 import dependencies
+import languages
 import phrase_catalog
 import starter
 import store
@@ -74,14 +75,13 @@ async def import_phrases(
     returns the island that already exists and is free."""
     dependencies.require_token(authorization)
     device = dependencies._require_device(x_shadow_device)
-    if language not in ("ja", "es", "en"):
-        raise HTTPException(400, "language must be 'ja', 'es' or 'en'")
+    languages.require_learning(language, device)
     if native not in ("he", "en"):
-        raise HTTPException(400, "native must be 'he' or 'en'")
+        raise HTTPException(400, {"code": "bad_native"})
     if language == native:
-        raise HTTPException(400, "the learning language must differ from the native one")
+        raise HTTPException(400, {"code": "same_language"})
     if voices.language_for(speaker) != language:
-        raise HTTPException(400, "that voice does not speak the chosen language")
+        raise HTTPException(400, {"code": "voice_language_mismatch"})
     try:
         entries = phrase_catalog.phrases(language, topic)
         island_title = phrase_catalog.title(topic, native)

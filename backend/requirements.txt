@@ -11,5 +11,12 @@ jamdict
 jamdict-data
 kokoro-onnx==0.6.1
 PyJWT[crypto]==2.10.1
+# admin_devices.py verifies Ed25519 phone proofs with it directly
+cryptography==50.0.2
 fsrs==6.3.2
 anthropic==0.100.0
+# lang-core: readings and script folding, pure Python
+jieba==0.42.1
+pypinyin==0.55.0
+korean-romanizer==0.28.0
+opencc-python-reimplemented==0.1.7

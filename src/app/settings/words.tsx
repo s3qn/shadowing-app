@@ -4,15 +4,16 @@ import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { CatConstellation } from '@/components/cat-constellation';
 import { PrismButton } from '@/components/prism/prism-button';
 import { Segmented } from '@/components/segmented';
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
+import { EmptyState, ErrorState, LoadingBlock } from '@/components/state-blocks';
 import { SettingsRow, SettingsSection } from '@/components/tide/settings-row';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide } from '@/constants/theme';
 import { useKnownWords } from '@/hooks/use-known-words';
 import * as api from '@/lib/api';
+import { devHarmonizeError } from '@/lib/dev-simulate';
 import { useDir, useT } from '@/lib/i18n';
 import { DEFAULT_VOICE_BY_LANGUAGE, getSettingsSync } from '@/lib/settings';
 
@@ -23,6 +24,7 @@ export default function WordsScreen() {
   const { t } = useT();
   const dir = useDir();
   const { data, loading, failed, reload } = useKnownWords();
+  const [simFail, setSimFail] = useState(devHarmonizeError);
   const [filter, setFilter] = useState<Filter>('all');
   const [open, setOpen] = useState<api.CatchCollectionWord | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -49,27 +51,15 @@ export default function WordsScreen() {
     player.play();
   }
 
-  function centered(children: React.ReactNode) {
-    return <View style={styles.center}>{children}</View>;
-  }
-
   let body;
-  if (!data && loading) {
-    body = centered(<CatConstellation size={120} />);
+  if (simFail) {
+    body = <ErrorState message={t('settings.words.failed')} onRetry={() => setSimFail(false)} />;
+  } else if (!data && loading) {
+    body = <LoadingBlock />;
   } else if (!data && failed) {
-    body = centered(
-      <>
-        <Text style={[styles.line, { color: tide.textDim }]}>{t('settings.words.failed')}</Text>
-        <PrismButton shape="pill" verb="listen" label={t('common.retry')} onPress={reload} />
-      </>,
-    );
+    body = <ErrorState message={t('settings.words.failed')} onRetry={reload} />;
   } else if (!data || data.total === 0) {
-    body = centered(
-      <>
-        <Text style={[styles.line, { color: tide.textDim }]}>{t('settings.words.empty')}</Text>
-        <PrismButton shape="pill" verb="listen" label={t('settings.words.play')} onPress={() => router.navigate('/(tabs)')} />
-      </>,
-    );
+    body = <EmptyState title={t('settings.words.empty')} action={{ label: t('settings.words.play'), onPress: () => router.navigate('/(tabs)') }} />;
   } else {
     body = (
       <ScrollView contentContainerStyle={styles.list}>
@@ -103,7 +93,7 @@ export default function WordsScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       {body}
-      <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onDismissed={() => setOpen(null)} title={open?.word} contentTitle>
+      <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onDismissed={() => setOpen(null)} title={open?.word ?? t('settings.words.sheetTitle')} contentTitle>
         {open ? (
           <View style={styles.sheet}>
             {open.meaning ? <Text style={[styles.meaning, { color: tide.text }, dir.text]}>{open.meaning}</Text> : null}
@@ -122,8 +112,6 @@ export default function WordsScreen() {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   list: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: 170 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.lg, padding: Spacing.lg },
-  line: { fontFamily: fonts.ui, fontSize: 16, textAlign: 'center' },
   sheet: { gap: Spacing.md, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg, alignItems: 'center' },
   meaning: { fontFamily: fonts.uiMedium, fontSize: 20 },
   sentence: { fontFamily: fonts.ui, fontSize: 16, textAlign: 'center' },

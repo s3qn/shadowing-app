@@ -20,6 +20,8 @@ export const en = {
   'home.failed': 'Failed',
   'home.dueToday': 'Due today',
   'home.practiceNow': 'Practice now',
+  'home.dueShort': 'due',
+  'home.learningLanguageButton': 'Learning language: {name}',
   // Base keys exist only so `t('home.lines', { count })` type-checks: the
   // plural suffix always wins at runtime once `count` is passed (see
   // `pluralSuffix` in `src/lib/i18n.ts`).
@@ -106,6 +108,7 @@ export const en = {
   'home.phrasesCount_one': '{count} phrase',
   'home.phrasesCount_two': '{count} phrases',
   'home.phrasesCount_other': '{count} phrases',
+  'phrases.noneYet': 'No ready topics in {language} yet. Record your own from the + button.',
   'phrases.prompt': 'What do you want to say?',
   'phrases.promptHint': 'Tap the red dot and say a topic, like "the gym"',
   'phrases.micLabel': 'Say a topic',
@@ -149,6 +152,7 @@ export const en = {
   'streak.buy': 'Buy a freeze · {n} coins',
   'streak.buyLabel': 'Buy a freeze',
   'streak.needCoins': 'Need {n} more coins',
+  'streak.needCoins_one': 'Need {n} more coin',
   'streak.atCap': 'You hold the most you can',
   'streak.how': 'A freeze is used on its own when you miss a day. It does not add a day.',
   'streak.keepGoing': 'Keep going',

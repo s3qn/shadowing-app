@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react';
-import { SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { type LayoutChangeEvent, ScrollView, SectionList, StyleSheet, Text, View } from 'react-native';
 
-import { PressScale } from '@/components/press-scale';
-import { CheckIcon, SearchIcon } from '@/components/tide/toolbar-icons';
+import { LanguageCard } from '@/components/language-card';
+import { PillTrayItem, PillTrayShell, SlidingLitPill, useSlidingPill } from '@/components/prism/pill-tray';
+import { GlassInput } from '@/components/tide/glass-input';
 import { fonts } from '@/constants/fonts';
-import { Radius, Spacing, tide, verb, withAlpha } from '@/constants/theme';
+import { Spacing, tide } from '@/constants/theme';
+import { useBetaFeatures } from '@/lib/beta';
 import { useDir, useT } from '@/lib/i18n';
 import { getLanguage, LANGUAGES, type LanguageEntry, type LanguageId, type Region } from '@/lib/languages';
 import { type Key } from '@/locales/en';
@@ -57,6 +59,8 @@ export type LanguagePickerProps = {
   /** A language chosen on the other screen, hidden here so the two picks
    * can never collide (for example English understanding English). */
   exclude?: LanguageId;
+  /** Learn mode only: also hide `exclude`, so the learner is never offered the language they already understand. */
+  hideExcluded?: boolean;
   /** Plain rows with no list of their own, for a screen that scrolls them in
    * its own ScrollView (Settings stacks two pickers on one page, ET-12). */
   inline?: boolean;
@@ -68,51 +72,46 @@ function matchesQuery(entry: LanguageEntry, query: string): boolean {
   return entry.native.toLowerCase().includes(q) || entry.english.toLowerCase().includes(q);
 }
 
-function RegionChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return (
-    <PressScale
-      onPress={onPress}
-      style={[
-        styles.chip,
-        {
-          backgroundColor: active ? tide.listen : 'rgba(255,255,255,0.08)',
-          borderColor: active ? tide.listen : 'rgba(255,255,255,0.14)',
-        },
-      ]}>
-      <Text style={[styles.chipText, { color: active ? tide.sky[0] : tide.text }]}>{label}</Text>
-    </PressScale>
-  );
-}
-
-function LanguageRow({
-  entry,
-  selected,
-  soon,
-  onPress,
-}: {
-  entry: LanguageEntry;
-  selected: boolean;
-  /** A "coming soon" language in learn mode: it carries a Soon pill, and
-   * tapping it must not change what is being learned, so `PressScale`'s own
-   * `disabled` blocks the press outright rather than relying on `onPress` to
-   * no-op. */
-  soon?: boolean;
-  onPress: () => void;
-}) {
+/** The region filter: "All" plus one pill per region on the sliding tray the Home sort row uses. */
+function RegionTray({ active, onChange }: { active: Region | null; onChange: (r: Region | null) => void }) {
   const { t } = useT();
   const dir = useDir();
+  const layoutsRef = useRef<{ x: number; width: number }[]>([]);
+  const [layouts, setLayouts] = useState<{ x: number; width: number }[]>([]);
+  const [fillWidth, setFillWidth] = useState(0);
+  const items: { region: Region | null; label: string }[] = [
+    { region: null, label: t('settings.picker.regionAll') },
+    ...REGIONS.map((region) => ({ region, label: t(REGION_KEY[region]) })),
+  ];
+  const { translateX, width } = useSlidingPill(layouts[items.findIndex((i) => i.region === active)]);
+  const measured = useCallback(
+    (i: number, e: LayoutChangeEvent) => {
+      const { x, width: w } = e.nativeEvent.layout;
+      layoutsRef.current[i] = { x, width: w };
+      setFillWidth((widest) => Math.max(widest, w));
+      if (layoutsRef.current.filter((l) => l).length === items.length) setLayouts([...layoutsRef.current]);
+    },
+    [items.length],
+  );
   return (
-    <PressScale onPress={onPress} disabled={soon} style={[styles.row, dir.row]}>
-      <View style={styles.avatar}>
-        <Text style={entry.flag ? styles.flag : styles.letter}>{entry.flag ?? entry.letter}</Text>
-      </View>
-      <View style={styles.rowBody}>
-        <Text style={[styles.native, dir.text]}>{entry.native}</Text>
-        <Text style={[styles.english, dir.text]}>{languageName(t, entry.id)}</Text>
-      </View>
-      {soon ? <Text style={styles.soonPill}>{t('settings.picker.soon')}</Text> : null}
-      {selected ? <CheckIcon color={tide.listen} size={20} /> : null}
-    </PressScale>
+    <PillTrayShell wrapStyle={styles.trayWrap}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <View style={[styles.trayRow, dir.row]}>
+          <SlidingLitPill translateX={translateX} width={width} fillWidth={fillWidth} />
+          {items.map((item, i) => (
+            <PillTrayItem
+              key={item.label}
+              label={item.label}
+              box={layouts[i]}
+              pillX={translateX}
+              pillW={width}
+              onLayout={(e) => measured(i, e)}
+              onPress={() => onChange(item.region === active ? null : item.region)}
+            />
+          ))}
+        </View>
+      </ScrollView>
+    </PillTrayShell>
   );
 }
 
@@ -122,25 +121,29 @@ function LanguageRow({
  * language step and Settings > Language both render this instead of keeping
  * their own pill rows, so the catalogue only needs wiring once.
  */
-export function LanguagePicker({ mode, value, onChange, exclude, inline }: LanguagePickerProps) {
+export function LanguagePicker({ mode, value, onChange, exclude, hideExcluded, inline }: LanguagePickerProps) {
   const { t } = useT();
   const dir = useDir();
   const [query, setQuery] = useState('');
   const [activeRegion, setActiveRegion] = useState<Region | null>(null);
 
+  // lang-core: "Ready to learn" is what `/shadow/beta` enables for this
+  // device (ja/es/en with no answer); every other catalogue row is "Coming soon".
+  const enabledList = useBetaFeatures().languages;
+  const enabled = useMemo(() => new Set<string>(enabledList.map((l) => l.id)), [enabledList]);
   const sections = useMemo<Section[]>(() => {
     // `exclude` only applies in understand mode: hiding the learn language's
     // pick there keeps the pair from colliding. Learn mode ignores it, so
     // English (the default understood language) can still be picked to
     // learn on a fresh install; `selectLearning`'s swap handles the collision
     // from that side instead.
-    const base = LANGUAGES.filter((l) => (mode === 'learn' || l.id !== exclude) && (mode === 'learn' || l.understandable)).filter(
+    const base = LANGUAGES.filter((l) => (l.id !== exclude || (mode === 'learn' && !hideExcluded)) && (mode === 'learn' || l.understandable)).filter(
       (l) => matchesQuery(l, query),
     );
     if (mode === 'learn') {
       const filtered = activeRegion ? base.filter((l) => l.region === activeRegion) : base;
-      const ready = filtered.filter((l) => l.learnable);
-      const soon = filtered.filter((l) => !l.learnable);
+      const ready = filtered.filter((l) => enabled.has(l.id));
+      const soon = filtered.filter((l) => !enabled.has(l.id));
       const out: Section[] = [];
       if (ready.length) out.push({ title: 'Ready to learn', data: ready });
       if (soon.length) out.push({ title: 'Coming soon', data: soon });
@@ -151,39 +154,19 @@ export function LanguagePicker({ mode, value, onChange, exclude, inline }: Langu
     // must not assume: the phone being set to English says nothing about
     // whether its owner reads English.
     return base.length ? [{ title: 'All languages', data: base }] : [];
-  }, [mode, exclude, query, activeRegion]);
+  }, [mode, exclude, hideExcluded, query, activeRegion, enabled]);
 
   const header = (
     <View style={styles.header}>
-      <View style={[styles.searchRow, dir.row]}>
-        <SearchIcon color={tide.textDim} size={18} />
-        <TextInput
-          style={[styles.searchInput, dir.text]}
-          value={query}
-          onChangeText={setQuery}
-          placeholder={t('settings.picker.searchPlaceholder')}
-          placeholderTextColor={tide.textDim}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-      </View>
-      {mode === 'learn' ? (
-        <View style={[styles.chipRow, dir.row]}>
-          <RegionChip
-            label={t('settings.picker.regionAll')}
-            active={activeRegion === null}
-            onPress={() => setActiveRegion(null)}
-          />
-          {REGIONS.map((region) => (
-            <RegionChip
-              key={region}
-              label={t(REGION_KEY[region])}
-              active={activeRegion === region}
-              onPress={() => setActiveRegion((prev) => (prev === region ? null : region))}
-            />
-          ))}
-        </View>
-      ) : null}
+      <GlassInput
+        style={dir.text}
+        value={query}
+        onChangeText={setQuery}
+        placeholder={t('settings.picker.searchPlaceholder')}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+      {mode === 'learn' ? <RegionTray active={activeRegion} onChange={setActiveRegion} /> : null}
     </View>
   );
   const empty = query.trim() ? (
@@ -199,8 +182,18 @@ export function LanguagePicker({ mode, value, onChange, exclude, inline }: Langu
     // learning (see `setLearningLanguage`), so a learn-mode tap on one
     // must not reach `onChange` at all: `disabled` blocks the press
     // itself, rather than letting `onChange` silently no-op it.
-    const soon = mode === 'learn' && !item.learnable;
-    return <LanguageRow key={item.id} entry={item} selected={item.id === value} soon={soon} onPress={() => onChange(item.id)} />;
+    const soon = mode === 'learn' && !enabled.has(item.id);
+    return (
+      <LanguageCard
+        key={item.id}
+        avatar={item.flag ?? item.letter}
+        title={item.native}
+        subtitle={languageName(t, item.id)}
+        selected={item.id === value}
+        soon={soon}
+        onPress={() => onChange(item.id)}
+      />
+    );
   };
 
   if (inline) {
@@ -209,7 +202,7 @@ export function LanguagePicker({ mode, value, onChange, exclude, inline }: Langu
         {header}
         {sections.length === 0 ? empty : null}
         {sections.map((section) => (
-          <View key={section.title} style={styles.inlineSection}>
+          <View key={section.title}>
             {sectionHeader(section)}
             {section.data.map(row)}
           </View>
@@ -242,75 +235,11 @@ export function languageColor(id: LanguageId): string {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  list: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl, gap: Spacing.sm },
-  // The SectionList's `gap` between its rows, kept when the rows are inline.
-  inlineSection: { gap: Spacing.sm },
+  list: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
   header: { gap: Spacing.sm, paddingBottom: Spacing.xs },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    height: 40,
-    borderRadius: Radius.pill,
-    borderWidth: 1,
-    borderColor: tide.waterline,
-    backgroundColor: tide.water,
-    paddingHorizontal: Spacing.md,
-  },
-  searchInput: { flex: 1, fontSize: 15, color: tide.text, fontFamily: fonts.ui, padding: 0 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  chip: {
-    borderWidth: 1,
-    borderRadius: Radius.pill,
-    paddingVertical: Spacing.xs + 2,
-    paddingHorizontal: Spacing.md,
-  },
-  chipText: { fontSize: 13, fontWeight: '600', fontFamily: fonts.uiMedium },
+  trayWrap: { alignSelf: 'stretch' },
+  trayRow: { flexDirection: 'row', gap: Spacing.sm },
   empty: { fontSize: 14, lineHeight: 20, color: tide.textDim, fontFamily: fonts.ui, paddingTop: Spacing.sm },
   sectionHeaderWrap: { gap: Spacing.xs, paddingTop: Spacing.md, paddingBottom: Spacing.xs },
   sectionHeader: { fontSize: 13, fontWeight: '700', color: tide.textDim, letterSpacing: 0.5, fontFamily: fonts.uiMedium },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: tide.waterline,
-    backgroundColor: tide.water,
-  },
-  // The artifact's round glyph: the language's flag (a letter from its own
-  // script where no flag fits) on glass, with the prism edges (warm on one
-  // side, cool on the other) drawn as per-side borders.
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderWidth: 1,
-    borderLeftWidth: 2,
-    borderRightWidth: 2,
-    borderLeftColor: 'rgba(255,70,110,0.30)',
-    borderRightColor: 'rgba(70,170,255,0.35)',
-    borderTopColor: 'rgba(255,255,255,0.30)',
-    borderBottomColor: 'rgba(255,255,255,0.08)',
-  },
-  flag: { fontSize: 20 },
-  letter: { fontSize: 16, fontWeight: '700', color: tide.text, fontFamily: fonts.uiMedium },
-  soonPill: {
-    fontSize: 11,
-    fontWeight: '700',
-    fontFamily: fonts.uiMedium,
-    color: verb.read.c1,
-    backgroundColor: withAlpha(verb.read.c1, 0.12),
-    borderRadius: 8,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    overflow: 'hidden',
-  },
-  rowBody: { flex: 1, gap: 2 },
-  native: { fontSize: 17, fontWeight: '600', color: tide.text, fontFamily: fonts.uiMedium },
-  english: { fontSize: 13, color: tide.textDim, fontFamily: fonts.ui },
 });

@@ -1,0 +1,17 @@
+export const de = {
+  'podcast.listen': 'Folge anhören',
+  'podcast.loadFailed': 'Das Audio der Folge konnte nicht geladen werden.',
+  'podcast.bestBits.title': '{n} Sätze aus dieser Folge nachsprechen?',
+  'podcast.aiPick.label': 'Sätze per KI auswählen',
+  'podcast.aiPick.hint': 'Noch keine gespeicherten Sätze. Tippe auf das Funkel-Symbol, dann wählt die KI einige zum Nachsprechen aus.',
+  'podcast.aiPick.confirmTitle': 'Die KI Sätze auswählen lassen?',
+  'podcast.aiPick.confirmBody': 'Sie wählt 5 bis 10 leichte Sätze aus dieser Folge und speichert sie. Das kostet 3 Energie.',
+  'podcast.aiPick.confirm': 'Sätze auswählen',
+  'podcast.aiPick.cancel': 'Jetzt nicht',
+  'podcast.aiPick.done': '{n} Sätze gespeichert',
+  'podcast.aiPick.done_one': '{n} Satz gespeichert',
+  'api.pick_failed': 'Die KI konnte aus dieser Folge keine Sätze auswählen. Es wurde keine Energie verbraucht.',
+  'api.not_podcast': 'Das geht nur bei Podcast-Folgen.',
+  'api.has_cards': 'Diese Folge hat schon gespeicherte Sätze.',
+  'api.no_lines': 'Diese Folge hat zu wenige klare Sätze zur Auswahl. Es wurde keine Energie verbraucht.',
+};

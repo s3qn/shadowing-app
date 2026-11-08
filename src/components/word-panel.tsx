@@ -65,11 +65,11 @@ export function WordPanel({ word, gloss, context, left, top, romaji = false, dic
       <GlassFill radius={Radius.md} />
       <View style={[styles.head, dir.row]}>
         <View style={styles.headText}>
-          <Text style={styles.word} numberOfLines={1}>
+          <Text style={[styles.word, dir.content]} numberOfLines={1}>
             {word}
           </Text>
           {gloss?.reading && (showReading || showBase) ? (
-            <Text style={styles.reading} numberOfLines={1}>
+            <Text style={[styles.reading, dir.content]} numberOfLines={1}>
               {showReading ? shownReading : ''}
               {showBase ? `${showReading ? '  ·  ' : ''}${gloss.base}` : ''}
             </Text>
@@ -89,7 +89,7 @@ export function WordPanel({ word, gloss, context, left, top, romaji = false, dic
           ) : (
             gloss.entries.slice(0, 2).map((entry, i) =>
               entry.senses.slice(0, 3).map((sense, j) => (
-                <Text key={`${i}-${j}`} style={styles.meaning}>
+                <Text key={`${i}-${j}`} style={[styles.meaning, dir.content]}>
                   {sense.glosses.join('; ')}
                   {sense.pos.length ? <Text style={{ color: tide.textDim }}>  {sense.pos[0]}</Text> : null}
                 </Text>

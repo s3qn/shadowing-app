@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -14,9 +14,11 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrismButton } from '@/components/prism/prism-button';
+import { ProgressBar } from '@/components/progress-bar';
+import { useExitScreen } from '@/lib/use-exit-screen';
 import { PlayerTitle } from '@/components/tide/player-title';
 import { fonts } from '@/constants/fonts';
-import { Radius, Spacing, tide, verb } from '@/constants/theme';
+import { Spacing, tide, verb } from '@/constants/theme';
 import { useDrive, type DrivePhase } from '@/hooks/use-drive';
 import { hapticSelection } from '@/lib/haptics';
 import { useDir, useT } from '@/lib/i18n';
@@ -42,7 +44,7 @@ export default function DriveScreen() {
   const { id, line: lineParam } = useLocalSearchParams<{ id?: string; line?: string }>();
   const { t } = useT();
   const dir = useDir();
-  const router = useRouter();
+  const close = useExitScreen();
   const insets = useSafeAreaInsets();
   const sky = useSkyStyle();
   const reduced = useReducedMotion();
@@ -75,7 +77,6 @@ export default function DriveScreen() {
     dim.value = reduced ? to : withTiming(to, { duration: 200, easing: Easing.out(Easing.quad) });
   }, [paused, reduced, dim]);
   const blockStyle = useAnimatedStyle(() => ({ opacity: dim.value }));
-  const fillStyle = useAnimatedStyle(() => ({ width: `${Math.max(0, Math.min(1, d.progress.value)) * 100}%` }));
 
   const colour = labelColour(phase);
   const labelKey =
@@ -84,8 +85,6 @@ export default function DriveScreen() {
   const showText = line !== null && phase !== 'empty' && phase !== 'offline' && phase !== 'loading';
   // Arriving while the loader is still drawn, the line waits for its fade-out instead of showing under it.
   const afterLoader = phase !== 'loading' && loaderShown.value > 0.01 ? LOADER_OUT_MS : 0;
-
-  const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
   return (
     <View style={[styles.root, { backgroundColor: sky.top }]}>
@@ -147,7 +146,7 @@ export default function DriveScreen() {
                         </Text>
                       ) : null}
                       <View style={styles.track}>
-                        <Animated.View style={[styles.fill, { backgroundColor: colour }, fillStyle]} />
+                        <ProgressBar value={d.progress} color={colour} height={3} />
                       </View>
                       {paused ? <Text style={styles.hint}>{t('drive.tapToReplay')}</Text> : null}
                     </>
@@ -196,8 +195,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase', fontFamily: fonts.ui, marginBottom: Spacing.md, textAlign: 'center' },
   ja: { fontFamily: fonts.ui, fontSize: 30, fontWeight: '600', lineHeight: 42, color: tide.text, textAlign: 'center' },
   en: { fontFamily: fonts.ui, fontSize: 17, lineHeight: 24, color: tide.textDim, textAlign: 'center', marginTop: Spacing.md },
-  track: { marginTop: Spacing.xl, width: '60%', height: 3, borderRadius: Radius.pill, backgroundColor: 'rgba(255,255,255,0.10)', overflow: 'hidden' },
-  fill: { height: 3, borderRadius: Radius.pill },
+  track: { marginTop: Spacing.xl, width: '60%' },
   hint: { marginTop: Spacing.md, fontSize: 13, fontFamily: fonts.ui, color: tide.textDim, textAlign: 'center' },
   empty: { fontFamily: fonts.ui, fontSize: 17, lineHeight: 24, color: tide.textDim, textAlign: 'center' },
   bottom: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: Spacing.xl },

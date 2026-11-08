@@ -31,8 +31,6 @@ ALIGN_MEMORY_MAX = "3G"
 ALIGN_CPU_QUOTA = "600%"
 ALIGN_THREADS = 6
 
-LANGUAGE_NAMES = {"ja": "Japanese", "en": "English", "es": "Spanish"}
-
 
 class AlignError(Exception):
     """A whole-job failure. `code` is what lands in videos.align_error."""

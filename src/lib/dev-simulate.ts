@@ -5,14 +5,22 @@
  * No fake practice. All of it is a no-op outside __DEV__.
  */
 
-import { clearSessionLines, devGrantCoins, linesSim, type CatchCollection, type Line, type NativeLanguage } from '@/lib/api';
+import { clearSessionLines, devGrantCoins, devTtsSim, linesSim, type CatchCollection, type Line, type NativeLanguage } from '@/lib/api';
 import { setBetaOverride } from '@/lib/beta';
 import { clearLevelUp, clearStreakMoment, MILESTONE_DAYS, milestoneOf, pushLevelUp, pushStreakMoment } from '@/lib/level-up-store';
 import { setDevApiBlock } from '@/lib/dev-api-block';
 import { setDevEnergy } from '@/lib/energy';
+import { LANGUAGE_IDS } from '@/lib/languages';
 import { requestTranscriptEnd, resetTranscriptSim, setTranscriptSim } from '@/lib/dev-transcripts';
 import { setDevStreak } from '@/lib/practice';
 import { applyProgress, catalogNow, progressNow } from '@/lib/progression';
+
+// Home's list and due count, faked in memory (dev only). Home reads it each render.
+export type HomeSim = 'empty' | 'due0' | 'due99';
+let homeSim: HomeSim | null = null;
+export function devHomeSim(): HomeSim | null {
+  return __DEV__ ? homeSim : null;
+}
 
 function streak(n: number | null): void {
   setDevStreak(n);
@@ -63,6 +71,18 @@ function simWords(kind: 'empty' | 'mixed'): void {
   ];
   const known = words.filter((w) => w.state === 'known').length;
   wordsSim = { language: 'ja', total: words.length, learning: words.length - known, known, words };
+}
+
+// --- harmonize ---
+// `harmonize.error`: the next My words or Leaderboard mount shows its error
+// state once, so Retry can be tapped. Consumed on read; a kill clears it.
+let harmonizeError = false;
+
+/** True once after `harmonize.error` ran, then false until it runs again. */
+export function devHarmonizeError(): boolean {
+  if (!__DEV__ || !harmonizeError) return false;
+  harmonizeError = false;
+  return true;
 }
 
 // --- night-flow ---
@@ -165,6 +185,27 @@ export function devCountSlow(): number {
   return __DEV__ ? countSlow : 1;
 }
 
+// --- welcome-v6 ---
+// The welcome hero's clock: slowed, sent down the Account path with a session, or in its reduced-motion pose.
+let welcomeSlow = 1;
+let welcomeForceAccount = false;
+let welcomeReduced = false;
+
+/** The factor the hero clock and the hand-off are divided by (`welcome.slow` sets 4), 1 in a release build. */
+export function devWelcomeSlow(): number {
+  return __DEV__ ? welcomeSlow : 1;
+}
+
+/** `welcome.handoff`: Get started leads to the Account step even with a session, so the pill ride can be seen signed in. */
+export function devWelcomeForceAccount(): boolean {
+  return __DEV__ && welcomeForceAccount;
+}
+
+/** `welcome.reduced`: the hero's reduced-motion pose and fades without touching the OS setting. */
+export function devWelcomeReduced(): boolean {
+  return __DEV__ && welcomeReduced;
+}
+
 // --- streak-tier-achievements ---
 // tier-up-2 .. tier-up-10: the rung's "New item unlocked" screen (its item
 // from the catalog cache, no grant, nothing marked seen) and then the up
@@ -233,6 +274,78 @@ function resetSay(): void {
   sayResult = null;
 }
 
+// --- lang-core ---
+// `lang-say-<code>`: the say result frame on a canned line in that language,
+// the way `record.sayResult` does for Japanese. Hebrew and Arabic have no voice
+// yet, so this is the only way to see their text on a phone.
+const SAY_EN = 'The weather is nice today, so I will go for a walk.';
+function sayLine(ja: string, romaji: string, words: { text: string; rt?: string }[]): Line {
+  const step = 3.4 / words.length;
+  return {
+    idx: 0,
+    ja,
+    kana: '',
+    romaji,
+    en: SAY_EN,
+    duration: 3.4,
+    timeline: [],
+    words: words.map((w, i) => ({
+      text: w.text,
+      start: Math.round(i * step * 100) / 100,
+      end: Math.round((i + 1) * step * 100) / 100,
+      ...(w.rt !== undefined ? { ruby: [{ text: w.text, rt: w.rt }] } : {}),
+    })),
+  };
+}
+const LANG_SAY_LINES: Record<string, Line> = {
+  zh: sayLine('今天天气很好，所以我去散步。', 'jīntiān tiānqì hěn hǎo, suǒyǐ wǒ qù sànbù.', [
+    { text: '今天', rt: 'jīntiān' },
+    { text: '天气', rt: 'tiānqì' },
+    { text: '很', rt: 'hěn' },
+    { text: '好', rt: 'hǎo' },
+    { text: '，', rt: '' },
+    { text: '所以', rt: 'suǒyǐ' },
+    { text: '我', rt: 'wǒ' },
+    { text: '去', rt: 'qù' },
+    { text: '散步', rt: 'sànbù' },
+    { text: '。', rt: '' },
+  ]),
+  ko: sayLine('오늘은 날씨가 좋아서 산책하러 가요.', 'oneureun nalssiga joaseo sanchaekhareo gayo.', [
+    { text: '오늘은' },
+    { text: '날씨가' },
+    { text: '좋아서' },
+    { text: '산책하러' },
+    { text: '가요.' },
+  ]),
+  he: sayLine('היום מזג האוויר יפה, אז אני הולך לטייל.', 'haYOM MEzeg haaVIR yaFE, az aNI hoLEKH letaYEL.', [
+    { text: 'היום' },
+    { text: 'מזג' },
+    { text: 'האוויר' },
+    { text: 'יפה,' },
+    { text: 'אז' },
+    { text: 'אני' },
+    { text: 'הולך' },
+    { text: 'לטייל.' },
+  ]),
+  ar: sayLine('الطَّقْسُ جَمِيلٌ الْيَوْمَ، لِذَلِكَ سَأَذْهَبُ فِي نُزْهَةٍ.', 'aṭ-ṭaqsu jamīlun al-yawma, li-dhālika sa-adhhabu fī nuzhatin.', [
+    { text: 'الطَّقْسُ' },
+    { text: 'جَمِيلٌ' },
+    { text: 'الْيَوْمَ،' },
+    { text: 'لِذَلِكَ' },
+    { text: 'سَأَذْهَبُ' },
+    { text: 'فِي' },
+    { text: 'نُزْهَةٍ.' },
+  ]),
+};
+const LANG_SAYS = Object.fromEntries(
+  Object.entries(LANG_SAY_LINES).map(([code, line]) => [
+    `lang-say-${code}`,
+    () => {
+      sayResult = { id: 'dev-say', said: SAY_EN, native: 'en', line, count: 3 };
+    },
+  ]),
+);
+
 const SIMULATIONS: Record<string, () => Promise<void> | void> = {
   ...TIER_UPS,
   ...TIERS,
@@ -256,6 +369,9 @@ const SIMULATIONS: Record<string, () => Promise<void> | void> = {
   // My words page: a fresh account, and a mix of known and learning words.
   'words-empty': () => simWords('empty'),
   'words-mixed': () => simWords('mixed'),
+  'harmonize.error': () => {
+    harmonizeError = true;
+  },
   // --- transcript-review ---
   'transcripts-end': () => requestTranscriptEnd(),
   'transcripts-nowords': () => setTranscriptSim('nowords'),
@@ -269,6 +385,21 @@ const SIMULATIONS: Record<string, () => Promise<void> | void> = {
   // --- ai-guardrails --- the next build or import answers with the budget or kill-switch message.
   'ai-budget-reached': () => setDevApiBlock('daily_budget'),
   'ai-paused': () => setDevApiBlock('ai_paused'),
+  // lang-core: every catalogue language under "Ready to learn" (picker and settings only; the backend still gates).
+  'lang-all': () => setBetaOverride({ languages: LANGUAGE_IDS.map((id) => ({ id, speaker: 10001 })) }),
+  ...LANG_SAYS,
+  // The route guard's refusal on the next build: the create error copy with Retry.
+  'lang-unavailable': () => setDevApiBlock('language_unavailable'),
+  // --- home dock and chips --- no islands and no due, 0 due, 99 due (width check).
+  'home-empty': () => {
+    homeSim = 'empty';
+  },
+  'home-due-0': () => {
+    homeSim = 'due0';
+  },
+  'home-due-many': () => {
+    homeSim = 'due99';
+  },
   // --- energy meter --- full 60, low 8, empty 0.
   'energy-full': () => setDevEnergy(60),
   'energy-low': () => setDevEnergy(8),
@@ -316,6 +447,11 @@ const SIMULATIONS: Record<string, () => Promise<void> | void> = {
   'admin-beta-off': () => setBetaOverride({ features: false, admin: true }),
   'admin-beta-on': () => setBetaOverride({ features: true, admin: true }),
   'friend-beta-on': () => setBetaOverride({ features: true, admin: false }),
+  // admin-device-bound: the Admin screen's phone-key states, without a request.
+  'admin-device-pending': () => setBetaOverride({ admin: true, device: 'pending' }),
+  'admin-device-revoked': () => setBetaOverride({ admin: true, device: 'revoked' }),
+  'admin-device-rejected': () => setBetaOverride({ admin: true, device: 'rejected' }),
+  'admin-device-unsupported': () => setBetaOverride({ admin: true, device: 'unsupported' }),
   'ladder-fake-take': () => {
     fakeTake = 86;
   },
@@ -363,6 +499,18 @@ const SIMULATIONS: Record<string, () => Promise<void> | void> = {
     countSlow = 4;
     stampSlow = 4;
   },
+  // welcome-v6: the Account step follows Get started even with a session (a fresh /onboarding mount replays the welcome).
+  'welcome.handoff': () => {
+    welcomeForceAccount = true;
+  },
+  // welcome-v6: the hero clock and the hand-off at 1/4 speed.
+  'welcome.slow': () => {
+    welcomeSlow = 4;
+  },
+  // welcome-v6: the reduced-motion pose and fades without the OS setting.
+  'welcome.reduced': () => {
+    welcomeReduced = true;
+  },
   // say-it: the real translate and voice run on a canned transcript.
   'say-canned-sentence': () => {
     sayTranscript = 'היום מזג האוויר יפה, אז אלך לטייל.';
@@ -383,22 +531,39 @@ const SIMULATIONS: Record<string, () => Promise<void> | void> = {
   'record.sayResult': () => {
     sayResult = { id: 'dev-say', said: 'היום מזג האוויר יפה, אז אלך לטייל.', native: 'he', line: SAY_RESULT_LINE, count: 3 };
   },
+  // --- tts-providers --- the dev backend's hosted-voice switch: every hosted
+  // render over budget (free voice fills in, reason budget), every provider
+  // raising (reason error), or every hosted provider disabled (local cards only).
+  'voice-budget-out': () => devTtsSim('budget_out'),
+  'voice-provider-down': () => devTtsSim('provider_down'),
+  'voice-hosted-off': () => devTtsSim('hosted_off'),
   reset: () => {
     fakeTake = null;
     resetFocus();
     resetSay();
     stampSlow = 1;
     countSlow = 1;
+    welcomeSlow = 1;
+    welcomeForceAccount = false;
+    welcomeReduced = false;
     setBetaOverride({});
     streak(null);
+    homeSim = null;
     repairPhases = [];
     wordsSim = null;
     setDevApiBlock(null);
     setDevEnergy(null);
     clearLevelUp();
     clearStreakMoment();
+    resetTtsSim();
   },
 };
+
+/** Clears the dev backend's hosted-voice switch; a prod backend answers 404,
+ * which is the same as cleared. */
+function resetTtsSim(): void {
+  void devTtsSim('').catch(() => undefined);
+}
 
 export async function runSimulation(key: string): Promise<void> {
   if (!__DEV__) return;
@@ -413,15 +578,20 @@ export function resetSimulation(): void {
   resetSay();
   stampSlow = 1;
   countSlow = 1;
+  welcomeSlow = 1;
+  welcomeForceAccount = false;
+  welcomeReduced = false;
   setBetaOverride({});
   streak(null);
   repairPhases = [];
   wordsSim = null;
+  harmonizeError = false;
   linesSim.many = linesSim.slow = linesSim.fail = linesSim.long = false;
   clearSessionLines();
   resetTranscriptSim();
   setDevApiBlock(null);
   setDevEnergy(null);
+  resetTtsSim();
   clearLevelUp();
   clearStreakMoment();
 }

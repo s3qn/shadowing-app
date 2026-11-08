@@ -7,6 +7,7 @@ import { BottomSheet } from '@/components/sheet/bottom-sheet';
 import { TickRuler } from '@/components/tide/tick-ruler';
 import { fonts } from '@/constants/fonts';
 import { SPEED_MAX, SPEED_MIN, tide } from '@/constants/theme';
+import { formatSpeed } from '@/lib/format';
 import { useDir, useT } from '@/lib/i18n';
 import type { LadderPace } from '@/lib/pass-programme';
 
@@ -35,11 +36,6 @@ const PACE_KEY: Record<LadderPace, 'ladder.paceQuick' | 'ladder.paceNormal' | 'l
 /** The pace chip's label: Quick / Normal / Deep. */
 export function paceLabelKey(pace: LadderPace) {
   return PACE_KEY[pace];
-}
-
-/** "0.8×": the speed with its trailing zeros dropped, as on the chips. */
-export function speedChipLabel(speed: number): string {
-  return `${Number(speed.toFixed(2))}×`;
 }
 
 function speedAt(index: number): number {
@@ -76,7 +72,7 @@ export function PaceSheet({ open, onClose, pace, onPace, speed, onSpeed, chip }:
     router.push('/settings/playback');
   };
   return (
-    <BottomSheet open={open} onClose={onClose}>
+    <BottomSheet open={open} onClose={onClose} title={t('settings.section.playback')}>
       <View style={styles.body}>
         {pace && onPace ? (
           <>
@@ -88,7 +84,7 @@ export function PaceSheet({ open, onClose, pace, onPace, speed, onSpeed, chip }:
           <>
             <Text style={[styles.h3, styles.h3Speed, dir.text]}>{t('player.toolbarSpeed')}</Text>
             <View style={styles.rulerBox} onLayout={(e) => setRulerW(Math.round(e.nativeEvent.layout.width))}>
-              <Text style={styles.readout}>{speedChipLabel(speed)}</Text>
+              <Text style={styles.readout}>{formatSpeed(speed)}</Text>
               {rulerW > 0 ? (
                 <TickRuler
                   width={rulerW}
@@ -97,8 +93,8 @@ export function PaceSheet({ open, onClose, pace, onPace, speed, onSpeed, chip }:
                   step={TICK_STEP}
                   onIndexChange={(i) => onSpeed(speedAt(i))}
                   isMajor={() => true}
-                  tickLabel={(i) => speedChipLabel(speedAt(i))}
-                  accessibilityLabel={`${t('player.toolbarSpeed')}, ${speedChipLabel(speed)}`}
+                  tickLabel={(i) => formatSpeed(speedAt(i))}
+                  accessibilityLabel={`${t('player.toolbarSpeed')}, ${formatSpeed(speed)}`}
                 />
               ) : null}
             </View>

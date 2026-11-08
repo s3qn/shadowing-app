@@ -31,10 +31,18 @@ import { type Key } from '@/locales/en';
 // not by `LearningLanguage` (which is any string): a Coming soon pick has to
 // go through `toIslandLanguage` first, or the row below gets `undefined` and
 // `words.map` throws.
-const READ_ALONG_WORDS: Record<'ja' | 'es' | 'en', string[]> = {
+const READ_ALONG_WORDS: Record<ReturnType<typeof toIslandLanguage>, string[]> = {
   ja: ['今日は', 'いい', '天気', 'ですね'],
   es: ['Hoy', 'hace', 'buen', 'tiempo'],
   en: ['The', 'weather', 'is', 'nice', 'today'],
+  // lang-core: the same sentence in the other catalogue languages.
+  fr: ['Il', 'fait', 'beau', 'aujourd’hui'],
+  pt: ['Hoje', 'o', 'tempo', 'está', 'bom'],
+  zh: ['今天', '天气', '很', '好'],
+  ko: ['오늘은', '날씨가', '좋아요'],
+  de: ['Heute', 'ist', 'das', 'Wetter', 'schön'],
+  he: ['מזג', 'האוויר', 'יפה', 'היום'],
+  ar: ['الطقس', 'جميل', 'اليوم'],
 };
 
 const TRANSLATIONS: Record<'he' | 'en', string> = {

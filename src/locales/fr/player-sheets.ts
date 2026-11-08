@@ -1,0 +1,16 @@
+export const fr = {
+  'player.lookingUp': 'Recherche…',
+  'player.noDictionaryEntry': 'Aucune entrée dans le dictionnaire.',
+  'player.nothingToAdd': 'Rien à ajouter.',
+  'player.inThisSentence': 'Dans cette phrase : {context}',
+  'player.hearAgain': 'Réécouter',
+  'player.explainTitle': 'Explication',
+  'player.explainNoAnswer': 'Impossible d\'obtenir une réponse pour l\'instant.',
+  'player.vocabulary': 'Vocabulaire',
+  'player.grammar': 'Grammaire',
+  'player.summary': 'Résumé',
+  'player.saveTakeFailed': 'Impossible de sauvegarder l\'essai.',
+  'player.recordingStoppedUnexpectedly': 'L\'enregistrement s\'est arrêté de façon inattendue.',
+  'player.micAccessOff': 'L\'accès au micro est désactivé. Active-le dans les Réglages et réessaie.',
+  'player.startRecordingFailed': 'Impossible de démarrer l\'enregistrement.',
+};

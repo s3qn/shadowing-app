@@ -186,4 +186,11 @@ CREATE TABLE IF NOT EXISTS client_ops (
   PRIMARY KEY (owner, op)
 );
 CREATE INDEX IF NOT EXISTS idx_client_ops_created ON client_ops(created_at);
+CREATE TABLE IF NOT EXISTS tts_spend (
+  provider TEXT NOT NULL,
+  month    TEXT NOT NULL,
+  chars    INTEGER NOT NULL DEFAULT 0,
+  requests INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (provider, month)
+);
 """

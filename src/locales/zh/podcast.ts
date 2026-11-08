@@ -1,0 +1,17 @@
+export const zh = {
+  'podcast.listen': '收听这一集',
+  'podcast.loadFailed': '无法加载这一集的音频。',
+  'podcast.bestBits.title': '跟读这一集的 {n} 个句子？',
+  'podcast.aiPick.label': '用 AI 挑选句子',
+  'podcast.aiPick.hint': '还没有保存的句子。点按闪光图标，AI 会挑一些来跟读。',
+  'podcast.aiPick.confirmTitle': '让 AI 挑选句子？',
+  'podcast.aiPick.confirmBody': '会从这一集挑出 5 到 10 个简单的句子并保存，消耗 3 点能量。',
+  'podcast.aiPick.confirm': '挑选句子',
+  'podcast.aiPick.cancel': '暂时不要',
+  'podcast.aiPick.done': '已保存 {n} 个句子',
+  'podcast.aiPick.done_one': '已保存 {n} 个句子',
+  'api.pick_failed': 'AI 没能从这一集挑出句子，没有消耗能量。',
+  'api.not_podcast': '只能从播客单集中挑选。',
+  'api.has_cards': '这一集已经有保存的句子。',
+  'api.no_lines': '这一集清晰的句子太少，无法挑选，没有消耗能量。',
+};

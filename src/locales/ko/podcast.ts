@@ -1,0 +1,17 @@
+export const ko = {
+  'podcast.listen': '에피소드 듣기',
+  'podcast.loadFailed': '에피소드 오디오를 불러오지 못했어요.',
+  'podcast.bestBits.title': '이 에피소드에서 {n}문장을 따라 말해 볼까요?',
+  'podcast.aiPick.label': 'AI로 문장 고르기',
+  'podcast.aiPick.hint': '저장된 문장이 아직 없어요. 반짝이 아이콘을 누르면 AI가 따라 말할 문장을 골라 줘요.',
+  'podcast.aiPick.confirmTitle': 'AI가 문장을 고르게 할까요?',
+  'podcast.aiPick.confirmBody': '이 에피소드에서 쉬운 문장 5~10개를 골라 저장해요. 에너지 3을 써요.',
+  'podcast.aiPick.confirm': '문장 고르기',
+  'podcast.aiPick.cancel': '나중에',
+  'podcast.aiPick.done': '문장 {n}개 저장됨',
+  'podcast.aiPick.done_one': '문장 {n}개 저장됨',
+  'api.pick_failed': 'AI가 이 에피소드에서 문장을 고르지 못했어요. 에너지는 쓰지 않았어요.',
+  'api.not_podcast': '팟캐스트 에피소드에서만 고를 수 있어요.',
+  'api.has_cards': '이 에피소드에는 이미 저장된 문장이 있어요.',
+  'api.no_lines': '이 에피소드에는 고를 만큼 또렷한 문장이 적어요. 에너지는 쓰지 않았어요.',
+};

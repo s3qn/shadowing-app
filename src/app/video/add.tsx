@@ -1,6 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
-import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -10,7 +10,8 @@ import { CatConstellation } from '@/components/cat-constellation';
 import { PressScale } from '@/components/press-scale';
 import { EnergyChip } from '@/components/energy-bolt';
 import { canAfford, priceOf, useEnergy } from '@/lib/energy';
-import { PrismButton } from '@/components/prism';
+import { PrimaryAction, SecondaryAction } from '@/components/prism/actions';
+import { LoadingBlock } from '@/components/state-blocks';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, tide } from '@/constants/theme';
 import * as api from '@/lib/api';
@@ -99,8 +100,7 @@ export default function VideoAddScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={[styles.fill, { backgroundColor: tide.sky[0] }]}>
       <StatusBar style="light" />
-      <Stack.Screen options={{ headerStyle: { backgroundColor: tide.sky[0] }, headerTintColor: tide.text, headerShadowVisible: false }} />
-      <ScrollView contentContainerStyle={styles.content}>
+            <ScrollView contentContainerStyle={styles.content}>
         {info ? (
           <View style={styles.card}>
             <Image source={{ uri: info.thumbnail }} style={styles.thumb} contentFit="cover" />
@@ -112,21 +112,17 @@ export default function VideoAddScreen() {
         <View style={styles.actions}>
           {info ? (
             <>
-              <PrismButton shape="pill" verb="listen" label={t('video.watchPreview')} onPress={preview} />
-              <PrismButton shape="pill" verb="speak" label={t('video.build')} onPress={build} disabled={!canAfford(energy, 'import')} trailing={<EnergyChip energy={energy} cost={priceOf(energy, 'import')} />} />
-              <PrismButton shape="pill" verb="tools" flat press="light" label={t('video.pasteAnother')} onPress={paste} />
+              <SecondaryAction label={t('video.watchPreview')} onPress={preview} />
+              <PrimaryAction label={t('video.build')} onPress={build} disabled={!canAfford(energy, 'import')} trailing={<EnergyChip energy={energy} cost={priceOf(energy, 'import')} />} />
+              <SecondaryAction label={t('video.pasteAnother')} onPress={paste} />
             </>
           ) : (
-            <PrismButton shape="pill" verb="listen" label={t('video.paste')} onPress={paste} disabled={busy} />
+            <PrimaryAction label={t('video.paste')} onPress={paste} disabled={busy} />
           )}
           {busy ? <CatConstellation compact /> : null}
           {hint ? <Text style={[styles.hint, dir.writing]}>{hint}</Text> : null}
           {hint === t('video.copyFirst') ? (
-            <PrismButton
-              shape="pill"
-              verb="tools"
-              flat
-              press="light"
+            <SecondaryAction
               label={t('video.openYoutube')}
               onPress={() => void Linking.openURL('https://www.youtube.com')}
             />
@@ -135,9 +131,7 @@ export default function VideoAddScreen() {
 
         <Text style={[styles.section, dir.text]}>{t('video.yourVideos')}</Text>
         {videos === null ? (
-          <View style={styles.loading}>
-            <CatConstellation size={64} />
-          </View>
+          <LoadingBlock inline />
         ) : videos.length === 0 ? (
           <Text style={[styles.meta, dir.text]}>{failed ? t('api.unreachable') : t('video.empty')}</Text>
         ) : (
@@ -168,7 +162,6 @@ const styles = StyleSheet.create({
   actions: { alignItems: 'center', gap: Spacing.md },
   hint: { fontSize: 14, lineHeight: 20, color: tide.textDim, fontFamily: fonts.ui, textAlign: 'center' },
   section: { fontSize: 13, fontWeight: '600', color: tide.textDim, fontFamily: fonts.ui, marginTop: Spacing.md },
-  loading: { alignItems: 'center', paddingVertical: Spacing.lg },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   rowThumb: { width: 96, aspectRatio: 16 / 9, borderRadius: Radius.md, backgroundColor: 'rgba(255,255,255,0.06)' },
   rowText: { flex: 1, gap: 2 },

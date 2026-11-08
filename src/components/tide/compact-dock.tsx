@@ -20,11 +20,11 @@ import { SymbolView } from 'expo-symbols';
 import { GlassPanel } from '@/components/prism/glass-panel';
 import { PrismFace } from '@/components/prism/prism-face';
 import { DOCK_PILL_H, DOCK_PILL_W, POP } from '@/components/tide/popover-bubble';
-import { speedLabel } from '@/components/tide/speed-popover';
+import { formatSpeed } from '@/lib/format';
 import { fonts } from '@/constants/fonts';
 import { Radius, prism, tide, verb, withAlpha } from '@/constants/theme';
 import { hapticImpact } from '@/lib/haptics';
-import { useT } from '@/lib/i18n';
+import { useDir, useT } from '@/lib/i18n';
 import { COUNT_IN_BEAT_MS } from '@/lib/pass-programme';
 
 export type DockAnchorKey = 'speed' | 'repeat' | 'reading' | 'blind' | 'play' | 'record';
@@ -491,10 +491,10 @@ export const CompactDock = memo(function CompactDock({
               <DockPress
                 onPress={onSpeed}
                 disabled={locked}
-                label={t('player.speedSetting', { label: speedLabel(speed) })}
+                label={t('player.speedSetting', { label: formatSpeed(speed) })}
                 style={styles.chipHit}>
                 <View style={styles.chip}>
-                  <Text style={[styles.chipLabel, speedOn && styles.chipLabelOn]}>{speedLabel(speed)}</Text>
+                  <Text style={[styles.chipLabel, speedOn && styles.chipLabelOn]}>{formatSpeed(speed)}</Text>
                 </View>
               </DockPress>
             </View>
@@ -556,6 +556,7 @@ function TrayPill({
   t: SharedValue<number>;
   onBox: (b: { x: number; y: number; width: number }) => void;
 }) {
+  const dir = useDir();
   const animated = useAnimatedStyle(() => {
     const v = num(t.value);
     return { opacity: v, transform: [{ translateY: 8 * (1 - v) }] };
@@ -568,9 +569,9 @@ function TrayPill({
         onBox({ x, y, width });
       }}>
       <DockPress onPress={pill.onPress} label={pill.value} style={styles.pillHit}>
-        <View style={[styles.pill, pill.selected && styles.pillSelected]}>
+        <View style={[styles.pill, dir.row, pill.selected && styles.pillSelected]}>
           {pill.icon}
-          <Text style={[styles.pillValue, pill.on && styles.pillValueOn]} numberOfLines={1}>{pill.value}</Text>
+          <Text style={[styles.pillValue, dir.text, pill.on && styles.pillValueOn]} numberOfLines={1}>{pill.value}</Text>
         </View>
       </DockPress>
     </Animated.View>

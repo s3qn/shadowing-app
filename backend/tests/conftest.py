@@ -15,6 +15,12 @@ os.environ["SHADOW_DATA_DIR"] = str(TEST_DATA_DIR)
 # main._startup would otherwise load the Kokoro and whisper models in threads.
 os.environ["SHADOW_KOKORO_WARMUP"] = "0"
 os.environ["SHADOW_WHISPER_WARM"] = "0"
+# Hosted voice adapters read their keys from this file: never Sean's in tests.
+os.environ["SHADOW_TTS_KEY_FILE"] = "/nonexistent/shadow-tts-env"
+# No worker TTS engine counts as installed: has_voice must not depend on this machine.
+os.environ["SHADOW_TTS_MODELS"] = "/nonexistent/shadow-tts-models"
+for _key in ("GEMINI_API_KEY", "INWORLD_API_KEY", "ELEVENLABS_API_KEY", "GOOGLE_AI_KEY", "INWORLD_KEY"):
+    os.environ.pop(_key, None)
 
 # main.py reads SHADOW_TOKEN at import time and refuses every request without
 # one. Pin a test token so the suite passes in a checkout with no backend/.env
@@ -48,6 +54,16 @@ def _block_claude_cli(monkeypatch):
     replaces the guard for its own duration, which is fine: its fake never
     reaches the CLI either."""
     monkeypatch.setattr(subprocess, "run", _guarded_run)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_tts_cache(monkeypatch, tmp_path):
+    """Every test gets an empty shared render cache and the dev switch off."""
+    import tts_budget
+    import tts_cache
+
+    monkeypatch.setattr(tts_cache, "CACHE_DIR", tmp_path / "tts-cache")
+    monkeypatch.setattr(tts_budget, "DEV_FORCE", "")
 
 
 @pytest.fixture(autouse=True)

@@ -1,0 +1,17 @@
+export const fr = {
+  'podcast.listen': 'Écouter l\'épisode',
+  'podcast.loadFailed': 'L\'audio de l\'épisode n\'a pas pu être chargé.',
+  'podcast.bestBits.title': 'Répéter {n} phrases de cet épisode ?',
+  'podcast.aiPick.label': 'Choisir des phrases avec l\'IA',
+  'podcast.aiPick.hint': 'Pas encore de phrases sauvegardées. Touche les étincelles et l\'IA en choisit à répéter.',
+  'podcast.aiPick.confirmTitle': 'Laisser l\'IA choisir des phrases ?',
+  'podcast.aiPick.confirmBody': 'Elle choisit 5 à 10 phrases faciles dans cet épisode et les sauvegarde. Cela consomme 3 points d\'énergie.',
+  'podcast.aiPick.confirm': 'Choisir des phrases',
+  'podcast.aiPick.cancel': 'Pas maintenant',
+  'podcast.aiPick.done': '{n} phrases sauvegardées',
+  'podcast.aiPick.done_one': '{n} phrase sauvegardée',
+  'api.pick_failed': 'L\'IA n\'a pas pu choisir de phrases dans cet épisode. Aucune énergie utilisée.',
+  'api.not_podcast': 'On ne peut choisir que dans des épisodes de podcast.',
+  'api.has_cards': 'Cet épisode a déjà des phrases sauvegardées.',
+  'api.no_lines': 'Cet épisode a trop peu de phrases claires pour choisir. Aucune énergie utilisée.',
+};

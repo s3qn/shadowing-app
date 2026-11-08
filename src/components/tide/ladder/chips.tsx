@@ -8,11 +8,13 @@ import Animated, { type AnimatedStyle } from 'react-native-reanimated';
 
 import { nextSpeed } from '@/components/tide/ladder/stage-model';
 import { EDGE } from '@/components/tide/ladder/stage-tokens';
-import { paceLabelKey, speedChipLabel } from '@/components/tide/pace-sheet';
+import { paceLabelKey } from '@/components/tide/pace-sheet';
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
 import type { LadderStageProps } from '@/hooks/ladder/ladder-types';
 import { useDir, useT } from '@/lib/i18n';
+import { ltr } from '@/lib/bidi';
+import { formatSpeed } from '@/lib/format';
 import type { LadderPace } from '@/lib/pass-programme';
 
 const CHIP_SLOP = { top: 11, bottom: 11, left: 8, right: 8 };
@@ -86,7 +88,7 @@ export function StageChips({
             chipX.current = x + width / 2 + 16;
           }}>
           <MiniChip
-            label={`${stepName} ›`}
+            label={`${stepName} ${ltr(dir.chevron)}`}
             a11y={t('ladder.chipStep', { v: stepName })}
             onPress={onStep}
             onLong={() => {
@@ -98,8 +100,8 @@ export function StageChips({
       ) : null}
       {speedChip !== null ? (
         <MiniChip
-          label={speedChipLabel(speedChip)}
-          a11y={t('ladder.chipSpeed', { v: speedChipLabel(speedChip) })}
+          label={ltr(formatSpeed(speedChip))}
+          a11y={t('ladder.chipSpeed', { v: formatSpeed(speedChip) })}
           onPress={() => onSpeed?.(nextSpeed(speedChip))}
           onLong={onLong}
         />

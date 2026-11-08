@@ -28,7 +28,7 @@ import { Radius, Spacing, tide, verb } from '@/constants/theme';
 import * as api from '@/lib/api';
 import { registerCard, unregisterCard, useMorphHidesTitle, type CardRect } from '@/lib/card-morph';
 import { hapticImpact, hapticSelection } from '@/lib/haptics';
-import { useT, useDir } from '@/lib/i18n';
+import { useT, useDir, scriptStyle } from '@/lib/i18n';
 import { prewarmIsland } from '@/lib/island-cache';
 import { getLastLine } from '@/lib/last-line';
 import { useDownloadState } from '@/lib/offline-islands'; // offline-islands
@@ -97,7 +97,7 @@ export type IslandRowProps = {
   viewportH: SharedValue<number>;
   /** False in the plain search list: no wheel scale or dim. */
   wheelOn: SharedValue<boolean>;
-  /** Whether this card currently sits in the centre slot. */
+  /** Whether this card currently sits in the lit slot, the wheel's first. */
   centred: boolean;
   /** Whether this card's lanterns are on: the centred card, once the wheel
    * has come to rest. */
@@ -396,8 +396,8 @@ export const IslandRow = memo(function IslandRow({
     };
   });
 
-  // The wheel scale and dim: how far this card's centre sits from the
-  // viewport's own centre, at most one half-viewport away. Lives on the
+  // The wheel scale and dim: how far this card sits from the lit first
+  // slot, at most one half-viewport away. Lives on the
   // outer slot so it never fights the card's own press scale or its
   // entering/exiting transform.
   const slotStyle = useAnimatedStyle(() => {
@@ -440,7 +440,7 @@ export const IslandRow = memo(function IslandRow({
         <View style={[styles.cardTop, dir.row]}>
           {/* `dir.content`, not `dir.text`: a title is content, ordered by
               its own script whatever the interface language is. */}
-          <Text numberOfLines={2} style={[styles.cardTitle, dir.content, { color: tide.text, opacity: titleHidden ? 0 : 1 }]}>
+          <Text numberOfLines={2} style={[styles.cardTitle, dir.content, scriptStyle(item.title), { color: tide.text, opacity: titleHidden ? 0 : 1 }]}>
             {item.title || t('home.untitledIsland')}
           </Text>
           {/* offline-islands: the card mark */}

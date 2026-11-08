@@ -67,19 +67,31 @@ def mark_added(result: dict, added_ids: set[str]) -> dict:
     return result
 
 
+def _phrases_for(language: str) -> dict:
+    """The topic folders of one language. A known language with no
+    `phrase_data/<code>` folder yet has none; an unknown code raises KeyError."""
+    import languages
+
+    folders = _CATALOG["phrases"]
+    if language not in folders and language in languages.LANGUAGES:
+        return {}
+    return folders[language]
+
+
 def catalog(language: str, ui: str = "en") -> dict:
     """The topics for `language`, titled in the interface language `ui`.
-    `sample` is the topic's first phrase. Raises KeyError on an unknown
-    language, which the route maps to a 404."""
+    `sample` is the topic's first phrase. A known language with no phrase
+    folder yet has no topics. Raises KeyError on an unknown language, which
+    the route maps to a 404."""
     suffix = _UI_SUFFIX.get(ui, "")
-    by_topic = _CATALOG["phrases"][language]
+    by_topic = _phrases_for(language)
     return {
         "topics": [
             _topic_row(topic, by_topic[topic["id"]], suffix)
             for topic in _CATALOG["topics"]
             if topic["id"] in by_topic
         ],
-        "categories": _categories(by_topic, suffix),
+        "categories": _categories(by_topic, suffix) if by_topic else [],
     }
 
 
@@ -107,7 +119,7 @@ def search(language: str, ui: str = "en", q: str = "", category: str = "") -> di
     catalogue order. `matchedPhrase` is set when the hit came from phrase text.
     Raises KeyError on an unknown language."""
     suffix = _UI_SUFFIX.get(ui, "")
-    by_topic = _CATALOG["phrases"][language]
+    by_topic = _phrases_for(language)
     needle = _norm((q or "").strip()[:_MAX_Q])
     hits = []
     for order, topic in enumerate(_CATALOG["topics"]):
@@ -136,7 +148,7 @@ def search(language: str, ui: str = "en", q: str = "", category: str = "") -> di
             hits.append((-score, order, _topic_row(topic, entries, suffix, matched)))
     hits.sort(key=lambda h: h[:2])
     return {
-        "categories": _categories(by_topic, suffix),
+        "categories": _categories(by_topic, suffix) if by_topic else [],
         "topics": [h[2] for h in hits[:_MAX_HITS]],
     }
 

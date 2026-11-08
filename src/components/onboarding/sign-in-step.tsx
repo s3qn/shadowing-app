@@ -1,11 +1,13 @@
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useState } from 'react';
-import { Platform, StyleSheet, Text, useWindowDimensions } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { type LayoutChangeEvent, Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { type SharedValue } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 
 import { CatConstellation } from '@/components/cat-constellation';
-import { StepCopy, StepFrame } from '@/components/onboarding/step-frame';
+import { type HeroClock } from '@/components/onboarding/hero-clock';
+import { Enter, StepCopy, StepFrame } from '@/components/onboarding/step-frame';
 import { PrismButton } from '@/components/prism';
 import { fonts } from '@/constants/fonts';
 import { Spacing, tide, verb } from '@/constants/theme';
@@ -32,31 +34,84 @@ function GoogleG() {
   );
 }
 
+// Apple sign-in availability, asked once per launch and kept here: the
+// onboarding route prefetches it, so the Account step mounts under the
+// welcome with its first pill already known.
+let appleAvailable: boolean | null = Platform.OS === 'ios' ? null : false;
+let applePending: Promise<void> | null = null;
+
+/** Resolves Apple sign-in availability into the module cache (false off iOS). */
+export function prefetchAppleAvailable(): Promise<void> {
+  if (appleAvailable !== null) return Promise.resolve();
+  if (!applePending) {
+    applePending = AppleAuthentication.isAvailableAsync()
+      .then((ok) => {
+        appleAvailable = ok;
+      })
+      .catch(() => {
+        appleAvailable = false;
+      });
+  }
+  return applePending;
+}
+
 /**
  * The account step: Apple (iOS only) and Google, one tap each, no typing. Shown in
  * onboarding and on its own at /sign-in. In Expo Go (development only) a
  * third pill continues on the device path, since native sign-in cannot run
  * there.
+ *
+ * With `clock` (under the welcome) every part is hidden until Get started
+ * is pressed, then enters on the hand-off: the first pill is lit, since the
+ * welcome pill rides up and lands on it. Without `clock` (the /sign-in
+ * route) everything is static at rest.
  */
-export function SignInStep({ onSignedIn }: { onSignedIn: () => void }) {
+export function SignInStep({
+  onSignedIn,
+  clock,
+  travel,
+  reduced,
+}: {
+  onSignedIn: () => void;
+  clock?: HeroClock;
+  /** Written from the footer's layout: how far the welcome pill rides up to land on the first pill here. */
+  travel?: SharedValue<number>;
+  reduced?: boolean;
+}) {
   const { t } = useT();
   const { width } = useWindowDimensions();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [appleOk, setAppleOk] = useState(false);
+  const [appleOk, setAppleOk] = useState(appleAvailable === true);
 
   useEffect(() => {
-    if (Platform.OS !== 'ios') return;
+    if (appleAvailable !== null) return;
     let alive = true;
-    AppleAuthentication.isAvailableAsync()
-      .then((ok) => {
-        if (alive) setAppleOk(ok);
-      })
-      .catch(() => {});
+    void prefetchAppleAvailable().then(() => {
+      if (alive) setAppleOk(appleAvailable === true);
+    });
     return () => {
       alive = false;
     };
   }, []);
+
+  // The travel is measured, not assumed: the first pill's distance from the
+  // footer's bottom (Expo Go's dev pill adds a row, Android has no Apple pill).
+  // Under reduced motion the welcome pill does not travel, so it stays 0.
+  const footerH = useRef(0);
+  const firstBottom = useRef(0);
+  const writeTravel = () => {
+    if (travel && !reduced) travel.value = Math.max(0, footerH.current - firstBottom.current);
+  };
+  const onFooterLayout = (e: LayoutChangeEvent) => {
+    footerH.current = e.nativeEvent.layout.height;
+    writeTravel();
+  };
+  const onFirstLayout = (e: LayoutChangeEvent) => {
+    const { y, height } = e.nativeEvent.layout;
+    firstBottom.current = y + height;
+    writeTravel();
+  };
 
   async function run(go: () => Promise<'ok' | 'cancelled'>) {
     setBusy(true);
@@ -77,53 +132,62 @@ export function SignInStep({ onSignedIn }: { onSignedIn: () => void }) {
   return (
     <StepFrame
       footer={
-        <>
+        <View style={styles.footer} onLayout={onFooterLayout}>
           {busy ? (
             <CatConstellation size={90} label={t('settings.account.signingIn')} />
           ) : (
             <>
-              {appleOk ? (
+              {/* The first pill (Apple on iOS, else Google) is lit: the welcome pill lands on it. */}
+              <Enter clock={clock} reduced={reduced} at={260} dur={160} linear onLayout={onFirstLayout}>
                 <PrismButton
                   shape="pill"
-                  verb="tools"
-                  on={false}
+                  verb="listen"
+                  on
                   width={pillWidth}
                   height={52}
-                  label={t('settings.account.apple')}
-                  onPress={() => void run(signInWithApple)}>
-                  <SymbolView name="apple.logo" tintColor={tide.text} size={20} />
+                  label={appleOk ? t('settings.account.apple') : t('settings.account.google')}
+                  onPress={() => void run(appleOk ? signInWithApple : signInWithGoogle)}>
+                  {appleOk ? <SymbolView name="apple.logo" tintColor={tide.text} size={20} /> : <GoogleG />}
                 </PrismButton>
+              </Enter>
+              {appleOk ? (
+                <Enter clock={clock} reduced={reduced} at={300} dur={320} rise={24}>
+                  <PrismButton
+                    shape="pill"
+                    verb="tools"
+                    on={false}
+                    width={pillWidth}
+                    height={52}
+                    label={t('settings.account.google')}
+                    onPress={() => void run(signInWithGoogle)}>
+                    <GoogleG />
+                  </PrismButton>
+                </Enter>
               ) : null}
+            </>
+          )}
+          <Enter clock={clock} reduced={reduced} at={380} dur={260} style={styles.captionBlock}>
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+            <Text style={styles.caption}>{t('settings.account.privacyLine')}</Text>
+            {canBypassSignIn() && !busy ? (
               <PrismButton
                 shape="pill"
                 verb="tools"
-                on={false}
-                width={pillWidth}
-                height={52}
-                label={t('settings.account.google')}
-                onPress={() => void run(signInWithGoogle)}>
-                <GoogleG />
-              </PrismButton>
-            </>
-          )}
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-          <Text style={styles.caption}>{t('settings.account.privacyLine')}</Text>
-          {canBypassSignIn() && !busy ? (
-            <PrismButton
-              shape="pill"
-              verb="tools"
-              flat
-              press="light"
-              label={t('settings.account.expoGo')}
-              onPress={() => {
-                allowDeviceSession();
-                onSignedIn();
-              }}
-            />
-          ) : null}
-        </>
+                flat
+                press="light"
+                label={t('settings.account.expoGo')}
+                onPress={() => {
+                  allowDeviceSession();
+                  onSignedIn();
+                }}
+              />
+            ) : null}
+          </Enter>
+        </View>
       }>
       <StepCopy
+        enter={clock}
+        reduced={reduced}
         kicker={t('settings.account.kicker')}
         kickerColour={verb.listen.c1}
         title={t('settings.account.title')}
@@ -134,6 +198,9 @@ export function SignInStep({ onSignedIn }: { onSignedIn: () => void }) {
 }
 
 const styles = StyleSheet.create({
+  // The same stack StepFrame's footer draws, in one View so its height can be measured.
+  footer: { alignSelf: 'stretch', alignItems: 'center', gap: Spacing.sm },
+  captionBlock: { alignItems: 'center', gap: Spacing.sm },
   error: {
     fontFamily: fonts.ui,
     fontSize: 14,

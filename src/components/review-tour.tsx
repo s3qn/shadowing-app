@@ -10,6 +10,7 @@ import { PrismButton } from '@/components/prism/prism-button';
 import { PILL_LABEL_SIZE } from '@/components/prism/pill-tray';
 import { applyPlaybackMode, applyRecordingMode, scheduleAudioSessionRelease } from '@/lib/audio-mode';
 import { getReview, listTranscripts, listVideos, postReviewDone, postShot, postVerdict, postVoiceNote, type ReviewTour as Tour, type ReviewVerdict, type TranscriptVideo, type VideoListItem } from '@/lib/api';
+import { LoadingBlock } from '@/components/state-blocks';
 import { tide } from '@/constants/theme';
 import { resetSimulation, runSimulation } from '@/lib/dev-simulate';
 import { transcriptListEmpty } from '@/lib/dev-transcripts';
@@ -53,7 +54,7 @@ function TranscriptList({ onOpen }: { onOpen: () => void }) {
       live = false;
     };
   }, []);
-  if (!rows) return <Text style={styles.line}>Loading…</Text>;
+  if (!rows) return <LoadingBlock inline />;
   if (rows.length === 0) return <Text style={styles.line}>No transcripts found. Expected candidates under ~/shadow-gold/&lt;channel&gt;/&lt;id&gt;/_cache.</Text>;
   const open = (v: TranscriptVideo) => {
     const island = islands.find((i) => i.video_id === v.id && i.status === 'ready');

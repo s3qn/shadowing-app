@@ -1,0 +1,216 @@
+{
+ "language": "pt",
+ "title": {
+  "en": "First steps",
+  "he": "צעדים ראשונים"
+ },
+ "lines": [
+  {
+   "ja": "Bom dia.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Good morning.",
+    "he": "בוקר טוב."
+   },
+   "duration": 0.896,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Bom",
+     "start": 0.101,
+     "end": 0.401,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Bom",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "dia.",
+     "start": 0.401,
+     "end": 0.896,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "dia.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "De onde você é?",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Where are you from?",
+    "he": "מאיפה אתה?"
+   },
+   "duration": 1.3226666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "De",
+     "start": 0.076,
+     "end": 0.251,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "De",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "onde",
+     "start": 0.251,
+     "end": 0.626,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "onde",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "você",
+     "start": 0.626,
+     "end": 1.151,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "você",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "é?",
+     "start": 1.151,
+     "end": 1.323,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "é?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "Amanhã eu vou estudar português com um amigo.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Tomorrow I'm going to study Portuguese with a friend.",
+    "he": "מחר אלמד פורטוגזית עם חבר."
+   },
+   "duration": 2.538666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "Amanhã",
+     "start": 0.054,
+     "end": 0.604,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "Amanhã",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "eu",
+     "start": 0.604,
+     "end": 0.704,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "eu",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "vou",
+     "start": 0.704,
+     "end": 0.804,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "vou",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "estudar",
+     "start": 0.804,
+     "end": 1.229,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "estudar",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "português",
+     "start": 1.229,
+     "end": 1.829,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "português",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "com",
+     "start": 1.829,
+     "end": 1.954,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "com",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "um",
+     "start": 1.954,
+     "end": 2.054,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "um",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "amigo.",
+     "start": 2.054,
+     "end": 2.539,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "amigo.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

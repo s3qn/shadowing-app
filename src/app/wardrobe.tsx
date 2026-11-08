@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ACTION_H, ActionBar } from '@/components/cat/action-bar';
@@ -12,9 +12,10 @@ import { ItemSheet } from '@/components/cat/item-sheet';
 import { LevelHeader } from '@/components/cat/level-header';
 import { SlotTabs } from '@/components/cat/slot-tabs';
 import { PrismButton } from '@/components/prism';
+import { headerRightButton } from '@/lib/header-buttons';
 import type { Slot } from '@/constants/cosmetics';
 import { fonts } from '@/constants/fonts';
-import { Spacing, tide } from '@/constants/theme';
+import { Spacing, prism, tide } from '@/constants/theme';
 import { useGaze } from '@/hooks/use-gaze';
 import { buyCosmetic, equipCosmetic } from '@/lib/api';
 import { useGuideAnchor, useGuideStep } from '@/lib/guide';
@@ -190,22 +191,22 @@ export default function WardrobeScreen() {
       <Stack.Screen
         options={{
           ...dir.headerSides,
-          headerRight: () => (
-            <Pressable
-              accessibilityRole="button"
+          ...headerRightButton(() => (
+            <PrismButton
+              shape="round"
+              size={prism.sizes.roundSm}
+              verb="tools"
               accessibilityLabel={t('leaderboard.open')}
-              hitSlop={10}
               onPress={() => {
                 void hapticSelection();
                 router.push('/leaderboard');
-              }}
-            >
+              }}>
               {/* A fixed box for the guide anchor: the header's symbol alone can measure 0x0. */}
               <View ref={trophy.ref} onLayout={trophy.onLayout} collapsable={false} style={styles.trophy}>
-                <SymbolView name={{ ios: 'trophy.fill', android: 'emoji_events' }} size={22} tintColor={tide.pos.verb} />
+                <SymbolView name={{ ios: 'trophy.fill', android: 'emoji_events' }} size={20} tintColor={tide.pos.verb} />
               </View>
-            </Pressable>
-          ),
+            </PrismButton>
+          )),
         }}
       />
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -252,7 +253,7 @@ export default function WardrobeScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: PAGE },
-  trophy: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  trophy: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   center: { alignItems: 'center', justifyContent: 'center', gap: Spacing.lg },
   failed: { fontFamily: fonts.ui, fontSize: 15, color: tide.text },
   header: { position: 'absolute', left: Spacing.lg, right: Spacing.lg, zIndex: 5 },

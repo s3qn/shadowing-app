@@ -1,10 +1,21 @@
 // Api domain: catch. Beta routes, catch-the-word, dev transcript review.
 import { BASE, expoFetch, fetch } from '@/lib/api-http';
-import { headers, json } from '@/lib/api-core';
+import { adminKeyId, adminPublicKey, deviceLabel, loadAdminKey } from '@/lib/admin-device';
+import { adminHeaders, headers, json, parseDetail } from '@/lib/api-core';
 import type { RubySegment } from '@/lib/api-types';
 
 // --- launch-basics: beta routes ---
-export type BetaAnswer = { admin: boolean; beta: boolean; youtube: boolean; podcast: boolean; import: boolean };
+/** lang-core: `languages` lists the learning languages this device may pick,
+ * each with the speaker `backend/voices.py` defaults to. An older prod has no
+ * such field, which the client reads as ja/es/en. */
+export type BetaAnswer = {
+  admin: boolean;
+  beta: boolean;
+  youtube: boolean;
+  podcast: boolean;
+  import: boolean;
+  languages?: { id: string; speaker: number }[];
+};
 export type BetaPerson = { owner: string; handle: string | null; kind: 'user' | 'device'; enabled: boolean; me: boolean };
 
 /** Which hidden features this principal may see. */
@@ -12,22 +23,81 @@ export async function getBeta(): Promise<BetaAnswer> {
   return json<BetaAnswer>(await fetch(`${BASE}/beta`, { headers: headers() }));
 }
 
-/** Admin only: everyone who can be switched on. A 403 throws an error with `status` 403. */
-export async function adminListBeta(): Promise<BetaPerson[]> {
-  const res = await fetch(`${BASE}/admin/beta`, { headers: headers() });
-  if (res.status === 403) throw Object.assign(new Error('not_admin'), { status: 403 });
-  return (await json<{ people: BetaPerson[] }>(res)).people;
+/** admin-device-bound: a 403 carries the server's code (`not_admin`, or
+ * `admin_device` when the account is listed but this phone is not approved). */
+export type AdminRefused = Error & { status: 403; code: string };
+
+async function refused(res: Response): Promise<AdminRefused> {
+  const detail = parseDetail(await res.text().catch(() => ''));
+  const code = detail && typeof detail === 'object' ? detail.code : 'not_admin';
+  return Object.assign(new Error(code), { status: 403 as const, code });
 }
 
-/** Admin only: switch the beta features on or off for one owner. */
+/** The admin list, and `device: 'approved'` when the server checked this
+ * phone's proof (null for a dev device principal that needs none). */
+export type AdminBetaList = { people: BetaPerson[]; device: 'approved' | null };
+
+/** Admin only: everyone who can be switched on. A 403 throws an `AdminRefused`. */
+export async function adminListBeta(): Promise<AdminBetaList> {
+  const res = await fetch(`${BASE}/admin/beta`, { headers: await adminHeaders('GET', '/admin/beta') });
+  if (res.status === 403) throw await refused(res);
+  const out = await json<{ people: BetaPerson[]; device?: string | null }>(res);
+  return { people: out.people, device: out.device === 'approved' ? 'approved' : null };
+}
+
+/** Admin only: switch the beta features on or off for one owner. A 403 throws an `AdminRefused`. */
 export async function adminSetBeta(owner: string, enabled: boolean): Promise<void> {
+  // The proof signs these exact bytes, so the string is built once.
+  const body = JSON.stringify({ owner, enabled });
   const res = await fetch(`${BASE}/admin/beta`, {
     method: 'PUT',
-    headers: { ...headers(), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ owner, enabled }),
+    headers: { ...(await adminHeaders('PUT', '/admin/beta', body)), 'Content-Type': 'application/json' },
+    body,
   });
-  if (res.status === 403) throw Object.assign(new Error('not_admin'), { status: 403 });
+  if (res.status === 403) throw await refused(res);
   await json<unknown>(res);
+}
+
+/** admin-device-bound: registers this phone's public key under the signed-in
+ * account and returns its status (`pending`, `approved` or `revoked`).
+ * Approval happens on the server box, or until launch through
+ * adminApproveDevice with the passcode. Throws on any error,
+ * including 429 `admin_pending_cap` (too many pending keys on the account),
+ * which the Admin screen shows as its failed note. */
+export async function adminEnrolDevice(): Promise<AdminDeviceStatus> {
+  await loadAdminKey();
+  const res = await fetch(`${BASE}/admin/device`, {
+    method: 'POST',
+    headers: { ...headers(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key_id: adminKeyId(), public_key: adminPublicKey(), name: deviceLabel() }),
+  });
+  return (await json<{ status: AdminDeviceStatus }>(res)).status;
+}
+export type AdminDeviceStatus = 'pending' | 'approved' | 'revoked';
+
+/** Until launch: approves this phone's own pending key with the server's
+ * passcode. `wrong` is 403 bad_passcode, `later` is 429 (too many wrong
+ * codes on the account), `failed` is anything else, the route switched off
+ * (404) included. Never throws. */
+export type AdminApproveResult = 'approved' | 'wrong' | 'later' | 'failed';
+export async function adminApproveDevice(passcode: string): Promise<AdminApproveResult> {
+  try {
+    await loadAdminKey();
+    const res = await fetch(`${BASE}/admin/device/approve`, {
+      method: 'POST',
+      headers: { ...headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key_id: adminKeyId(), passcode }),
+    });
+    if (res.ok) return 'approved';
+    if (res.status === 429) return 'later';
+    if (res.status === 403) {
+      const detail = parseDetail(await res.text().catch(() => ''));
+      if (detail && typeof detail === 'object' && detail.code === 'bad_passcode') return 'wrong';
+    }
+    return 'failed';
+  } catch {
+    return 'failed';
+  }
 }
 // --- end launch-basics ---
 

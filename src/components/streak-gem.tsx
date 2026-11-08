@@ -3,7 +3,7 @@
  * round8-hybrid, params.md and build8.py hold the exact values). A hexagonal
  * crystal with six translucent facets and a lit table, the real 🔥 inside,
  * and the day count as a numeral with a dark outline just under the gem. Grey
- * and dim at 0 days. Ten lit tiers (streakTier in practice-card): T1 is the
+ * and dim at 0 days. Ten lit tiers (streakTier in home/ember): T1 is the
  * amber H3 as picked, then copper, jade, sapphire, amethyst, ruby, gold,
  * prismatic, celestial and mythic, each adding its extras (ring, halo, rays,
  * wings, crown, pillar, angel ring, orbit sparks, prism sheen, white-hot core).
@@ -276,7 +276,7 @@ const LADDER: TierStyle[] = [
     numeral: { fill: g(180, ['#FFFFFF', '#FFF4C8', '#FFC860', '#FF9A5A'], [0, 0.45, 0.53, 1]), ink: '#2A0420', h: 26, cy: 83, w100: 56, scrim: [82, 44] },
     loop: { kind: 'core', ms: 2400, yoyo: true }, enter: { kind: 'pop', ms: 500 } },
 ];
-/** Indexed by tier (streakTier in practice-card): 0 is the grey ghost, 1 to 10 the ladder. */
+/** Indexed by tier (streakTier in home/ember): 0 is the grey ghost, 1 to 10 the ladder. */
 export const TIER_STYLE: TierStyle[] = LADDER;
 
 /** The crown shards per point count: centre x, centre y, width, height, rotation. */

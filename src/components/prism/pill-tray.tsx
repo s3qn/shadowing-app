@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useRef } from 'react';
-import { type StyleProp, StyleSheet, View, type ViewStyle } from 'react-native';
+import { type LayoutChangeEvent, Pressable, type StyleProp, StyleSheet, View, type ViewStyle } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Canvas, LinearGradient, RoundedRect, vec } from '@shopify/react-native-skia';
 import Animated, {
@@ -13,6 +13,7 @@ import Animated, {
   type WithTimingConfig,
 } from 'react-native-reanimated';
 
+import { fonts } from '@/constants/fonts';
 import { Radius, prism, withAlpha } from '@/constants/theme';
 
 /** Sizes and colours a pill draws itself with, shared by every call site. */
@@ -243,6 +244,56 @@ export function usePillChromeStyle({ translateX, width, item }: PillCover) {
   });
 }
 
+const PILL_ITEM_BORDER = 1;
+
+/**
+ * One option of a sliding-pill tray (Home sort row, region chips, the phrases
+ * switcher): an unlit chip whose fill and label follow how much of the
+ * sliding pill covers it. Copied from the Home sort row; pass the same
+ * `translateX` and `width` the tray's `SlidingLitPill` uses and this item's
+ * measured box. The border width is constant so the pill never resizes.
+ */
+export function PillTrayItem({
+  label,
+  onPress,
+  onLayout,
+  box,
+  pillX,
+  pillW,
+  accessibilityLabel,
+}: {
+  label: string;
+  onPress: () => void;
+  onLayout: (e: LayoutChangeEvent) => void;
+  box: PillItemBox | undefined;
+  pillX: SharedValue<number>;
+  pillW: SharedValue<number>;
+  accessibilityLabel?: string;
+}) {
+  const scale = useSharedValue(1);
+  const scaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const cover = { translateX: pillX, width: pillW, item: box };
+  const chromeStyle = usePillChromeStyle(cover);
+  const labelStyle = usePillLabelStyle(cover);
+  return (
+    <Pressable
+      onLayout={onLayout}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
+      onPressIn={() => {
+        scale.value = withTiming(0.96, { duration: 80 });
+      }}
+      onPressOut={() => {
+        scale.value = withSpring(1, prism.press.spring);
+      }}>
+      <Animated.View style={[styles.pillItem, chromeStyle, scaleStyle]}>
+        <Animated.Text style={[styles.pillItemText, labelStyle]}>{label}</Animated.Text>
+      </Animated.View>
+    </Pressable>
+  );
+}
+
 const AnimatedView = Animated.createAnimatedComponent(View);
 
 export type SlidingLitPillProps = {
@@ -323,4 +374,14 @@ const styles = StyleSheet.create({
   litGlow: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.01)', boxShadow: prism.tray.lit.glow },
   litTopLine: { position: 'absolute', height: 1, backgroundColor: prism.tray.lit.highlight },
   heldGlow: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.01)', boxShadow: '0 4 18 rgba(124,200,255,0.45)' },
+  pillItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: PILL_H,
+    borderRadius: PILL_H / 2,
+    borderWidth: PILL_ITEM_BORDER,
+    borderColor: PILL_CHROME_BORDER,
+    paddingHorizontal: PILL_PAD_X,
+  },
+  pillItemText: { fontSize: PILL_LABEL_SIZE, fontWeight: '600', fontFamily: fonts.ui },
 });

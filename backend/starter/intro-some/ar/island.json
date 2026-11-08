@@ -1,0 +1,444 @@
+{
+ "language": "ar",
+ "title": {
+  "en": "First steps",
+  "he": "צעדים ראשונים"
+ },
+ "lines": [
+  {
+   "ja": "هل يمكنك أن تدلني على الطريق إلى المحطة؟",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Could you show me the way to the station?",
+    "he": "אפשר להראות לי את הדרך לתחנה?"
+   },
+   "duration": 3.3,
+   "timeline": [],
+   "words": [
+    {
+     "text": "هل",
+     "start": 0.0,
+     "end": 0.46,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "هل",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "يمكنك",
+     "start": 0.46,
+     "end": 0.88,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "يمكنك",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "أن",
+     "start": 0.88,
+     "end": 1.06,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "أن",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "تدلني",
+     "start": 1.06,
+     "end": 1.56,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "تدلني",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "على",
+     "start": 1.56,
+     "end": 1.78,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "على",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "الطريق",
+     "start": 1.78,
+     "end": 2.3,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "الطريق",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "إلى",
+     "start": 2.3,
+     "end": 2.5,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "إلى",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "المحطة؟",
+     "start": 2.5,
+     "end": 3.3,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "المحطة؟",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "أنوي في نهاية هذا الأسبوع أن أذهب إلى السينما مع بعض الأصدقاء.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "This weekend I plan to go to the cinema with some friends.",
+    "he": "בסוף השבוע אני מתכנן ללכת לקולנוע עם כמה חברים."
+   },
+   "duration": 4.975,
+   "timeline": [],
+   "words": [
+    {
+     "text": "أنوي",
+     "start": 0.0,
+     "end": 0.54,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "أنوي",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "في",
+     "start": 0.54,
+     "end": 0.7,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "في",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "نهاية",
+     "start": 0.7,
+     "end": 1.2,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "نهاية",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "هذا",
+     "start": 1.2,
+     "end": 1.42,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "هذا",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "الأسبوع",
+     "start": 1.42,
+     "end": 2.04,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "الأسبوع",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "أن",
+     "start": 2.04,
+     "end": 2.2,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "أن",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "أذهب",
+     "start": 2.2,
+     "end": 2.66,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "أذهب",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "إلى",
+     "start": 2.66,
+     "end": 2.9,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "إلى",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "السينما",
+     "start": 2.9,
+     "end": 3.56,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "السينما",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "مع",
+     "start": 3.56,
+     "end": 3.84,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "مع",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "بعض",
+     "start": 3.84,
+     "end": 4.14,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "بعض",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "الأصدقاء.",
+     "start": 4.14,
+     "end": 4.975,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "الأصدقاء.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "منذ أن انتقلت إلى هنا أصبح التمشي في الحي كل صباح عادة لدي.",
+   "kana": "",
+   "romaji": "",
+   "gloss": {
+    "en": "Since I moved here, a walk around the neighbourhood every morning has become a habit.",
+    "he": "מאז שעברתי לכאן, טיול בשכונה כל בוקר נהיה הרגל."
+   },
+   "duration": 5.175,
+   "timeline": [],
+   "words": [
+    {
+     "text": "منذ",
+     "start": 0.0,
+     "end": 0.52,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "منذ",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "أن",
+     "start": 0.52,
+     "end": 0.64,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "أن",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "انتقلت",
+     "start": 0.64,
+     "end": 1.26,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "انتقلت",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "إلى",
+     "start": 1.26,
+     "end": 1.44,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "إلى",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "هنا",
+     "start": 1.44,
+     "end": 1.66,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "هنا",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "أصبح",
+     "start": 1.66,
+     "end": 2.1,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "أصبح",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "التمشي",
+     "start": 2.1,
+     "end": 2.74,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "التمشي",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "في",
+     "start": 2.74,
+     "end": 2.92,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "في",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "الحي",
+     "start": 2.92,
+     "end": 3.3,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "الحي",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "كل",
+     "start": 3.3,
+     "end": 3.6,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "كل",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "صباح",
+     "start": 3.6,
+     "end": 4.14,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "صباح",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "عادة",
+     "start": 4.14,
+     "end": 4.7,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "عادة",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "لدي.",
+     "start": 4.7,
+     "end": 5.175,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "لدي.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

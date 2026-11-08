@@ -19,7 +19,8 @@ import * as api from '@/lib/api';
 import { hapticImpact } from '@/lib/haptics';
 import { fitScale } from '@/lib/fit-line';
 import { kinsokuUnits } from '@/lib/kinsoku';
-import { useDir } from '@/lib/i18n';
+import { getLanguage } from '@/lib/languages';
+import { scriptStyle, useDir } from '@/lib/i18n';
 import { lineRomaji } from '@/lib/romaji';
 import type { ReadingMode } from '@/lib/settings';
 import { useSlideReveal } from '@/lib/slide-reveal';
@@ -91,23 +92,35 @@ export const TappableSentence = memo(function TappableSentence({
   const dir = useDir();
   const video = variant === 'video';
   const isJa = language === 'ja';
-  const modeLine = !isJa
-    ? null
-    : readingMode === 'kana'
+  // lang-core: the catalogue says what a line of this language carries.
+  // `reading` picks the ruby and the line under the words (kana ruby and the
+  // four Japanese modes; pinyin ruby plus a pinyin line for Mandarin; a Latin
+  // line from `line.romaji` for Korean, Hebrew and Arabic), `cjk` the fit and
+  // the row breaks, `rtl` the word order.
+  const lang = getLanguage(language);
+  const reading = lang?.reading;
+  const cjk = !!lang?.cjk;
+  const rtl = !!lang?.rtl;
+  const showRuby = reading === 'kana' ? readingMode === 'furigana' : reading === 'pinyin' && readingMode !== 'off';
+  const modeLine = isJa
+    ? readingMode === 'kana'
       ? line.kana
       : readingMode === 'romaji'
         ? lineRomaji(line)
-        : null;
+        : null
+    : reading && readingMode !== 'off'
+      ? line.romaji || null
+      : null;
   const [blockWidth, setBlockWidth] = useState(() => lastBlockWidth[variant]);
   const fit = useMemo(
-    () => fitScale(line, blockWidth, { base: video ? 26 : 22, min: video ? 20 : 18, em: isJa ? 1 : 0.6 }),
-    [line, blockWidth, video, isJa],
+    () => fitScale(line, blockWidth, { base: video ? 26 : 22, min: video ? 20 : 18, em: cjk ? 1 : 0.6 }),
+    [line, blockWidth, video, cjk],
   );
   const jaReveal = useSlideReveal(blind, scrollRef);
   const jaChars = useMemo(() => Array.from(line.ja), [line.ja]);
   // Rows break only between these units, so a particle or a closing "。"
   // never starts a row on its own.
-  const units = useMemo(() => (isJa ? kinsokuUnits(line.words) : line.words.map((_, i) => [i])), [line.words, isJa]);
+  const units = useMemo(() => (cjk ? kinsokuUnits(line.words) : line.words.map((_, i) => [i])), [line.words, cjk]);
   const {
     selected,
     gloss: glossData,
@@ -359,7 +372,7 @@ export const TappableSentence = memo(function TappableSentence({
           <Text
             style={[
               styles.ja,
-              isJa && { fontFamily: fonts.serifJp },
+              isJa && { fontFamily: fonts.serifJp }, rtl && styles.jaRtl,
               video && styles.jaVideo,
               fit !== 1 && { fontSize: (video ? 26 : 22) * fit, lineHeight: (video ? 34 : 32) * fit },
               { opacity: 0 },
@@ -388,13 +401,13 @@ export const TappableSentence = memo(function TappableSentence({
                 <SlideReveal
                   finger={jaReveal.finger}
                   count={line.words.length}
-                  rowStyle={[styles.words, video && styles.wordsLeft]}
+                  rowStyle={[styles.words, video && styles.wordsLeft, rtl && styles.wordsRtl]}
                   blur={4.5}
                   renderChunk={(i, sharp) => (
                   <RubyWord
                     key={i}
                     word={line.words[i]!}
-                    showRuby={isJa && readingMode === 'furigana'}
+                    showRuby={showRuby}
                     showPosAndRomaji={isJa}
                     index={i}
                     highlight={highlight}
@@ -407,13 +420,13 @@ export const TappableSentence = memo(function TappableSentence({
                   )}
                 />
               ) : (
-              <View style={[styles.words, video && styles.wordsLeft]}>
+              <View style={[styles.words, video && styles.wordsLeft, rtl && styles.wordsRtl]}>
                 {units.map((u, k) => {
                   const words = u.map((i) => (
                     <RubyWord
                       key={i}
                       word={line.words[i]!}
-                      showRuby={isJa && readingMode === 'furigana'}
+                      showRuby={showRuby}
                       showPosAndRomaji={isJa}
                       index={i}
                       highlight={highlight}
@@ -469,22 +482,22 @@ export const TappableSentence = memo(function TappableSentence({
               <SlideReveal
                 finger={jaReveal.finger}
                 count={jaChars.length}
-                rowStyle={[styles.words, video && styles.wordsLeft]}
+                rowStyle={[styles.words, video && styles.wordsLeft, rtl && styles.wordsRtl]}
                 blur={4.5}
                 renderChunk={(i) => (
-                  <Text key={i} style={[styles.ja, isJa && { fontFamily: fonts.serifJp }, video && styles.jaVideo, fit !== 1 && { fontSize: (video ? 26 : 22) * fit, lineHeight: (video ? 34 : 32) * fit }]}>{jaChars[i]}</Text>
+                  <Text key={i} style={[styles.ja, isJa && { fontFamily: fonts.serifJp }, rtl && styles.jaRtl, video && styles.jaVideo, fit !== 1 && { fontSize: (video ? 26 : 22) * fit, lineHeight: (video ? 34 : 32) * fit }]}>{jaChars[i]}</Text>
                 )}
               />
             ) : (
-          <Text style={[styles.ja, isJa && { fontFamily: fonts.serifJp }, video && styles.jaVideo, fit !== 1 && { fontSize: (video ? 26 : 22) * fit, lineHeight: (video ? 34 : 32) * fit }]}>{line.ja}</Text>
+          <Text style={[styles.ja, isJa && { fontFamily: fonts.serifJp }, rtl && styles.jaRtl, video && styles.jaVideo, fit !== 1 && { fontSize: (video ? 26 : 22) * fit, lineHeight: (video ? 34 : 32) * fit }]}>{line.ja}</Text>
             )}
           </View>
         </GestureDetector>
       )}
-      {modeLine && !blind ? <Text style={[styles.reading, video && styles.leftText]}>{modeLine}</Text> : null}
+      {modeLine && !blind ? <Text style={[styles.reading, !isJa && styles.readingLatin, video && styles.leftText]}>{modeLine}</Text> : null}
       {line.en && englishShown ? (
         <View style={video ? styles.enVideo : styles.enStrip}>
-          <Text style={[styles.en, video && styles.enTextVideo, video ? dir.content : { writingDirection: 'auto' }]}>{line.en}</Text>
+          <Text style={[styles.en, video && styles.enTextVideo, video ? dir.content : { writingDirection: 'auto' }, scriptStyle(line.en)]}>{line.en}</Text>
         </View>
       ) : null}
     </View>
@@ -507,6 +520,11 @@ const styles = StyleSheet.create({
   enTextVideo: { fontSize: 15, lineHeight: 21, textAlign: 'left' },
   block: { position: 'relative', zIndex: 5 },
   words: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
+  // lang-core: Hebrew and Arabic words run right to left, the same mirror island-sentence-card uses.
+  wordsRtl: { flexDirection: 'row-reverse' },
+  jaRtl: { writingDirection: 'rtl' },
+  // A pinyin, romanization or transliteration line is Latin text: the UI font carries its tone marks.
+  readingLatin: { fontFamily: fonts.ui },
   unit: { flexDirection: 'row', flexShrink: 1, maxWidth: '100%' },
   ja: {
     fontSize: 22,

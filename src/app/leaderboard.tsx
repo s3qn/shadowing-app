@@ -6,14 +6,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CatAvatar } from '@/components/cat/cat-avatar';
 import { GOLD, LeaderboardRow, ROW_H, type EquippedIds } from '@/components/cat/leaderboard-row';
-import { PrismButton } from '@/components/prism';
 import { Segmented } from '@/components/segmented';
+import { EmptyState, ErrorState } from '@/components/state-blocks';
 import { ITEM_IMAGES } from '@/constants/cosmetic-images';
 import { SLOTS, type Equipped } from '@/constants/cosmetics';
 import { fonts } from '@/constants/fonts';
 import { Radius, Spacing, prism, tide } from '@/constants/theme';
 import { getPracticeLog, streakDays } from '@/lib/practice';
 import { getLeaderboard, getWeeklyLeaderboard, type Leaderboard, type WeeklyEntry, type WeeklyLeaderboard } from '@/lib/api';
+import { devHarmonizeError } from '@/lib/dev-simulate';
 import { useGuideAnchor, useGuideStep } from '@/lib/guide';
 import { useDir, useT } from '@/lib/i18n';
 import { requestLoader } from '@/lib/loading-overlay';
@@ -42,6 +43,7 @@ export default function LeaderboardScreen() {
   tabRef.current = tab;
   const [board, setBoard] = useState<Leaderboard | null>(null);
   const [weekly, setWeekly] = useState<WeeklyLeaderboard | null>(null);
+  const [simFail, setSimFail] = useState(devHarmonizeError);
   const [failedTab, setFailedTab] = useState<Record<Tab, boolean>>({ level: false, week: false });
   const [loadingTab, setLoadingTab] = useState<Record<Tab, boolean>>({ level: true, week: false });
 
@@ -172,21 +174,21 @@ export default function LeaderboardScreen() {
   ) : null;
 
   let body;
-  if (failed) {
+  if (failed || simFail) {
     body = (
-      <View style={styles.center}>
-        <Text style={styles.msg}>{t('leaderboard.failed')}</Text>
-        <PrismButton shape="pill" verb="tools" label={t('leaderboard.retry')} accessibilityLabel={t('leaderboard.retry')} onPress={() => void load(tab)} />
-      </View>
+      <ErrorState
+        message={t('leaderboard.failed')}
+        retryLabel={t('leaderboard.retry')}
+        onRetry={() => {
+          setSimFail(false);
+          void load(tab);
+        }}
+      />
     );
   } else if (loading && !shown) {
     body = null;
   } else if (entries.length === 0) {
-    body = (
-      <View style={styles.center}>
-        <Text style={styles.msg}>{t(week ? 'leaderboard.weeklyEmpty' : 'leaderboard.empty')}</Text>
-      </View>
-    );
+    body = <EmptyState title={t(week ? 'leaderboard.weeklyEmpty' : 'leaderboard.empty')} />;
   } else {
     body = (
       <FlatList
@@ -268,8 +270,6 @@ const HEADER_H = SPOT_H + GAP * 2;
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.lg, padding: Spacing.xl },
-  msg: { fontFamily: fonts.ui, fontSize: 15, color: tide.text, textAlign: 'center' },
   spot: {
     flexDirection: 'row',
     height: SPOT_H,

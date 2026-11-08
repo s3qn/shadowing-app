@@ -74,7 +74,7 @@ export default function LanguagesSettingsScreen() {
     <SafeAreaView edges={['bottom']} style={StyleSheet.flatten([styles.fill, { backgroundColor: tide.sky[0] }])}>
       <ScrollView style={styles.fill} keyboardShouldPersistTaps="handled">
         <Text style={[styles.label, dir.text, dir.rtl && styles.labelRtl]}>{t('settings.languages.learn')}</Text>
-        <LanguagePicker inline mode="learn" value={learning} onChange={pickLearning} exclude={understand} />
+        <LanguagePicker inline mode="learn" value={learning} onChange={pickLearning} exclude={understand} hideExcluded />
         <Text style={[styles.label, dir.text, dir.rtl && styles.labelRtl]}>{t('settings.languages.understand')}</Text>
         <LanguagePicker inline mode="understand" value={understand} onChange={pickUnderstand} exclude={learning} />
       </ScrollView>

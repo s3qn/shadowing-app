@@ -185,11 +185,11 @@ export function IslandSearch({ open, query, onChangeQuery, onClose, grow, rowH }
         }}
       />
       {mounted ? (
-        <Animated.View style={[styles.pill, pillStyle]}>
+        <Animated.View style={[styles.pill, dir.row, dir.rtl && styles.pillRtl, pillStyle]}>
           <View style={styles.icon} pointerEvents="none">
             <SearchIcon color={tide.text} size={18} />
           </View>
-          <Animated.View style={[styles.content, contentStyle]}>
+          <Animated.View style={[styles.content, dir.row, dir.rtl && styles.contentRtl, contentStyle]}>
             <TextInput
               ref={input}
               // Reduced motion jumps straight to open, before this field has
@@ -233,8 +233,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     overflow: 'hidden',
   },
+  // Right to left: the pill grows from the right edge, magnifier at the right, X at the left.
+  pillRtl: { left: undefined, right: 0 },
   icon: { width: PILL_H - 2, height: PILL_H - 2, alignItems: 'center', justifyContent: 'center' },
   content: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingRight: Spacing.md },
+  contentRtl: { paddingRight: 0, paddingLeft: Spacing.md },
   input: {
     flex: 1,
     height: PILL_H - 2,

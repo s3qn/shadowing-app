@@ -32,8 +32,8 @@ export default function VideoBuildScreen() {
     }
     getSettings().then(async (settings) => {
       const { learningLanguage, understoodLanguage } = settings;
-      const voice = await getVoice(learningLanguage);
       const language = toIslandLanguage(learningLanguage);
+      const voice = await getVoice(language);
       try {
         const videoId = parseYouTubeId(url!);
         if (!videoId) throw new Error(t('video.lookupFailed'));

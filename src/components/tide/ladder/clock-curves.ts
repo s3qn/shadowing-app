@@ -21,6 +21,13 @@ export function IOS(x: number): number {
   return -(Math.cos(Math.PI * clamp(x)) - 1) / 2;
 }
 
+/** Easing.inOut(cubic) as a function, clamped to 0..1 (the welcome board's `IOC`). */
+export function IOC(x: number): number {
+  'worklet';
+  const c = clamp(x);
+  return c < 0.5 ? 4 * c * c * c : 1 - Math.pow(-2 * c + 2, 3) / 2;
+}
+
 export function lerp(a: number, b: number, k: number): number {
   'worklet';
   return a + (b - a) * k;

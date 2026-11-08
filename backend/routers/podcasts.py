@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Form, Header, HTTPException
 
 import dependencies
+import languages
 import podcast
 import podcast_catalog
 import store
@@ -50,14 +51,13 @@ async def import_podcast_episode(
     uploaded file is imported."""
     dependencies.require_token(authorization)
     device = dependencies._require_device(x_shadow_device)
-    if language not in ("ja", "es", "en"):
-        raise HTTPException(400, "language must be 'ja', 'es' or 'en'")
+    languages.require_learning(language, device)
     if native not in ("he", "en"):
-        raise HTTPException(400, "native must be 'he' or 'en'")
+        raise HTTPException(400, {"code": "bad_native"})
     if language == native:
-        raise HTTPException(400, "the learning language must differ from the native one")
+        raise HTTPException(400, {"code": "same_language"})
     if voices.language_for(speaker) != language:
-        raise HTTPException(400, "that voice does not speak the chosen language")
+        raise HTTPException(400, {"code": "voice_language_mismatch"})
     if not math.isfinite(start_min) or start_min < 0:
         raise HTTPException(400, "start_min must be a finite number >= 0")
     try:

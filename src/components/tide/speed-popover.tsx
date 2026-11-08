@@ -5,6 +5,7 @@ import { POP, PopoverBubble } from '@/components/tide/popover-bubble';
 import { TICK_RULER_H, TickRuler } from '@/components/tide/tick-ruler';
 import { fonts } from '@/constants/fonts';
 import { SPEED_MAX, SPEED_MIN } from '@/constants/theme';
+import { formatSpeed } from '@/lib/format';
 import { useDir, useT } from '@/lib/i18n';
 
 const PAD_X = 14;
@@ -21,11 +22,6 @@ export const SPEED_STEPS = Math.round((SPEED_MAX - SPEED_MIN) / SPEED_STEP) + 1;
 
 function speedAt(index: number): number {
   return Math.round((SPEED_MIN + index * SPEED_STEP) * 100) / 100;
-}
-
-/** "1.00×". */
-export function speedLabel(speed: number): string {
-  return `${speed.toFixed(2)}×`;
 }
 
 type Props = {
@@ -66,7 +62,7 @@ export function SpeedPopover({ anchorX, anchorTop, width, speed, onSpeed, onSett
           <SymbolView name={{ ios: 'speedometer', android: 'speed' }} size={15} weight="regular" tintColor={POP.goldInk} />
           <Text style={styles.label}>{t('player.toolbarSpeed')}</Text>
         </View>
-        <Text style={styles.readout}>{speedLabel(speed)}</Text>
+        <Text style={styles.readout}>{formatSpeed(speed)}</Text>
       </View>
       <TickRuler
         width={RULER_W}
@@ -79,7 +75,7 @@ export function SpeedPopover({ anchorX, anchorTop, width, speed, onSpeed, onSett
         onSettle={(i) => onSettle(speedAt(i))}
         isMajor={(i) => i % 5 === 0}
         tickLabel={(i) => String(speedAt(i))}
-        accessibilityLabel={t('player.speedAccessibility', { label: speedLabel(speed) })}
+        accessibilityLabel={t('player.speedAccessibility', { label: formatSpeed(speed) })}
       />
     </PopoverBubble>
   );

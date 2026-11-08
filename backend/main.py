@@ -250,4 +250,26 @@ async def _align_startup() -> None:
 import review_deck  # noqa: E402
 
 
+# --- lang-core ---
+import languages  # noqa: E402
+
+languages.check_startup()
+# --- end lang-core ---
+
+# --- tts-providers ---
+import tts_local  # noqa: E402
+
+# tts-providers: hosted providers register here
+import tts_hosted  # noqa: E402
+
+tts_hosted.register_all()
+
+
+@app.on_event("startup")
+async def _tts_startup() -> None:
+    # A worker scope from the previous process may still hold 3G.
+    await asyncio.to_thread(tts_local.stop_leftover_scopes)
+# --- end tts-providers ---
+
+
 

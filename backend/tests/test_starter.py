@@ -15,6 +15,7 @@ from routers import takes as takes_r
 from services import line_audio
 import config
 import dependencies
+import languages
 import phrase_catalog
 import progression
 import progression_shop
@@ -139,7 +140,18 @@ def test_upload_is_lenient_only_on_the_guides_first_greetings_take(monkeypatch, 
     assert lenient() is False
 
 
-@pytest.mark.parametrize("lang", ["ja", "en", "es"])
+# Every language with a voice must have both starter islands baked, or
+# languages.available() hides it from the picker.
+INTRO_LANGS = [c for c in languages.LANGUAGES if voices.has_voice(c)]
+
+
+@pytest.mark.parametrize("lang", INTRO_LANGS)
+def test_intro_is_baked_for_every_language_with_a_voice(lang):
+    assert starter.has_intro(lang, "new") and starter.has_intro(lang, "some")
+    assert languages.available(lang)
+
+
+@pytest.mark.parametrize("lang", INTRO_LANGS)
 def test_intro_seeds_a_ready_three_line_starter_island(lang):
     store.init()
     for native, title in (("en", "First steps"), ("he", "צעדים ראשונים")):
@@ -173,7 +185,7 @@ def test_starter_route_is_instant_free_and_idempotent():
     assert err.value.status_code == 400
 
 
-@pytest.mark.parametrize("lang", ["ja", "en", "es"])
+@pytest.mark.parametrize("lang", INTRO_LANGS)
 def test_intro_some_seeds_three_longer_ready_lines(lang):
     store.init()
     island = store.get_island(starter.seed_intro(_dev(), lang, "he", "some"))

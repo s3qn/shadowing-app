@@ -8,16 +8,18 @@
 
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { PrismButton } from '@/components/prism/prism-button';
 import { BottomSheet } from '@/components/sheet/bottom-sheet';
 import { fonts } from '@/constants/fonts';
 import { tide } from '@/constants/theme';
+import { useBetaFeatures } from '@/lib/beta';
 import { hapticImpact } from '@/lib/haptics';
 import { useDir, useT } from '@/lib/i18n';
 import { clearStreakMoment } from '@/lib/level-up-store';
-import { setSeenStreak } from '@/lib/practice';
+import { WeekRow } from '@/components/home/week-row';
+import { setSeenStreak, type PracticeLog } from '@/lib/practice';
 import { useProgressCache } from '@/lib/progression';
 import { buyFreezeFlow, freezeInfo } from '@/lib/streak-freeze';
 
@@ -42,11 +44,12 @@ function Pip({ on }: { on: boolean }) {
   );
 }
 
-export function StreakSheet({ open, onClose, streak, longest }: { open: boolean; onClose: () => void; streak: number; longest: number }) {
+export function StreakSheet({ open, onClose, streak, longest, log }: { open: boolean; onClose: () => void; streak: number; longest: number; log?: PracticeLog }) {
   const { t, locale } = useT();
   const { width: screenW } = useWindowDimensions();
   const dir = useDir();
   const { progress } = useProgressCache();
+  const beta = useBetaFeatures().beta;
   const info = freezeInfo(progress);
   // True from the Buy tap until the confirm settles: the sheet steps aside for it.
   const [buying, setBuying] = useState(false);
@@ -70,47 +73,54 @@ export function StreakSheet({ open, onClose, streak, longest }: { open: boolean;
           <Text style={styles.heroNum}>{streak}</Text>
           <View>
             <Text style={[styles.heroLabel, dir.text]}>{t('streak.dayStreak', { n: streak })}</Text>
-            <Text style={[styles.heroSub, dir.text]}>{t('streak.longest', { n: Math.max(longest, streak) })}</Text>
+            {/* The longest streak lives in the server's progress (beta); without it the line would only repeat the streak. */}
+            {progress ? <Text style={[styles.heroSub, dir.text]}>{t('streak.longest', { n: Math.max(longest, streak) })}</Text> : null}
           </View>
         </View>
-        <View style={[styles.held, dir.row]} accessible accessibilityLabel={t('streak.held', { held: info.held, cap: info.cap })}>
-          <View style={styles.pips}>
-            {Array.from({ length: info.cap }, (_, i) => (
-              <Pip key={i} on={i < info.held} />
-            ))}
-          </View>
-          <Text style={styles.heldText}>{t('streak.held', { held: info.held, cap: info.cap })}</Text>
-        </View>
-        {lastUsed ? (
-          <Text style={styles.hint}>
-            {t('streak.lastUsed', { date: new Date(`${lastUsed}T12:00:00`).toLocaleDateString(locale, { month: 'short', day: 'numeric' }) })}
-          </Text>
+        {log ? <WeekRow log={log} /> : null}
+        {/* Freezes cost coins, which are beta: without beta the sheet is the streak and the week. */}
+        {beta ? (
+          <>
+            <View style={[styles.held, dir.row]} accessible accessibilityLabel={t('streak.held', { held: info.held, cap: info.cap })}>
+              <View style={styles.pips}>
+                {Array.from({ length: info.cap }, (_, i) => (
+                  <Pip key={i} on={i < info.held} />
+                ))}
+              </View>
+              <Text style={styles.heldText}>{t('streak.held', { held: info.held, cap: info.cap })}</Text>
+            </View>
+            {lastUsed ? (
+              <Text style={styles.hint}>
+                {t('streak.lastUsed', { date: new Date(`${lastUsed}T12:00:00`).toLocaleDateString(locale, { month: 'short', day: 'numeric' }) })}
+              </Text>
+            ) : null}
+            {/* Disabled at the mock's 0.55, not PrismButton's own 0.35. */}
+            <View style={!info.canBuy && styles.off} pointerEvents={info.canBuy ? 'auto' : 'none'}>
+              <PrismButton
+                shape="pill"
+                flat
+                verb="tools"
+                width={screenW - 40}
+                height={44}
+                accessibilityLabel={t('streak.buy', { n: info.price })}
+                accessibilityState={{ disabled: !info.canBuy }}
+                containerStyle={styles.stretch}
+                style={styles.buyFace}
+                onPress={() => setBuying(true)}>
+                <Text style={styles.buyText}>{t('streak.buyLabel')}</Text>
+                <CoinChip n={info.price} />
+              </PrismButton>
+            </View>
+            {buyHint ? <Text style={styles.hint}>{buyHint}</Text> : null}
+            <Text style={styles.how}>{t('streak.how')}</Text>
+          </>
         ) : null}
-        {/* Disabled at the mock's 0.55, not PrismButton's own 0.35. */}
-        <View style={!info.canBuy && styles.off} pointerEvents={info.canBuy ? 'auto' : 'none'}>
-          <PrismButton
-            shape="pill"
-            flat
-            verb="tools"
-            width={screenW - 40}
-            height={44}
-            accessibilityLabel={t('streak.buy', { n: info.price })}
-            accessibilityState={{ disabled: !info.canBuy }}
-            containerStyle={styles.stretch}
-            style={styles.buyFace}
-            onPress={() => setBuying(true)}>
-            <Text style={styles.buyText}>{t('streak.buyLabel')}</Text>
-            <CoinChip n={info.price} />
-          </PrismButton>
-        </View>
-        {buyHint ? <Text style={styles.hint}>{buyHint}</Text> : null}
-        <Text style={styles.how}>{t('streak.how')}</Text>
       </View>
     </BottomSheet>
   );
 }
 
-/** M3-3: the streak ended. Start a new one (the review run), buy a freeze for it, or Not now. */
+/** M3-3: the streak ended. Start a new one (the review run), buy a freeze for it, or Done. */
 export function StreakBrokenSheet({ lost }: { lost: number }) {
   const { t } = useT();
   const { width: screenW } = useWindowDimensions();
@@ -133,6 +143,7 @@ export function StreakBrokenSheet({ lost }: { lost: number }) {
   return (
     <BottomSheet
       open={open}
+      title={t('streak.title')}
       onClose={close}
       onDismissed={() => {
         if (after.current === 'buy') {
@@ -191,9 +202,6 @@ export function StreakBrokenSheet({ lost }: { lost: number }) {
               }}
             />
           ) : null}
-          <Pressable onPress={close} accessibilityRole="button" style={styles.notNow} hitSlop={6}>
-            <Text style={styles.notNowText}>{t('streak.notNow')}</Text>
-          </Pressable>
         </View>
       </View>
     </BottomSheet>
@@ -265,6 +273,4 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(156,214,255,0.25)',
   },
   readyText: { fontFamily: fonts.ui, fontSize: 14, fontWeight: '600', color: tide.textDim },
-  notNow: { alignItems: 'center', padding: 8 },
-  notNowText: { fontFamily: fonts.ui, fontSize: 14, color: tide.textDim },
 });

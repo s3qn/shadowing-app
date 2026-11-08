@@ -1,0 +1,324 @@
+{
+ "language": "ko",
+ "title": {
+  "en": "First steps",
+  "he": "צעדים ראשונים"
+ },
+ "lines": [
+  {
+   "ja": "역으로 가는 길을 알려 주시겠어요?",
+   "kana": "",
+   "romaji": "yeogeuro ganeun gireul alryeo jusigesseoyo?",
+   "gloss": {
+    "en": "Could you tell me the way to the station?",
+    "he": "אפשר להסביר לי איך מגיעים לתחנה?"
+   },
+   "duration": 3.393666666666667,
+   "timeline": [],
+   "words": [
+    {
+     "text": "역으로",
+     "start": 0.0,
+     "end": 0.62,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "역으로",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "가는",
+     "start": 0.62,
+     "end": 0.96,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "가는",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "길을",
+     "start": 0.96,
+     "end": 1.44,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "길을",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "알려",
+     "start": 1.44,
+     "end": 1.928,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "알려",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "주시겠어요?",
+     "start": 1.928,
+     "end": 3.394,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "주시겠어요?",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "이번 주말에 친구들과 영화를 보러 갈 계획이에요.",
+   "kana": "",
+   "romaji": "ibeon jumare chingudeulgwa yeonghwareul boreo gal gyehoegieyo.",
+   "gloss": {
+    "en": "This weekend I plan to go and see a movie with friends.",
+    "he": "בסוף השבוע אני מתכנן ללכת לראות סרט עם חברים."
+   },
+   "duration": 4.310875,
+   "timeline": [],
+   "words": [
+    {
+     "text": "이번",
+     "start": 0.0,
+     "end": 0.46,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "이번",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "주말에",
+     "start": 0.46,
+     "end": 1.06,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "주말에",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "친구들과",
+     "start": 1.06,
+     "end": 1.66,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "친구들과",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "영화를",
+     "start": 1.66,
+     "end": 2.12,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "영화를",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "보러",
+     "start": 2.12,
+     "end": 2.52,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "보러",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "갈",
+     "start": 2.52,
+     "end": 2.68,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "갈",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "계획이에요.",
+     "start": 2.68,
+     "end": 4.311,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "계획이에요.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ja": "여기로 이사 온 뒤로 매일 아침 동네를 산책하는 게 습관이 되었어요.",
+   "kana": "",
+   "romaji": "yeogiro isa on dwiro maeil achim dongnereul sanchaekhaneun ge seupgwani doeeosseoyo.",
+   "gloss": {
+    "en": "Since moving here, a walk around the neighbourhood every morning has become a habit.",
+    "he": "מאז שעברתי לכאן, טיול בשכונה כל בוקר נהיה הרגל."
+   },
+   "duration": 5.553125,
+   "timeline": [],
+   "words": [
+    {
+     "text": "여기로",
+     "start": 0.0,
+     "end": 0.56,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "여기로",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "이사",
+     "start": 0.56,
+     "end": 0.853,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "이사",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "온",
+     "start": 0.853,
+     "end": 1.0,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "온",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "뒤로",
+     "start": 1.0,
+     "end": 1.43,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "뒤로",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "매일",
+     "start": 1.43,
+     "end": 1.9,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "매일",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "아침",
+     "start": 1.9,
+     "end": 2.12,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "아침",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "동네를",
+     "start": 2.12,
+     "end": 2.7,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "동네를",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "산책하는",
+     "start": 2.7,
+     "end": 3.388,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "산책하는",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "게",
+     "start": 3.388,
+     "end": 3.56,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "게",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "습관이",
+     "start": 3.56,
+     "end": 4.12,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "습관이",
+       "rt": ""
+      }
+     ]
+    },
+    {
+     "text": "되었어요.",
+     "start": 4.12,
+     "end": 5.553,
+     "pos": "other",
+     "ruby": [
+      {
+       "text": "되었어요.",
+       "rt": ""
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -92,6 +92,8 @@ export function PrismButton({
   tint,
   label,
   labelStyle,
+  fitLabel,
+  labelOpacity,
   trailing,
   value,
   style,
@@ -234,6 +236,8 @@ export function PrismButton({
           tint={tint}
           label={label}
           labelStyle={labelStyle}
+          fitLabel={fitLabel}
+          labelOpacity={labelOpacity}
           trailing={trailing}
           value={value}
           style={style}>

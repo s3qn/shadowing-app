@@ -37,8 +37,8 @@ export default function PhrasesBuildScreen() {
     setError('');
     getSettings().then(async (settings) => {
       const { learningLanguage, understoodLanguage } = settings;
-      const voice = await getVoice(learningLanguage);
       const language = toIslandLanguage(learningLanguage);
+      const voice = await getVoice(language);
       const native = toNativeLanguage(understoodLanguage);
       (starter
         ? api.startStarter(language, native, settings.starterLevel)

@@ -1,0 +1,17 @@
+export const ja = {
+  'podcast.listen': 'エピソードを聞く',
+  'podcast.loadFailed': 'エピソードの音声を読み込めませんでした。',
+  'podcast.bestBits.title': 'このエピソードから{n}文をシャドーイングしますか？',
+  'podcast.aiPick.label': 'AIで文を選ぶ',
+  'podcast.aiPick.hint': '保存した文はまだありません。キラキラをタップすると、AIがシャドーイング向きの文を選びます。',
+  'podcast.aiPick.confirmTitle': 'AIに文を選ばせますか？',
+  'podcast.aiPick.confirmBody': 'このエピソードから、やさしい文を5〜10文選んで保存します。エネルギーを3使います。',
+  'podcast.aiPick.confirm': '文を選ぶ',
+  'podcast.aiPick.cancel': '今はしない',
+  'podcast.aiPick.done': '{n}文を保存しました',
+  'podcast.aiPick.done_one': '{n}文を保存しました',
+  'api.pick_failed': 'AIがこのエピソードから文を選べませんでした。エネルギーは使われていません。',
+  'api.not_podcast': 'ポッドキャストのエピソードからのみ選べます。',
+  'api.has_cards': 'このエピソードには、すでに保存した文があります。',
+  'api.no_lines': 'このエピソードは、選べるほどはっきりした文が少ないです。エネルギーは使われていません。',
+};

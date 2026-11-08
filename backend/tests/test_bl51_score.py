@@ -197,6 +197,23 @@ WORDS = [
 ]
 
 
+def test_zh_content_score_counts_characters():
+    line = "我明天和朋友一起学习中文。"
+    assert tc.content_score(line, "我明天和朋友一起学习中文", "zh") == 100
+    assert tc.content_score(line, "我明天和朋友一起学习英文", "zh") == 92
+    assert tc.content_score(line, "", "zh") == 0
+
+
+def test_ko_content_score_counts_syllables_and_ignores_spacing():
+    assert tc.content_score("학교에 가요.", "학교에가요", "ko") == 100
+    assert tc.content_score("학교에 가요.", "학교에 와요", "ko") == 80
+
+
+def test_zh_span_text_joins_without_spaces():
+    words = [{"text": "你好", "start": 0.0, "end": 0.5}, {"text": "世界", "start": 0.5, "end": 1.0}]
+    assert tc.span_text(words, (0, 1000), 1.0, "你好世界", "zh") == "你好世界"
+
+
 def test_span_text_keeps_only_words_in_the_span():
     assert tc.span_text(WORDS, None, 1.0, LINE, "ja") == LINE
     # at half speed the second word renders from 1200 ms to 2400 ms

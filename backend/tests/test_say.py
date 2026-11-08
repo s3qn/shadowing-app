@@ -15,6 +15,7 @@ import energy
 import generate
 import llm
 import main
+from tts_registry import Render
 from routers import create as create_r
 from routers import islands as islands_r
 import config
@@ -218,8 +219,8 @@ def test_bumping_the_prompt_version_misses_the_cache(monkeypatch):
 def pipeline(monkeypatch):
     seen = {"transcribe": 0, "say": []}
 
-    async def speak_timed(text, speaker):
-        return b"RIFF", [], 1.0, "", []
+    async def render(text, speaker, device="", speed=1.0):
+        return Render(b"RIFF", 1.0, voice=speaker)
 
     def to_wav(src, dst):
         dst.parent.mkdir(parents=True, exist_ok=True)
@@ -240,7 +241,7 @@ def pipeline(monkeypatch):
     monkeypatch.setattr(media, "_to_wav", to_wav)
     monkeypatch.setattr(main.transcribe, "transcribe", transcribe)
     monkeypatch.setattr(main.generate, "say_lines", say_lines)
-    monkeypatch.setattr(main.voices, "speak_timed", speak_timed)
+    monkeypatch.setattr(main.voices, "render", render)
     monkeypatch.setattr(main.segment, "align", lambda *a, **k: [])
     monkeypatch.setattr(main.latin, "align", lambda *a, **k: [])
     return seen

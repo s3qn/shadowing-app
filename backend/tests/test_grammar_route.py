@@ -9,6 +9,7 @@ from fastapi import BackgroundTasks, HTTPException, UploadFile
 
 import grammar
 import main
+from tts_registry import Render
 from routers import grammar as grammar_r
 from routers import create as create_r
 import config
@@ -31,8 +32,8 @@ def _init_db():
 def fakes(monkeypatch):
     seen = {"expand": 0, "point": None}
 
-    async def speak_timed(text, speaker):
-        return b"RIFF", [], 1.0, "", []
+    async def render(text, speaker, device="", speed=1.0):
+        return Render(b"RIFF", 1.0, voice=speaker)
 
     def gen(point, seed, register="polite", native="en"):
         seen["point"] = point
@@ -60,7 +61,7 @@ def fakes(monkeypatch):
     monkeypatch.setattr(main.generate, "expand_topic", expand)
     monkeypatch.setattr(main.generate, "generate_lines",
                         lambda *a, **k: {"title": "T", "lines": [{"ja": "走る。", "en": "r"}]})
-    monkeypatch.setattr(main.voices, "speak_timed", speak_timed)
+    monkeypatch.setattr(main.voices, "render", render)
     monkeypatch.setattr(main.segment, "align", lambda *a, **k: [])
     monkeypatch.setattr(media, "_to_wav", to_wav)
     return seen

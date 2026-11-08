@@ -5,11 +5,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { OnboardingSky } from '@/components/onboarding/onboarding-sky';
 import { SignInStep } from '@/components/onboarding/sign-in-step';
 import { getUsername } from '@/lib/api';
+import { useExitScreen } from '@/lib/use-exit-screen';
 
 /** The account step on its own: a returning install with no session, and
  * the place Settings sends you after sign-out or account deletion. */
 export default function SignInScreen() {
   const router = useRouter();
+  const exit = useExitScreen('/(tabs)');
 
   // A new account has no handle yet: go on to the required username screen.
   // A failed lookup does not block, the launch check retries.
@@ -21,8 +23,7 @@ export default function SignInScreen() {
       missing = false;
     }
     if (missing) router.replace({ pathname: '/username', params: { first: '1' } });
-    else if (router.canGoBack()) router.back();
-    else router.replace('/(tabs)');
+    else exit();
   }
   return (
     <View style={styles.fill}>

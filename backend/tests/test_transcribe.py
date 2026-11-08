@@ -68,6 +68,29 @@ def test_word_timestamps_true_passes_expected_kwargs_to_model(fake_model, audio_
     assert kwargs["condition_on_previous_text"] is False
 
 
+def test_initial_prompt_reaches_the_model_only_when_given(fake_model, audio_path):
+    transcribe.transcribe(audio_path, language="zh", initial_prompt="你好，今天我们聊聊工作。")
+    assert fake_model.calls[-1]["initial_prompt"] == "你好，今天我们聊聊工作。"
+    transcribe.transcribe(audio_path, language="zh")
+    assert "initial_prompt" not in fake_model.calls[-1]
+
+
+def test_zh_text_and_words_come_back_simplified(monkeypatch, audio_path):
+    seg = SimpleNamespace(start=0.0, end=1.0, text=" 我們在學校", words=[
+        SimpleNamespace(start=0.0, end=0.5, word="我們"),
+        SimpleNamespace(start=0.5, end=1.0, word="在學校"),
+    ])
+
+    class Model:
+        def transcribe(self, path, **kwargs):
+            return iter([seg]), SimpleNamespace(language="zh")
+
+    monkeypatch.setattr(transcribe, "_get_model", lambda: Model())
+    result = transcribe.transcribe(audio_path, language="zh", word_timestamps=True)
+    assert result["text"] == "我们在学校"
+    assert [w["text"] for w in result["words"]] == ["我们", "在学校"]
+
+
 def test_defaults_have_no_words_and_no_vad(fake_model, audio_path):
     result = transcribe.transcribe(audio_path)
 
@@ -179,7 +202,7 @@ def test_model_gets_two_workers(monkeypatch):
     fake = ModuleType("faster_whisper")
     fake.WhisperModel = lambda *a, **k: seen.update(k) or object()
     monkeypatch.setitem(sys.modules, "faster_whisper", fake)
-    monkeypatch.setattr(transcribe, "_MODEL", None)
+    monkeypatch.setattr(transcribe, "_MODELS", {})
     transcribe.warm_up()
     assert seen["num_workers"] == 2
 

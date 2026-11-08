@@ -13,6 +13,7 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerStyle: { backgroundColor: tide.sky[0] },
+        headerShadowVisible: false,
         headerTintColor: tide.text,
         headerTitleStyle: { fontWeight: '600' },
         // Hebrew: the title sits at the right, next to Home's mirrored search button.

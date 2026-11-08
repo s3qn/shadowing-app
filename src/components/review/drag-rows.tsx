@@ -24,6 +24,7 @@ import { tide } from '@/constants/theme';
 import { prefetchSessionLines, type SessionProject } from '@/lib/api';
 import { hapticImpact, hapticSelection } from '@/lib/haptics';
 import { useT } from '@/lib/i18n';
+import { ltr } from '@/lib/bidi';
 
 const AnimatedScroll = Animated.createAnimatedComponent(ScrollView);
 
@@ -355,7 +356,7 @@ function DragRow({ p, slot, rows, order, active, enabled, dirRow, rtl, openId, k
         <GestureDetector gesture={chevTap}>
           <Animated.View style={[styles.chev, chevStyle]}>
             {Platform.OS === 'web' ? (
-              <Text style={styles.chevWeb}>{rtl ? '‹' : '›'}</Text>
+              <Text style={styles.chevWeb}>{ltr(rtl ? '‹' : '›')}</Text>
             ) : (
               <SymbolView name={rtl ? { ios: 'chevron.left', android: 'chevron_left' } : { ios: 'chevron.right', android: 'chevron_right' }} size={16} weight="semibold" tintColor={tide.textDim} />
             )}
